@@ -31,24 +31,31 @@
 - id
 - title
 - date
-- time
+- startTime
+- endTime
+- status
+- assignedMembers (array of document IDs)
 - createdAt
 - updatedAt
 
 ---
 
-## scheduleAssignments
+## attendanceSessions
 
 - id
 - scheduleId
-- memberId
+- locked
+- finalizedAt
+- finalizedBy
 - createdAt
+- updatedAt
 
 ---
 
 ## attendance
 
 - id
+- sessionId
 - memberId
 - scheduleId
 - status
@@ -61,17 +68,11 @@
 
 Relationships
 
-Member
-
-↓
-
-Schedule Assignment
-
-↓
-
-Schedule
-
-↓
-
-Attendance
+Member (references)
+  ↓
+Schedule (assignedMembers array)
+  ↓
+AttendanceSession (scheduleId reference)
+  ↓
+Attendance (references sessionId, scheduleId, memberId)
 
