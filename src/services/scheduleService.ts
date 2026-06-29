@@ -1,0 +1,154 @@
+import { 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc,
+  getDoc,
+  getDocs, 
+  query, 
+  where, 
+  serverTimestamp,
+  orderBy,
+  limit
+} from 'firebase/firestore'
+import { db } from '@/firebase/config'
+import type { Schedule, ScheduleInput } from '@/types/schedule'
+import { isTimeOverlapping } from '@/utils/scheduleUtils'
+import { getFullName } from '@/utils/member'
+import type { Member } from '@/types/member'
+
+const SCHEDULES_COLLECTION = 'schedules'
+const ATTENDANCE_COLLECTION = 'attendance'
+const MEMBERS_COLLECTION = 'members'
+
+export const scheduleService = {
+  /**
+   * Retrieves all schedules sorted chronologically by date and startTime.
+   */
+  async getSchedules(): Promise<Schedule[]> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const q = query(schedulesRef, orderBy('date'), orderBy('startTime'))
+    const snapshot = await getDocs(q)
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Schedule[]
+  },
+
+  /**
+   * Adds a new service schedule.
+   */
+  async addSchedule(input: ScheduleInput): Promise<string> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const docRef = await addDoc(schedulesRef, {
+      title: input.title.trim(),
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      status: input.status || 'upcoming',
+      assignedMembers: input.assignedMembers || [],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp()
+    })
+    return docRef.id
+  },
+
+  /**
+   * Updates schedule details (title, date, start/end time, or cancellation status).
+   */
+  async updateSchedule(id: string, input: Partial<ScheduleInput>): Promise<void> {
+    const docRef = doc(db, SCHEDULES_COLLECTION, id)
+    const updateData: any = {
+      updatedAt: serverTimestamp()
+    }
+
+    if (input.title !== undefined) updateData.title = input.title.trim()
+    if (input.date !== undefined) updateData.date = input.date
+    if (input.startTime !== undefined) updateData.startTime = input.startTime
+    if (input.endTime !== undefined) updateData.endTime = input.endTime
+    if (input.status !== undefined) updateData.status = input.status
+
+    await updateDoc(docRef, updateData)
+  },
+
+  /**
+   * Deletes a schedule, blocking deletion if attendance is already taken.
+   */
+  async deleteSchedule(id: string): Promise<void> {
+    // Check if attendance already taken
+    const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
+    const q = query(attendanceRef, where('scheduleId', '==', id), limit(1))
+    const attendanceSnap = await getDocs(q)
+    
+    if (!attendanceSnap.empty) {
+      throw new Error('Cannot delete schedule because attendance records have already been recorded.')
+    }
+
+    const docRef = doc(db, SCHEDULES_COLLECTION, id)
+    await deleteDoc(docRef)
+  },
+
+  /**
+   * Assigns a list of members to a schedule.
+   * Performs validation to prevent double-booking members to overlapping schedules on the same day.
+   */
+  async assignMembers(scheduleId: string, memberIds: string[]): Promise<void> {
+    const scheduleRef = doc(db, SCHEDULES_COLLECTION, scheduleId)
+    const scheduleSnap = await getDoc(scheduleRef)
+    if (!scheduleSnap.exists()) {
+      throw new Error('Schedule not found.')
+    }
+
+    const targetSchedule = scheduleSnap.data() as Schedule
+    
+    // Skip overlap validation if the target schedule is cancelled
+    if (targetSchedule.status === 'cancelled') {
+      await updateDoc(scheduleRef, {
+        assignedMembers: memberIds,
+        updatedAt: serverTimestamp()
+      })
+      return
+    }
+
+    // Load other active schedules on the same date
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const q = query(
+      schedulesRef, 
+      where('date', '==', targetSchedule.date),
+      where('status', 'in', ['upcoming', 'ongoing', 'completed']) // exclude cancelled
+    )
+    
+    const snapshot = await getDocs(q)
+    const otherSchedules = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }) as Schedule)
+      .filter(s => s.id !== scheduleId) // exclude target schedule
+
+    // Perform conflict check for each member being assigned
+    for (const memberId of memberIds) {
+      const conflictingSchedule = otherSchedules.find(other => 
+        other.assignedMembers.includes(memberId) &&
+        isTimeOverlapping(targetSchedule.startTime, targetSchedule.endTime, other.startTime, other.endTime)
+      )
+
+      if (conflictingSchedule) {
+        // Retrieve member profile to formulate a helpful error message
+        const memberRef = doc(db, MEMBERS_COLLECTION, memberId)
+        const memberSnap = await getDoc(memberRef)
+        const memberName = memberSnap.exists() 
+          ? getFullName(memberSnap.data() as Member)
+          : `Member (${memberId})`
+        
+        throw new Error(
+          `Conflict detected: ${memberName} is already assigned to "${conflictingSchedule.title}" (${conflictingSchedule.startTime} - ${conflictingSchedule.endTime}) on this date.`
+        )
+      }
+    }
+
+    // Save assignments directly inside the schedule document
+    await updateDoc(scheduleRef, {
+      assignedMembers: memberIds,
+      updatedAt: serverTimestamp()
+    })
+  }
+}
