@@ -7,6 +7,7 @@ import { DashboardOverview } from '@/features/dashboard/components/DashboardOver
 import { PlaceholderPage } from '@/components/PlaceholderPage'
 import { MembersPage } from '@/features/members/pages/MembersPage'
 import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
+import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
 
 function App() {
   return (
@@ -45,7 +46,7 @@ function App() {
             
             <Route 
               path="/attendance" 
-              element={<PlaceholderPage title="Attendance Tracking" phase="Phase 5" />} 
+              element={<AttendancePage />} 
             />
             
             <Route 
