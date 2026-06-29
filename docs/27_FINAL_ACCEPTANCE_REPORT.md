@@ -24,25 +24,19 @@ This document details the final acceptance test outcomes and production status f
 - [x] **Alpha Sorting:** Alphanumeric sorting sorts lists alphabetically by `lastName` and then `firstName`.
 - [x] **CSV Uploads:** Templates are BOM-compatible. Imports check duplicates against active records, flagging preview issues before sequential batch writes (seq chunk limits of 500 records).
 
-### 1.4 Schedule Management
-- [x] **CRUD Operations:** Captures `startTime` and `endTime` duration limits.
-- [x] **Overlapping Check:** Checks other active schedules on that date. Blocks saving and warns the admin if a member is already booked to a conflicting service time block.
-- [x] **Dynamic Status badges:** Computes current status (`upcoming`, `ongoing`, `completed`, `cancelled`) in real-time.
-- [x] **Delete Restriction:** Deleting is blocked if attendance is already recorded for that schedule ID.
-
 ### 1.5 Attendance Tracking
 - [x] **Visual Grid:** Lists assigned servers mapped by full names.
 - [x] **Status Toggles:** Option buttons (Present, Late, Absent, Excused) update live counters.
 - [x] **Bulk Selection:** Markup helper buttons (Present All, Absent All, Clear) work perfectly.
 - [x] **Locking Sessions:** Sessions can be finalized and locked, making all inputs read-only.
 - [x] **Dirty Check Warning:** Prompts confirmations before internal page transitions or browser reloads if changes are unsaved.
-- [x] **Facebook Community Post Generator:** Generates formatted attendance text with categorized listings and copying capabilities (modal with copy-to-clipboard button).
+- [x] **Facebook Community Post Generator:** Generates formatted attendance text with categorized listings, a customized closing message for servers, and copying capabilities (modal with copy-to-clipboard button).
 
 ### 1.6 Reports & Analytics
 - [x] **Tabbed Analytics:** Summary, Member Reports, Schedule Reports, Monthly Analytics.
 - [x] **Percentage Accuracy:** Reuses rate checks `Present / Total * 100` rounded to **two decimal places** (e.g. `96.15%`).
 - [x] **Filtered BOM CSV:** Exports visible columns and search results matching dates, terms, or years.
-- [x] **Branded Weekly Report PNG Card:** Dynamically draws and exports a clean card image (Canvas 2D client-side export) displaying dates, rates, and counters.
+- [x] **Branded Weekly Report PNG Card:** Dynamically draws and exports a clean card image (Canvas 2D client-side export) displaying dates, rates, counters, and a clean tabular summary of metrics.
 
 ---
 
