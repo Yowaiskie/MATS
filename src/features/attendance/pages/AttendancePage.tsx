@@ -7,6 +7,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { Card } from '@/components/Card'
 import { AttendanceHeader } from '../components/AttendanceHeader'
 import { AttendanceRow } from '../components/AttendanceRow'
+import { CommunityPostModal } from '../components/CommunityPostModal'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
@@ -40,6 +41,7 @@ export const AttendancePage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [postModalOpen, setPostModalOpen] = useState(false)
 
   // Initialize form state
   const isDirty = JSON.stringify(formState) !== JSON.stringify(originalState)
@@ -312,6 +314,7 @@ export const AttendancePage: React.FC = () => {
           summary={computedSummary}
           onBulkAction={handleBulkAction}
           onToggleLock={handleToggleLock}
+          onGeneratePost={() => setPostModalOpen(true)}
           isSaving={saving}
         />
       )}
@@ -369,6 +372,16 @@ export const AttendancePage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {schedule && (
+        <CommunityPostModal
+          isOpen={postModalOpen}
+          onClose={() => setPostModalOpen(false)}
+          schedule={schedule}
+          assignedMembers={assignedMembers}
+          formState={formState}
+        />
+      )}
     </div>
   )
 }
