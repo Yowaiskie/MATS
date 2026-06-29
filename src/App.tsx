@@ -4,10 +4,10 @@ import { ProtectedRoute, PublicRoute } from '@/features/authentication/component
 import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
-import { PlaceholderPage } from '@/components/PlaceholderPage'
 import { MembersPage } from '@/features/members/pages/MembersPage'
 import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
+import { ReportsPage } from '@/features/reports/pages/ReportsPage'
 
 function App() {
   return (
@@ -51,7 +51,7 @@ function App() {
             
             <Route 
               path="/reports" 
-              element={<PlaceholderPage title="Weekly & Monthly Reports" phase="Phase 6" />} 
+              element={<ReportsPage />} 
             />
           </Route>
 

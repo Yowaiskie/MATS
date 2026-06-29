@@ -33,12 +33,11 @@ export const calculateAttendanceSummary = (
 }
 
 /**
- * Computes an attendance percentage rate based on Present & Late records over Total assigned.
+ * Computes attendance percentage rate rounded to two decimal places:
+ * Present / (Present + Late + Absent + Excused) * 100
  */
 export const calculateAttendanceRate = (summary: AttendanceSummary): number => {
   if (summary.total === 0) return 0
-  
-  // Present and Late are considered active attendance service actions
-  const activeCount = summary.present + summary.late
-  return Math.round((activeCount / summary.total) * 100)
+  const rate = (summary.present / summary.total) * 100
+  return Number(rate.toFixed(2))
 }
