@@ -6,6 +6,7 @@ import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
 import { PlaceholderPage } from '@/components/PlaceholderPage'
 import { MembersPage } from '@/features/members/pages/MembersPage'
+import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
 
 function App() {
   return (
@@ -39,7 +40,7 @@ function App() {
             
             <Route 
               path="/schedules" 
-              element={<PlaceholderPage title="Schedule Management" phase="Phase 4" />} 
+              element={<SchedulesPage />} 
             />
             
             <Route 
