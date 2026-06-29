@@ -60,7 +60,7 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // members, schedules, scheduleAssignments, and attendance collections
+    // members, schedules, attendanceSessions, and attendance collections
     // Only authenticated admins can Read, Create, Update, Delete
     match /members/{memberId} {
       allow read, write: if isAdmin();
@@ -70,7 +70,7 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
     
-    match /scheduleAssignments/{assignmentId} {
+    match /attendanceSessions/{sessionId} {
       allow read, write: if isAdmin();
     }
     
@@ -146,3 +146,28 @@ VITE_FIREBASE_APP_ID=your-app-id
    ```bash
    firebase deploy --only hosting
    ```
+
+---
+
+## 8. Required Firestore Composite Indexes
+
+To support compound filtering and alphabetical/chronological sorting, create the following composite indexes in the **Firestore Database** > **Indexes** tab:
+
+1. **Collection ID:** `members`
+   - **Fields:**
+     - `lastName` (Ascending)
+     - `firstName` (Ascending)
+   - **Query Scope:** Single Collection
+
+2. **Collection ID:** `members`
+   - **Fields:**
+     - `status` (Ascending)
+     - `lastName` (Ascending)
+     - `firstName` (Ascending)
+   - **Query Scope:** Single Collection
+
+3. **Collection ID:** `schedules`
+   - **Fields:**
+     - `date` (Ascending)
+     - `startTime` (Ascending)
+   - **Query Scope:** Single Collection
