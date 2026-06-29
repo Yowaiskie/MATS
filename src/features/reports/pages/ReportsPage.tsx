@@ -189,14 +189,14 @@ export const ReportsPage: React.FC = () => {
     // 2. Draw Branded Title
     ctx.fillStyle = '#ffffff'
     ctx.font = 'bold 24px Inter, system-ui, sans-serif'
-    ctx.fillText('MINISTRY OF ALTAR SERVERS (MATS)', 40, 55)
+    ctx.fillText('Ministry of Altar Servers', 40, 55)
 
     // Subtitle
     ctx.fillStyle = '#94a3b8' // slate-400
     ctx.font = '600 13px Inter, system-ui, sans-serif'
     const periodText = startDate || endDate 
-      ? `Weekly Report Period: ${startDate || 'Start'} to ${endDate || 'Present'}`
-      : 'Overall Attendance Analytics Summary'
+      ? `Covered Week: ${startDate || 'Start'} to ${endDate || 'Present'}`
+      : 'Weekly Attendance Report Summary'
     ctx.fillText(periodText, 40, 85)
 
     // Divider Line
@@ -244,33 +244,76 @@ export const ReportsPage: React.FC = () => {
     ctx.font = '500 12px Inter, system-ui, sans-serif'
     ctx.fillText(`${summary.total} assigned server positions`, 200, 340)
 
-    // 4. Draw Right Grid Cards
+    // 4. Draw Right Summary Table
+    ctx.fillStyle = '#070a13'
+    ctx.strokeStyle = '#1e293b'
+    ctx.lineWidth = 1.5
+    drawRoundedRect(390, 140, 370, 290, 8)
+
+    // Table Header Fill
+    ctx.fillStyle = '#0f172a'
+    ctx.beginPath()
+    ctx.moveTo(391, 148)
+    ctx.lineTo(759, 148)
+    ctx.lineTo(759, 175)
+    ctx.lineTo(391, 175)
+    ctx.closePath()
+    ctx.fill()
+
+    // Header text
+    ctx.fillStyle = '#94a3b8' // slate-400
+    ctx.font = 'bold 11px Inter, system-ui, sans-serif'
     ctx.textAlign = 'left'
-    ctx.lineWidth = 1
-    ctx.strokeStyle = '#1e293b' // slate-800
+    ctx.fillText('ATTENDANCE METRIC', 410, 162)
+    ctx.textAlign = 'right'
+    ctx.fillText('COUNT', 740, 162)
 
-    const drawGridCard = (x: number, y: number, label: string, val: string, valColor: string) => {
-      ctx.fillStyle = '#070a13'
-      drawRoundedRect(x, y, 170, 135, 6)
+    // Divider under header
+    ctx.strokeStyle = '#1e293b'
+    ctx.beginPath()
+    ctx.moveTo(390, 175)
+    ctx.lineTo(760, 175)
+    ctx.stroke()
+
+    // Draw rows
+    const rows = [
+      { label: 'Total Services', val: String(servicesCount), color: '#ffffff' },
+      { label: 'Total Assigned Slots', val: String(summary.total), color: '#ffffff' },
+      { label: 'Present Marks', val: String(summary.present), color: '#10b981' }, // green-500
+      { label: 'Late Marks', val: String(summary.late), color: '#eab308' }, // yellow-500
+      { label: 'Absent Marks', val: String(summary.absent), color: '#f43f5e' }, // rose-500
+      { label: 'Excused Marks', val: String(summary.excused), color: '#94a3b8' } // slate-400
+    ]
+
+    rows.forEach((row, i) => {
+      const rowY = 175 + i * 42.5
       
-      // Label
-      ctx.fillStyle = '#64748b'
-      ctx.font = 'bold 10px Inter, system-ui, sans-serif'
-      ctx.fillText(label, x + 20, y + 35)
+      // Draw alternating row background
+      if (i % 2 === 1) {
+        ctx.fillStyle = '#0b0f19'
+        ctx.fillRect(391, rowY + 1, 368, 41.5)
+      }
 
-      // Value
-      ctx.fillStyle = valColor
-      ctx.font = 'bold 36px Inter, system-ui, sans-serif'
-      ctx.fillText(val, x + 20, y + 90)
-    }
+      // Draw bottom border for row (except last)
+      if (i < 5) {
+        ctx.strokeStyle = '#1e293b'
+        ctx.beginPath()
+        ctx.moveTo(390, rowY + 42.5)
+        ctx.lineTo(760, rowY + 42.5)
+        ctx.stroke()
+      }
 
-    // Grid row 1
-    drawGridCard(390, 140, 'TOTAL SERVICES COUNT', String(servicesCount), '#ffffff')
-    drawGridCard(580, 140, 'PRESENT MARKS', String(summary.present), '#10b981')
+      // Render text
+      ctx.textAlign = 'left'
+      ctx.fillStyle = '#cbd5e1' // slate-300
+      ctx.font = '500 12px Inter, system-ui, sans-serif'
+      ctx.fillText(row.label, 410, rowY + 26)
 
-    // Grid row 2
-    drawGridCard(390, 295, 'LATE MARKS', String(summary.late), '#eab308')
-    drawGridCard(580, 295, 'ABSENT / EXCUSED', `${summary.absent} / ${summary.excused}`, '#f43f5e')
+      ctx.textAlign = 'right'
+      ctx.fillStyle = row.color
+      ctx.font = 'bold 13px Inter, system-ui, sans-serif'
+      ctx.fillText(row.val, 740, rowY + 26)
+    })
 
     // 5. Draw Footer
     ctx.fillStyle = '#475569' // slate-600
