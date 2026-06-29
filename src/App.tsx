@@ -2,7 +2,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/features/authentication/AuthContext'
 import { ProtectedRoute, PublicRoute } from '@/features/authentication/components/ProtectedRoute'
 import { LoginPage } from '@/features/authentication/components/LoginPage'
-import { DashboardPlaceholder } from '@/features/dashboard/DashboardPlaceholder'
+import { DashboardLayout } from '@/layouts/DashboardLayout'
+import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
+import { PlaceholderPage } from '@/components/PlaceholderPage'
 
 function App() {
   return (
@@ -19,15 +21,36 @@ function App() {
             } 
           />
 
-          {/* Protected Dashboard Route */}
+          {/* Protected Routes wrapped under a single layout parent */}
           <Route 
-            path="/" 
             element={
               <ProtectedRoute>
-                <DashboardPlaceholder />
+                <DashboardLayout />
               </ProtectedRoute>
-            } 
-          />
+            }
+          >
+            <Route path="/" element={<DashboardOverview />} />
+            
+            <Route 
+              path="/members" 
+              element={<PlaceholderPage title="Member Management" phase="Phase 3" />} 
+            />
+            
+            <Route 
+              path="/schedules" 
+              element={<PlaceholderPage title="Schedule Management" phase="Phase 4" />} 
+            />
+            
+            <Route 
+              path="/attendance" 
+              element={<PlaceholderPage title="Attendance Tracking" phase="Phase 5" />} 
+            />
+            
+            <Route 
+              path="/reports" 
+              element={<PlaceholderPage title="Weekly & Monthly Reports" phase="Phase 6" />} 
+            />
+          </Route>
 
           {/* Fallback redirection */}
           <Route path="*" element={<Navigate to="/" replace />} />
