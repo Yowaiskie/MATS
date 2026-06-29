@@ -157,6 +157,137 @@ export const ReportsPage: React.FC = () => {
     document.body.removeChild(link)
   }
 
+  const handlePNGExport = () => {
+    if (!rawData) return
+
+    const summary = getOverallSummary()
+    
+    // Count schedules that are completed
+    const servicesCount = rawData.schedules.length
+
+    // Create dynamic canvas element
+    const canvas = document.createElement('canvas')
+    canvas.width = 800
+    canvas.height = 500
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    // 1. Draw premium background gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 500)
+    gradient.addColorStop(0, '#0f172a') // slate-900
+    gradient.addColorStop(1, '#020617') // slate-955
+    ctx.fillStyle = gradient
+    ctx.fillRect(0, 0, 800, 500)
+
+    // Accent indigo top line
+    const accentGrad = ctx.createLinearGradient(0, 0, 800, 0)
+    accentGrad.addColorStop(0, '#6366f1') // indigo-500
+    accentGrad.addColorStop(1, '#a855f7') // purple-500
+    ctx.fillStyle = accentGrad
+    ctx.fillRect(0, 0, 800, 6)
+
+    // 2. Draw Branded Title
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 24px Inter, system-ui, sans-serif'
+    ctx.fillText('MINISTRY OF ALTAR SERVERS (MATS)', 40, 55)
+
+    // Subtitle
+    ctx.fillStyle = '#94a3b8' // slate-400
+    ctx.font = '600 13px Inter, system-ui, sans-serif'
+    const periodText = startDate || endDate 
+      ? `Weekly Report Period: ${startDate || 'Start'} to ${endDate || 'Present'}`
+      : 'Overall Attendance Analytics Summary'
+    ctx.fillText(periodText, 40, 85)
+
+    // Divider Line
+    ctx.strokeStyle = '#334155' // slate-700
+    ctx.lineWidth = 1
+    ctx.beginPath()
+    ctx.moveTo(40, 110)
+    ctx.lineTo(760, 110)
+    ctx.stroke()
+
+    // 3. Draw Featured Left Card (Overall Attendance Rate)
+    ctx.fillStyle = '#0b0f19'
+    ctx.strokeStyle = '#4338ca' // indigo-700
+    ctx.lineWidth = 2
+
+    const drawRoundedRect = (x: number, y: number, w: number, h: number, r: number) => {
+      ctx.beginPath()
+      ctx.moveTo(x + r, y)
+      ctx.lineTo(x + w - r, y)
+      ctx.quadraticCurveTo(x + w, y, x + w, y + r)
+      ctx.lineTo(x + w, y + h - r)
+      ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h)
+      ctx.lineTo(x + r, y + h)
+      ctx.quadraticCurveTo(x, y + h, x, y + h - r)
+      ctx.lineTo(x, y + r)
+      ctx.quadraticCurveTo(x, y, x + r, y)
+      ctx.closePath()
+      ctx.fill()
+      ctx.stroke()
+    }
+
+    drawRoundedRect(40, 140, 320, 290, 8)
+
+    // Text inside Left Card
+    ctx.textAlign = 'center'
+    ctx.fillStyle = '#818cf8' // indigo-400
+    ctx.font = 'bold 11px Inter, system-ui, sans-serif'
+    ctx.fillText('OVERALL ATTENDANCE RATE', 200, 185)
+
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 64px Inter, system-ui, sans-serif'
+    ctx.fillText(`${summary.rate}%`, 200, 280)
+
+    ctx.fillStyle = '#64748b' // slate-500
+    ctx.font = '500 12px Inter, system-ui, sans-serif'
+    ctx.fillText(`${summary.total} assigned server positions`, 200, 340)
+
+    // 4. Draw Right Grid Cards
+    ctx.textAlign = 'left'
+    ctx.lineWidth = 1
+    ctx.strokeStyle = '#1e293b' // slate-800
+
+    const drawGridCard = (x: number, y: number, label: string, val: string, valColor: string) => {
+      ctx.fillStyle = '#070a13'
+      drawRoundedRect(x, y, 170, 135, 6)
+      
+      // Label
+      ctx.fillStyle = '#64748b'
+      ctx.font = 'bold 10px Inter, system-ui, sans-serif'
+      ctx.fillText(label, x + 20, y + 35)
+
+      // Value
+      ctx.fillStyle = valColor
+      ctx.font = 'bold 36px Inter, system-ui, sans-serif'
+      ctx.fillText(val, x + 20, y + 90)
+    }
+
+    // Grid row 1
+    drawGridCard(390, 140, 'TOTAL SERVICES COUNT', String(servicesCount), '#ffffff')
+    drawGridCard(580, 140, 'PRESENT MARKS', String(summary.present), '#10b981')
+
+    // Grid row 2
+    drawGridCard(390, 295, 'LATE MARKS', String(summary.late), '#eab308')
+    drawGridCard(580, 295, 'ABSENT / EXCUSED', `${summary.absent} / ${summary.excused}`, '#f43f5e')
+
+    // 5. Draw Footer
+    ctx.fillStyle = '#475569' // slate-600
+    ctx.font = '500 11px Inter, system-ui, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.fillText('Generated automatically by Altar Server Attendance Tracking (MATS)', 40, 470)
+
+    // Trigger PNG Download
+    const dataUrl = canvas.toDataURL('image/png')
+    const dlLink = document.createElement('a')
+    dlLink.setAttribute('href', dataUrl)
+    dlLink.setAttribute('download', `mats_weekly_report_${startDate || 'start'}_to_${endDate || 'end'}.png`)
+    document.body.appendChild(dlLink)
+    dlLink.click()
+    document.body.removeChild(dlLink)
+  }
+
   const overallSummary = getOverallSummary()
 
   return (
@@ -167,7 +298,16 @@ export const ReportsPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Reports & Analytics</h1>
           <p className="text-sm text-gray-400 mt-1">Review attendance aggregates, server metrics, and download CSV sheets.</p>
         </div>
-        <div>
+        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          {activeTab === 'summary' && (
+            <button
+              onClick={handlePNGExport}
+              disabled={loading || !rawData}
+              className="rounded border border-gray-800 bg-gray-950 hover:bg-gray-900 px-4 py-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors disabled:opacity-50 w-full sm:w-auto"
+            >
+              Download Weekly Report (PNG)
+            </button>
+          )}
           <button
             onClick={handleCSVExport}
             disabled={loading || !rawData}

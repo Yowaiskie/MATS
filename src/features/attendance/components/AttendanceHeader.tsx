@@ -9,6 +9,7 @@ interface AttendanceHeaderProps {
   summary: AttendanceSummary
   onBulkAction: (action: 'present' | 'absent' | 'clear') => void
   onToggleLock: () => Promise<void>
+  onGeneratePost: () => void
   isSaving: boolean
 }
 
@@ -18,6 +19,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
   summary,
   onBulkAction,
   onToggleLock,
+  onGeneratePost,
   isSaving,
 }) => {
   return (
@@ -46,7 +48,15 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
         </div>
 
         {/* Lock/Unlock trigger */}
-        <div>
+        <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+          {session.locked && (
+            <button
+              onClick={onGeneratePost}
+              className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto"
+            >
+              Generate Community Post
+            </button>
+          )}
           <button
             onClick={onToggleLock}
             disabled={isSaving}
