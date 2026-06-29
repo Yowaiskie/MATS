@@ -56,8 +56,11 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
     setErrorMsg(null)
     setSuccessMsg(null)
     
+    // Clean UTF-8 BOM if present
+    const cleanedText = text.replace(/^\uFEFF/, '')
+    
     // Normalize newlines and clean lines
-    const lines = text.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '')
+    const lines = cleanedText.split(/\r?\n/).map(line => line.trim()).filter(line => line !== '')
     if (lines.length <= 1) {
       setErrorMsg('The uploaded file is empty or only contains headers.')
       setPreviewRows([])

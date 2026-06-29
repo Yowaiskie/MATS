@@ -2,8 +2,7 @@ import {
   collection, 
   getDocs, 
   query, 
-  where, 
-  orderBy
+  where
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Member } from '@/types/member'
@@ -81,32 +80,6 @@ export const reportService = {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
     const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
 
-    // Build schedules query
-    let schedulesQuery = query(schedulesRef, orderBy('date'), orderBy('startTime'))
-    if (startDate && endDate) {
-      schedulesQuery = query(
-        schedulesRef, 
-        where('date', '>=', startDate), 
-        where('date', '<=', endDate),
-        orderBy('date'),
-        orderBy('startTime')
-      )
-    } else if (startDate) {
-      schedulesQuery = query(
-        schedulesRef, 
-        where('date', '>=', startDate),
-        orderBy('date'),
-        orderBy('startTime')
-      )
-    } else if (endDate) {
-      schedulesQuery = query(
-        schedulesRef, 
-        where('date', '<=', endDate),
-        orderBy('date'),
-        orderBy('startTime')
-      )
-    }
-
     // Build attendance query
     let attendanceQuery = query(attendanceRef)
     if (startDate && endDate) {
@@ -129,13 +102,35 @@ export const reportService = {
 
     const [membersSnap, schedulesSnap, attendanceSnap] = await Promise.all([
       getDocs(membersRef),
-      getDocs(schedulesQuery),
+      getDocs(schedulesRef),
       getDocs(attendanceQuery)
     ])
 
     const members = membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Member[]
-    const schedules = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Schedule[]
+    let schedules = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Schedule[]
     const attendance = attendanceSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[]
+
+    // Filter schedules client-side
+    if (startDate || endDate) {
+      schedules = schedules.filter(s => {
+        if (!s.date) return false
+        if (startDate && s.date < startDate) return false
+        if (endDate && s.date > endDate) return false
+        return true
+      })
+    }
+
+    // Sort schedules client-side: date ASC, then startTime ASC
+    schedules.sort((a, b) => {
+      const dateA = a.date || ''
+      const dateB = b.date || ''
+      const dateCompare = dateA.localeCompare(dateB)
+      if (dateCompare !== 0) return dateCompare
+
+      const timeA = a.startTime || ''
+      const timeB = b.startTime || ''
+      return timeA.localeCompare(timeB)
+    })
 
     return { members, schedules, attendance }
   },

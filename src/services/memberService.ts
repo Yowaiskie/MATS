@@ -4,11 +4,8 @@ import {
   addDoc, 
   updateDoc, 
   getDocs, 
-  query, 
-  where, 
   writeBatch,
-  serverTimestamp,
-  orderBy
+  serverTimestamp
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Member, MemberInput } from '@/types/member'
@@ -22,24 +19,28 @@ export const memberService = {
    */
   async getMembers(includeArchived = false): Promise<Member[]> {
     const membersRef = collection(db, MEMBERS_COLLECTION)
-    
-    // Sort by lastName then firstName
-    let q = query(membersRef, orderBy('lastName'), orderBy('firstName'))
-    
-    if (!includeArchived) {
-      q = query(
-        membersRef, 
-        where('status', 'in', ['active', 'inactive']), 
-        orderBy('lastName'), 
-        orderBy('firstName')
-      )
-    }
-    
-    const snapshot = await getDocs(q)
-    return snapshot.docs.map(doc => ({
+    const snapshot = await getDocs(membersRef)
+    let members = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Member[]
+    
+    if (!includeArchived) {
+      members = members.filter(m => m.status === 'active' || m.status === 'inactive')
+    }
+    
+    members.sort((a, b) => {
+      const lastA = (a.lastName || '').toLowerCase()
+      const lastB = (b.lastName || '').toLowerCase()
+      const lastCompare = lastA.localeCompare(lastB)
+      if (lastCompare !== 0) return lastCompare
+      
+      const firstA = (a.firstName || '').toLowerCase()
+      const firstB = (b.firstName || '').toLowerCase()
+      return firstA.localeCompare(firstB)
+    })
+    
+    return members
   },
 
   /**

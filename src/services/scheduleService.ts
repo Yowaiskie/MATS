@@ -9,7 +9,6 @@ import {
   query, 
   where, 
   serverTimestamp,
-  orderBy,
   limit
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
@@ -28,12 +27,24 @@ export const scheduleService = {
    */
   async getSchedules(): Promise<Schedule[]> {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
-    const q = query(schedulesRef, orderBy('date'), orderBy('startTime'))
-    const snapshot = await getDocs(q)
-    return snapshot.docs.map(doc => ({
+    const snapshot = await getDocs(schedulesRef)
+    const schedules = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     })) as Schedule[]
+    
+    schedules.sort((a, b) => {
+      const dateA = a.date || ''
+      const dateB = b.date || ''
+      const dateCompare = dateA.localeCompare(dateB)
+      if (dateCompare !== 0) return dateCompare
+      
+      const timeA = a.startTime || ''
+      const timeB = b.startTime || ''
+      return timeA.localeCompare(timeB)
+    })
+    
+    return schedules
   },
 
   /**
@@ -115,14 +126,14 @@ export const scheduleService = {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
     const q = query(
       schedulesRef, 
-      where('date', '==', targetSchedule.date),
-      where('status', 'in', ['upcoming', 'ongoing', 'completed']) // exclude cancelled
+      where('date', '==', targetSchedule.date)
     )
     
     const snapshot = await getDocs(q)
+    const activeStatuses = ['upcoming', 'ongoing', 'completed']
     const otherSchedules = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }) as Schedule)
-      .filter(s => s.id !== scheduleId) // exclude target schedule
+      .filter(s => s.id !== scheduleId && activeStatuses.includes(s.status)) // exclude target schedule and cancelled
 
     // Perform conflict check for each member being assigned
     for (const memberId of memberIds) {
