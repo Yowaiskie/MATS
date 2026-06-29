@@ -91,7 +91,9 @@ ${absentList.length > 0 ? absentList.join('\n') : 'None'}
 
 ℹ️ EXCUSED (${summary.excused}):
 ${excusedList.length > 0 ? excusedList.join('\n') : 'None'}
-`
+
+--
+Thank you for your dedicated service at the altar! Let us continue to serve with reverence, love, and joy. AMDG ⛪`
 
   const handleCopy = async () => {
     try {
