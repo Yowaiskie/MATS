@@ -5,6 +5,7 @@ import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
 import { PlaceholderPage } from '@/components/PlaceholderPage'
+import { MembersPage } from '@/features/members/pages/MembersPage'
 
 function App() {
   return (
@@ -33,7 +34,7 @@ function App() {
             
             <Route 
               path="/members" 
-              element={<PlaceholderPage title="Member Management" phase="Phase 3" />} 
+              element={<MembersPage />} 
             />
             
             <Route 

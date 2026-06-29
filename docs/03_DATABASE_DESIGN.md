@@ -13,10 +13,14 @@
 ## members
 
 - id
-- fullname
-- community
+- firstName
+- middleName
+- lastName
+- suffix
+- nickname
 - rank
 - status
+- phoneNumber
 - createdAt
 - updatedAt
 
