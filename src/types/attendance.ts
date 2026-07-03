@@ -18,6 +18,7 @@ export interface AttendanceRecord {
   status: AttendanceStatus
   remarks: string
   attendanceDate: string // YYYY-MM-DD
+  isOtherServer?: boolean
   createdAt: any
   updatedAt: any
 }
@@ -27,4 +28,5 @@ export interface AttendanceInput {
   memberId: string
   status: AttendanceStatus
   remarks?: string
+  isOtherServer?: boolean
 }

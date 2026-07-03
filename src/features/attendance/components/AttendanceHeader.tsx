@@ -9,8 +9,11 @@ interface AttendanceHeaderProps {
   summary: AttendanceSummary
   onBulkAction: (action: 'present' | 'absent' | 'clear') => void
   onToggleLock: () => Promise<void>
-  onGeneratePost: () => void
+  onGenerateReport: () => void
+  onAddOtherServer: () => void
   isSaving: boolean
+  isDirty: boolean
+  hasMembers: boolean
 }
 
 export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
@@ -19,8 +22,11 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
   summary,
   onBulkAction,
   onToggleLock,
-  onGeneratePost,
+  onGenerateReport,
+  onAddOtherServer,
   isSaving,
+  isDirty,
+  hasMembers,
 }) => {
   return (
     <div className="space-y-6">
@@ -49,18 +55,17 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
 
         {/* Lock/Unlock trigger */}
         <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
-          {session.locked && (
-            <button
-              onClick={onGeneratePost}
-              className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto"
-            >
-              Generate Community Post
-            </button>
-          )}
+          <button
+            onClick={onGenerateReport}
+            disabled={isDirty || isSaving || !hasMembers}
+            className="rounded bg-indigo-650 hover:bg-indigo-600 disabled:opacity-50 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto cursor-pointer"
+          >
+            Generate Community Report
+          </button>
           <button
             onClick={onToggleLock}
             disabled={isSaving}
-            className={`rounded px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50 w-full md:w-auto ${
+            className={`rounded px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-50 w-full md:w-auto cursor-pointer ${
               session.locked
                 ? 'border border-gray-800 bg-gray-950 hover:bg-gray-900 text-gray-400 hover:text-white'
                 : 'bg-red-600 hover:bg-red-500 text-white'
@@ -106,28 +111,38 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
 
       {/* Bulk actions menu (only available if unlocked) */}
       {!session.locked && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs text-gray-400 font-semibold mr-1">Bulk Actions:</span>
+        <div className="flex items-center justify-between gap-2 flex-wrap w-full">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-400 font-semibold mr-1">Bulk Actions:</span>
+            <button
+              onClick={() => onBulkAction('present')}
+              disabled={isSaving || summary.total === 0}
+              className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-1.5 text-xxs font-semibold text-green-400 hover:text-green-300 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Mark All Present
+            </button>
+            <button
+              onClick={() => onBulkAction('absent')}
+              disabled={isSaving || summary.total === 0}
+              className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-1.5 text-xxs font-semibold text-red-400 hover:text-red-300 transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Mark All Absent
+            </button>
+            <button
+              onClick={() => onBulkAction('clear')}
+              disabled={isSaving || summary.total === 0}
+              className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-1.5 text-xxs font-semibold text-gray-400 hover:text-white transition-colors disabled:opacity-50 cursor-pointer"
+            >
+              Clear All Statuses
+            </button>
+          </div>
           <button
-            onClick={() => onBulkAction('present')}
-            disabled={isSaving || summary.total === 0}
-            className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-1.5 text-xxs font-semibold text-green-400 hover:text-green-300 transition-colors disabled:opacity-50"
+            type="button"
+            onClick={onAddOtherServer}
+            disabled={isSaving}
+            className="rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-3.5 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer"
           >
-            Mark All Present
-          </button>
-          <button
-            onClick={() => onBulkAction('absent')}
-            disabled={isSaving || summary.total === 0}
-            className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-1.5 text-xxs font-semibold text-red-400 hover:text-red-300 transition-colors disabled:opacity-50"
-          >
-            Mark All Absent
-          </button>
-          <button
-            onClick={() => onBulkAction('clear')}
-            disabled={isSaving || summary.total === 0}
-            className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-1.5 text-xxs font-semibold text-gray-400 hover:text-white transition-colors disabled:opacity-50"
-          >
-            Clear All Statuses
+            + Add Other Server
           </button>
         </div>
       )}

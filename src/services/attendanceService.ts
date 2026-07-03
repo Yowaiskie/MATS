@@ -99,6 +99,7 @@ export const attendanceService = {
           batch.update(docRef, {
             status: input.status,
             remarks: input.remarks?.trim() || '',
+            isOtherServer: input.isOtherServer ?? false,
             updatedAt: serverTimestamp()
           })
         } else {
@@ -111,6 +112,7 @@ export const attendanceService = {
             status: input.status,
             remarks: input.remarks?.trim() || '',
             attendanceDate: date,
+            isOtherServer: input.isOtherServer ?? false,
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           })

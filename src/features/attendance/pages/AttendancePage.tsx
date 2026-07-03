@@ -3,11 +3,14 @@ import { useSearchParams, Link } from 'react-router-dom'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { attendanceService } from '@/services/attendanceService'
+import { settingsService } from '@/services/settingsService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Card } from '@/components/Card'
 import { AttendanceHeader } from '../components/AttendanceHeader'
 import { AttendanceRow } from '../components/AttendanceRow'
-import { CommunityPostModal } from '../components/CommunityPostModal'
+import { CommunityReportModal } from '../components/CommunityReportModal'
+import { AddOtherServerModal } from '../components/AddOtherServerModal'
+import { generateCommunityReport } from '@/utils/communityReport'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
@@ -17,6 +20,7 @@ interface RowState {
   id?: string
   status: AttendanceStatus | undefined
   remarks: string
+  isOtherServer?: boolean
 }
 
 interface FormState {
@@ -31,6 +35,9 @@ export const AttendancePage: React.FC = () => {
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [session, setSession] = useState<AttendanceSession | null>(null)
   const [assignedMembers, setAssignedMembers] = useState<Member[]>([])
+  const [otherServers, setOtherServers] = useState<Member[]>([])
+  const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
+  const [addOtherServerOpen, setAddOtherServerOpen] = useState(false)
   
   // Local Form state
   const [formState, setFormState] = useState<FormState>({})
@@ -41,7 +48,10 @@ export const AttendancePage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [postModalOpen, setPostModalOpen] = useState(false)
+  const [reportModalOpen, setReportModalOpen] = useState(false)
+  const [template, setTemplate] = useState('')
+
+  const displayMembers = [...assignedMembers, ...otherServers]
 
   // Initialize form state
   const isDirty = JSON.stringify(formState) !== JSON.stringify(originalState)
@@ -86,12 +96,30 @@ export const AttendancePage: React.FC = () => {
 
       // 3. Load all member profiles to map full names
       const allMembers = await memberService.getMembers(true) // include archived to support old records
+      setAllMembersProfiles(allMembers)
       const assignedIds = matchedSchedule.assignedMembers || []
       const assignedProfiles = allMembers.filter(m => assignedIds.includes(m.id))
       setAssignedMembers(assignedProfiles)
 
       // 4. Fetch existing attendance records
       const records = await attendanceService.getAttendanceForSession(sessionDoc.id)
+
+      // Get member IDs that have an attendance record for this session where isOtherServer is true
+      const otherServerRecords = records.filter(r => r.isOtherServer === true)
+      const otherServerMemberIds = otherServerRecords.map(r => r.memberId)
+
+      const otherServerProfiles = allMembers.filter(m => otherServerMemberIds.includes(m.id))
+      otherServerProfiles.sort((a, b) => {
+        const lastA = a.lastName.toLowerCase()
+        const lastB = b.lastName.toLowerCase()
+        if (lastA !== lastB) return lastA.localeCompare(lastB)
+        return a.firstName.toLowerCase().localeCompare(b.firstName.toLowerCase())
+      })
+      setOtherServers(otherServerProfiles)
+
+      // Fetch customized report template from Firestore
+      const fetchedTemplate = await settingsService.getReportTemplate()
+      setTemplate(fetchedTemplate)
       
       // 5. Initialize form state
       const initialFormState: FormState = {}
@@ -100,7 +128,17 @@ export const AttendancePage: React.FC = () => {
         initialFormState[m.id] = {
           id: record?.id,
           status: record?.status || undefined,
-          remarks: record?.remarks || ''
+          remarks: record?.remarks || '',
+          isOtherServer: false
+        }
+      })
+      otherServerProfiles.forEach((m) => {
+        const record = records.find(r => r.memberId === m.id)
+        initialFormState[m.id] = {
+          id: record?.id,
+          status: record?.status || undefined,
+          remarks: record?.remarks || '',
+          isOtherServer: true
         }
       })
 
@@ -124,17 +162,10 @@ export const AttendancePage: React.FC = () => {
     
     setFormState((prev) => {
       const next = { ...prev }
-      schedule.assignedMembers.forEach((memberId) => {
-        if (next[memberId]) {
-          next[memberId] = {
-            ...next[memberId],
-            status: action === 'clear' ? undefined : action
-          }
-        } else {
-          next[memberId] = {
-            status: action === 'clear' ? undefined : action,
-            remarks: ''
-          }
+      displayMembers.forEach((member) => {
+        next[member.id] = {
+          ...next[member.id],
+          status: action === 'clear' ? undefined : action
         }
       })
       return next
@@ -166,13 +197,13 @@ export const AttendancePage: React.FC = () => {
   const handleSave = async () => {
     if (!session || !schedule) return
 
-    // Ensure all assigned members have a status marked
-    const unselectedMembers = assignedMembers.filter(
+    // Ensure all displayed members have a status marked
+    const unselectedMembers = displayMembers.filter(
       m => !formState[m.id] || formState[m.id].status === undefined
     )
     
     if (unselectedMembers.length > 0) {
-      setError('Please select attendance status for all assigned servers before saving.')
+      setError('Please select attendance status for all servers before saving.')
       return
     }
 
@@ -181,11 +212,12 @@ export const AttendancePage: React.FC = () => {
     setSuccessMsg(null)
 
     try {
-      const inputs = assignedMembers.map((m) => ({
+      const inputs = displayMembers.map((m) => ({
         id: formState[m.id]?.id,
         memberId: m.id,
         status: formState[m.id].status as AttendanceStatus,
-        remarks: formState[m.id].remarks
+        remarks: formState[m.id].remarks || '',
+        isOtherServer: formState[m.id].isOtherServer ?? false
       }))
 
       await attendanceService.saveAttendanceRecords(
@@ -255,12 +287,12 @@ export const AttendancePage: React.FC = () => {
   // Live Summary Calculation
 
   const computedSummary = calculateAttendanceSummary(
-    assignedMembers
+    displayMembers
       .map(m => formState[m.id]?.status)
       .filter((status): status is AttendanceStatus => status !== undefined)
       .map(status => ({ status }))
   )
-  computedSummary.total = assignedMembers.length // keep assigned count as baseline
+  computedSummary.total = displayMembers.length
 
   if (loading) {
     return (
@@ -314,8 +346,11 @@ export const AttendancePage: React.FC = () => {
           summary={computedSummary}
           onBulkAction={handleBulkAction}
           onToggleLock={handleToggleLock}
-          onGeneratePost={() => setPostModalOpen(true)}
+          onGenerateReport={() => setReportModalOpen(true)}
+          onAddOtherServer={() => setAddOtherServerOpen(true)}
           isSaving={saving}
+          isDirty={isDirty}
+          hasMembers={displayMembers.length > 0}
         />
       )}
 
@@ -335,8 +370,8 @@ export const AttendancePage: React.FC = () => {
       {/* Form Area */}
       <Card>
         <div className="divide-y divide-gray-900">
-          {assignedMembers.length > 0 ? (
-            assignedMembers.map((member) => (
+          {displayMembers.length > 0 ? (
+            displayMembers.map((member) => (
               <AttendanceRow
                 key={member.id}
                 member={member}
@@ -345,11 +380,12 @@ export const AttendancePage: React.FC = () => {
                 onStatusChange={(status) => handleRowStatusChange(member.id, status)}
                 onRemarksChange={(remarks) => handleRowRemarksChange(member.id, remarks)}
                 disabled={saving || (session?.locked ?? false)}
+                isOtherServer={formState[member.id]?.isOtherServer}
               />
             ))
           ) : (
             <div className="py-12 text-center text-sm text-gray-500">
-              No members are assigned to this service schedule. Select "Assign Servers" in the schedules page to populate.
+              No members are assigned to this service schedule. Select "Assign Servers" or click "+ Add Other Server" to populate.
             </div>
           )}
         </div>
@@ -374,12 +410,47 @@ export const AttendancePage: React.FC = () => {
       </Card>
 
       {schedule && (
-        <CommunityPostModal
-          isOpen={postModalOpen}
-          onClose={() => setPostModalOpen(false)}
-          schedule={schedule}
-          assignedMembers={assignedMembers}
-          formState={formState}
+        <CommunityReportModal
+          isOpen={reportModalOpen}
+          onClose={() => setReportModalOpen(false)}
+          reportText={generateCommunityReport(template, schedule, assignedMembers, formState, otherServers)}
+        />
+      )}
+
+      {schedule && (
+        <AddOtherServerModal
+          isOpen={addOtherServerOpen}
+          onClose={() => setAddOtherServerOpen(false)}
+          onAdd={(newMembers) => {
+            // Update formState
+            setFormState((prev) => {
+              const updated = { ...prev }
+              newMembers.forEach((m) => {
+                updated[m.id] = {
+                  status: undefined,
+                  remarks: '',
+                  isOtherServer: true
+                }
+              })
+              return updated
+            })
+            
+            // Add to otherServers list
+            setOtherServers((prev) => {
+              const updated = [...prev, ...newMembers]
+              // Sort alphabetically
+              updated.sort((a, b) => {
+                const lastA = a.lastName.toLowerCase()
+                const lastB = b.lastName.toLowerCase()
+                if (lastA !== lastB) return lastA.localeCompare(lastB)
+                return a.firstName.toLowerCase().localeCompare(b.firstName.toLowerCase())
+              })
+              return updated
+            })
+          }}
+          allMembers={allMembersProfiles}
+          assignedIds={schedule.assignedMembers || []}
+          currentOtherServerIds={otherServers.map(m => m.id)}
         />
       )}
     </div>

@@ -27,6 +27,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Schedules', href: '/schedules' },
     { name: 'Attendance', href: '/attendance' },
     { name: 'Reports', href: '/reports' },
+    { name: 'Settings', href: '/settings' },
   ]
 
   const isActive = (href: string) => {

@@ -77,6 +77,10 @@ service cloud.firestore {
     match /attendance/{attendanceId} {
       allow read, write: if isAdmin();
     }
+
+    match /settings/{settingsId} {
+      allow read, write: if isAdmin();
+    }
   }
 }
 ```

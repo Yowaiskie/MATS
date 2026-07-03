@@ -8,6 +8,7 @@ import { MembersPage } from '@/features/members/pages/MembersPage'
 import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
 import { ReportsPage } from '@/features/reports/pages/ReportsPage'
+import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 
 function App() {
   return (
@@ -52,6 +53,11 @@ function App() {
             <Route 
               path="/reports" 
               element={<ReportsPage />} 
+            />
+            
+            <Route 
+              path="/settings" 
+              element={<SettingsPage />} 
             />
           </Route>
 

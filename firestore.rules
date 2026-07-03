@@ -1,0 +1,43 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if the current user exists in the users collection with 'admin' role
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // users collection: Users can read their own profile, but only admins can create/write/delete
+    match /users/{userId} {
+      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow write: if isAdmin();
+    }
+
+    // members collection
+    match /members/{memberId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // schedules collection
+    match /schedules/{scheduleId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // attendanceSessions collection
+    match /attendanceSessions/{sessionId} {
+      allow read, write: if isAdmin();
+    }
+    
+    // attendance collection
+    match /attendance/{attendanceId} {
+      allow read, write: if isAdmin();
+    }
+
+    // settings collection
+    match /settings/{settingsId} {
+      allow read, write: if isAdmin();
+    }
+  }
+}

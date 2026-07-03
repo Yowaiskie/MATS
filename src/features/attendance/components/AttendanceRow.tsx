@@ -10,6 +10,7 @@ interface AttendanceRowProps {
   onStatusChange: (status: AttendanceStatus) => void
   onRemarksChange: (remarks: string) => void
   disabled: boolean
+  isOtherServer?: boolean
 }
 
 export const AttendanceRow: React.FC<AttendanceRowProps> = ({
@@ -19,6 +20,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
   onStatusChange,
   onRemarksChange,
   disabled,
+  isOtherServer = false,
 }) => {
   const [showRemarksInput, setShowRemarksInput] = useState(!!remarks)
 
@@ -33,8 +35,13 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
     <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-900/10 transition-colors">
       {/* Member Details */}
       <div className="flex-1 min-w-[200px]">
-        <span className="text-sm font-semibold text-white block">
+        <span className="text-sm font-semibold text-white flex items-center gap-2">
           {getFullName(member)}
+          {isOtherServer && (
+            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              Other Server
+            </span>
+          )}
         </span>
         <span className="text-xxs text-indigo-400 uppercase tracking-wider">
           {member.rank}
