@@ -8,6 +8,7 @@ import { CalendarView } from '../components/CalendarView'
 import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
 import { TemplateManagerModal } from '../components/TemplateManagerModal'
 import { CSVImporterModal } from '../components/CSVImporterModal'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
@@ -31,6 +32,10 @@ export const SchedulesPage: React.FC = () => {
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
+
+  // Dialog state
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string } | null>(null)
 
   // Initialize schedules array on mount
   useEffect(() => {
@@ -70,14 +75,20 @@ export const SchedulesPage: React.FC = () => {
     await loadData()
   }
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Are you sure you want to permanently delete this schedule? This action cannot be undone.')) return
+  const handleDelete = (id: string) => {
+    setConfirmDelete(id)
+  }
+
+  const handleDeleteConfirmed = async () => {
+    if (!confirmDelete) return
+    const id = confirmDelete
+    setConfirmDelete(null)
     try {
       await scheduleService.deleteSchedule(id)
       await loadData()
     } catch (err: any) {
       console.error(err)
-      alert(err.message || 'Failed to delete schedule.')
+      setAlertModal({ title: 'Delete Failed', message: err.message || 'Failed to delete schedule.' })
     }
   }
 
@@ -101,28 +112,28 @@ export const SchedulesPage: React.FC = () => {
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Schedule Management</h1>
-          <p className="text-sm text-gray-400 mt-1">Create weekly service schedules and assign altar servers.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Schedule Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Create weekly service schedules and assign altar servers.</p>
         </div>
-        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+        <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
           {/* Segmented View Mode Toggle */}
-          <div className="flex border border-gray-800 bg-gray-950 rounded p-1">
+          <div className="flex border border-gray-200 bg-white rounded-lg p-1 shadow-xs">
             <button
               onClick={() => setViewMode('list')}
-              className={`px-3 py-1 text-xs font-semibold rounded transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 viewMode === 'list'
-                  ? 'bg-indigo-650 text-white font-bold'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'text-gray-500 hover:text-gray-900'
               }`}
             >
               List View
             </button>
             <button
               onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1 text-xs font-semibold rounded transition-colors cursor-pointer ${
+              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                 viewMode === 'calendar'
-                  ? 'bg-indigo-650 text-white font-bold'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-blue-600 text-white font-bold'
+                  : 'text-gray-500 hover:text-gray-900'
               }`}
             >
               Calendar View
@@ -131,14 +142,14 @@ export const SchedulesPage: React.FC = () => {
 
           <button
             onClick={() => setTemplatesOpen(true)}
-            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-850 px-3.5 py-2 text-xs font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Templates
           </button>
 
           <button
             onClick={() => setCsvImportOpen(true)}
-            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-850 px-3.5 py-2 text-xs font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Import CSV
           </button>
@@ -148,7 +159,7 @@ export const SchedulesPage: React.FC = () => {
               setSelectedSchedule(null)
               setFormOpen(true)
             }}
-            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors w-full sm:w-auto cursor-pointer"
+            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
           >
             Create Schedule
           </button>
@@ -156,10 +167,10 @@ export const SchedulesPage: React.FC = () => {
       </div>
 
       {/* Filters bar */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-lg border border-gray-800 bg-gray-950/40">
+      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-xs">
         {/* Date filter */}
-        <div className="flex flex-col space-y-1.5 flex-1">
-          <label htmlFor="filter-date" className="text-xxs font-semibold uppercase tracking-wider text-gray-400">
+        <div className="flex flex-col space-y-1 flex-1">
+          <label htmlFor="filter-date" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Filter by Date
           </label>
           <input
@@ -167,20 +178,20 @@ export const SchedulesPage: React.FC = () => {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="block w-full rounded border border-gray-800 bg-gray-950 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-1.5 text-xs text-gray-750 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
           />
         </div>
 
         {/* Status filter */}
-        <div className="flex flex-col space-y-1.5 flex-1">
-          <label htmlFor="filter-status" className="text-xxs font-semibold uppercase tracking-wider text-gray-400">
+        <div className="flex flex-col space-y-1 flex-1">
+          <label htmlFor="filter-status" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Filter by Status
           </label>
           <select
             id="filter-status"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="block w-full rounded border border-gray-800 bg-gray-950 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
           >
             <option value="all">All Statuses</option>
             <option value="upcoming">Upcoming</option>
@@ -192,13 +203,13 @@ export const SchedulesPage: React.FC = () => {
 
         {/* Clear filters */}
         {(dateFilter || statusFilter !== 'all') && (
-          <div className="flex items-end">
+          <div className="flex items-end justify-start">
             <button
               onClick={() => {
                 setDateFilter('')
                 setStatusFilter('all')
               }}
-              className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold py-2 px-3 transition-colors"
+              className="text-xs text-blue-600 hover:text-blue-700 font-bold py-2 px-3 transition-colors cursor-pointer"
             >
               Clear Filters
             </button>
@@ -208,15 +219,15 @@ export const SchedulesPage: React.FC = () => {
 
       {/* Error Panel */}
       {error && (
-        <div className="rounded border border-red-900 bg-red-950/40 p-4 text-sm text-red-400">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-650">
           {error}
         </div>
       )}
 
       {/* Main Grid content */}
       {loading ? (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-gray-950/10 rounded-lg border border-gray-800">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-white rounded-xl border border-gray-205 shadow-sm">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
           <span className="text-xs text-gray-500">Loading schedules...</span>
         </div>
       ) : viewMode === 'calendar' ? (
@@ -247,11 +258,11 @@ export const SchedulesPage: React.FC = () => {
           ))}
         </div>
       ) : (
-        <div className="py-16 text-center rounded-lg border border-gray-800 bg-gray-950/20">
-          <svg className="mx-auto h-10 w-10 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="py-16 text-center rounded-xl border border-gray-200 bg-white shadow-xs">
+          <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-2 text-sm font-bold text-white">No schedules found</h3>
+          <h3 className="mt-2 text-sm font-bold text-gray-900">No schedules found</h3>
           <p className="mt-1 text-xs text-gray-500">Create a schedule or check active filter values.</p>
         </div>
       )}
@@ -311,6 +322,26 @@ export const SchedulesPage: React.FC = () => {
         onClose={() => setCsvImportOpen(false)}
         activeMembers={allMembersProfiles}
         onImportSuccess={loadData}
+      />
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDeleteConfirmed}
+        variant="danger"
+        title="Delete Schedule"
+        message="Are you sure you want to permanently delete this schedule? This action cannot be undone."
+        confirmLabel="Delete"
+      />
+
+      {/* Alert Dialog */}
+      <AlertModal
+        isOpen={!!alertModal}
+        onClose={() => setAlertModal(null)}
+        variant="error"
+        title={alertModal?.title ?? ''}
+        message={alertModal?.message ?? ''}
       />
     </div>
   )

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Card } from '@/components/Card'
 import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
+import { ConfirmModal } from '@/components/Dialog'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 
@@ -39,26 +40,26 @@ const tokenGroups = [
   {
     title: 'Schedule Information',
     tokens: [
-      { label: '📅 Schedule Date', value: '{{scheduleDate}}' },
-      { label: '⛪ Schedule Title', value: '{{scheduleTitle}}' },
-      { label: '🕒 Start Time', value: '{{startTime}}' },
-      { label: '🕓 End Time', value: '{{endTime}}' },
+      { label: 'Schedule Date', value: '{{scheduleDate}}' },
+      { label: 'Schedule Title', value: '{{scheduleTitle}}' },
+      { label: 'Start Time', value: '{{startTime}}' },
+      { label: 'End Time', value: '{{endTime}}' },
     ]
   },
   {
     title: 'Attendance Statistics',
     tokens: [
-      { label: '✅ Present Count', value: '{{presentCount}}' },
-      { label: '🟡 Late Count', value: '{{lateCount}}' },
-      { label: '❌ Absent Count', value: '{{absentCount}}' },
-      { label: '🟢 Excused Count', value: '{{excusedCount}}' },
+      { label: 'Present Count', value: '{{presentCount}}' },
+      { label: 'Late Count', value: '{{lateCount}}' },
+      { label: 'Absent Count', value: '{{absentCount}}' },
+      { label: 'Excused Count', value: '{{excusedCount}}' },
     ]
   },
   {
     title: 'Member Lists',
     tokens: [
-      { label: '👥 Assigned Members', value: '{{assignedMembers}}' },
-      { label: '🙋 Other Servers', value: '{{otherServers}}' },
+      { label: 'Assigned Members', value: '{{assignedMembers}}' },
+      { label: 'Other Servers', value: '{{otherServers}}' },
     ]
   }
 ]
@@ -71,6 +72,7 @@ export const SettingsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [showPreview, setShowPreview] = useState(true)
+  const [confirmRestore, setConfirmRestore] = useState(false)
 
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -135,9 +137,7 @@ export const SettingsPage: React.FC = () => {
   }
 
   const handleRestoreDefault = () => {
-    if (window.confirm('Are you sure you want to restore the default report template? Any unsaved edits will be discarded.')) {
-      setTemplate(DEFAULT_REPORT_TEMPLATE)
-    }
+    setConfirmRestore(true)
   }
 
   // Generate live preview text dynamically as user types
@@ -153,19 +153,19 @@ export const SettingsPage: React.FC = () => {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">System Settings</h1>
-        <p className="text-sm text-gray-400 mt-1">Configure parameters and message layouts for the Ministry of Altar Servers.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">System Settings</h1>
+        <p className="text-sm text-gray-500 mt-1">Configure parameters and message layouts for the Ministry of Altar Servers.</p>
       </div>
 
       {/* Notifications */}
       {error && (
-        <div className="rounded border border-red-900 bg-red-950/40 p-4 text-sm text-red-400">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {successMsg && (
-        <div className="rounded border border-green-900 bg-green-950/40 p-4 text-sm text-green-400 animate-pulse">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
           {successMsg}
         </div>
       )}
@@ -173,41 +173,41 @@ export const SettingsPage: React.FC = () => {
       {loading ? (
         <Card>
           <div className="py-16 flex flex-col items-center justify-center space-y-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
             <span className="text-xs text-gray-500">Loading system settings...</span>
           </div>
         </Card>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Template Editor */}
-          <Card>
-            <div className="p-4 border-b border-gray-900 flex justify-between items-center bg-gray-950/20">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Report Template Editor</h3>
+          <Card className="p-0 overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Report Template Editor</h3>
               <button
                 onClick={handleRestoreDefault}
-                className="text-xs font-semibold text-red-400 hover:text-red-300 transition-colors cursor-pointer"
+                className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors cursor-pointer"
               >
-                Restore Default Template
+                Restore Default
               </button>
             </div>
             
-            <div className="p-4 space-y-4">
-              <div className="rounded bg-indigo-950/30 border border-indigo-850/40 p-3 text-xxs text-gray-400">
-                💡 <span className="font-semibold text-indigo-300">Click any field below</span> to insert it into your report template at the cursor position.
+            <div className="p-5 space-y-4">
+              <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-[11px] text-blue-700">
+                <span className="font-semibold">Tip:</span> Click any token below to insert it into your template at the cursor position.
               </div>
               
               {/* Placeholders helper tags grouped */}
               <div className="space-y-3 pb-2">
                 {tokenGroups.map((group) => (
-                  <div key={group.title} className="space-y-1">
-                    <span className="text-xxs font-bold text-gray-500 uppercase tracking-wide block">{group.title}</span>
+                  <div key={group.title} className="space-y-1.5">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">{group.title}</span>
                     <div className="flex flex-wrap gap-1.5">
                       {group.tokens.map((token) => (
                         <button
                           key={token.value}
                           type="button"
                           onClick={() => insertToken(token.value)}
-                          className="inline-flex items-center gap-1.5 bg-gray-900 hover:bg-gray-805 border border-gray-800 rounded px-2.5 py-1 text-xxs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors cursor-pointer select-none"
+                          className="inline-flex items-center gap-1 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-200 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:text-blue-600 transition-colors cursor-pointer select-none shadow-sm"
                           title={`Insert ${token.value}`}
                         >
                           {token.label}
@@ -222,21 +222,21 @@ export const SettingsPage: React.FC = () => {
                 ref={textareaRef}
                 value={template}
                 onChange={(e) => setTemplate(e.target.value)}
-                className="w-full min-h-[350px] rounded border border-gray-900 bg-gray-950 p-4 text-xs font-mono text-gray-200 focus:outline-none focus:border-indigo-500 resize-y"
+                className="w-full min-h-[350px] rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs font-mono text-gray-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-y"
                 placeholder="Paste or write report template layout here..."
               />
 
-              <div className="flex items-center justify-between pt-2 border-t border-gray-900 bg-gray-950/10">
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
                 <button
                   onClick={() => setShowPreview(!showPreview)}
-                  className="rounded border border-gray-850 px-4 py-2 text-xs font-semibold text-gray-300 hover:bg-gray-900 hover:text-white transition-colors cursor-pointer"
+                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-colors cursor-pointer shadow-sm"
                 >
-                  {showPreview ? 'Hide Live Preview' : 'Show Live Preview'}
+                  {showPreview ? 'Hide Preview' : 'Show Preview'}
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || template === originalTemplate}
-                  className="rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 px-5 py-2 text-xs font-semibold text-white transition-colors cursor-pointer"
+                  className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-5 py-2 text-xs font-semibold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   {saving ? 'Saving...' : 'Save Template'}
                 </button>
@@ -246,22 +246,36 @@ export const SettingsPage: React.FC = () => {
 
           {/* Live Preview Display */}
           {showPreview && (
-            <Card>
-              <div className="p-4 border-b border-gray-900 bg-gray-950/20">
-                <h3 className="text-sm font-bold text-white uppercase tracking-wider">Live Mock Preview</h3>
+            <Card className="p-0 overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
+                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
               </div>
-              <div className="p-4 flex flex-col h-[85%]">
-                <div className="flex-1 rounded border border-gray-900 bg-gray-950 p-4 text-xs font-mono text-gray-300 overflow-y-auto whitespace-pre-wrap select-text leading-relaxed">
+              <div className="p-5 flex flex-col h-[85%]">
+                <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs font-mono text-gray-700 overflow-y-auto whitespace-pre-wrap select-text leading-relaxed">
                   {previewText}
                 </div>
-                <p className="text-xxs text-gray-500 mt-3 text-center italic">
-                  * Dynamic values and count parameters represent a sample Sunday Mass service.
+                <p className="text-[11px] text-gray-400 mt-3 text-center italic">
+                  * Dynamic values represent a sample Sunday Mass service.
                 </p>
               </div>
             </Card>
           )}
         </div>
       )}
+
+      {/* Restore Default Template Confirm */}
+      <ConfirmModal
+        isOpen={confirmRestore}
+        onClose={() => setConfirmRestore(false)}
+        onConfirm={() => {
+          setTemplate(DEFAULT_REPORT_TEMPLATE)
+          setConfirmRestore(false)
+        }}
+        variant="warning"
+        title="Restore Default Template"
+        message="Are you sure you want to restore the default report template? Any unsaved edits will be discarded."
+        confirmLabel="Restore Default"
+      />
     </div>
   )
 }

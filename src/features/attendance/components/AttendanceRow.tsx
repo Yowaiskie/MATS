@@ -26,24 +26,24 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
 
   const statusOptions: { value: AttendanceStatus; label: string; activeColor: string }[] = [
     { value: 'present', label: 'Present', activeColor: 'bg-green-600 border-green-600 text-white font-bold' },
-    { value: 'late', label: 'Late', activeColor: 'bg-yellow-600 border-yellow-600 text-white font-bold' },
+    { value: 'late', label: 'Late', activeColor: 'bg-yellow-500 border-yellow-500 text-white font-bold' },
     { value: 'absent', label: 'Absent', activeColor: 'bg-red-600 border-red-600 text-white font-bold' },
-    { value: 'excused', label: 'Excused', activeColor: 'bg-gray-600 border-gray-600 text-white font-bold' },
+    { value: 'excused', label: 'Excused', activeColor: 'bg-gray-500 border-gray-500 text-white font-bold' },
   ]
 
   return (
-    <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-gray-900/10 transition-colors">
+    <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-blue-50/40 transition-colors">
       {/* Member Details */}
       <div className="flex-1 min-w-[200px]">
-        <span className="text-sm font-semibold text-white flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-900 flex items-center gap-2">
           {getFullName(member)}
           {isOtherServer && (
-            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/10 border border-amber-500/20 text-amber-400">
+            <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 border border-amber-200 text-amber-600">
               Other Server
             </span>
           )}
         </span>
-        <span className="text-xxs text-indigo-400 uppercase tracking-wider">
+        <span className="text-[11px] text-blue-600 uppercase tracking-wider font-medium">
           {member.rank}
         </span>
       </div>
@@ -51,7 +51,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
       {/* Input Options Column */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
         {/* Toggle Pills */}
-        <div className="flex items-center border border-gray-800 bg-gray-950 rounded overflow-hidden">
+        <div className="flex items-center border border-gray-200 bg-gray-50 rounded-lg overflow-hidden shadow-sm">
           {statusOptions.map((opt) => {
             const isActive = status === opt.value
             return (
@@ -60,10 +60,10 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
                 type="button"
                 onClick={() => !disabled && onStatusChange(opt.value)}
                 disabled={disabled}
-                className={`px-3 py-1.5 text-xxs font-semibold uppercase tracking-wider border-r border-gray-850 last:border-r-0 transition-colors ${
+                className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider border-r border-gray-200 last:border-r-0 transition-colors cursor-pointer ${
                   isActive 
                     ? opt.activeColor 
-                    : 'text-gray-400 hover:text-gray-200 hover:bg-gray-900/40 disabled:opacity-50'
+                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-50'
                 }`}
               >
                 {opt.label}
@@ -77,10 +77,10 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
           <button
             type="button"
             onClick={() => setShowRemarksInput(prev => !prev)}
-            className={`px-2.5 py-1.5 rounded border text-xxs font-semibold tracking-wide transition-colors ${
+            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold tracking-wide transition-colors cursor-pointer ${
               showRemarksInput || remarks
-                ? 'border-indigo-800 bg-indigo-950/20 text-indigo-400'
-                : 'border-gray-850 bg-gray-950 text-gray-500 hover:text-gray-300'
+                ? 'border-blue-200 bg-blue-50 text-blue-600'
+                : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50'
             }`}
           >
             {remarks ? 'Has Remarks' : 'Add Remarks'}
@@ -96,7 +96,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
             value={remarks}
             onChange={(e) => onRemarksChange(e.target.value)}
             disabled={disabled}
-            className="block w-full rounded border border-gray-850 bg-gray-950 px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:opacity-50"
             placeholder="e.g. Excused due to exam"
           />
         </div>

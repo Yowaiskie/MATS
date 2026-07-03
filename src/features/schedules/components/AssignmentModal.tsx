@@ -83,19 +83,19 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/60" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={onClose}></div>
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg rounded-lg border border-gray-800 bg-gray-950 p-6 shadow-xl z-10 text-white flex flex-col max-h-[85vh]">
+      <div className="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-850">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
           <div>
-            <h3 className="text-base font-bold text-white">Assign Servers</h3>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h3 className="text-sm font-bold text-gray-900">Assign Servers</h3>
+            <p className="text-xs text-gray-500 mt-0.5 font-medium">
               Select members for "{schedule.title}" ({schedule.startTime} - {schedule.endTime})
             </p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -105,14 +105,14 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         {/* Content Section */}
         <div className="mt-4 flex-1 flex flex-col overflow-hidden space-y-4">
           {error && (
-            <div className="rounded border border-red-900 bg-red-950/40 p-3 text-xs text-red-400">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-655 font-medium">
               {error}
             </div>
           )}
 
           {/* Search bar */}
           <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
@@ -121,14 +121,14 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="block w-full pl-9 pr-3 py-2 border border-gray-800 bg-gray-900 rounded text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 disabled:opacity-50"
+              className="block w-full pl-9 pr-3 py-2 border border-gray-250 bg-white rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50 transition-shadow duration-150"
               placeholder="Filter active members by name..."
               disabled={loading}
             />
           </div>
 
           {/* Members checklist container */}
-          <div className="flex-1 border border-gray-850 bg-gray-950/40 rounded overflow-y-auto divide-y divide-gray-900">
+          <div className="flex-1 border border-gray-200 bg-white rounded-lg overflow-y-auto divide-y divide-gray-100 shadow-xs">
             {filteredMembers.length > 0 ? (
               filteredMembers.map((member) => {
                 const isSelected = selectedIds.includes(member.id)
@@ -142,7 +142,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     className={`flex items-center justify-between p-3 transition-colors ${
                       disabled 
                         ? 'opacity-40 cursor-not-allowed' 
-                        : 'cursor-pointer hover:bg-gray-900/40'
+                        : 'cursor-pointer hover:bg-gray-50/60'
                     }`}
                   >
                     <div className="flex items-center space-x-3">
@@ -151,13 +151,13 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                         checked={isSelected}
                         onChange={() => {}} // handled by parent div click
                         disabled={disabled}
-                        className="h-4 w-4 rounded border-gray-800 bg-gray-900 text-indigo-600 focus:ring-indigo-500 disabled:opacity-50"
+                        className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
                       />
                       <div>
-                        <span className="text-sm font-semibold text-white block">
+                        <span className="text-sm font-bold text-gray-900 block">
                           {getFullName(member)}
                         </span>
-                        <span className="text-xxs text-indigo-400 uppercase tracking-wider">
+                        <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
                           {member.rank}
                         </span>
                       </div>
@@ -165,7 +165,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
                     {/* Conflict tag warning */}
                     {conflictWith && (
-                      <span className="inline-block rounded bg-red-500/10 border border-red-500/20 text-red-400 px-2 py-0.5 text-xxs font-medium max-w-[150px] truncate" title={`Assigned to ${conflictWith}`}>
+                      <span className="inline-block rounded-md bg-red-50 border border-red-100 text-red-655 px-2 py-0.5 text-[10px] font-semibold max-w-[150px] truncate" title={`Assigned to ${conflictWith}`}>
                         Booked: {conflictWith}
                       </span>
                     )}
@@ -173,7 +173,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 )
               })
             ) : (
-              <div className="p-8 text-center text-sm text-gray-500">
+              <div className="p-8 text-center text-sm text-gray-400 italic">
                 No active members found.
               </div>
             )}
@@ -181,11 +181,11 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-850 mt-4">
+        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100 mt-4 bg-white">
           <button
             type="button"
             onClick={onClose}
-            className="rounded border border-gray-850 bg-transparent px-4 py-2 text-xs font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
             disabled={loading}
           >
             Cancel
@@ -193,7 +193,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
             disabled={loading}
           >
             {loading ? 'Saving...' : 'Save Assignments'}

@@ -7,7 +7,7 @@ import { getScheduleStatus } from '@/utils/scheduleUtils'
 interface ScheduleCardProps {
   schedule: Schedule
   onEdit: (schedule: Schedule) => void
-  onDelete: (id: string) => Promise<void>
+  onDelete: (id: string) => void | Promise<void>
   onManageAssignments: (schedule: Schedule) => void
   totalAssigned: number
 }
@@ -21,35 +21,63 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 }) => {
   const computedStatus = getScheduleStatus(schedule)
 
+  // Status mapping matching user guidelines
   const statusColors = {
-    upcoming: 'bg-blue-500/10 border-blue-500/20 text-blue-400',
-    ongoing: 'bg-green-500/10 border-green-500/20 text-green-400',
-    completed: 'bg-gray-500/10 border-gray-500/20 text-gray-400',
-    cancelled: 'bg-red-500/10 border-red-500/20 text-red-400',
+    upcoming: 'bg-green-50 border border-green-100 text-green-600',
+    ongoing: 'bg-blue-50 border border-blue-100 text-blue-600',
+    completed: 'bg-gray-100 border border-gray-200 text-gray-600',
+    cancelled: 'bg-red-50 border border-red-100 text-red-600',
+  }
+
+  // Helper to format date nicely
+  const formatCardDate = (dateStr: string) => {
+    if (!dateStr) return ''
+    const parts = dateStr.split('-')
+    if (parts.length !== 3) return dateStr
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ]
+    const m = months[parseInt(parts[1], 10) - 1] || parts[1]
+    const d = parseInt(parts[2], 10)
+    return `${m} ${d}, ${parts[0]}`
+  }
+
+  // Helper to format 12-hour clock
+  const formatTime12 = (timeStr: string) => {
+    if (!timeStr) return ''
+    const parts = timeStr.split(':')
+    if (parts.length < 2) return timeStr
+    let h = parseInt(parts[0], 10)
+    const m = parts[1].padStart(2, '0')
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12
+    h = h ? h : 12
+    return `${h}:${m} ${ampm}`
   }
 
   return (
-    <Card className="hover:border-gray-700 transition-colors">
+    <Card className="hover:shadow-md transition-shadow duration-200 border-gray-250/70">
       <div className="flex flex-col h-full justify-between space-y-4">
         {/* Header Title & Status */}
         <div className="space-y-1">
           <div className="flex items-start justify-between gap-2">
-            <h4 className="text-sm font-bold text-white leading-tight truncate max-w-[80%]" title={schedule.title}>
+            <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[80%]" title={schedule.title}>
               {schedule.title}
             </h4>
-            <span className={`inline-block px-1.5 py-0.5 rounded text-xxs font-bold uppercase border ${statusColors[computedStatus]}`}>
+            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border ${statusColors[computedStatus]}`}>
               {computedStatus}
             </span>
           </div>
-          <p className="text-xs text-gray-400">
-            {schedule.date} • {schedule.startTime} - {schedule.endTime}
+          <p className="text-xs text-gray-500 font-medium">
+            📅 {formatCardDate(schedule.date)} • 🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
           </p>
         </div>
 
         {/* Assigned Counter */}
-        <div className="flex items-center justify-between py-2 border-y border-gray-900 text-xs">
-          <span className="text-gray-400">Assigned Servers:</span>
-          <span className="font-bold text-white">{totalAssigned}</span>
+        <div className="flex items-center justify-between py-2 border-y border-gray-100 text-xs">
+          <span className="text-gray-500">Assigned Servers:</span>
+          <span className="font-bold text-gray-900">{totalAssigned}</span>
         </div>
 
         {/* Action Controls */}
@@ -58,7 +86,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           {(computedStatus === 'ongoing' || computedStatus === 'completed') && (
             <Link
               to={`/attendance?scheduleId=${schedule.id}`}
-              className="rounded bg-indigo-600 hover:bg-indigo-500 px-3 py-1.5 text-xxs font-semibold text-white transition-colors"
+              className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer"
             >
               Take Attendance
             </Link>
@@ -67,7 +95,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           {/* Manage Assignments */}
           <button
             onClick={() => onManageAssignments(schedule)}
-            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 px-3 py-1.5 text-xxs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xxs font-semibold text-blue-600 hover:text-blue-700 transition-colors shadow-sm cursor-pointer"
           >
             Assign Servers
           </button>
@@ -75,7 +103,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           {/* Edit Button */}
           <button
             onClick={() => onEdit(schedule)}
-            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 px-2 py-1.5 text-xxs font-semibold text-gray-400 hover:text-white transition-colors"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1.5 text-xxs font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-sm cursor-pointer"
           >
             Edit
           </button>
@@ -83,7 +111,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           {/* Delete Button */}
           <button
             onClick={() => onDelete(schedule.id)}
-            className="rounded border border-red-950 bg-red-950/10 hover:bg-red-950/20 px-2 py-1.5 text-xxs font-semibold text-red-400 transition-colors"
+            className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-2.5 py-1.5 text-xxs font-semibold text-red-655 transition-colors shadow-sm cursor-pointer"
           >
             Delete
           </button>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { memberService } from '@/services/memberService'
 import { Card } from '@/components/Card'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { MemberTable } from '../components/MemberTable'
 import { MemberFormModal } from '../components/MemberFormModal'
 import { MemberImportModal } from '../components/MemberImportModal'
@@ -10,14 +11,18 @@ export const MembersPage: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  
+
   // List settings
   const [showArchived, setShowArchived] = useState(false)
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
-  const [importOpen, setImportOpen] = useState(true) // Keep set default or let trigger open
+  const [importOpen, setImportOpen] = useState(true)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
+
+  // Dialog state
+  const [confirmArchive, setConfirmArchive] = useState<{ id: string; name: string } | null>(null)
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant: 'error' | 'success' } | null>(null)
 
   // Set default modals state correctly
   useEffect(() => {
@@ -52,14 +57,21 @@ export const MembersPage: React.FC = () => {
     await loadMembers()
   }
 
-  const handleArchive = async (id: string) => {
-    if (!window.confirm('Are you sure you want to archive this member? They will be deactivated from scheduling.')) return
+  const handleArchive = (id: string) => {
+    const member = members.find(m => m.id === id)
+    setConfirmArchive({ id, name: member ? `${member.firstName} ${member.lastName}` : 'this member' })
+  }
+
+  const handleArchiveConfirmed = async () => {
+    if (!confirmArchive) return
+    const { id } = confirmArchive
+    setConfirmArchive(null)
     try {
       await memberService.archiveMember(id)
       await loadMembers()
     } catch (err) {
       console.error(err)
-      alert('Failed to archive member.')
+      setAlertModal({ variant: 'error', title: 'Archive Failed', message: 'Failed to archive member. Please try again.' })
     }
   }
 
@@ -69,7 +81,7 @@ export const MembersPage: React.FC = () => {
       await loadMembers()
     } catch (err) {
       console.error(err)
-      alert('Failed to restore member.')
+      setAlertModal({ variant: 'error', title: 'Restore Failed', message: 'Failed to restore member. Please try again.' })
     }
   }
 
@@ -78,48 +90,13 @@ export const MembersPage: React.FC = () => {
     await loadMembers()
   }
 
-  // Exports all loaded members to CSV (UTF-8) including split name columns
-  const handleExportCSV = () => {
-    if (members.length === 0) {
-      alert('No member records available to export.')
-      return
-    }
-
-    const headers = ['First Name', 'Last Name', 'Middle Name', 'Suffix', 'Nickname', 'Rank', 'Status', 'Phone Number']
-    const csvRows = [headers.join(',')]
-
-    members.forEach(m => {
-      const row = [
-        `"${m.firstName.replace(/"/g, '""')}"`,
-        `"${m.lastName.replace(/"/g, '""')}"`,
-        m.middleName ? `"${m.middleName.replace(/"/g, '""')}"` : '',
-        m.suffix ? `"${m.suffix.replace(/"/g, '""')}"` : '',
-        m.nickname ? `"${m.nickname.replace(/"/g, '""')}"` : '',
-        `"${m.rank.replace(/"/g, '""')}"`,
-        m.status,
-        m.phoneNumber ? `"${m.phoneNumber}"` : ''
-      ]
-      csvRows.push(row.join(','))
-    })
-
-    const csvContent = '\uFEFF' + csvRows.join('\n') // UTF-8 BOM prefix
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.setAttribute('href', url)
-    link.setAttribute('download', `mats_members_${showArchived ? 'archived' : 'active'}.csv`)
-    document.body.appendChild(link)
-    link.click()
-    document.body.removeChild(link)
-  }
-
   return (
     <div className="space-y-6">
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Member Management</h1>
-          <p className="text-sm text-gray-400 mt-1">Manage ministry members, profile records, and bulk imports.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Member Management</h1>
+          <p className="text-sm text-gray-500 mt-1">Manage ministry members, profile records, and bulk imports.</p>
         </div>
 
         {/* Buttons */}
@@ -129,44 +106,37 @@ export const MembersPage: React.FC = () => {
               setEditingMember(null)
               setFormOpen(true)
             }}
-            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors"
+            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
           >
             Add Member
           </button>
           <button
             onClick={() => setImportOpen(true)}
-            className="rounded border border-gray-800 bg-gray-950 hover:bg-gray-900 px-4 py-2 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Import CSV
-          </button>
-          <button
-            onClick={handleExportCSV}
-            className="rounded border border-gray-800 bg-gray-950 hover:bg-gray-900 px-4 py-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors"
-            disabled={members.length === 0}
-          >
-            Export CSV
           </button>
         </div>
       </div>
 
       {/* Subnavigation tab toggle */}
-      <div className="flex border-b border-gray-800 space-x-4">
+      <div className="flex border-b border-gray-200 space-x-6">
         <button
           onClick={() => setShowArchived(false)}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-colors ${
+          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all duration-150 cursor-pointer ${
             !showArchived
-              ? 'border-indigo-500 text-white'
-              : 'border-transparent text-gray-400 hover:text-gray-200'
+              ? 'border-blue-600 text-blue-600 font-bold'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >
           Active Members ({showArchived ? '--' : members.length})
         </button>
         <button
           onClick={() => setShowArchived(true)}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-colors ${
+          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all duration-150 cursor-pointer ${
             showArchived
-              ? 'border-indigo-500 text-white'
-              : 'border-transparent text-gray-400 hover:text-gray-200'
+              ? 'border-blue-600 text-blue-600 font-bold'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
           }`}
         >
           Archived Members ({showArchived ? members.length : '--'})
@@ -175,7 +145,7 @@ export const MembersPage: React.FC = () => {
 
       {/* Error display */}
       {error && (
-        <div className="rounded border border-red-900 bg-red-950/40 p-4 text-sm text-red-400">
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
           {error}
         </div>
       )}
@@ -184,7 +154,7 @@ export const MembersPage: React.FC = () => {
       <Card>
         {loading ? (
           <div className="py-12 flex flex-col items-center justify-center space-y-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
             <span className="text-xs text-gray-500">Loading member records...</span>
           </div>
         ) : (
@@ -218,6 +188,26 @@ export const MembersPage: React.FC = () => {
         onClose={() => setImportOpen(false)}
         onImport={handleImport}
         existingMembers={members}
+      />
+
+      {/* Archive Confirm Dialog */}
+      <ConfirmModal
+        isOpen={!!confirmArchive}
+        onClose={() => setConfirmArchive(null)}
+        onConfirm={handleArchiveConfirmed}
+        variant="warning"
+        title="Archive Member"
+        message={`Are you sure you want to archive ${confirmArchive?.name}? They will be deactivated from scheduling.`}
+        confirmLabel="Archive"
+      />
+
+      {/* Alert Dialog */}
+      <AlertModal
+        isOpen={!!alertModal}
+        onClose={() => setAlertModal(null)}
+        variant={alertModal?.variant ?? 'error'}
+        title={alertModal?.title ?? ''}
+        message={alertModal?.message ?? ''}
       />
     </div>
   )

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useSearchParams, Link } from 'react-router-dom'
+import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { attendanceService } from '@/services/attendanceService'
@@ -15,6 +15,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary } from '@/utils/attendance'
+import { ConfirmModal } from '@/components/Dialog'
 
 interface RowState {
   id?: string
@@ -31,6 +32,7 @@ export const AttendancePage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const scheduleId = searchParams.get('scheduleId')
   const { user } = useAuth()
+  const navigate = useNavigate()
 
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [session, setSession] = useState<AttendanceSession | null>(null)
@@ -50,6 +52,11 @@ export const AttendancePage: React.FC = () => {
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [template, setTemplate] = useState('')
+
+  // Confirm dialog state
+  const [lockConfirm, setLockConfirm] = useState<{ nextLocked: boolean } | null>(null)
+  const [backConfirmOpen, setBackConfirmOpen] = useState(false)
+  const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null)
 
   const displayMembers = [...assignedMembers, ...otherServers]
 
@@ -239,32 +246,27 @@ export const AttendancePage: React.FC = () => {
     }
   }
 
-  // Toggle session locked state
-  const handleToggleLock = async () => {
+  // Toggle session locked state — opens confirm modal first
+  const handleToggleLock = () => {
     if (!session) return
+    setLockConfirm({ nextLocked: !session.locked })
+  }
 
-    const nextLocked = !session.locked
-    const promptMessage = nextLocked
-      ? 'Are you sure you want to finalize and lock attendance? You will not be able to modify records unless unlocked.'
-      : 'Are you sure you want to unlock this session for edits?'
-
-    if (!window.confirm(promptMessage)) return
-
+  const handleLockConfirmed = async () => {
+    if (!session || !lockConfirm) return
+    const { nextLocked } = lockConfirm
+    setLockConfirm(null)
     setSaving(true)
     setError(null)
     setSuccessMsg(null)
-
     try {
       const adminEmail = user?.email || 'admin'
       await attendanceService.setSessionLockState(session.id, nextLocked, adminEmail)
-      
       setSuccessMsg(
-        nextLocked 
-          ? 'Attendance session finalized and locked successfully!' 
+        nextLocked
+          ? 'Attendance session finalized and locked successfully!'
           : 'Attendance session unlocked successfully.'
       )
-      
-      // Reload session
       await loadData()
     } catch (err: any) {
       console.error(err)
@@ -274,18 +276,16 @@ export const AttendancePage: React.FC = () => {
     }
   }
 
-  // Intercept back action to check dirty state
+  // Intercept back action to check dirty state — shows modal instead of browser confirm
   const handleBackNavigation = (e: React.MouseEvent) => {
     if (isDirty) {
-      const discard = window.confirm('You have unsaved changes. Are you sure you want to leave?')
-      if (!discard) {
-        e.preventDefault()
-      }
+      e.preventDefault()
+      setPendingNavTarget('/schedules')
+      setBackConfirmOpen(true)
     }
   }
 
   // Live Summary Calculation
-
   const computedSummary = calculateAttendanceSummary(
     displayMembers
       .map(m => formState[m.id]?.status)
@@ -296,8 +296,8 @@ export const AttendancePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-gray-950/10 rounded-lg border border-gray-800">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
+      <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
         <span className="text-xs text-gray-500">Loading attendance data...</span>
       </div>
     )
@@ -305,16 +305,16 @@ export const AttendancePage: React.FC = () => {
 
   if (!scheduleId || error === 'Schedule service record not found.') {
     return (
-      <div className="py-16 text-center rounded-lg border border-gray-800 bg-gray-950/20 max-w-lg mx-auto">
-        <svg className="mx-auto h-12 w-12 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <div className="py-16 text-center rounded-xl border border-gray-200 bg-white shadow-sm max-w-lg mx-auto">
+        <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
-        <h3 className="mt-2 text-sm font-bold text-white">No schedule selected</h3>
+        <h3 className="mt-3 text-sm font-bold text-gray-900">No schedule selected</h3>
         <p className="mt-1 text-xs text-gray-500">Please select an active schedule from the panel to record attendance.</p>
         <div className="mt-4">
           <Link
             to="/schedules"
-            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors"
+            className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white transition-colors shadow-sm"
           >
             Go to Schedules
           </Link>
@@ -330,7 +330,7 @@ export const AttendancePage: React.FC = () => {
         <Link
           to="/schedules"
           onClick={handleBackNavigation}
-          className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold flex items-center space-x-1"
+          className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center space-x-1"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -356,20 +356,20 @@ export const AttendancePage: React.FC = () => {
 
       {/* Notifications */}
       {error && (
-        <div className="rounded border border-red-900 bg-red-950/40 p-4 text-sm text-red-400">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
           {error}
         </div>
       )}
 
       {successMsg && (
-        <div className="rounded border border-green-900 bg-green-950/40 p-4 text-sm text-green-400">
+        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
           {successMsg}
         </div>
       )}
 
       {/* Form Area */}
       <Card>
-        <div className="divide-y divide-gray-900">
+        <div className="divide-y divide-gray-100">
           {displayMembers.length > 0 ? (
             displayMembers.map((member) => (
               <AttendanceRow
@@ -384,7 +384,7 @@ export const AttendancePage: React.FC = () => {
               />
             ))
           ) : (
-            <div className="py-12 text-center text-sm text-gray-500">
+            <div className="py-12 text-center text-sm text-gray-400">
               No members are assigned to this service schedule. Select "Assign Servers" or click "+ Add Other Server" to populate.
             </div>
           )}
@@ -392,16 +392,16 @@ export const AttendancePage: React.FC = () => {
 
         {/* Footer Actions */}
         {assignedMembers.length > 0 && !(session?.locked ?? false) && (
-          <div className="flex items-center justify-end p-4 border-t border-gray-900 bg-gray-950/20">
+          <div className="flex items-center justify-end p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
             {isDirty && (
-              <span className="text-xxs text-yellow-500 font-semibold mr-4 animate-pulse">
+              <span className="text-[11px] text-amber-600 font-semibold mr-4">
                 ● You have unsaved changes
               </span>
             )}
             <button
               onClick={handleSave}
               disabled={saving}
-              className="rounded bg-indigo-600 hover:bg-indigo-500 px-5 py-2.5 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+              className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs font-semibold text-white transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
             >
               {saving ? 'Saving changes...' : 'Save Attendance Records'}
             </button>
@@ -453,6 +453,36 @@ export const AttendancePage: React.FC = () => {
           currentOtherServerIds={otherServers.map(m => m.id)}
         />
       )}
+
+      {/* Lock / Unlock Confirm Modal */}
+      <ConfirmModal
+        isOpen={!!lockConfirm}
+        onClose={() => setLockConfirm(null)}
+        onConfirm={handleLockConfirmed}
+        variant={lockConfirm?.nextLocked ? 'danger' : 'warning'}
+        title={lockConfirm?.nextLocked ? 'Finalize & Lock Session' : 'Unlock Attendance Session'}
+        message={
+          lockConfirm?.nextLocked
+            ? 'Are you sure you want to finalize and lock attendance? You will not be able to modify records unless unlocked.'
+            : 'Are you sure you want to unlock this session for edits?'
+        }
+        confirmLabel={lockConfirm?.nextLocked ? 'Finalize & Lock' : 'Unlock'}
+        loading={saving}
+      />
+
+      {/* Unsaved Changes — Back Navigation Warning */}
+      <ConfirmModal
+        isOpen={backConfirmOpen}
+        onClose={() => { setBackConfirmOpen(false); setPendingNavTarget(null) }}
+        onConfirm={() => {
+          setBackConfirmOpen(false)
+          if (pendingNavTarget) navigate(pendingNavTarget)
+        }}
+        variant="warning"
+        title="Unsaved Changes"
+        message="You have unsaved attendance changes. Are you sure you want to leave? Your changes will be lost."
+        confirmLabel="Leave Page"
+      />
     </div>
   )
 }

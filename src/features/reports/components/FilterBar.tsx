@@ -26,12 +26,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i)
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 p-4 rounded-lg border border-gray-800 bg-gray-950/40 select-none">
+    <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-sm select-none">
       {/* Date range filters (Used by Summary, Member, Schedule tabs) */}
       {activeTab !== 'monthly' && (
         <>
           <div className="flex flex-col space-y-1.5 flex-1">
-            <label htmlFor="filter-start" className="text-xxs font-semibold uppercase tracking-wider text-gray-400">
+            <label htmlFor="filter-start" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               Start Date
             </label>
             <input
@@ -39,12 +39,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               type="date"
               value={startDate}
               onChange={(e) => onStartDateChange(e.target.value)}
-              className="block w-full rounded border border-gray-800 bg-gray-950 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </div>
 
           <div className="flex flex-col space-y-1.5 flex-1">
-            <label htmlFor="filter-end" className="text-xxs font-semibold uppercase tracking-wider text-gray-400">
+            <label htmlFor="filter-end" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               End Date
             </label>
             <input
@@ -52,7 +52,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               type="date"
               value={endDate}
               onChange={(e) => onEndDateChange(e.target.value)}
-              className="block w-full rounded border border-gray-800 bg-gray-950 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+              className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
             />
           </div>
         </>
@@ -61,14 +61,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Year filter (Only used by Monthly tab) */}
       {activeTab === 'monthly' && (
         <div className="flex flex-col space-y-1.5 w-full md:w-48">
-          <label htmlFor="filter-year" className="text-xxs font-semibold uppercase tracking-wider text-gray-400">
+          <label htmlFor="filter-year" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
             Select Year
           </label>
           <select
             id="filter-year"
             value={selectedYear}
             onChange={(e) => onYearChange(Number(e.target.value))}
-            className="block w-full rounded border border-gray-800 bg-gray-950 px-3 py-1.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           >
             {years.map(y => (
               <option key={y} value={y}>{y}</option>
@@ -80,7 +80,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Search Input (For Member and Schedule list queries) */}
       {(activeTab === 'member' || activeTab === 'schedule') && (
         <div className="flex flex-col space-y-1.5 flex-1">
-          <label htmlFor="filter-search" className="text-xxs font-semibold uppercase tracking-wider text-gray-400">
+          <label htmlFor="filter-search" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
             {activeTab === 'member' ? 'Search Member Name' : 'Search Service Title'}
           </label>
           <input
@@ -89,7 +89,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}
             placeholder={activeTab === 'member' ? 'e.g. Dela Cruz' : 'e.g. Sunday Morning'}
-            className="block w-full rounded border border-gray-800 bg-gray-950 px-3 py-1.5 text-xs text-white placeholder-gray-650 focus:outline-none focus:border-indigo-500"
+            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
           />
         </div>
       )}

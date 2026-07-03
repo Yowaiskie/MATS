@@ -98,52 +98,49 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
     for (let i = 1; i < lines.length; i++) {
       const line = lines[i]
       
-      // Simple parse for commas, ignoring simple quotes
-      const values = line.split(',').map(v => v.trim().replace(/^["']|["']$/g, ''))
+      // Simple parser for comma-separated, ignoring inner commas wrapped in quotes if simple
+      const cols = line.split(',').map(c => c.trim().replace(/^["']|["']$/g, ''))
       
-      const firstName = values[firstNameIdx] || ''
-      const lastName = values[lastNameIdx] || ''
-      const middleName = middleNameIdx !== -1 ? values[middleNameIdx] : ''
-      const suffix = suffixIdx !== -1 ? values[suffixIdx] : ''
-      const nickname = nicknameIdx !== -1 ? values[nicknameIdx] : ''
-      const rank = values[rankIdx] || ''
+      const firstName = cols[firstNameIdx] || ''
+      const lastName = cols[lastNameIdx] || ''
+      const middleName = middleNameIdx !== -1 ? cols[middleNameIdx] || '' : ''
+      const suffix = suffixIdx !== -1 ? cols[suffixIdx] || '' : ''
+      const nickname = nicknameIdx !== -1 ? cols[nicknameIdx] || '' : ''
+      const rank = cols[rankIdx] || ''
       
-      let statusStr = (statusIdx !== -1 ? values[statusIdx] : 'active').toLowerCase()
-      const status: 'active' | 'inactive' = (statusStr === 'inactive') ? 'inactive' : 'active'
-      
-      const phoneNumber = phoneIdx !== -1 ? values[phoneIdx] : ''
+      let rawStatus = (statusIdx !== -1 ? cols[statusIdx] || '' : '').toLowerCase()
+      const status = rawStatus === 'inactive' ? 'inactive' : 'active'
+      const phoneNumber = phoneIdx !== -1 ? cols[phoneIdx] || '' : ''
 
       const rowErrors: string[] = []
       
-      // Validation Check: Required Fields
-      if (!firstName) {
-        rowErrors.push('Missing First Name')
-      }
-      if (!lastName) {
-        rowErrors.push('Missing Last Name')
-      }
-      if (!rank) {
-        rowErrors.push('Missing Rank')
-      }
-
-      // Validation Check: Phone Format
+      if (!firstName) rowErrors.push('First name is required.')
+      if (!lastName) rowErrors.push('Last name is required.')
+      if (!rank) rowErrors.push('Rank is required.')
+      
       if (phoneNumber) {
         const phoneRegex = /^\+?[0-9]{7,15}$/
         if (!phoneRegex.test(phoneNumber)) {
-          rowErrors.push('Invalid Phone Number (7-15 digits)')
+          rowErrors.push('Invalid phone format.')
         }
       }
 
-      // Duplicate Check: Compare first+last combination against Firestore or within import file
-      const matchKey = `${firstName.toLowerCase().trim()}|${lastName.toLowerCase().trim()}`
-      
-      const existsInDb = existingMembers.some(m => 
-        isDuplicateName(firstName, lastName, m.firstName, m.lastName)
-      )
-      const isDuplicate = existsInDb || importedKeys.has(matchKey)
-      
+      // Check duplicate name inside Firestore database
+      let isDuplicate = false
       if (firstName && lastName) {
-        importedKeys.add(matchKey)
+        isDuplicate = existingMembers.some(
+          (m) => isDuplicateName(firstName, lastName, m.firstName, m.lastName)
+        )
+      }
+
+      // Check duplicate name inside the same CSV upload
+      const nameKey = `${firstName.toLowerCase().trim()}|${lastName.toLowerCase().trim()}`
+      if (firstName && lastName) {
+        if (importedKeys.has(nameKey)) {
+          rowErrors.push('Duplicate record found in CSV.')
+        } else {
+          importedKeys.add(nameKey)
+        }
       }
 
       rows.push({
@@ -157,7 +154,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
         phoneNumber,
         isValid: rowErrors.length === 0,
         isDuplicate,
-        errors: rowErrors
+        errors: rowErrors,
       })
     }
 
@@ -165,56 +162,63 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0] || null
-    setFile(selectedFile)
-    
-    if (selectedFile) {
+    const file = e.target.files?.[0] || null
+    setFile(file)
+    setPreviewRows([])
+    setErrorMsg(null)
+    setSuccessMsg(null)
+
+    if (file) {
       const reader = new FileReader()
       reader.onload = (event) => {
         const text = event.target?.result as string
         processCSVText(text)
       }
-      reader.onerror = () => {
-        setErrorMsg('Failed to read the file.')
-      }
-      reader.readAsText(selectedFile)
-    } else {
-      setPreviewRows([])
+      reader.readAsText(file)
     }
   }
 
   const handleImportSubmit = async () => {
-    const validRows = previewRows.filter(r => r.isValid)
-    if (validRows.length === 0) {
-      setErrorMsg('No valid rows available to import.')
-      return
-    }
+    const validInputs = previewRows
+      .filter(row => row.isValid)
+      .map(row => ({
+        firstName: row.firstName.trim(),
+        middleName: row.middleName.trim() || undefined,
+        lastName: row.lastName.trim(),
+        suffix: row.suffix.trim() || undefined,
+        nickname: row.nickname.trim() || undefined,
+        rank: row.rank.trim(),
+        status: row.status,
+        phoneNumber: row.phoneNumber.trim() || undefined,
+      }))
+
+    if (validInputs.length === 0) return
 
     setImporting(true)
     setErrorMsg(null)
-    
-    try {
-      const importPayload: MemberInput[] = validRows.map(row => ({
-        firstName: row.firstName,
-        middleName: row.middleName || undefined,
-        lastName: row.lastName,
-        suffix: row.suffix || undefined,
-        nickname: row.nickname || undefined,
-        rank: row.rank,
-        status: row.status,
-        phoneNumber: row.phoneNumber || undefined
-      }))
+    setSuccessMsg(null)
 
-      await onImport(importPayload)
-      setSuccessMsg(`Successfully imported ${validRows.length} members!`)
-      setFile(null)
+    try {
+      await onImport(validInputs)
+      setSuccessMsg(`Successfully imported ${validInputs.length} member records!`)
       setPreviewRows([])
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      setFile(null)
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.message || 'Import failed. Please try again.')
+      setErrorMsg('Failed to process bulk import. Check Firestore permissions.')
     } finally {
       setImporting(false)
     }
+  }
+
+  const handleClose = () => {
+    setPreviewRows([])
+    setErrorMsg(null)
+    setSuccessMsg(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+    setFile(null)
+    onClose()
   }
 
   const validCount = previewRows.filter(r => r.isValid).length
@@ -223,46 +227,47 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/60" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={handleClose}></div>
 
-      {/* Modal */}
-      <div className="relative w-full max-w-2xl rounded-lg border border-gray-800 bg-gray-950 p-6 shadow-xl z-10 text-white flex flex-col max-h-[85vh]">
+      {/* Modal Card */}
+      <div className="relative w-full max-w-2xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+        
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-850">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
           <div>
-            <h3 className="text-base font-bold text-white">Import Members via CSV</h3>
-            <p className="text-xs text-gray-400 mt-0.5">Upload a CSV file containing up to 1000 members.</p>
+            <h3 className="text-sm font-bold text-gray-900">Bulk Import Members</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Upload a CSV file with split first/last name fields.</p>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Inner Content scrollable */}
-        <div className="mt-4 flex-1 overflow-y-auto space-y-4 pr-1">
+        {/* Content */}
+        <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
           {errorMsg && (
-            <div className="rounded border border-red-900 bg-red-950/40 p-3 text-xs text-red-400">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650">
               {errorMsg}
             </div>
           )}
 
           {successMsg && (
-            <div className="rounded border border-green-900 bg-green-950/40 p-3 text-xs text-green-400">
+            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-600">
               {successMsg}
             </div>
           )}
 
           {/* Setup controls */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded border border-gray-900 bg-gray-900/20">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-lg border border-gray-200 bg-gray-50/50">
             <div>
-              <span className="block text-xs font-semibold text-gray-300">CSV Layout Guidelines</span>
-              <span className="text-xxs text-gray-500 block mt-0.5">Requires "First Name", "Last Name" and "Rank" column headers.</span>
+              <span className="block text-xs font-bold text-gray-700">CSV Layout Guidelines</span>
+              <span className="text-[10px] text-gray-500 block mt-0.5 leading-tight">Requires "First Name", "Last Name" and "Rank" column headers.</span>
             </div>
             <button
               onClick={handleDownloadTemplate}
-              className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 px-3 py-1.5 text-xs font-semibold text-indigo-400 hover:text-indigo-300 transition-colors"
+              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
             >
               Download Template (.csv)
             </button>
@@ -270,7 +275,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
 
           {/* File Picker */}
           <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">
               Select CSV File
             </label>
             <input
@@ -278,7 +283,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
               accept=".csv"
               ref={fileInputRef}
               onChange={handleFileChange}
-              className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border file:border-gray-800 file:text-xs file:font-semibold file:bg-gray-900 file:text-white hover:file:bg-gray-800 file:cursor-pointer"
+              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border file:border-gray-200 file:text-xs file:font-semibold file:bg-gray-50 file:text-gray-700 hover:file:bg-gray-100 file:cursor-pointer transition-colors"
               disabled={importing}
             />
           </div>
@@ -286,16 +291,16 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
           {/* Preview Grid */}
           {previewRows.length > 0 && (
             <div className="space-y-2">
-              <div className="flex items-center justify-between text-xs text-gray-400 pb-1">
+              <div className="flex items-center justify-between text-xs text-gray-500 pb-1">
                 <span>Previewing parsed records:</span>
-                <span className="font-medium text-gray-300">
+                <span className="font-bold text-gray-700">
                   {validCount} of {totalCount} rows valid
                 </span>
               </div>
 
-              <div className="border border-gray-850 rounded overflow-hidden max-h-48 overflow-y-auto">
+              <div className="border border-gray-200 rounded-xl overflow-hidden max-h-48 overflow-y-auto">
                 <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-900/60 sticky top-0 text-gray-400 uppercase tracking-wider text-xxs border-b border-gray-850">
+                  <thead className="bg-gray-50 sticky top-0 text-gray-400 uppercase tracking-wider text-[10px] border-b border-gray-200 font-bold z-10">
                     <tr>
                       <th className="p-2.5">Member Name</th>
                       <th className="p-2.5">Rank</th>
@@ -304,29 +309,29 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
                       <th className="p-2.5 text-right">Validation</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-900 bg-gray-950/40">
+                  <tbody className="divide-y divide-gray-100 bg-white">
                     {previewRows.map((row, idx) => {
                       const computedFullname = getFullName(row)
                       return (
-                        <tr key={idx} className={row.isValid ? '' : 'bg-red-950/10'}>
-                          <td className="p-2.5 truncate max-w-[150px] font-medium text-white" title={computedFullname}>
-                            {computedFullname || <span className="text-gray-600">Empty Name</span>}
+                        <tr key={idx} className={row.isValid ? 'hover:bg-gray-50/20' : 'bg-red-50/40 hover:bg-red-50/60'}>
+                          <td className="p-2.5 truncate max-w-[150px] font-bold text-gray-900" title={computedFullname}>
+                            {computedFullname || <span className="text-gray-400 italic">Empty Name</span>}
                           </td>
-                          <td className="p-2.5 truncate max-w-[100px] text-gray-300">
-                            {row.rank || <span className="text-gray-600">Empty</span>}
+                          <td className="p-2.5 truncate max-w-[100px] text-gray-600">
+                            {row.rank || <span className="text-gray-400 italic">Empty</span>}
                           </td>
-                          <td className="p-2.5 text-gray-400 capitalize">{row.status}</td>
-                          <td className="p-2.5 text-gray-400">{row.phoneNumber || '--'}</td>
+                          <td className="p-2.5 text-gray-500 capitalize">{row.status}</td>
+                          <td className="p-2.5 text-gray-500">{row.phoneNumber || '--'}</td>
                           <td className="p-2.5 text-right font-semibold">
                             {row.isDuplicate && (
-                              <span className="inline-block rounded bg-yellow-500/10 border border-yellow-500/20 text-yellow-500 px-1.5 py-0.5 text-xxs mr-1">
+                              <span className="inline-block rounded-md bg-amber-50 border border-amber-100 text-amber-600 px-1.5 py-0.5 text-[9px] mr-1">
                                 Duplicate
                               </span>
                             )}
                             {row.isValid ? (
-                              <span className="text-green-500">Valid</span>
+                              <span className="text-green-600 font-bold">Valid</span>
                             ) : (
-                              <span className="text-red-500 text-xxs truncate block max-w-[155px]" title={row.errors.join(', ')}>
+                              <span className="text-red-600 text-[10px] truncate block max-w-[155px] font-medium" title={row.errors.join(', ')}>
                                 {row.errors[0]}
                               </span>
                             )}
@@ -342,11 +347,11 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
         </div>
 
         {/* Actions Footer */}
-        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-850 mt-4">
+        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100 mt-4 bg-white">
           <button
             type="button"
-            onClick={onClose}
-            className="rounded border border-gray-850 bg-transparent px-4 py-2 text-xs font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50"
+            onClick={handleClose}
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
             disabled={importing}
           >
             Cancel
@@ -354,7 +359,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
           <button
             type="button"
             onClick={handleImportSubmit}
-            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors disabled:opacity-50"
+            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
             disabled={importing || previewRows.length === 0 || validCount === 0}
           >
             {importing ? 'Importing...' : `Import (${validCount} Valid Rows)`}

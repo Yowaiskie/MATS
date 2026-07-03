@@ -63,7 +63,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   // Next Month suffix days
-  const totalCells = cells.length > 35 ? 42 : 35 // match either 5 or 6 row layout
+  const totalCells = cells.length > 35 ? 42 : 35
   const remaining = totalCells - cells.length
   for (let i = 1; i <= remaining; i++) {
     const m = month === 11 ? 0 : month + 1
@@ -74,7 +74,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Group schedules by date string
   const schedulesByDate = (schedules || []).reduce<{ [dateStr: string]: Schedule[] }>((acc, s) => {
-    // Normalize date string: ensure s.date is YYYY-MM-DD
     if (!acc[s.date]) {
       acc[s.date] = []
     }
@@ -82,7 +81,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
     return acc
   }, {})
 
-  // Sort schedules in each cell by startTime chronologically
+  // Sort schedules chronologically by startTime
   Object.keys(schedulesByDate).forEach((dateKey) => {
     schedulesByDate[dateKey].sort((a, b) => a.startTime.localeCompare(b.startTime))
   })
@@ -91,9 +90,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const getStatusColor = (status: ScheduleStatus) => {
     if (status === 'upcoming') return 'bg-green-500'
     if (status === 'ongoing') return 'bg-blue-500'
-    if (status === 'completed') return 'bg-gray-500'
+    if (status === 'completed') return 'bg-gray-400'
     if (status === 'cancelled') return 'bg-red-500'
-    return 'bg-gray-500'
+    return 'bg-gray-400'
   }
 
   // Format 12-hour time format helper
@@ -110,18 +109,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-950 p-4 space-y-4">
+    <div className="rounded-xl border border-gray-250 bg-white p-4 space-y-4 shadow-sm">
       
       {/* Calendar Header Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-900">
-        <h2 className="text-lg font-bold text-white tracking-wide">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
+        <h2 className="text-base font-bold text-gray-900 tracking-wide">
           {monthNames[month]} {year}
         </h2>
         
         <div className="flex items-center space-x-2">
           <button
             onClick={handlePrevMonth}
-            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 p-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors cursor-pointer"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 p-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer shadow-xs"
             aria-label="Previous Month"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -131,14 +130,14 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           
           <button
             onClick={handleToday}
-            className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-300 transition-colors cursor-pointer"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Today
           </button>
           
           <button
             onClick={handleNextMonth}
-            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 p-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors cursor-pointer"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 p-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer shadow-xs"
             aria-label="Next Month"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -149,16 +148,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Calendar Weekday Names Header */}
-      <div className="grid grid-cols-7 text-center border-b border-gray-900 pb-2">
+      <div className="grid grid-cols-7 text-center border-b border-gray-100 pb-2">
         {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
-          <span key={d} className="text-xxs font-bold text-gray-500 uppercase tracking-wider">
+          <span key={d} className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
             {d}
           </span>
         ))}
       </div>
 
       {/* Calendar Monthly Grid */}
-      <div className="grid grid-cols-7 gap-px bg-gray-900 border border-gray-900 rounded overflow-hidden">
+      <div className="grid grid-cols-7 gap-px bg-gray-150 border border-gray-200/80 rounded-xl overflow-hidden shadow-xs">
         {cells.map((cell, idx) => {
           const daySchedules = schedulesByDate[cell.dateStr] || []
           const displayLimit = 3
@@ -168,26 +167,26 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           return (
             <div
               key={`${cell.dateStr}-${idx}`}
-              className={`min-h-[100px] sm:min-h-[120px] bg-gray-950 p-1 flex flex-col justify-between ${
-                cell.isCurrentMonth ? '' : 'bg-gray-950/40 opacity-40'
+              className={`min-h-[100px] sm:min-h-[120px] bg-white p-1 flex flex-col justify-between ${
+                cell.isCurrentMonth ? '' : 'bg-gray-50/50 opacity-60 text-gray-400'
               }`}
             >
               {/* Day Number Row */}
               <div className="flex items-center justify-between p-1">
                 <span 
-                  className={`text-xs font-bold ${
+                  className={`text-xs font-bold leading-none ${
                     cell.isToday
-                      ? 'h-5 w-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black shadow-md'
+                      ? 'h-6 w-6 rounded-full bg-blue-600 text-white flex items-center justify-center font-black shadow-sm'
                       : cell.isCurrentMonth
-                        ? 'text-gray-300'
-                        : 'text-gray-600'
+                        ? 'text-gray-800'
+                        : 'text-gray-400'
                   }`}
                 >
                   {cell.dayNum}
                 </span>
                 
                 {daySchedules.length > 0 && (
-                  <span className="text-[10px] text-gray-600 font-semibold font-mono">
+                  <span className="text-[10px] text-gray-400 font-bold font-mono">
                     {daySchedules.length}
                   </span>
                 )}
@@ -203,11 +202,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                     <button
                       key={s.id}
                       onClick={() => onSelectSchedule(s)}
-                      className="w-full text-left bg-gray-900 hover:bg-gray-850 border border-gray-850 rounded px-1.5 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden"
+                      className="w-full text-left bg-gray-50 hover:bg-gray-100/60 border border-gray-150 rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden"
                       title={`${s.title} (${formatTime12(s.startTime)})`}
                     >
                       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
-                      <span className="text-[10px] text-gray-300 font-medium truncate block leading-tight">
+                      <span className="text-[10px] text-gray-700 font-semibold truncate block leading-tight">
                         {formatTime12(s.startTime)}
                       </span>
                     </button>
@@ -215,7 +214,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 })}
                 
                 {overflowCount > 0 && (
-                  <div className="text-[9px] text-indigo-400 font-bold px-1.5 py-0.5 mt-0.5 leading-none">
+                  <div className="text-[9px] text-blue-600 font-bold px-1.5 py-0.5 mt-0.5 leading-none">
                     +{overflowCount} more
                   </div>
                 )}

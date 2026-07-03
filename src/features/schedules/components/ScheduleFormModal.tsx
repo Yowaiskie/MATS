@@ -64,7 +64,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
     }
     
     if (startTime && endTime && startTime >= endTime) {
-      newErrors.timeSpan = 'Start Time must be before End Time.'
+      newErrors.timeSpan = 'Start time must be before End time.'
     }
     
     setErrors(newErrors)
@@ -97,31 +97,31 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/60" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={onClose}></div>
 
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-lg border border-gray-800 bg-gray-950 p-6 shadow-xl z-10 text-white">
-        <div className="flex items-center justify-between pb-4 border-b border-gray-850">
-          <h3 className="text-base font-bold text-white">
+      <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+          <h3 className="text-sm font-bold text-gray-900">
             {schedule ? 'Edit Service Schedule' : 'Create New Schedule'}
           </h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4" noValidate>
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1" noValidate>
           {errors.submit && (
-            <div className="rounded border border-red-900 bg-red-950/40 p-3 text-xs text-red-400">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650 font-medium">
               {errors.submit}
             </div>
           )}
 
           {/* Service Title */}
           <div>
-            <label htmlFor="schedule-title" className="block text-xs font-semibold uppercase tracking-wider text-gray-400">
+            <label htmlFor="schedule-title" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Service Title *
             </label>
             <input
@@ -129,16 +129,16 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 block w-full rounded border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               placeholder="e.g. Sunday Morning Worship"
               disabled={loading}
             />
-            {errors.title && <p className="mt-1 text-xs text-red-500">{errors.title}</p>}
+            {errors.title && <p className="mt-1 text-xs text-red-655 font-medium">{errors.title}</p>}
           </div>
 
           {/* Date */}
           <div>
-            <label htmlFor="schedule-date" className="block text-xs font-semibold uppercase tracking-wider text-gray-400">
+            <label htmlFor="schedule-date" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Service Date *
             </label>
             <input
@@ -146,16 +146,16 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="mt-1 block w-full rounded border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               disabled={loading}
             />
-            {errors.date && <p className="mt-1 text-xs text-red-500">{errors.date}</p>}
+            {errors.date && <p className="mt-1 text-xs text-red-655 font-medium">{errors.date}</p>}
           </div>
 
           {/* Start Time & End Time */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label htmlFor="schedule-start" className="block text-xs font-semibold uppercase tracking-wider text-gray-400">
+              <label htmlFor="schedule-start" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
                 Start Time *
               </label>
               <input
@@ -163,14 +163,14 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
                 type="time"
                 value={startTime}
                 onChange={(e) => setStartTime(e.target.value)}
-                className="mt-1 block w-full rounded border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 disabled={loading}
               />
-              {errors.startTime && <p className="mt-1 text-xs text-red-500">{errors.startTime}</p>}
+              {errors.startTime && <p className="mt-1 text-xs text-red-655 font-medium">{errors.startTime}</p>}
             </div>
 
             <div>
-              <label htmlFor="schedule-end" className="block text-xs font-semibold uppercase tracking-wider text-gray-400">
+              <label htmlFor="schedule-end" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
                 End Time *
               </label>
               <input
@@ -178,13 +178,13 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
                 type="time"
                 value={endTime}
                 onChange={(e) => setEndTime(e.target.value)}
-                className="mt-1 block w-full rounded border border-gray-800 bg-gray-900 px-3 py-2 text-sm text-white focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 disabled={loading}
               />
-              {errors.endTime && <p className="mt-1 text-xs text-red-500">{errors.endTime}</p>}
+              {errors.endTime && <p className="mt-1 text-xs text-red-655 font-medium">{errors.endTime}</p>}
             </div>
           </div>
-          {errors.timeSpan && <p className="text-xs text-red-500 mt-1">{errors.timeSpan}</p>}
+          {errors.timeSpan && <p className="text-xs text-red-655 font-medium mt-1">{errors.timeSpan}</p>}
 
           {/* Cancellation Toggle */}
           <div className="flex items-center space-x-3 pt-2">
@@ -193,27 +193,27 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               type="checkbox"
               checked={isCancelled}
               onChange={(e) => setIsCancelled(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-800 bg-gray-900 text-indigo-600 focus:ring-indigo-500"
+              className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 cursor-pointer"
               disabled={loading}
             />
-            <label htmlFor="schedule-cancel" className="text-xs font-semibold uppercase tracking-wider text-gray-300">
+            <label htmlFor="schedule-cancel" className="text-xs font-semibold uppercase tracking-wider text-gray-500 select-none cursor-pointer">
               Mark Service as Cancelled
             </label>
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-850">
+          <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100 bg-white">
             <button
               type="button"
               onClick={onClose}
-              className="rounded border border-gray-850 bg-transparent px-4 py-2 text-xs font-semibold hover:bg-gray-900 transition-colors disabled:opacity-50"
+              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
               disabled={loading}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="rounded bg-indigo-600 px-4 py-2 text-xs font-semibold hover:bg-indigo-500 transition-colors disabled:opacity-50"
+              className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
               disabled={loading}
             >
               {loading ? 'Saving...' : 'Save'}
