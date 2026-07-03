@@ -4,6 +4,10 @@ import { memberService } from '@/services/memberService'
 import { ScheduleCard } from '../components/ScheduleCard'
 import { ScheduleFormModal } from '../components/ScheduleFormModal'
 import { AssignmentModal } from '../components/AssignmentModal'
+import { CalendarView } from '../components/CalendarView'
+import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
+import { TemplateManagerModal } from '../components/TemplateManagerModal'
+import { CSVImporterModal } from '../components/CSVImporterModal'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
@@ -21,7 +25,12 @@ export const SchedulesPage: React.FC = () => {
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [templatesOpen, setTemplatesOpen] = useState(false)
+  const [csvImportOpen, setCsvImportOpen] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
 
   // Initialize schedules array on mount
   useEffect(() => {
@@ -35,8 +44,9 @@ export const SchedulesPage: React.FC = () => {
       const scheduleData = await scheduleService.getSchedules()
       setSchedules(scheduleData)
 
-      // Fetch active members for the assignment list
-      const memberData = await memberService.getMembers(false) // exclude archived
+      // Fetch all member profiles (including archived to warn during imports)
+      const memberData = await memberService.getMembers(true)
+      setAllMembersProfiles(memberData)
       setActiveMembers(memberData.filter(m => m.status === 'active'))
     } catch (err: any) {
       console.error(err)
@@ -94,13 +104,51 @@ export const SchedulesPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-white sm:text-3xl">Schedule Management</h1>
           <p className="text-sm text-gray-400 mt-1">Create weekly service schedules and assign altar servers.</p>
         </div>
-        <div>
+        <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+          {/* Segmented View Mode Toggle */}
+          <div className="flex border border-gray-800 bg-gray-950 rounded p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1 text-xs font-semibold rounded transition-colors cursor-pointer ${
+                viewMode === 'list'
+                  ? 'bg-indigo-650 text-white font-bold'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              List View
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`px-3 py-1 text-xs font-semibold rounded transition-colors cursor-pointer ${
+                viewMode === 'calendar'
+                  ? 'bg-indigo-650 text-white font-bold'
+                  : 'text-gray-400 hover:text-white'
+              }`}
+            >
+              Calendar View
+            </button>
+          </div>
+
+          <button
+            onClick={() => setTemplatesOpen(true)}
+            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-850 px-3.5 py-2 text-xs font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer"
+          >
+            Templates
+          </button>
+
+          <button
+            onClick={() => setCsvImportOpen(true)}
+            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-850 px-3.5 py-2 text-xs font-semibold text-gray-300 hover:text-white transition-colors cursor-pointer"
+          >
+            Import CSV
+          </button>
+
           <button
             onClick={() => {
               setSelectedSchedule(null)
               setFormOpen(true)
             }}
-            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors w-full sm:w-auto"
+            className="rounded bg-indigo-600 hover:bg-indigo-500 px-4 py-2 text-xs font-semibold text-white transition-colors w-full sm:w-auto cursor-pointer"
           >
             Create Schedule
           </button>
@@ -171,6 +219,14 @@ export const SchedulesPage: React.FC = () => {
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-indigo-600 border-t-transparent"></div>
           <span className="text-xs text-gray-500">Loading schedules...</span>
         </div>
+      ) : viewMode === 'calendar' ? (
+        <CalendarView
+          schedules={filteredSchedules}
+          onSelectSchedule={(s) => {
+            setSelectedSchedule(s)
+            setDetailsOpen(true)
+          }}
+        />
       ) : filteredSchedules.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredSchedules.map((schedule) => (
@@ -221,6 +277,40 @@ export const SchedulesPage: React.FC = () => {
         activeMembers={activeMembers}
         allSchedules={schedules || []}
         onSave={handleSaveAssignments}
+      />
+
+      <ScheduleDetailsModal
+        isOpen={detailsOpen}
+        onClose={() => {
+          setDetailsOpen(false)
+          setSelectedSchedule(null)
+        }}
+        schedule={selectedSchedule}
+        activeMembers={allMembersProfiles}
+        onEdit={(s) => {
+          setSelectedSchedule(s)
+          setFormOpen(true)
+        }}
+        onDelete={handleDelete}
+        onManageAssignments={(s) => {
+          setSelectedSchedule(s)
+          setAssignmentOpen(true)
+        }}
+      />
+
+      <TemplateManagerModal
+        isOpen={templatesOpen}
+        onClose={() => setTemplatesOpen(false)}
+        activeMembers={activeMembers}
+        allMembers={allMembersProfiles}
+        onGenerateSuccess={loadData}
+      />
+
+      <CSVImporterModal
+        isOpen={csvImportOpen}
+        onClose={() => setCsvImportOpen(false)}
+        activeMembers={allMembersProfiles}
+        onImportSuccess={loadData}
       />
     </div>
   )

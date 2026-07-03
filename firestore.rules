@@ -39,5 +39,10 @@ service cloud.firestore {
     match /settings/{settingsId} {
       allow read, write: if isAdmin();
     }
+
+    // scheduleTemplates collection
+    match /scheduleTemplates/{templateId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

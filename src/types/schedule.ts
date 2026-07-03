@@ -20,3 +20,26 @@ export interface ScheduleInput {
   status?: ScheduleStatus
   assignedMembers?: string[]
 }
+
+export interface ScheduleTemplate {
+  id: string
+  name: string
+  title: string
+  dayOfWeek: string // 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
+  startTime: string
+  endTime: string
+  assignedMembers: string[]
+  active: boolean
+  createdAt: any
+  updatedAt: any
+}
+
+export interface ScheduleTemplateInput {
+  name: string
+  title: string
+  dayOfWeek: string
+  startTime: string
+  endTime: string
+  assignedMembers: string[]
+  active: boolean
+}

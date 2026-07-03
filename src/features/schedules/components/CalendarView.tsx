@@ -1,0 +1,229 @@
+import React, { useState } from 'react'
+import type { Schedule, ScheduleStatus } from '@/types/schedule'
+import { getScheduleStatus } from '@/utils/scheduleUtils'
+
+interface CalendarViewProps {
+  schedules: Schedule[]
+  onSelectSchedule: (schedule: Schedule) => void
+}
+
+export const CalendarView: React.FC<CalendarViewProps> = ({
+  schedules,
+  onSelectSchedule,
+}) => {
+  const [currentDate, setCurrentDate] = useState(new Date())
+
+  // Navigation handlers
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+  }
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+  }
+
+  const handleToday = () => {
+    setCurrentDate(new Date())
+  }
+
+  // Month information
+  const year = currentDate.getFullYear()
+  const month = currentDate.getMonth()
+  
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ]
+
+  const firstDayOfMonth = new Date(year, month, 1)
+  const startWeekday = firstDayOfMonth.getDay() // 0 = Sunday
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const prevDaysInMonth = new Date(year, month, 0).getDate()
+
+  // Generate calendar days grid
+  const cells: { dateStr: string; dayNum: number; isCurrentMonth: boolean; isToday: boolean }[] = []
+
+  // Prev Month prefix days
+  for (let i = startWeekday - 1; i >= 0; i--) {
+    const day = prevDaysInMonth - i
+    const m = month === 0 ? 11 : month - 1
+    const y = month === 0 ? year - 1 : year
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+    cells.push({ dateStr, dayNum: day, isCurrentMonth: false, isToday: false })
+  }
+
+  // Current Month days
+  const today = new Date()
+  const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+  for (let i = 1; i <= daysInMonth; i++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`
+    const isToday = dateStr === todayStr
+    cells.push({ dateStr, dayNum: i, isCurrentMonth: true, isToday })
+  }
+
+  // Next Month suffix days
+  const totalCells = cells.length > 35 ? 42 : 35 // match either 5 or 6 row layout
+  const remaining = totalCells - cells.length
+  for (let i = 1; i <= remaining; i++) {
+    const m = month === 11 ? 0 : month + 1
+    const y = month === 11 ? year + 1 : year
+    const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`
+    cells.push({ dateStr, dayNum: i, isCurrentMonth: false, isToday: false })
+  }
+
+  // Group schedules by date string
+  const schedulesByDate = (schedules || []).reduce<{ [dateStr: string]: Schedule[] }>((acc, s) => {
+    // Normalize date string: ensure s.date is YYYY-MM-DD
+    if (!acc[s.date]) {
+      acc[s.date] = []
+    }
+    acc[s.date].push(s)
+    return acc
+  }, {})
+
+  // Sort schedules in each cell by startTime chronologically
+  Object.keys(schedulesByDate).forEach((dateKey) => {
+    schedulesByDate[dateKey].sort((a, b) => a.startTime.localeCompare(b.startTime))
+  })
+
+  // Status color codes helper
+  const getStatusColor = (status: ScheduleStatus) => {
+    if (status === 'upcoming') return 'bg-green-500'
+    if (status === 'ongoing') return 'bg-blue-500'
+    if (status === 'completed') return 'bg-gray-500'
+    if (status === 'cancelled') return 'bg-red-500'
+    return 'bg-gray-500'
+  }
+
+  // Format 12-hour time format helper
+  const formatTime12 = (timeStr: string) => {
+    if (!timeStr) return ''
+    const parts = timeStr.split(':')
+    if (parts.length < 2) return timeStr
+    let h = parseInt(parts[0], 10)
+    const m = parts[1].padStart(2, '0')
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12
+    h = h ? h : 12
+    return `${h}:${m} ${ampm}`
+  }
+
+  return (
+    <div className="rounded-lg border border-gray-800 bg-gray-950 p-4 space-y-4">
+      
+      {/* Calendar Header Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-900">
+        <h2 className="text-lg font-bold text-white tracking-wide">
+          {monthNames[month]} {year}
+        </h2>
+        
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={handlePrevMonth}
+            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 p-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors cursor-pointer"
+            aria-label="Previous Month"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          
+          <button
+            onClick={handleToday}
+            className="rounded border border-gray-850 bg-gray-950 hover:bg-gray-900 px-3 py-2 text-xs font-semibold text-gray-300 transition-colors cursor-pointer"
+          >
+            Today
+          </button>
+          
+          <button
+            onClick={handleNextMonth}
+            className="rounded border border-gray-800 bg-gray-900 hover:bg-gray-800 p-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors cursor-pointer"
+            aria-label="Next Month"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {/* Calendar Weekday Names Header */}
+      <div className="grid grid-cols-7 text-center border-b border-gray-900 pb-2">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d) => (
+          <span key={d} className="text-xxs font-bold text-gray-500 uppercase tracking-wider">
+            {d}
+          </span>
+        ))}
+      </div>
+
+      {/* Calendar Monthly Grid */}
+      <div className="grid grid-cols-7 gap-px bg-gray-900 border border-gray-900 rounded overflow-hidden">
+        {cells.map((cell, idx) => {
+          const daySchedules = schedulesByDate[cell.dateStr] || []
+          const displayLimit = 3
+          const displayedSchedules = daySchedules.slice(0, displayLimit)
+          const overflowCount = daySchedules.length - displayLimit
+
+          return (
+            <div
+              key={`${cell.dateStr}-${idx}`}
+              className={`min-h-[100px] sm:min-h-[120px] bg-gray-950 p-1 flex flex-col justify-between ${
+                cell.isCurrentMonth ? '' : 'bg-gray-950/40 opacity-40'
+              }`}
+            >
+              {/* Day Number Row */}
+              <div className="flex items-center justify-between p-1">
+                <span 
+                  className={`text-xs font-bold ${
+                    cell.isToday
+                      ? 'h-5 w-5 rounded-full bg-indigo-600 text-white flex items-center justify-center font-black shadow-md'
+                      : cell.isCurrentMonth
+                        ? 'text-gray-300'
+                        : 'text-gray-600'
+                  }`}
+                >
+                  {cell.dayNum}
+                </span>
+                
+                {daySchedules.length > 0 && (
+                  <span className="text-[10px] text-gray-600 font-semibold font-mono">
+                    {daySchedules.length}
+                  </span>
+                )}
+              </div>
+
+              {/* Day Schedules List */}
+              <div className="flex-1 mt-1 space-y-1 overflow-hidden flex flex-col justify-start">
+                {displayedSchedules.map((s) => {
+                  const status = getScheduleStatus(s)
+                  const dotColor = getStatusColor(status)
+                  
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => onSelectSchedule(s)}
+                      className="w-full text-left bg-gray-900 hover:bg-gray-850 border border-gray-850 rounded px-1.5 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden"
+                      title={`${s.title} (${formatTime12(s.startTime)})`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
+                      <span className="text-[10px] text-gray-300 font-medium truncate block leading-tight">
+                        {formatTime12(s.startTime)}
+                      </span>
+                    </button>
+                  )
+                })}
+                
+                {overflowCount > 0 && (
+                  <div className="text-[9px] text-indigo-400 font-bold px-1.5 py-0.5 mt-0.5 leading-none">
+                    +{overflowCount} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
