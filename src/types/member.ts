@@ -7,9 +7,15 @@ export interface Member {
   lastName: string
   suffix?: string
   nickname?: string
+  homeAddress?: string
+  dateOfBirth?: string
   rank: string
   status: MemberStatus
   phoneNumber?: string
+  monthJoined?: string
+  dateOfInvestiture?: string
+  position?: string
+  order?: string
   createdAt: any // Firestore Timestamp
   updatedAt: any // Firestore Timestamp
 }
@@ -20,7 +26,13 @@ export interface MemberInput {
   lastName: string
   suffix?: string
   nickname?: string
+  homeAddress?: string
+  dateOfBirth?: string
   rank: string
   status: MemberStatus
   phoneNumber?: string
+  monthJoined?: string
+  dateOfInvestiture?: string
+  position?: string
+  order?: string
 }

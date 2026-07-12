@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { memberService } from '@/services/memberService'
 import { Card } from '@/components/Card'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { MemberTable } from '../components/MemberTable'
 import { MemberFormModal } from '../components/MemberFormModal'
 import { MemberImportModal } from '../components/MemberImportModal'
+import { MemberPDFImportModal } from '../components/MemberPDFImportModal'
 import type { Member, MemberInput } from '@/types/member'
 
 export const MembersPage: React.FC = () => {
@@ -18,16 +19,30 @@ export const MembersPage: React.FC = () => {
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(true)
+  const [pdfImportOpen, setPdfImportOpen] = useState(false)
   const [editingMember, setEditingMember] = useState<Member | null>(null)
 
   // Dialog state
   const [confirmArchive, setConfirmArchive] = useState<{ id: string; name: string } | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant: 'error' | 'success' } | null>(null)
+
+  // Bulk selection
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkArchiveOpen, setBulkArchiveOpen] = useState(false)
+  const [bulkRestoreOpen, setBulkRestoreOpen] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkProcessing, setBulkProcessing] = useState(false)
 
   // Set default modals state correctly
   useEffect(() => {
     setImportOpen(false)
   }, [])
+
+  // Clear selection when switching tabs
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [showArchived])
 
   const loadMembers = async () => {
     setLoading(true)
@@ -47,7 +62,7 @@ export const MembersPage: React.FC = () => {
     loadMembers()
   }, [showArchived])
 
-  // Callbacks
+  // ── Single-record callbacks ───────────────────────────────────
   const handleAddOrEditSubmit = async (input: MemberInput) => {
     if (editingMember) {
       await memberService.updateMember(editingMember.id, input)
@@ -75,6 +90,25 @@ export const MembersPage: React.FC = () => {
     }
   }
 
+  const handleDelete = (id: string) => {
+    const member = members.find(m => m.id === id)
+    setConfirmDelete({ id, name: member ? `${member.firstName} ${member.lastName}` : 'this member' })
+  }
+
+  const handleDeleteConfirmed = async () => {
+    if (!confirmDelete) return
+    const { id } = confirmDelete
+    setConfirmDelete(null)
+    try {
+      await memberService.deleteMember(id)
+      await loadMembers()
+      setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
+    } catch (err) {
+      console.error(err)
+      setAlertModal({ variant: 'error', title: 'Delete Failed', message: 'Failed to delete member. Please try again.' })
+    }
+  }
+
   const handleRestore = async (id: string) => {
     try {
       await memberService.restoreMember(id)
@@ -88,6 +122,84 @@ export const MembersPage: React.FC = () => {
   const handleImport = async (inputs: MemberInput[]) => {
     await memberService.importMembersBatch(inputs)
     await loadMembers()
+  }
+
+  // ── Bulk selection helpers ────────────────────────────────────
+  const handleToggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [])
+
+  // "Select all" in table context means: trigger bulk action dialog
+  // We reuse onSelectAll prop slot as the bulk-action button handler in MemberTable
+  const handleBulkActionButton = () => {
+    if (showArchived) {
+      setBulkRestoreOpen(true)
+    } else {
+      setBulkArchiveOpen(true)
+    }
+  }
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedIds(new Set())
+  }, [])
+
+  // Bulk archive confirmed
+  const handleBulkArchiveConfirmed = async () => {
+    setBulkProcessing(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await memberService.bulkArchiveMembers(ids)
+      setBulkArchiveOpen(false)
+      setSelectedIds(new Set())
+      await loadMembers()
+      setAlertModal({ variant: 'success', title: 'Bulk Archive Complete', message: `${ids.length} member(s) have been archived.` })
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ variant: 'error', title: 'Bulk Archive Failed', message: err.message || 'Failed to archive selected members.' })
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
+  // Bulk restore confirmed
+  const handleBulkRestoreConfirmed = async () => {
+    setBulkProcessing(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await memberService.bulkRestoreMembers(ids)
+      setBulkRestoreOpen(false)
+      setSelectedIds(new Set())
+      await loadMembers()
+      setAlertModal({ variant: 'success', title: 'Bulk Restore Complete', message: `${ids.length} member(s) have been restored to active.` })
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ variant: 'error', title: 'Bulk Restore Failed', message: err.message || 'Failed to restore selected members.' })
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
+  // Bulk delete confirmed
+  const handleBulkDeleteConfirmed = async () => {
+    setBulkProcessing(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await memberService.bulkDeleteMembers(ids)
+      setBulkDeleteOpen(false)
+      setSelectedIds(new Set())
+      await loadMembers()
+      setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ variant: 'error', title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected members.' })
+    } finally {
+      setBulkProcessing(false)
+    }
   }
 
   return (
@@ -115,6 +227,15 @@ export const MembersPage: React.FC = () => {
             className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Import CSV
+          </button>
+          <button
+            onClick={() => setPdfImportOpen(true)}
+            className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 px-4 py-2 text-xs font-semibold text-red-600 hover:text-red-700 transition-colors cursor-pointer shadow-sm flex items-center gap-1.5"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Import PDF
           </button>
         </div>
       </div>
@@ -166,7 +287,13 @@ export const MembersPage: React.FC = () => {
             }}
             onArchive={handleArchive}
             onRestore={handleRestore}
+            onDelete={handleDelete}
             showArchived={showArchived}
+            selectedIds={selectedIds}
+            onToggleSelect={handleToggleSelect}
+            onSelectAll={handleBulkActionButton}
+            onBulkDelete={() => setBulkDeleteOpen(true)}
+            onClearSelection={handleClearSelection}
           />
         )}
       </Card>
@@ -190,7 +317,14 @@ export const MembersPage: React.FC = () => {
         existingMembers={members}
       />
 
-      {/* Archive Confirm Dialog */}
+      <MemberPDFImportModal
+        isOpen={pdfImportOpen}
+        onClose={() => setPdfImportOpen(false)}
+        onImport={handleImport}
+        existingMembers={members}
+      />
+
+      {/* Single Archive Confirm Dialog */}
       <ConfirmModal
         isOpen={!!confirmArchive}
         onClose={() => setConfirmArchive(null)}
@@ -199,6 +333,53 @@ export const MembersPage: React.FC = () => {
         title="Archive Member"
         message={`Are you sure you want to archive ${confirmArchive?.name}? They will be deactivated from scheduling.`}
         confirmLabel="Archive"
+      />
+
+      {/* Bulk Archive Confirm Dialog */}
+      <ConfirmModal
+        isOpen={bulkArchiveOpen}
+        onClose={() => setBulkArchiveOpen(false)}
+        onConfirm={handleBulkArchiveConfirmed}
+        variant="warning"
+        title={`Archive ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        message={`Are you sure you want to archive ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? They will be deactivated from scheduling.`}
+        confirmLabel={`Archive ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        loading={bulkProcessing}
+      />
+
+      {/* Bulk Restore Confirm Dialog */}
+      <ConfirmModal
+        isOpen={bulkRestoreOpen}
+        onClose={() => setBulkRestoreOpen(false)}
+        onConfirm={handleBulkRestoreConfirmed}
+        variant="info"
+        title={`Restore ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        message={`Are you sure you want to restore ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''} back to active?`}
+        confirmLabel={`Restore ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        loading={bulkProcessing}
+      />
+
+      {/* Single Delete Confirm Dialog */}
+      <ConfirmModal
+        isOpen={!!confirmDelete}
+        onClose={() => setConfirmDelete(null)}
+        onConfirm={handleDeleteConfirmed}
+        variant="danger"
+        title="Permanently Delete Member"
+        message={`Are you sure you want to permanently delete ${confirmDelete?.name}? This action cannot be undone.`}
+        confirmLabel="Delete Permanently"
+      />
+
+      {/* Bulk Delete Confirm Dialog */}
+      <ConfirmModal
+        isOpen={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDeleteConfirmed}
+        variant="danger"
+        title={`Permanently Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        message={`Are you sure you want to permanently delete ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel={`Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''} Permanently`}
+        loading={bulkProcessing}
       />
 
       {/* Alert Dialog */}

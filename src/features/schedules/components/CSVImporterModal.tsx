@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import type { Member } from '@/types/member'
 import { recurringService } from '@/services/recurringService'
+import { getFullName } from '@/utils/member'
 
 interface CSVImporterModalProps {
   isOpen: boolean
@@ -21,6 +22,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
   const [importing, setImporting] = useState(false)
   const [importReport, setImportReport] = useState<any | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [manualMemberMap, setManualMemberMap] = useState<Record<string, string>>({})
 
   if (!isOpen) return null
 
@@ -32,6 +34,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
     reader.onload = (event) => {
       if (event.target?.result) {
         setCsvText(event.target.result as string)
+        setManualMemberMap({})
       }
     }
     reader.readAsText(file)
@@ -49,7 +52,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
     setImportReport(null)
 
     try {
-      const result = await recurringService.validateCSV(csvText, activeMembers)
+      const result = await recurringService.validateCSV(csvText, activeMembers, manualMemberMap)
       setValidationResult(result)
     } catch (err: any) {
       console.error(err)
@@ -90,6 +93,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
     setValidationResult(null)
     setImportReport(null)
     setError(null)
+    setManualMemberMap({})
     onClose()
   }
 
@@ -182,15 +186,30 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
               <div className="space-y-3">
                 {/* Warnings / Unknown Members */}
                 {validationResult.unknownMembers.length > 0 && (
-                  <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-1">
+                  <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-2">
                     <h5 className="text-xs font-bold text-amber-700 flex items-center gap-1.5">
-                      ⚠ Unmatched Altar Server Names (Excluded from Assignments)
+                      ⚠ Unmatched Altar Server Names
                     </h5>
-                    <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    <p className="text-[10px] text-amber-700">Please map these names to existing active members, then click Re-validate.</p>
+                    <div className="flex flex-col gap-2 mt-1.5">
                       {validationResult.unknownMembers.map((name: string) => (
-                        <span key={name} className="px-1.5 py-0.5 rounded-lg text-[10px] font-semibold bg-white border border-amber-200 text-amber-700">
-                          {name}
-                        </span>
+                        <div key={name} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2 rounded border border-amber-100">
+                          <span className="text-[10px] font-semibold text-amber-800 flex-1">
+                            {name}
+                          </span>
+                          <select
+                            className="text-xs border border-gray-200 rounded p-1 flex-1 bg-white focus:outline-none focus:border-blue-400"
+                            value={manualMemberMap[name] || ''}
+                            onChange={(e) => setManualMemberMap(prev => ({ ...prev, [name]: e.target.value }))}
+                          >
+                            <option value="">-- Exclude --</option>
+                            {activeMembers.filter(m => m.status === 'active').map(m => (
+                              <option key={m.id} value={m.id}>
+                                {getFullName(m)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       ))}
                     </div>
                   </div>
@@ -307,9 +326,21 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
               </>
             ) : validationResult && !importReport ? (
               <>
-                <button onClick={() => setValidationResult(null)} className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors cursor-pointer shadow-sm">
+                <button onClick={() => {
+                  setValidationResult(null)
+                  setManualMemberMap({})
+                }} className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors cursor-pointer shadow-sm">
                   Back
                 </button>
+                {validationResult.unknownMembers.length > 0 && (
+                  <button
+                    onClick={handleValidate}
+                    disabled={validating}
+                    className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer shadow-sm"
+                  >
+                    {validating ? 'Validating...' : 'Re-validate'}
+                  </button>
+                )}
                 <button
                   onClick={handleImport}
                   disabled={importing || validationResult.validRows.length === 0}

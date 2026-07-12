@@ -6,6 +6,7 @@ interface ScheduleFormModalProps {
   onClose: () => void
   onSubmit: (input: ScheduleInput) => Promise<void>
   schedule?: Schedule | null
+  defaultDate?: string
 }
 
 export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
@@ -13,6 +14,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   onClose,
   onSubmit,
   schedule,
+  defaultDate,
 }) => {
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
@@ -31,13 +33,13 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
       setIsCancelled(schedule.status === 'cancelled')
     } else {
       setTitle('')
-      setDate('')
+      setDate(defaultDate || '')
       setStartTime('')
       setEndTime('')
       setIsCancelled(false)
     }
     setErrors({})
-  }, [schedule, isOpen])
+  }, [schedule, isOpen, defaultDate])
 
   if (!isOpen) return null
 

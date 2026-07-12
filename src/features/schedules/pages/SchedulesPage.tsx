@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { ScheduleCard } from '../components/ScheduleCard'
@@ -13,8 +13,10 @@ import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
+const PAGE_SIZE = 12
+
 export const SchedulesPage: React.FC = () => {
-  const [schedules, setSchedules] = useState<Schedule[]>(null as unknown as Schedule[]) // Initialize as null to handle initial load
+  const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -23,6 +25,15 @@ export const SchedulesPage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'ongoing' | 'completed' | 'cancelled'>('all')
   const [dateFilter, setDateFilter] = useState('')
 
+  // Pagination
+  const [currentPage, setCurrentPage] = useState(1)
+
+  // Bulk select
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkSelectMode, setBulkSelectMode] = useState(false)
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkDeleting, setBulkDeleting] = useState(false)
+
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
@@ -30,17 +41,13 @@ export const SchedulesPage: React.FC = () => {
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [csvImportOpen, setCsvImportOpen] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [selectedDate, setSelectedDate] = useState<string>('')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
 
   // Dialog state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string } | null>(null)
-
-  // Initialize schedules array on mount
-  useEffect(() => {
-    setSchedules([])
-  }, [])
 
   const loadData = async () => {
     setLoading(true)
@@ -64,6 +71,18 @@ export const SchedulesPage: React.FC = () => {
   useEffect(() => {
     loadData()
   }, [])
+
+  // Reset page when filters change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [statusFilter, dateFilter])
+
+  // Clear selection when exiting bulk mode
+  useEffect(() => {
+    if (!bulkSelectMode) {
+      setSelectedIds(new Set())
+    }
+  }, [bulkSelectMode])
 
   // Callbacks
   const handleAddOrEditSubmit = async (input: ScheduleInput) => {
@@ -97,15 +116,69 @@ export const SchedulesPage: React.FC = () => {
     await loadData()
   }
 
-  // Filter list of schedules
-  const filteredSchedules = (schedules || []).filter((s) => {
-    const matchesDate = !dateFilter || s.date === dateFilter
-    
-    const computedStatus = getScheduleStatus(s)
-    const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
+  // ── Bulk select helpers ───────────────────────────────────────
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
-    return matchesDate && matchesStatus
-  })
+  const handleSelectAll = () => {
+    // Selects / deselects ALL filtered schedules across every page
+    if (selectedIds.size === filteredSchedules.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(filteredSchedules.map(s => s.id)))
+    }
+  }
+
+  const handleBulkDeleteConfirmed = async () => {
+    setBulkDeleting(true)
+    try {
+      const ids = Array.from(selectedIds)
+      const { deletedCount, skippedIds } = await scheduleService.bulkDeleteSchedules(ids)
+      setBulkDeleteOpen(false)
+      setSelectedIds(new Set())
+      setBulkSelectMode(false)
+      await loadData()
+
+      if (skippedIds.length > 0) {
+        setAlertModal({
+          title: 'Partial Deletion',
+          message: `${deletedCount} schedule(s) deleted. ${skippedIds.length} schedule(s) could not be deleted because they have attendance records.`,
+        })
+      }
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected schedules.' })
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
+  // ── Filter & paginate ─────────────────────────────────────────
+  const filteredSchedules = useMemo(() =>
+    schedules.filter((s) => {
+      const matchesDate = !dateFilter || s.date === dateFilter
+      const computedStatus = getScheduleStatus(s)
+      const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
+      return matchesDate && matchesStatus
+    }),
+    [schedules, dateFilter, statusFilter]
+  )
+
+  const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / PAGE_SIZE))
+  const safePage = Math.min(currentPage, totalPages)
+  const currentPageItems = filteredSchedules.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  const allFilteredSelected = filteredSchedules.length > 0 && selectedIds.size === filteredSchedules.length
+  const someSelected = selectedIds.size > 0
 
   return (
     <div className="space-y-6">
@@ -157,6 +230,7 @@ export const SchedulesPage: React.FC = () => {
           <button
             onClick={() => {
               setSelectedSchedule(null)
+              setSelectedDate('')
               setFormOpen(true)
             }}
             className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
@@ -237,26 +311,151 @@ export const SchedulesPage: React.FC = () => {
             setSelectedSchedule(s)
             setDetailsOpen(true)
           }}
+          onDateClick={(dateStr) => {
+            setSelectedSchedule(null)
+            setSelectedDate(dateStr)
+            setFormOpen(true)
+          }}
         />
       ) : filteredSchedules.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredSchedules.map((schedule) => (
-            <ScheduleCard
-              key={schedule.id}
-              schedule={schedule}
-              totalAssigned={schedule.assignedMembers?.length || 0}
-              onEdit={(s) => {
-                setSelectedSchedule(s)
-                setFormOpen(true)
-              }}
-              onDelete={handleDelete}
-              onManageAssignments={(s) => {
-                setSelectedSchedule(s)
-                setAssignmentOpen(true)
-              }}
-            />
-          ))}
-        </div>
+        <>
+          {/* Bulk actions toolbar */}
+          <div className="flex items-center justify-between gap-3 px-1">
+            <div className="flex items-center gap-3">
+              {/* Bulk select toggle */}
+              <button
+                onClick={() => setBulkSelectMode(v => !v)}
+                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                  bulkSelectMode
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                }`}
+              >
+                {bulkSelectMode ? 'Cancel Selection' : 'Select'}
+              </button>
+
+              {bulkSelectMode && (
+                <>
+                  {/* Select / deselect all across ALL pages */}
+                  <button
+                    onClick={handleSelectAll}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer transition-colors"
+                  >
+                    {allFilteredSelected ? 'Deselect All' : 'Select All'}
+                  </button>
+
+                  {someSelected && (
+                    <span className="text-xs text-gray-500">
+                      {selectedIds.size}{totalPages > 1 ? ` / ${filteredSchedules.length}` : ''} selected
+                    </span>
+                  )}
+                </>
+              )}
+            </div>
+
+            {/* Bulk delete button */}
+            {bulkSelectMode && selectedIds.size > 0 && (
+              <button
+                onClick={() => setBulkDeleteOpen(true)}
+                className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Delete {selectedIds.size} Selected
+              </button>
+            )}
+          </div>
+
+          {/* Cards grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {currentPageItems.map((schedule) => (
+              <ScheduleCard
+                key={schedule.id}
+                schedule={schedule}
+                totalAssigned={schedule.assignedMembers?.length || 0}
+                isSelected={selectedIds.has(schedule.id)}
+                onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
+                onEdit={(s) => {
+                  setSelectedSchedule(s)
+                  setFormOpen(true)
+                }}
+                onDelete={handleDelete}
+                onManageAssignments={(s) => {
+                  setSelectedSchedule(s)
+                  setAssignmentOpen(true)
+                }}
+              />
+            ))}
+          </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-2">
+              <p className="text-xs text-gray-500">
+                Showing{' '}
+                <span className="font-semibold text-gray-700">
+                  {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredSchedules.length)}
+                </span>{' '}
+                of{' '}
+                <span className="font-semibold text-gray-700">{filteredSchedules.length}</span>{' '}
+                schedules
+              </p>
+
+              <div className="flex items-center gap-1">
+                {/* Previous */}
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  ‹ Prev
+                </button>
+
+                {/* Page numbers */}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
+                  // Show first, last, current ±1, with ellipsis
+                  const show =
+                    page === 1 ||
+                    page === totalPages ||
+                    Math.abs(page - safePage) <= 1
+                  const isEllipsisBefore = page === 2 && safePage > 3
+                  const isEllipsisAfter = page === totalPages - 1 && safePage < totalPages - 2
+
+                  if (isEllipsisBefore || isEllipsisAfter) {
+                    return (
+                      <span key={page} className="px-1 text-xs text-gray-400 select-none">…</span>
+                    )
+                  }
+                  if (!show) return null
+
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
+                        page === safePage
+                          ? 'bg-blue-600 text-white border border-blue-600'
+                          : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  )
+                })}
+
+                {/* Next */}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                >
+                  Next ›
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         <div className="py-16 text-center rounded-xl border border-gray-200 bg-white shadow-xs">
           <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -276,6 +475,7 @@ export const SchedulesPage: React.FC = () => {
         }}
         onSubmit={handleAddOrEditSubmit}
         schedule={selectedSchedule}
+        defaultDate={selectedDate}
       />
 
       <AssignmentModal
@@ -324,7 +524,7 @@ export const SchedulesPage: React.FC = () => {
         onImportSuccess={loadData}
       />
 
-      {/* Delete Confirm Dialog */}
+      {/* Single Delete Confirm Dialog */}
       <ConfirmModal
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
@@ -333,6 +533,18 @@ export const SchedulesPage: React.FC = () => {
         title="Delete Schedule"
         message="Are you sure you want to permanently delete this schedule? This action cannot be undone."
         confirmLabel="Delete"
+      />
+
+      {/* Bulk Delete Confirm Dialog */}
+      <ConfirmModal
+        isOpen={bulkDeleteOpen}
+        onClose={() => setBulkDeleteOpen(false)}
+        onConfirm={handleBulkDeleteConfirmed}
+        variant="danger"
+        title={`Delete ${selectedIds.size} Schedule${selectedIds.size > 1 ? 's' : ''}`}
+        message={`Are you sure you want to permanently delete ${selectedIds.size} selected schedule${selectedIds.size > 1 ? 's' : ''}? Schedules with attendance records will be skipped. This action cannot be undone.`}
+        confirmLabel={`Delete ${selectedIds.size} Schedule${selectedIds.size > 1 ? 's' : ''}`}
+        loading={bulkDeleting}
       />
 
       {/* Alert Dialog */}

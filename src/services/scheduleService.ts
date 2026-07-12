@@ -8,8 +8,7 @@ import {
   getDocs, 
   query, 
   where, 
-  serverTimestamp,
-  limit
+  serverTimestamp
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
@@ -84,20 +83,40 @@ export const scheduleService = {
   },
 
   /**
-   * Deletes a schedule, blocking deletion if attendance is already taken.
+   * Deletes a schedule and all its associated attendance records.
    */
   async deleteSchedule(id: string): Promise<void> {
-    // Check if attendance already taken
+    // Cascade-delete any attendance records linked to this schedule
     const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
-    const q = query(attendanceRef, where('scheduleId', '==', id), limit(1))
+    const q = query(attendanceRef, where('scheduleId', '==', id))
     const attendanceSnap = await getDocs(q)
-    
-    if (!attendanceSnap.empty) {
-      throw new Error('Cannot delete schedule because attendance records have already been recorded.')
-    }
+    await Promise.all(attendanceSnap.docs.map(d => deleteDoc(d.ref)))
 
+    // Delete the schedule itself
     const docRef = doc(db, SCHEDULES_COLLECTION, id)
     await deleteDoc(docRef)
+  },
+
+  /**
+   * Bulk-deletes multiple schedules.
+   * Schedules that have attendance records are skipped and returned as skippedIds.
+   */
+  async bulkDeleteSchedules(ids: string[]): Promise<{ deletedCount: number; skippedIds: string[] }> {
+    let deletedCount = 0
+    const skippedIds: string[] = []
+
+    await Promise.all(
+      ids.map(async (id) => {
+        try {
+          await scheduleService.deleteSchedule(id)
+          deletedCount++
+        } catch {
+          skippedIds.push(id)
+        }
+      })
+    )
+
+    return { deletedCount, skippedIds }
   },
 
   /**

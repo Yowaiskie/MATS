@@ -10,6 +10,8 @@ interface ScheduleCardProps {
   onDelete: (id: string) => void | Promise<void>
   onManageAssignments: (schedule: Schedule) => void
   totalAssigned: number
+  isSelected?: boolean
+  onToggleSelect?: (id: string) => void
 }
 
 export const ScheduleCard: React.FC<ScheduleCardProps> = ({
@@ -18,6 +20,8 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   onDelete,
   onManageAssignments,
   totalAssigned,
+  isSelected = false,
+  onToggleSelect,
 }) => {
   const computedStatus = getScheduleStatus(schedule)
 
@@ -57,11 +61,31 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   }
 
   return (
-    <Card className="hover:shadow-md transition-shadow duration-200 border-gray-250/70">
+    <Card className={`hover:shadow-md transition-shadow duration-200 ${
+      isSelected ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-250/70'
+    }`}>
       <div className="flex flex-col h-full justify-between space-y-4">
         {/* Header Title & Status */}
         <div className="space-y-1">
           <div className="flex items-start justify-between gap-2">
+            {/* Checkbox for bulk selection */}
+            {onToggleSelect && (
+              <button
+                onClick={() => onToggleSelect(schedule.id)}
+                className={`shrink-0 mt-0.5 h-4 w-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-blue-600 border-blue-600'
+                    : 'border-gray-300 hover:border-blue-400 bg-white'
+                }`}
+                aria-label={isSelected ? 'Deselect schedule' : 'Select schedule'}
+              >
+                {isSelected && (
+                  <svg className="h-2.5 w-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            )}
             <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[80%]" title={schedule.title}>
               {schedule.title}
             </h4>

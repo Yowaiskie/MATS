@@ -5,7 +5,8 @@ import {
   updateDoc, 
   getDocs, 
   writeBatch,
-  serverTimestamp
+  serverTimestamp,
+  deleteDoc
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Member, MemberInput } from '@/types/member'
@@ -54,9 +55,15 @@ export const memberService = {
       lastName: input.lastName.trim(),
       suffix: input.suffix?.trim() || '',
       nickname: input.nickname?.trim() || '',
+      homeAddress: input.homeAddress?.trim() || '',
+      dateOfBirth: input.dateOfBirth?.trim() || '',
       rank: input.rank.trim(),
       status: input.status,
       phoneNumber: input.phoneNumber?.trim() || '',
+      monthJoined: input.monthJoined?.trim() || '',
+      dateOfInvestiture: input.dateOfInvestiture?.trim() || '',
+      position: input.position?.trim() || '',
+      order: input.order?.trim() || '',
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
@@ -77,9 +84,15 @@ export const memberService = {
     if (input.lastName !== undefined) updateData.lastName = input.lastName.trim()
     if (input.suffix !== undefined) updateData.suffix = input.suffix.trim()
     if (input.nickname !== undefined) updateData.nickname = input.nickname.trim()
+    if (input.homeAddress !== undefined) updateData.homeAddress = input.homeAddress.trim()
+    if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth.trim()
     if (input.rank !== undefined) updateData.rank = input.rank.trim()
     if (input.status !== undefined) updateData.status = input.status
     if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber.trim()
+    if (input.monthJoined !== undefined) updateData.monthJoined = input.monthJoined.trim()
+    if (input.dateOfInvestiture !== undefined) updateData.dateOfInvestiture = input.dateOfInvestiture.trim()
+    if (input.position !== undefined) updateData.position = input.position.trim()
+    if (input.order !== undefined) updateData.order = input.order.trim()
     
     await updateDoc(docRef, updateData)
   },
@@ -125,14 +138,79 @@ export const memberService = {
           lastName: input.lastName.trim(),
           suffix: input.suffix?.trim() || '',
           nickname: input.nickname?.trim() || '',
+          homeAddress: input.homeAddress?.trim() || '',
+          dateOfBirth: input.dateOfBirth?.trim() || '',
           rank: input.rank.trim(),
           status: input.status,
           phoneNumber: input.phoneNumber?.trim() || '',
+          monthJoined: input.monthJoined?.trim() || '',
+          dateOfInvestiture: input.dateOfInvestiture?.trim() || '',
+          position: input.position?.trim() || '',
+          order: input.order?.trim() || '',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
         })
       })
       
+      await batch.commit()
+    }
+  },
+
+  /**
+   * Bulk-archives multiple members (sets status → 'archived') using batched writes.
+   */
+  async bulkArchiveMembers(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    const BATCH_SIZE_LIMIT = 500
+    for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
+      const chunk = ids.slice(i, i + BATCH_SIZE_LIMIT)
+      const batch = writeBatch(db)
+      chunk.forEach(id => {
+        const ref = doc(db, MEMBERS_COLLECTION, id)
+        batch.update(ref, { status: 'archived', updatedAt: serverTimestamp() })
+      })
+      await batch.commit()
+    }
+  },
+
+  /**
+   * Bulk-restores multiple archived members (sets status → 'active') using batched writes.
+   */
+  async bulkRestoreMembers(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    const BATCH_SIZE_LIMIT = 500
+    for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
+      const chunk = ids.slice(i, i + BATCH_SIZE_LIMIT)
+      const batch = writeBatch(db)
+      chunk.forEach(id => {
+        const ref = doc(db, MEMBERS_COLLECTION, id)
+        batch.update(ref, { status: 'active', updatedAt: serverTimestamp() })
+      })
+      await batch.commit()
+    }
+  },
+
+  /**
+   * Permanently deletes a member document from Firestore.
+   */
+  async deleteMember(id: string): Promise<void> {
+    const docRef = doc(db, MEMBERS_COLLECTION, id)
+    await deleteDoc(docRef)
+  },
+
+  /**
+   * Bulk-deletes multiple members permanently using batched writes.
+   */
+  async bulkDeleteMembers(ids: string[]): Promise<void> {
+    if (ids.length === 0) return
+    const BATCH_SIZE_LIMIT = 500
+    for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
+      const chunk = ids.slice(i, i + BATCH_SIZE_LIMIT)
+      const batch = writeBatch(db)
+      chunk.forEach(id => {
+        const ref = doc(db, MEMBERS_COLLECTION, id)
+        batch.delete(ref)
+      })
       await batch.commit()
     }
   }

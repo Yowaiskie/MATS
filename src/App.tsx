@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/features/authentication/AuthContext'
+import { PWAProvider } from '@/context/PWAContext'
 import { ProtectedRoute, PublicRoute } from '@/features/authentication/components/ProtectedRoute'
 import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
@@ -12,60 +13,62 @@ import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 
 function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <Routes>
-          {/* Public Login Route */}
-          <Route 
-            path="/login" 
-            element={
-              <PublicRoute>
-                <LoginPage />
-              </PublicRoute>
-            } 
-          />
+    <PWAProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            {/* Public Login Route */}
+            <Route 
+              path="/login" 
+              element={
+                <PublicRoute>
+                  <LoginPage />
+                </PublicRoute>
+              } 
+            />
 
-          {/* Protected Routes wrapped under a single layout parent */}
-          <Route 
-            element={
-              <ProtectedRoute>
-                <DashboardLayout />
-              </ProtectedRoute>
-            }
-          >
-            <Route path="/" element={<DashboardOverview />} />
-            
+            {/* Protected Routes wrapped under a single layout parent */}
             <Route 
-              path="/members" 
-              element={<MembersPage />} 
-            />
-            
-            <Route 
-              path="/schedules" 
-              element={<SchedulesPage />} 
-            />
-            
-            <Route 
-              path="/attendance" 
-              element={<AttendancePage />} 
-            />
-            
-            <Route 
-              path="/reports" 
-              element={<ReportsPage />} 
-            />
-            
-            <Route 
-              path="/settings" 
-              element={<SettingsPage />} 
-            />
-          </Route>
+              element={
+                <ProtectedRoute>
+                  <DashboardLayout />
+                </ProtectedRoute>
+              }
+            >
+              <Route path="/" element={<DashboardOverview />} />
+              
+              <Route 
+                path="/members" 
+                element={<MembersPage />} 
+              />
+              
+              <Route 
+                path="/schedules" 
+                element={<SchedulesPage />} 
+              />
+              
+              <Route 
+                path="/attendance" 
+                element={<AttendancePage />} 
+              />
+              
+              <Route 
+                path="/reports" 
+                element={<ReportsPage />} 
+              />
+              
+              <Route 
+                path="/settings" 
+                element={<SettingsPage />} 
+              />
+            </Route>
 
-          {/* Fallback redirection */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+            {/* Fallback redirection */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
+    </PWAProvider>
   )
 }
 

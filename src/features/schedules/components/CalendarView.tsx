@@ -5,11 +5,13 @@ import { getScheduleStatus } from '@/utils/scheduleUtils'
 interface CalendarViewProps {
   schedules: Schedule[]
   onSelectSchedule: (schedule: Schedule) => void
+  onDateClick?: (dateStr: string) => void
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   schedules,
   onSelectSchedule,
+  onDateClick,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date())
 
@@ -167,8 +169,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           return (
             <div
               key={`${cell.dateStr}-${idx}`}
-              className={`min-h-[100px] sm:min-h-[120px] bg-white p-1 flex flex-col justify-between ${
-                cell.isCurrentMonth ? '' : 'bg-gray-50/50 opacity-60 text-gray-400'
+              onClick={() => onDateClick?.(cell.dateStr)}
+              className={`min-h-[100px] sm:min-h-[120px] bg-white p-1 flex flex-col justify-between cursor-pointer hover:bg-gray-50/80 transition-colors ${
+                cell.isCurrentMonth ? '' : 'bg-gray-50/50 opacity-60 text-gray-400 hover:bg-gray-100/50'
               }`}
             >
               {/* Day Number Row */}
@@ -201,7 +204,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   return (
                     <button
                       key={s.id}
-                      onClick={() => onSelectSchedule(s)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSelectSchedule(s)
+                      }}
                       className="w-full text-left bg-gray-50 hover:bg-gray-100/60 border border-gray-150 rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden"
                       title={`${s.title} (${formatTime12(s.startTime)})`}
                     >

@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { OfflineBanner } from '@/components/OfflineBanner'
+import { InstallPWAButton } from '@/components/InstallPWAButton'
 
 const icons: { [key: string]: React.ReactNode } = {
   Dashboard: (
@@ -85,7 +87,10 @@ export const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased">
+    <div className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden">
+      {/* Offline Alert Banner */}
+      <OfflineBanner />
+
       {/* Top Navbar */}
       <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/95">
         <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -122,7 +127,8 @@ export const DashboardLayout: React.FC = () => {
           </div>
 
           {/* Top Nav Right Actions */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-3">
+            <InstallPWAButton />
             <span className="text-xs text-gray-500 hidden md:inline-block">
               User: <strong className="text-gray-700 font-semibold">{profile?.email || 'Admin'}</strong>
             </span>
@@ -137,10 +143,10 @@ export const DashboardLayout: React.FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 flex flex-col sm:flex-row relative">
+      <div className="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
         {/* Sidebar for Desktop */}
         <aside 
-          className={`hidden sm:flex flex-col border-r border-gray-200/80 bg-white p-4 space-y-1.5 transition-all duration-200 ease-in-out shrink-0 ${
+          className={`hidden sm:flex flex-col border-r border-gray-200/80 bg-white p-4 space-y-1.5 transition-all duration-200 ease-in-out shrink-0 overflow-y-auto ${
             collapsed ? 'w-20' : 'w-64'
           }`}
         >
@@ -205,7 +211,7 @@ export const DashboardLayout: React.FC = () => {
                   className="text-gray-400 hover:text-gray-900 p-1 rounded-lg"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6" />
                   </svg>
                 </button>
               </div>
