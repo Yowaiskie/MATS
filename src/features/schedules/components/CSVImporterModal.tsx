@@ -69,9 +69,10 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
     setError(null)
 
     try {
-      const importedCount = await recurringService.importSchedules(validationResult.validRows)
+      const { created, updated } = await recurringService.importSchedules(validationResult.validRows)
       setImportReport({
-        created: importedCount,
+        created,
+        updated,
         skipped: validationResult.invalidRows.length + validationResult.duplicates.length,
         duplicates: validationResult.duplicates.length,
         unknownMembers: validationResult.unknownMembers,
@@ -172,9 +173,11 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                   <span className="block text-[10px] uppercase font-bold text-red-600">Invalid Rows</span>
                   <span className="text-xl font-bold text-red-700 mt-1 block">{validationResult.invalidRows.length}</span>
                 </div>
-                <div className="p-3 rounded-xl border border-yellow-100 bg-yellow-50 text-center">
-                  <span className="block text-[10px] uppercase font-bold text-yellow-600">Duplicates</span>
-                  <span className="text-xl font-bold text-yellow-700 mt-1 block">{validationResult.duplicates.length}</span>
+                <div className="p-3 rounded-xl border border-blue-100 bg-blue-50 text-center">
+                  <span className="block text-[10px] uppercase font-bold text-blue-600">Updates</span>
+                  <span className="text-xl font-bold text-blue-700 mt-1 block">
+                    {validationResult.validRows.filter((r: any) => r.isUpdate).length}
+                  </span>
                 </div>
                 <div className="p-3 rounded-xl border border-orange-100 bg-orange-50 text-center">
                   <span className="block text-[10px] uppercase font-bold text-orange-600">Unknown Members</span>
@@ -222,7 +225,10 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                     <div className="max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50 space-y-1">
                       {validationResult.validRows.map((row: any, index: number) => (
                         <div key={index} className="text-[10px] text-gray-600 flex justify-between">
-                          <span>Row {row.rowNum}: {row.title} ({row.date} {row.startTime}-{row.endTime})</span>
+                          <span>
+                            {row.isUpdate && <span className="inline-block rounded bg-blue-100 text-blue-700 px-1 py-0.5 text-[8px] font-bold mr-1 uppercase">Update</span>}
+                            Row {row.rowNum}: {row.title} ({row.date} {row.startTime}-{row.endTime})
+                          </span>
                           <span className="text-blue-600">{row.memberNames.length - row.warnings.length} assigned</span>
                         </div>
                       ))}
@@ -257,7 +263,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                 </svg>
                 <h4 className="text-sm font-bold text-green-700 mt-2">CSV Import Complete!</h4>
                 <p className="text-xs text-gray-600 mt-1">
-                  Successfully imported <strong>{importReport.created}</strong> schedules into the database.
+                  Successfully imported <strong>{importReport.created}</strong> new schedules and updated <strong>{importReport.updated}</strong> existing schedules.
                 </p>
               </div>
 
@@ -269,12 +275,12 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                     <span className="font-bold text-green-600">{importReport.created}</span>
                   </div>
                   <div className="flex justify-between text-gray-700">
-                    <span>Schedules Skipped (Conflict / Errors):</span>
-                    <span className="font-bold text-red-600">{importReport.skipped}</span>
+                    <span>Schedules Updated:</span>
+                    <span className="font-bold text-blue-600">{importReport.updated}</span>
                   </div>
                   <div className="flex justify-between text-gray-700">
-                    <span>Duplicate Schedules Detected:</span>
-                    <span className="font-bold text-yellow-600">{importReport.duplicates}</span>
+                    <span>Schedules Skipped (Conflict / Errors):</span>
+                    <span className="font-bold text-red-600">{importReport.skipped}</span>
                   </div>
                   <div className="flex justify-between text-gray-700">
                     <span>Unknown Member Warnings:</span>

@@ -10,6 +10,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Member, MemberInput } from '@/types/member'
+import { isDuplicateName } from '@/utils/member'
 
 const MEMBERS_COLLECTION = 'members'
 
@@ -113,14 +114,17 @@ export const memberService = {
 
   /**
    * Performs sequential batch writes to Firestore for imported members.
-   * Automatically splits inputs into chunks of maximum 500 operations per batch.
-   * Supports up to 1000 items as dictated by guidelines.
+   * Checks for existing members by First Name and Last Name.
+   * Performs UPSERT (Update existing fields if they have value, Insert if new).
    */
   async importMembersBatch(inputs: MemberInput[]): Promise<void> {
     if (inputs.length === 0) return
     if (inputs.length > 1000) {
       throw new Error('Bulk import exceeds maximum limit of 1000 rows.')
     }
+    
+    // Fetch all existing members including archived to correctly map duplicates
+    const existingMembers = await this.getMembers(true)
     
     const BATCH_SIZE_LIMIT = 500
     
@@ -131,25 +135,54 @@ export const memberService = {
       const membersRef = collection(db, MEMBERS_COLLECTION)
       
       chunk.forEach((input) => {
-        const newDocRef = doc(membersRef) // Auto-generates ID
-        batch.set(newDocRef, {
-          firstName: input.firstName.trim(),
-          middleName: input.middleName?.trim() || '',
-          lastName: input.lastName.trim(),
-          suffix: input.suffix?.trim() || '',
-          nickname: input.nickname?.trim() || '',
-          homeAddress: input.homeAddress?.trim() || '',
-          dateOfBirth: input.dateOfBirth?.trim() || '',
-          rank: input.rank.trim(),
-          status: input.status,
-          phoneNumber: input.phoneNumber?.trim() || '',
-          monthJoined: input.monthJoined?.trim() || '',
-          dateOfInvestiture: input.dateOfInvestiture?.trim() || '',
-          position: input.position?.trim() || '',
-          order: input.order?.trim() || '',
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        })
+        // Find existing member by name
+        const existingMember = existingMembers.find(m => 
+          isDuplicateName(input.firstName, input.lastName, m.firstName, m.lastName)
+        )
+        
+        if (existingMember) {
+          // Update existing document (only non-blank fields)
+          const docRef = doc(db, MEMBERS_COLLECTION, existingMember.id)
+          const updateData: any = { updatedAt: serverTimestamp() }
+          
+          if (input.firstName?.trim()) updateData.firstName = input.firstName.trim()
+          if (input.middleName?.trim()) updateData.middleName = input.middleName.trim()
+          if (input.lastName?.trim()) updateData.lastName = input.lastName.trim()
+          if (input.suffix?.trim()) updateData.suffix = input.suffix.trim()
+          if (input.nickname?.trim()) updateData.nickname = input.nickname.trim()
+          if (input.homeAddress?.trim()) updateData.homeAddress = input.homeAddress.trim()
+          if (input.dateOfBirth?.trim()) updateData.dateOfBirth = input.dateOfBirth.trim()
+          if (input.rank?.trim()) updateData.rank = input.rank.trim()
+          if (input.status) updateData.status = input.status
+          if (input.phoneNumber?.trim()) updateData.phoneNumber = input.phoneNumber.trim()
+          if (input.monthJoined?.trim()) updateData.monthJoined = input.monthJoined.trim()
+          if (input.dateOfInvestiture?.trim()) updateData.dateOfInvestiture = input.dateOfInvestiture.trim()
+          if (input.position?.trim()) updateData.position = input.position.trim()
+          if (input.order?.trim()) updateData.order = input.order.trim()
+          
+          batch.update(docRef, updateData)
+        } else {
+          // Add new document
+          const newDocRef = doc(membersRef)
+          batch.set(newDocRef, {
+            firstName: input.firstName.trim(),
+            middleName: input.middleName?.trim() || '',
+            lastName: input.lastName.trim(),
+            suffix: input.suffix?.trim() || '',
+            nickname: input.nickname?.trim() || '',
+            homeAddress: input.homeAddress?.trim() || '',
+            dateOfBirth: input.dateOfBirth?.trim() || '',
+            rank: input.rank.trim(),
+            status: input.status,
+            phoneNumber: input.phoneNumber?.trim() || '',
+            monthJoined: input.monthJoined?.trim() || '',
+            dateOfInvestiture: input.dateOfInvestiture?.trim() || '',
+            position: input.position?.trim() || '',
+            order: input.order?.trim() || '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          })
+        }
       })
       
       await batch.commit()

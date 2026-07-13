@@ -382,7 +382,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
                   </thead>
                   <tbody className="divide-y divide-gray-100 bg-white">
                     {previewRows.map((row, idx) => {
-                      const computedFullname = getFullName(row as Member)
+                      const computedFullname = getFullName(row as unknown as Member)
                       return (
                         <tr key={idx} className={row.isValid ? 'hover:bg-gray-50/20' : 'bg-red-50/40 hover:bg-red-50/60'}>
                           <td className="p-2.5 truncate max-w-[120px] font-bold text-gray-900" title={computedFullname}>
@@ -399,8 +399,8 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
                           <td className="p-2.5 text-gray-500">{row.rank || '--'}</td>
                           <td className="p-2.5 text-right font-semibold whitespace-nowrap">
                             {row.isDuplicate && (
-                              <span className="inline-block rounded-md bg-amber-50 border border-amber-100 text-amber-600 px-1.5 py-0.5 text-[9px] mr-1">
-                                Duplicate
+                              <span className="inline-block rounded-md bg-blue-50 border border-blue-100 text-blue-600 px-1.5 py-0.5 text-[9px] mr-1">
+                                Will Update
                               </span>
                             )}
                             {row.isValid ? (

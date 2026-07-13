@@ -489,23 +489,15 @@ export const recurringService = {
         continue
       }
 
-      // Duplicate schedule check (same title, date, startTime)
-      const isDuplicate = existingSchedules.some(s =>
+      // Identify if this is an update (same title, date, startTime)
+      const existingSchedule = existingSchedules.find(s =>
         s.title.toLowerCase() === title.toLowerCase() &&
         s.date === normalizedDate &&
         s.startTime === startTime
       )
-
-      if (isDuplicate) {
-        result.duplicates.push({
-          rowNum: i + 1,
-          title,
-          date: normalizedDate,
-          startTime,
-          endTime
-        })
-        continue
-      }
+      
+      const isUpdate = !!existingSchedule
+      const existingId = existingSchedule?.id
 
       // Parse members
       const memberNames = membersStr.split('|').map(n => n.trim()).filter(Boolean)
@@ -536,11 +528,12 @@ export const recurringService = {
           break
         }
 
-        // Check overlapping assignment conflicts on this date
+        // Check overlapping assignment conflicts on this date (ignore self if updating)
         const conflicting = existingSchedules.find(s =>
           s.date === normalizedDate &&
           s.status !== 'cancelled' &&
-          s.assignedMembers.includes(matched.id) &&
+          s.assignedMembers.includes(matched!.id) &&
+          s.id !== existingId &&
           isTimeOverlapping(startTime, endTime, s.startTime, s.endTime)
         )
 
@@ -571,7 +564,9 @@ export const recurringService = {
         endTime,
         assignedMembers: assignedIds,
         memberNames: memberNames,
-        warnings
+        warnings,
+        isUpdate,
+        existingId
       })
     }
 
@@ -581,20 +576,32 @@ export const recurringService = {
   /**
    * Commits the validated CSV rows to Firestore.
    */
-  async importSchedules(validRows: any[]): Promise<number> {
-    let importedCount = 0
+  async importSchedules(validRows: any[]): Promise<{ created: number; updated: number }> {
+    let createdCount = 0
+    let updatedCount = 0
     for (const row of validRows) {
-      await scheduleService.addSchedule({
-        title: row.title,
-        date: row.date,
-        startTime: row.startTime,
-        endTime: row.endTime,
-        status: 'upcoming',
-        assignedMembers: row.assignedMembers
-      })
-      importedCount++
+      if (row.isUpdate && row.existingId) {
+        await scheduleService.updateSchedule(row.existingId, {
+          title: row.title,
+          date: row.date,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          assignedMembers: row.assignedMembers
+        })
+        updatedCount++
+      } else {
+        await scheduleService.addSchedule({
+          title: row.title,
+          date: row.date,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          status: 'upcoming',
+          assignedMembers: row.assignedMembers
+        })
+        createdCount++
+      }
     }
-    return importedCount
+    return { created: createdCount, updated: updatedCount }
   },
 
   /**
