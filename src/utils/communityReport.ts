@@ -89,35 +89,46 @@ export const generateCommunityReport = (
   let absentCount = 0
   let excusedCount = 0
 
-  const assignedList = assignedMembers
-    .map((member, idx) => {
-      const state = formState[member.id]
-      const status = state?.status
-      
-      if (status === 'present') presentCount++
-      else if (status === 'late') lateCount++
-      else if (status === 'absent') absentCount++
-      else if (status === 'excused') excusedCount++
+  const assignedList = assignedMembers.length > 0
+    ? assignedMembers
+        .map((member, idx) => {
+          const state = formState[member.id]
+          const status = state?.status
+          
+          if (status === 'present') presentCount++
+          else if (status === 'late') lateCount++
+          else if (status === 'absent') absentCount++
+          else if (status === 'excused') excusedCount++
 
-      const statusShortcut = mapStatus(status)
-      return `${idx + 1}. ${getFullName(member)} - ${statusShortcut}`
-    })
-    .join('\n')
+          const statusShortcut = mapStatus(status)
+          return `${idx + 1}. ${getFullName(member)} - ${statusShortcut}`
+        })
+        .join('\n')
+    : 'NO SERVERS!'
 
   const otherList = unassignedMembers.length > 0
     ? unassignedMembers
         .map((member, idx) => `${idx + 1}. ${getFullName(member)}`)
         .join('\n')
-    : 'None'
+    : ''
 
   // Replace placeholders dynamically with formatted values
   let result = template
+  
+  if (unassignedMembers.length === 0) {
+    // Remove "Other Servers:" and the placeholder if there are no other servers
+    result = result.replace(/\n*Other\s*Servers:\s*\{\{otherServers\}\}/i, '')
+    // Fallback if the placeholder is still there
+    result = result.replace(/\{\{otherServers\}\}/g, '')
+  } else {
+    result = result.replace(/\{\{otherServers\}\}/g, otherList)
+  }
+  
   result = result.replace(/\{\{scheduleDate\}\}/g, formatReadableDate(schedule.date || ''))
   result = result.replace(/\{\{scheduleTitle\}\}/g, toTitleCase(schedule.title || ''))
   result = result.replace(/\{\{startTime\}\}/g, formatReadableTime(schedule.startTime || ''))
   result = result.replace(/\{\{endTime\}\}/g, formatReadableTime(schedule.endTime || ''))
   result = result.replace(/\{\{assignedMembers\}\}/g, assignedList)
-  result = result.replace(/\{\{otherServers\}\}/g, otherList)
   result = result.replace(/\{\{presentCount\}\}/g, String(presentCount))
   result = result.replace(/\{\{lateCount\}\}/g, String(lateCount))
   result = result.replace(/\{\{absentCount\}\}/g, String(absentCount))

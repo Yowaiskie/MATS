@@ -13,7 +13,6 @@ interface AttendanceHeaderProps {
   onAddOtherServer: () => void
   isSaving: boolean
   isDirty: boolean
-  hasMembers: boolean
 }
 
 export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
@@ -26,7 +25,6 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
   onAddOtherServer,
   isSaving,
   isDirty,
-  hasMembers,
 }) => {
   return (
     <div className="space-y-4">
@@ -57,7 +55,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
         <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
           <button
             onClick={onGenerateReport}
-            disabled={isDirty || isSaving || !hasMembers}
+            disabled={isDirty || isSaving}
             className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto cursor-pointer shadow-sm"
           >
             Generate Community Report

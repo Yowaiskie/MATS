@@ -350,7 +350,6 @@ export const AttendancePage: React.FC = () => {
           onAddOtherServer={() => setAddOtherServerOpen(true)}
           isSaving={saving}
           isDirty={isDirty}
-          hasMembers={displayMembers.length > 0}
         />
       )}
 
@@ -391,7 +390,7 @@ export const AttendancePage: React.FC = () => {
         </div>
 
         {/* Footer Actions */}
-        {assignedMembers.length > 0 && !(session?.locked ?? false) && (
+        {displayMembers.length > 0 && !(session?.locked ?? false) && (
           <div className="flex items-center justify-end p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
             {isDirty && (
               <span className="text-[11px] text-amber-600 font-semibold mr-4">
