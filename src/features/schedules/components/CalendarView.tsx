@@ -14,6 +14,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onDateClick,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date())
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
+
+  const toggleExpand = (e: React.MouseEvent, dateStr: string) => {
+    e.stopPropagation()
+    setExpandedDates(prev => ({
+      ...prev,
+      [dateStr]: !prev[dateStr]
+    }))
+  }
 
   // Navigation handlers
   const handlePrevMonth = () => {
@@ -162,9 +171,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       <div className="grid grid-cols-7 gap-px bg-gray-150 border border-gray-200/80 rounded-xl overflow-hidden shadow-xs">
         {cells.map((cell, idx) => {
           const daySchedules = schedulesByDate[cell.dateStr] || []
-          const displayLimit = 3
+          const isExpanded = expandedDates[cell.dateStr]
+          const displayLimit = isExpanded ? daySchedules.length : 3
           const displayedSchedules = daySchedules.slice(0, displayLimit)
-          const overflowCount = daySchedules.length - displayLimit
+          const hasOverflow = daySchedules.length > 3
 
           return (
             <div
@@ -219,10 +229,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   )
                 })}
                 
-                {overflowCount > 0 && (
-                  <div className="text-[9px] text-blue-600 font-bold px-1.5 py-0.5 mt-0.5 leading-none">
-                    +{overflowCount} more
-                  </div>
+                {hasOverflow && (
+                  <button
+                    onClick={(e) => toggleExpand(e, cell.dateStr)}
+                    className="text-[9px] text-blue-600 font-bold px-1.5 py-0.5 mt-0.5 leading-none text-left hover:underline cursor-pointer"
+                  >
+                    {isExpanded ? 'Show less' : `+${daySchedules.length - 3} more`}
+                  </button>
                 )}
               </div>
             </div>

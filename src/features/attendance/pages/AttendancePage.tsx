@@ -427,7 +427,7 @@ export const AttendancePage: React.FC = () => {
               const updated = { ...prev }
               newMembers.forEach((m) => {
                 updated[m.id] = {
-                  status: undefined,
+                  status: 'present',
                   remarks: '',
                   isOtherServer: true
                 }
