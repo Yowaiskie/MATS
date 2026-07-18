@@ -7,8 +7,10 @@ import { MemberFormModal } from '../components/MemberFormModal'
 import { MemberImportModal } from '../components/MemberImportModal'
 import { MemberPDFImportModal } from '../components/MemberPDFImportModal'
 import type { Member, MemberInput } from '@/types/member'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 export const MembersPage: React.FC = () => {
+  const { profile } = useAuth()
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -64,10 +66,11 @@ export const MembersPage: React.FC = () => {
 
   // ── Single-record callbacks ───────────────────────────────────
   const handleAddOrEditSubmit = async (input: MemberInput) => {
+    const actor = profile?.email || 'Admin'
     if (editingMember) {
-      await memberService.updateMember(editingMember.id, input)
+      await memberService.updateMember(editingMember.id, input, actor)
     } else {
-      await memberService.addMember(input)
+      await memberService.addMember(input, actor)
     }
     await loadMembers()
   }
@@ -82,7 +85,7 @@ export const MembersPage: React.FC = () => {
     const { id } = confirmArchive
     setConfirmArchive(null)
     try {
-      await memberService.archiveMember(id)
+      await memberService.archiveMember(id, profile?.email || 'Admin')
       await loadMembers()
     } catch (err) {
       console.error(err)
@@ -100,7 +103,7 @@ export const MembersPage: React.FC = () => {
     const { id } = confirmDelete
     setConfirmDelete(null)
     try {
-      await memberService.deleteMember(id)
+      await memberService.deleteMember(id, profile?.email || 'Admin')
       await loadMembers()
       setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
     } catch (err) {
@@ -111,7 +114,7 @@ export const MembersPage: React.FC = () => {
 
   const handleRestore = async (id: string) => {
     try {
-      await memberService.restoreMember(id)
+      await memberService.restoreMember(id, profile?.email || 'Admin')
       await loadMembers()
     } catch (err) {
       console.error(err)
@@ -120,7 +123,7 @@ export const MembersPage: React.FC = () => {
   }
 
   const handleImport = async (inputs: MemberInput[]) => {
-    await memberService.importMembersBatch(inputs)
+    await memberService.importMembersBatch(inputs, profile?.email || 'Admin')
     await loadMembers()
   }
 
@@ -153,7 +156,7 @@ export const MembersPage: React.FC = () => {
     setBulkProcessing(true)
     try {
       const ids = Array.from(selectedIds)
-      await memberService.bulkArchiveMembers(ids)
+      await memberService.bulkArchiveMembers(ids, profile?.email || 'Admin')
       setBulkArchiveOpen(false)
       setSelectedIds(new Set())
       await loadMembers()
@@ -171,7 +174,7 @@ export const MembersPage: React.FC = () => {
     setBulkProcessing(true)
     try {
       const ids = Array.from(selectedIds)
-      await memberService.bulkRestoreMembers(ids)
+      await memberService.bulkRestoreMembers(ids, profile?.email || 'Admin')
       setBulkRestoreOpen(false)
       setSelectedIds(new Set())
       await loadMembers()
@@ -189,7 +192,7 @@ export const MembersPage: React.FC = () => {
     setBulkProcessing(true)
     try {
       const ids = Array.from(selectedIds)
-      await memberService.bulkDeleteMembers(ids)
+      await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
       await loadMembers()

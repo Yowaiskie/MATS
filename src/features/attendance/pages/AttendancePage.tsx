@@ -231,7 +231,8 @@ export const AttendancePage: React.FC = () => {
         session.id,
         schedule.id,
         schedule.date,
-        inputs
+        inputs,
+        user?.email || 'Admin'
       )
 
       setSuccessMsg('Attendance records successfully updated!')

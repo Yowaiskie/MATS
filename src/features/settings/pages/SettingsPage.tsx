@@ -5,6 +5,7 @@ import { generateCommunityReport } from '@/utils/communityReport'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 // Mock data for the Live Preview function
 const mockSchedule: Schedule = {
@@ -65,6 +66,7 @@ const tokenGroups = [
 ]
 
 export const SettingsPage: React.FC = () => {
+  const { profile } = useAuth()
   const [template, setTemplate] = useState('')
   const [originalTemplate, setOriginalTemplate] = useState('')
   const [loading, setLoading] = useState(true)
@@ -125,7 +127,7 @@ export const SettingsPage: React.FC = () => {
     setError(null)
     setSuccessMsg(null)
     try {
-      await settingsService.saveReportTemplate(template)
+      await settingsService.saveReportTemplate(template, profile?.email || 'Admin')
       setOriginalTemplate(template)
       setSuccessMsg('Template settings successfully saved!')
     } catch (err: any) {

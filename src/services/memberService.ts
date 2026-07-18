@@ -11,6 +11,7 @@ import {
 import { db } from '@/firebase/config'
 import type { Member, MemberInput } from '@/types/member'
 import { isDuplicateName } from '@/utils/member'
+import { auditService } from '@/services/auditService'
 
 const MEMBERS_COLLECTION = 'members'
 
@@ -48,7 +49,7 @@ export const memberService = {
   /**
    * Adds a new member to Firestore with server timestamps.
    */
-  async addMember(input: MemberInput): Promise<string> {
+  async addMember(input: MemberInput, performedBy = 'System'): Promise<string> {
     const membersRef = collection(db, MEMBERS_COLLECTION)
     const docRef = await addDoc(membersRef, {
       firstName: input.firstName.trim(),
@@ -68,13 +69,22 @@ export const memberService = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
+
+    await auditService.logAction(
+      'MEMBER_CREATE',
+      'member',
+      `Created member '${input.firstName} ${input.lastName}'`,
+      performedBy,
+      { memberId: docRef.id, input }
+    )
+
     return docRef.id
   },
 
   /**
    * Updates an existing member's fields.
    */
-  async updateMember(id: string, input: Partial<MemberInput>): Promise<void> {
+  async updateMember(id: string, input: Partial<MemberInput>, performedBy = 'System'): Promise<void> {
     const docRef = doc(db, MEMBERS_COLLECTION, id)
     const updateData: any = {
       updatedAt: serverTimestamp()
@@ -96,20 +106,44 @@ export const memberService = {
     if (input.order !== undefined) updateData.order = input.order.trim()
     
     await updateDoc(docRef, updateData)
+
+    await auditService.logAction(
+      'MEMBER_UPDATE',
+      'member',
+      `Updated member '${input.firstName || ''} ${input.lastName || ''}' (ID: ${id})`,
+      performedBy,
+      { memberId: id, updates: input }
+    )
   },
 
   /**
    * Soft deletes a member by changing status to 'archived'.
    */
-  async archiveMember(id: string): Promise<void> {
-    await this.updateMember(id, { status: 'archived' })
+  async archiveMember(id: string, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, MEMBERS_COLLECTION, id)
+    await updateDoc(docRef, { status: 'archived', updatedAt: serverTimestamp() })
+    await auditService.logAction(
+      'MEMBER_ARCHIVE',
+      'member',
+      `Archived member with ID: ${id}`,
+      performedBy,
+      { memberId: id }
+    )
   },
 
   /**
    * Restores an archived member back to 'active'.
    */
-  async restoreMember(id: string): Promise<void> {
-    await this.updateMember(id, { status: 'active' })
+  async restoreMember(id: string, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, MEMBERS_COLLECTION, id)
+    await updateDoc(docRef, { status: 'active', updatedAt: serverTimestamp() })
+    await auditService.logAction(
+      'MEMBER_UPDATE',
+      'member',
+      `Restored archived member with ID: ${id}`,
+      performedBy,
+      { memberId: id }
+    )
   },
 
   /**
@@ -117,7 +151,7 @@ export const memberService = {
    * Checks for existing members by First Name and Last Name.
    * Performs UPSERT (Update existing fields if they have value, Insert if new).
    */
-  async importMembersBatch(inputs: MemberInput[]): Promise<void> {
+  async importMembersBatch(inputs: MemberInput[], performedBy = 'System'): Promise<void> {
     if (inputs.length === 0) return
     if (inputs.length > 1000) {
       throw new Error('Bulk import exceeds maximum limit of 1000 rows.')
@@ -187,12 +221,20 @@ export const memberService = {
       
       await batch.commit()
     }
+
+    await auditService.logAction(
+      'MEMBER_IMPORT',
+      'member',
+      `Imported / upserted batch of ${inputs.length} members`,
+      performedBy,
+      { count: inputs.length }
+    )
   },
 
   /**
    * Bulk-archives multiple members (sets status → 'archived') using batched writes.
    */
-  async bulkArchiveMembers(ids: string[]): Promise<void> {
+  async bulkArchiveMembers(ids: string[], performedBy = 'System'): Promise<void> {
     if (ids.length === 0) return
     const BATCH_SIZE_LIMIT = 500
     for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
@@ -204,12 +246,20 @@ export const memberService = {
       })
       await batch.commit()
     }
+
+    await auditService.logAction(
+      'MEMBER_ARCHIVE',
+      'member',
+      `Bulk archived ${ids.length} members`,
+      performedBy,
+      { count: ids.length, ids }
+    )
   },
 
   /**
    * Bulk-restores multiple archived members (sets status → 'active') using batched writes.
    */
-  async bulkRestoreMembers(ids: string[]): Promise<void> {
+  async bulkRestoreMembers(ids: string[], performedBy = 'System'): Promise<void> {
     if (ids.length === 0) return
     const BATCH_SIZE_LIMIT = 500
     for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
@@ -221,20 +271,36 @@ export const memberService = {
       })
       await batch.commit()
     }
+
+    await auditService.logAction(
+      'MEMBER_UPDATE',
+      'member',
+      `Bulk restored/reactivated ${ids.length} members`,
+      performedBy,
+      { count: ids.length, ids }
+    )
   },
 
   /**
    * Permanently deletes a member document from Firestore.
    */
-  async deleteMember(id: string): Promise<void> {
+  async deleteMember(id: string, performedBy = 'System'): Promise<void> {
     const docRef = doc(db, MEMBERS_COLLECTION, id)
     await deleteDoc(docRef)
+
+    await auditService.logAction(
+      'MEMBER_DELETE',
+      'member',
+      `Permanently deleted member with ID: ${id}`,
+      performedBy,
+      { memberId: id }
+    )
   },
 
   /**
    * Bulk-deletes multiple members permanently using batched writes.
    */
-  async bulkDeleteMembers(ids: string[]): Promise<void> {
+  async bulkDeleteMembers(ids: string[], performedBy = 'System'): Promise<void> {
     if (ids.length === 0) return
     const BATCH_SIZE_LIMIT = 500
     for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
@@ -246,5 +312,13 @@ export const memberService = {
       })
       await batch.commit()
     }
+
+    await auditService.logAction(
+      'MEMBER_DELETE',
+      'member',
+      `Bulk permanently deleted ${ids.length} members`,
+      performedBy,
+      { count: ids.length, ids }
+    )
   }
 }

@@ -44,5 +44,10 @@ service cloud.firestore {
     match /scheduleTemplates/{templateId} {
       allow read, write: if isAdmin();
     }
+
+    // auditLogs collection
+    match /auditLogs/{logId} {
+      allow read, write: if isAdmin();
+    }
   }
 }

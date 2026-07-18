@@ -10,6 +10,7 @@ import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
 import { ReportsPage } from '@/features/reports/pages/ReportsPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
+import { AuditPage } from '@/features/audit/pages/AuditPage'
 
 function App() {
   return (
@@ -60,6 +61,11 @@ function App() {
               <Route 
                 path="/settings" 
                 element={<SettingsPage />} 
+              />
+              
+              <Route 
+                path="/audit" 
+                element={<AuditPage />} 
               />
             </Route>
 

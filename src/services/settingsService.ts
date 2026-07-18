@@ -1,5 +1,6 @@
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/firebase/config'
+import { auditService } from '@/services/auditService'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
@@ -42,11 +43,19 @@ export const settingsService = {
   /**
    * Saves the custom report template to Firestore.
    */
-  async saveReportTemplate(template: string): Promise<void> {
+  async saveReportTemplate(template: string, performedBy = 'System'): Promise<void> {
     const docRef = doc(db, SETTINGS_COLLECTION, REPORT_TEMPLATE_DOC)
     await setDoc(docRef, {
       template,
       updatedAt: serverTimestamp(),
     }, { merge: true })
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      'Updated Facebook community report template in settings',
+      performedBy,
+      { template }
+    )
   }
 }

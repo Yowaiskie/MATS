@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { AttendanceSession, AttendanceRecord, AttendanceInput } from '@/types/attendance'
+import { auditService } from '@/services/auditService'
 
 const SESSIONS_COLLECTION = 'attendanceSessions'
 const ATTENDANCE_COLLECTION = 'attendance'
@@ -70,7 +71,8 @@ export const attendanceService = {
     sessionId: string,
     scheduleId: string,
     date: string,
-    inputs: AttendanceInput[]
+    inputs: AttendanceInput[],
+    performedBy = 'System'
   ): Promise<void> {
     // 1. Verify if session is locked
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId)
@@ -126,6 +128,14 @@ export const attendanceService = {
     await updateDoc(sessionRef, {
       updatedAt: serverTimestamp()
     })
+
+    await auditService.logAction(
+      'ATTENDANCE_SAVE',
+      'attendance',
+      `Saved ${inputs.length} attendance records for schedule ID: ${scheduleId}`,
+      performedBy,
+      { sessionId, scheduleId, date, recordCount: inputs.length }
+    )
   },
 
   /**
@@ -143,6 +153,14 @@ export const attendanceService = {
       finalizedBy: locked ? adminEmail : null,
       updatedAt: serverTimestamp()
     })
+
+    await auditService.logAction(
+      locked ? 'ATTENDANCE_LOCK' : 'ATTENDANCE_UNLOCK',
+      'attendance',
+      `${locked ? 'Finalized and locked' : 'Unlocked'} attendance session (ID: ${sessionId})`,
+      adminEmail || 'System',
+      { sessionId }
+    )
   },
 
   /**

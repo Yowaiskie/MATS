@@ -14,10 +14,12 @@ import type { Member } from '@/types/member'
 import type { AttendanceSession } from '@/types/attendance'
 import { attendanceService } from '@/services/attendanceService'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 const PAGE_SIZE = 12
 
 export const SchedulesPage: React.FC = () => {
+  const { profile } = useAuth()
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,10 +100,11 @@ export const SchedulesPage: React.FC = () => {
 
   // Callbacks
   const handleAddOrEditSubmit = async (input: ScheduleInput) => {
+    const actor = profile?.email || 'Admin'
     if (selectedSchedule) {
-      await scheduleService.updateSchedule(selectedSchedule.id, input)
+      await scheduleService.updateSchedule(selectedSchedule.id, input, actor)
     } else {
-      await scheduleService.addSchedule(input)
+      await scheduleService.addSchedule(input, actor)
     }
     await loadData()
   }
@@ -115,7 +118,7 @@ export const SchedulesPage: React.FC = () => {
     const id = confirmDelete
     setConfirmDelete(null)
     try {
-      await scheduleService.deleteSchedule(id)
+      await scheduleService.deleteSchedule(id, profile?.email || 'Admin')
       await loadData()
     } catch (err: any) {
       console.error(err)
@@ -124,7 +127,7 @@ export const SchedulesPage: React.FC = () => {
   }
 
   const handleSaveAssignments = async (scheduleId: string, assignedIds: string[]) => {
-    await scheduleService.assignMembers(scheduleId, assignedIds)
+    await scheduleService.assignMembers(scheduleId, assignedIds, profile?.email || 'Admin')
     await loadData()
   }
 
@@ -154,7 +157,7 @@ export const SchedulesPage: React.FC = () => {
     setBulkDeleting(true)
     try {
       const ids = Array.from(selectedIds)
-      const { deletedCount, skippedIds } = await scheduleService.bulkDeleteSchedules(ids)
+      const { deletedCount, skippedIds } = await scheduleService.bulkDeleteSchedules(ids, profile?.email || 'Admin')
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
       setBulkSelectMode(false)

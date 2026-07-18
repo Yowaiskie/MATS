@@ -15,6 +15,7 @@ import type { Schedule, ScheduleInput } from '@/types/schedule'
 import { isTimeOverlapping } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import type { Member } from '@/types/member'
+import { auditService } from '@/services/auditService'
 
 const SCHEDULES_COLLECTION = 'schedules'
 const ATTENDANCE_COLLECTION = 'attendance'
@@ -49,7 +50,7 @@ export const scheduleService = {
   /**
    * Adds a new service schedule.
    */
-  async addSchedule(input: ScheduleInput): Promise<string> {
+  async addSchedule(input: ScheduleInput, performedBy = 'System'): Promise<string> {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
     const docRef = await addDoc(schedulesRef, {
       title: input.title.trim(),
@@ -61,13 +62,22 @@ export const scheduleService = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
+
+    await auditService.logAction(
+      'SCHEDULE_CREATE',
+      'schedule',
+      `Created schedule '${input.title}' on ${input.date} (${input.startTime})`,
+      performedBy,
+      { scheduleId: docRef.id, input }
+    )
+
     return docRef.id
   },
 
   /**
    * Updates schedule details (title, date, start/end time, or cancellation status).
    */
-  async updateSchedule(id: string, input: Partial<ScheduleInput>): Promise<void> {
+  async updateSchedule(id: string, input: Partial<ScheduleInput>, performedBy = 'System'): Promise<void> {
     const docRef = doc(db, SCHEDULES_COLLECTION, id)
     const updateData: any = {
       updatedAt: serverTimestamp()
@@ -80,12 +90,20 @@ export const scheduleService = {
     if (input.status !== undefined) updateData.status = input.status
 
     await updateDoc(docRef, updateData)
+
+    await auditService.logAction(
+      'SCHEDULE_UPDATE',
+      'schedule',
+      `Updated schedule details for ID: ${id} (${input.title || ''})`,
+      performedBy,
+      { scheduleId: id, updates: input }
+    )
   },
 
   /**
    * Deletes a schedule and all its associated attendance records.
    */
-  async deleteSchedule(id: string): Promise<void> {
+  async deleteSchedule(id: string, performedBy = 'System'): Promise<void> {
     // Cascade-delete any attendance records linked to this schedule
     const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
     const q = query(attendanceRef, where('scheduleId', '==', id))
@@ -95,20 +113,28 @@ export const scheduleService = {
     // Delete the schedule itself
     const docRef = doc(db, SCHEDULES_COLLECTION, id)
     await deleteDoc(docRef)
+
+    await auditService.logAction(
+      'SCHEDULE_DELETE',
+      'schedule',
+      `Deleted schedule with ID: ${id}`,
+      performedBy,
+      { scheduleId: id }
+    )
   },
 
   /**
    * Bulk-deletes multiple schedules.
    * Schedules that have attendance records are skipped and returned as skippedIds.
    */
-  async bulkDeleteSchedules(ids: string[]): Promise<{ deletedCount: number; skippedIds: string[] }> {
+  async bulkDeleteSchedules(ids: string[], performedBy = 'System'): Promise<{ deletedCount: number; skippedIds: string[] }> {
     let deletedCount = 0
     const skippedIds: string[] = []
 
     await Promise.all(
       ids.map(async (id) => {
         try {
-          await scheduleService.deleteSchedule(id)
+          await scheduleService.deleteSchedule(id, performedBy)
           deletedCount++
         } catch {
           skippedIds.push(id)
@@ -123,7 +149,7 @@ export const scheduleService = {
    * Assigns a list of members to a schedule.
    * Performs validation to prevent double-booking members to overlapping schedules on the same day.
    */
-  async assignMembers(scheduleId: string, memberIds: string[]): Promise<void> {
+  async assignMembers(scheduleId: string, memberIds: string[], performedBy = 'System'): Promise<void> {
     const scheduleRef = doc(db, SCHEDULES_COLLECTION, scheduleId)
     const scheduleSnap = await getDoc(scheduleRef)
     if (!scheduleSnap.exists()) {
@@ -138,6 +164,13 @@ export const scheduleService = {
         assignedMembers: memberIds,
         updatedAt: serverTimestamp()
       })
+      await auditService.logAction(
+        'SCHEDULE_ASSIGN',
+        'schedule',
+        `Assigned ${memberIds.length} members to cancelled schedule '${targetSchedule.title}'`,
+        performedBy,
+        { scheduleId, memberIds }
+      )
       return
     }
 
@@ -180,5 +213,13 @@ export const scheduleService = {
       assignedMembers: memberIds,
       updatedAt: serverTimestamp()
     })
+
+    await auditService.logAction(
+      'SCHEDULE_ASSIGN',
+      'schedule',
+      `Assigned ${memberIds.length} altar servers to schedule '${targetSchedule.title}'`,
+      performedBy,
+      { scheduleId, memberIds }
+    )
   }
 }
