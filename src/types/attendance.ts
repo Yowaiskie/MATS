@@ -1,4 +1,4 @@
-export type AttendanceStatus = 'present' | 'late' | 'absent' | 'excused'
+export type AttendanceStatus = 'present' | 'late' | 'absent' | 'excused' | 'observer'
 
 export interface AttendanceSession {
   id: string

@@ -6,12 +6,14 @@ interface CalendarViewProps {
   schedules: Schedule[]
   onSelectSchedule: (schedule: Schedule) => void
   onDateClick?: (dateStr: string) => void
+  getAttendanceState?: (scheduleId: string, status: string) => 'finalized' | 'pending' | 'none'
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   schedules,
   onSelectSchedule,
   onDateClick,
+  getAttendanceState,
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
@@ -120,7 +122,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   return (
-    <div className="rounded-xl border border-gray-250 bg-white p-4 space-y-4 shadow-sm">
+    <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4 shadow-sm">
       
       {/* Calendar Header Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
@@ -141,7 +143,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           
           <button
             onClick={handleToday}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Today
           </button>
@@ -168,7 +170,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Calendar Monthly Grid */}
-      <div className="grid grid-cols-7 gap-px bg-gray-150 border border-gray-200/80 rounded-xl overflow-hidden shadow-xs">
+      <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200/80 rounded-xl overflow-hidden shadow-xs">
         {cells.map((cell, idx) => {
           const daySchedules = schedulesByDate[cell.dateStr] || []
           const isExpanded = expandedDates[cell.dateStr]
@@ -211,22 +213,36 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   const status = getScheduleStatus(s)
                   const dotColor = getStatusColor(status)
                   
-                  return (
-                    <button
-                      key={s.id}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSelectSchedule(s)
-                      }}
-                      className="w-full text-left bg-gray-50 hover:bg-gray-100/60 border border-gray-150 rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden"
-                      title={`${s.title} (${formatTime12(s.startTime)})`}
-                    >
-                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
-                      <span className="text-[10px] text-gray-700 font-semibold truncate block leading-tight">
-                        {formatTime12(s.startTime)}
-                      </span>
-                    </button>
-                  )
+                    const attendanceState = getAttendanceState?.(s.id, status) ?? 'none'
+                    
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onSelectSchedule(s)
+                        }}
+                        className={`w-full text-left border rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden ${
+                          attendanceState === 'finalized'
+                            ? 'bg-green-50 border-green-200 hover:bg-green-100/70 text-green-700 font-semibold shadow-2xs'
+                            : attendanceState === 'pending'
+                              ? 'bg-red-50 border-red-200 hover:bg-red-100/70 text-red-600 font-semibold shadow-2xs'
+                              : 'bg-gray-50 hover:bg-gray-100/60 border-gray-200 text-gray-700'
+                        }`}
+                        title={`${s.title} (${formatTime12(s.startTime)})`}
+                      >
+                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
+                        <span className={`text-[10px] font-bold truncate block leading-tight ${
+                          attendanceState === 'finalized' 
+                            ? 'text-green-700' 
+                            : attendanceState === 'pending'
+                              ? 'text-red-600'
+                              : 'text-gray-700'
+                        }`}>
+                          {formatTime12(s.startTime)}
+                        </span>
+                      </button>
+                    )
                 })}
                 
                 {hasOverflow && (

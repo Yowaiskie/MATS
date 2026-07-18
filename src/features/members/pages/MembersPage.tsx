@@ -264,13 +264,6 @@ export const MembersPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Error display */}
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-600">
-          {error}
-        </div>
-      )}
-
       {/* Members List table card */}
       <Card>
         {loading ? (
@@ -384,11 +377,14 @@ export const MembersPage: React.FC = () => {
 
       {/* Alert Dialog */}
       <AlertModal
-        isOpen={!!alertModal}
-        onClose={() => setAlertModal(null)}
+        isOpen={!!alertModal || !!error}
+        onClose={() => {
+          setAlertModal(null)
+          setError(null)
+        }}
         variant={alertModal?.variant ?? 'error'}
-        title={alertModal?.title ?? ''}
-        message={alertModal?.message ?? ''}
+        title={alertModal?.title ?? 'Error'}
+        message={alertModal?.message ?? error ?? ''}
       />
     </div>
   )

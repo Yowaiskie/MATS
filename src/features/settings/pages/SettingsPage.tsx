@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { Card } from '@/components/Card'
 import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
-import { ConfirmModal } from '@/components/Dialog'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 
@@ -157,18 +157,6 @@ export const SettingsPage: React.FC = () => {
         <p className="text-sm text-gray-500 mt-1">Configure parameters and message layouts for the Ministry of Altar Servers.</p>
       </div>
 
-      {/* Notifications */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {successMsg}
-        </div>
-      )}
 
       {loading ? (
         <Card>
@@ -275,6 +263,24 @@ export const SettingsPage: React.FC = () => {
         title="Restore Default Template"
         message="Are you sure you want to restore the default report template? Any unsaved edits will be discarded."
         confirmLabel="Restore Default"
+      />
+
+      {/* Error Alert Modal */}
+      <AlertModal
+        isOpen={!!error}
+        onClose={() => setError(null)}
+        variant="error"
+        title="Error"
+        message={error ?? ''}
+      />
+
+      {/* Success Alert Modal */}
+      <AlertModal
+        isOpen={!!successMsg}
+        onClose={() => setSuccessMsg(null)}
+        variant="success"
+        title="Success"
+        message={successMsg ?? ''}
       />
     </div>
   )

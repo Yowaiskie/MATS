@@ -246,7 +246,7 @@ function parseRows(rawRows: string[][], existingMembers: Member[]): { rows: Prev
 
     if (!rawName.trim()) rowErrors.push('Name is required.')
     else if (!firstName) rowErrors.push('Could not parse first name.')
-    if (!rank) rowErrors.push('Rank is required.')
+    // if (!rank) rowErrors.push('Rank is required.')
 
     let isDuplicate = false
     if (firstName && lastName) {

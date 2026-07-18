@@ -15,7 +15,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary } from '@/utils/attendance'
-import { ConfirmModal } from '@/components/Dialog'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface RowState {
   id?: string
@@ -347,23 +347,9 @@ export const AttendancePage: React.FC = () => {
           onBulkAction={handleBulkAction}
           onToggleLock={handleToggleLock}
           onGenerateReport={() => setReportModalOpen(true)}
-          onAddOtherServer={() => setAddOtherServerOpen(true)}
           isSaving={saving}
           isDirty={isDirty}
         />
-      )}
-
-      {/* Notifications */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      )}
-
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-sm text-green-700">
-          {successMsg}
-        </div>
       )}
 
       {/* Form Area */}
@@ -390,20 +376,35 @@ export const AttendancePage: React.FC = () => {
         </div>
 
         {/* Footer Actions */}
-        {displayMembers.length > 0 && !(session?.locked ?? false) && (
-          <div className="flex items-center justify-end p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl">
-            {isDirty && (
-              <span className="text-[11px] text-amber-600 font-semibold mr-4">
-                ● You have unsaved changes
-              </span>
-            )}
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs font-semibold text-white transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
-            >
-              {saving ? 'Saving changes...' : 'Save Attendance Records'}
-            </button>
+        {!(session?.locked ?? false) && (
+          <div className="flex items-center justify-between p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl flex-wrap gap-4">
+            <div>
+              <button
+                type="button"
+                onClick={() => setAddOtherServerOpen(true)}
+                disabled={saving}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2.5 text-xs font-semibold text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+              >
+                + Add Other Server
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {isDirty && (
+                <span className="text-[11px] text-amber-600 font-semibold mr-2">
+                  ● You have unsaved changes
+                </span>
+              )}
+              {displayMembers.length > 0 && (
+                <button
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs font-semibold text-white transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                >
+                  {saving ? 'Saving changes...' : 'Save Attendance Records'}
+                </button>
+              )}
+            </div>
           </div>
         )}
       </Card>
@@ -481,6 +482,24 @@ export const AttendancePage: React.FC = () => {
         title="Unsaved Changes"
         message="You have unsaved attendance changes. Are you sure you want to leave? Your changes will be lost."
         confirmLabel="Leave Page"
+      />
+
+      {/* Error Alert Modal */}
+      <AlertModal
+        isOpen={!!error}
+        onClose={() => setError(null)}
+        variant="error"
+        title="Error"
+        message={error ?? ''}
+      />
+
+      {/* Success Alert Modal */}
+      <AlertModal
+        isOpen={!!successMsg}
+        onClose={() => setSuccessMsg(null)}
+        variant="success"
+        title="Success"
+        message={successMsg ?? ''}
       />
     </div>
   )

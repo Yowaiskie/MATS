@@ -10,7 +10,6 @@ interface AttendanceHeaderProps {
   onBulkAction: (action: 'present' | 'absent' | 'clear') => void
   onToggleLock: () => void
   onGenerateReport: () => void
-  onAddOtherServer: () => void
   isSaving: boolean
   isDirty: boolean
 }
@@ -22,7 +21,6 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
   onBulkAction,
   onToggleLock,
   onGenerateReport,
-  onAddOtherServer,
   isSaving,
   isDirty,
 }) => {
@@ -75,7 +73,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
       </div>
 
       {/* Live summary counters */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
         {/* Total assigned */}
         <div className="p-4 rounded-xl border border-gray-200 bg-white text-center shadow-sm">
           <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Total Assigned</span>
@@ -101,46 +99,42 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
         </div>
 
         {/* Excused */}
-        <div className="p-4 rounded-xl border border-gray-100 bg-gray-50 text-center col-span-2 sm:col-span-1 shadow-sm">
+        <div className="p-4 rounded-xl border border-gray-100 bg-gray-50 text-center shadow-sm">
           <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Excused</span>
           <span className="text-2xl font-bold text-gray-600 mt-1 block">{summary.excused}</span>
+        </div>
+
+        {/* Observer */}
+        <div className="p-4 rounded-xl border border-purple-100 bg-purple-50 text-center shadow-sm">
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-purple-600">Observer</span>
+          <span className="text-2xl font-bold text-purple-700 mt-1 block">{summary.observer}</span>
         </div>
       </div>
 
       {/* Bulk actions menu (only available if unlocked) */}
       {!session.locked && (
-        <div className="flex items-center justify-between gap-2 flex-wrap w-full">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-500 font-semibold mr-1">Bulk Actions:</span>
-            <button
-              onClick={() => onBulkAction('present')}
-              disabled={isSaving || summary.total === 0}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-green-50 hover:border-green-200 px-3 py-1.5 text-[11px] font-semibold text-green-600 hover:text-green-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
-            >
-              Mark All Present
-            </button>
-            <button
-              onClick={() => onBulkAction('absent')}
-              disabled={isSaving || summary.total === 0}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-red-50 hover:border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:text-red-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
-            >
-              Mark All Absent
-            </button>
-            <button
-              onClick={() => onBulkAction('clear')}
-              disabled={isSaving || summary.total === 0}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
-            >
-              Clear All Statuses
-            </button>
-          </div>
+        <div className="flex items-center justify-start gap-2 flex-wrap w-full">
+          <span className="text-xs text-gray-500 font-semibold mr-1">Bulk Actions:</span>
           <button
-            type="button"
-            onClick={onAddOtherServer}
-            disabled={isSaving}
-            className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-3.5 py-1.5 text-[11px] font-bold text-white transition-colors cursor-pointer shadow-sm"
+            onClick={() => onBulkAction('present')}
+            disabled={isSaving || summary.total === 0}
+            className="rounded-lg border border-gray-200 bg-white hover:bg-green-50 hover:border-green-200 px-3 py-1.5 text-[11px] font-semibold text-green-600 hover:text-green-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
           >
-            + Add Other Server
+            Mark All Present
+          </button>
+          <button
+            onClick={() => onBulkAction('absent')}
+            disabled={isSaving || summary.total === 0}
+            className="rounded-lg border border-gray-200 bg-white hover:bg-red-50 hover:border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:text-red-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+          >
+            Mark All Absent
+          </button>
+          <button
+            onClick={() => onBulkAction('clear')}
+            disabled={isSaving || summary.total === 0}
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-55 px-3 py-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+          >
+            Clear All Statuses
           </button>
         </div>
       )}

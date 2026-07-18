@@ -29,6 +29,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
     { value: 'late', label: 'Late', activeColor: 'bg-yellow-500 border-yellow-500 text-white font-bold' },
     { value: 'absent', label: 'Absent', activeColor: 'bg-red-600 border-red-600 text-white font-bold' },
     { value: 'excused', label: 'Excused', activeColor: 'bg-gray-500 border-gray-500 text-white font-bold' },
+    { value: 'observer', label: 'Observer', activeColor: 'bg-purple-600 border-purple-600 text-white font-bold' },
   ]
 
   return (

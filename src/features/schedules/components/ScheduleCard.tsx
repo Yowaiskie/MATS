@@ -12,6 +12,7 @@ interface ScheduleCardProps {
   totalAssigned: number
   isSelected?: boolean
   onToggleSelect?: (id: string) => void
+  attendanceState?: 'finalized' | 'pending' | 'none'
 }
 
 export const ScheduleCard: React.FC<ScheduleCardProps> = ({
@@ -22,6 +23,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   totalAssigned,
   isSelected = false,
   onToggleSelect,
+  attendanceState = 'none',
 }) => {
   const computedStatus = getScheduleStatus(schedule)
 
@@ -62,7 +64,13 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
   return (
     <Card className={`hover:shadow-md transition-shadow duration-200 ${
-      isSelected ? 'border-blue-400 ring-2 ring-blue-200' : 'border-gray-250/70'
+      isSelected 
+        ? 'border-blue-400 ring-2 ring-blue-200' 
+        : attendanceState === 'finalized'
+          ? 'border-green-300 bg-green-50/15'
+          : attendanceState === 'pending'
+            ? 'border-red-300 bg-red-50/15 animate-none'
+            : 'border-gray-200/70'
     }`}>
       <div className="flex flex-col h-full justify-between space-y-4">
         {/* Header Title & Status */}
@@ -86,12 +94,24 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                 )}
               </button>
             )}
-            <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[80%]" title={schedule.title}>
+            <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[50%]" title={schedule.title}>
               {schedule.title}
             </h4>
-            <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border ${statusColors[computedStatus]}`}>
-              {computedStatus}
-            </span>
+            <div className="flex items-center gap-1 shrink-0">
+              <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border ${statusColors[computedStatus]}`}>
+                {computedStatus}
+              </span>
+              {attendanceState === 'finalized' && (
+                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-green-100 border border-green-200 text-green-700 font-semibold shadow-xs">
+                  ✓ Finalized
+                </span>
+              )}
+              {attendanceState === 'pending' && (
+                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-red-100 border border-red-205 text-red-600 font-semibold shadow-xs">
+                  ⚠️ Unfinalized
+                </span>
+              )}
+            </div>
           </div>
           <p className="text-xs text-gray-500 font-medium">
             📅 {formatCardDate(schedule.date)} • 🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
@@ -135,7 +155,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           {/* Delete Button */}
           <button
             onClick={() => onDelete(schedule.id)}
-            className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-2.5 py-1.5 text-xxs font-semibold text-red-655 transition-colors shadow-sm cursor-pointer"
+            className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-2.5 py-1.5 text-xxs font-semibold text-red-600 transition-colors shadow-sm cursor-pointer"
           >
             Delete
           </button>

@@ -135,7 +135,7 @@ export const DashboardLayout: React.FC = () => {
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
             >
               {loggingOut ? 'Signing out...' : 'Sign Out'}
             </button>

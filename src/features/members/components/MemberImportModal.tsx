@@ -313,7 +313,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
         {/* Content */}
         <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
           {errorMsg && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600">
               {errorMsg}
             </div>
           )}
@@ -426,7 +426,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
             disabled={importing}
           >
             Cancel

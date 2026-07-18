@@ -19,7 +19,6 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   const [title, setTitle] = useState('')
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('')
-  const [endTime, setEndTime] = useState('')
   const [isCancelled, setIsCancelled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -29,13 +28,11 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
       setTitle(schedule.title)
       setDate(schedule.date)
       setStartTime(schedule.startTime)
-      setEndTime(schedule.endTime)
       setIsCancelled(schedule.status === 'cancelled')
     } else {
       setTitle('')
       setDate(defaultDate || '')
       setStartTime('')
-      setEndTime('')
       setIsCancelled(false)
     }
     setErrors({})
@@ -61,14 +58,6 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
       newErrors.startTime = 'Start Time is required.'
     }
     
-    if (!endTime) {
-      newErrors.endTime = 'End Time is required.'
-    }
-    
-    if (startTime && endTime && startTime >= endTime) {
-      newErrors.timeSpan = 'Start time must be before End time.'
-    }
-    
     setErrors(newErrors)
     return Object.keys(newErrors).length === 0
   }
@@ -80,11 +69,23 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
     setLoading(true)
     try {
       const status: ScheduleStatus = isCancelled ? 'cancelled' : 'upcoming'
+      
+      // Auto-calculate end time as start time + 1 hour
+      const calculatedEndTime = (() => {
+        if (!startTime) return ''
+        const parts = startTime.split(':')
+        if (parts.length < 2) return startTime
+        let h = parseInt(parts[0], 10)
+        let m = parseInt(parts[1], 10)
+        h = (h + 1) % 24
+        return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+      })()
+
       await onSubmit({
         title: title.trim(),
         date,
         startTime,
-        endTime,
+        endTime: calculatedEndTime,
         status
       })
       onClose()
@@ -116,7 +117,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
 
         <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1" noValidate>
           {errors.submit && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650 font-medium">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600 font-medium">
               {errors.submit}
             </div>
           )}
@@ -131,11 +132,11 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               placeholder="e.g. Sunday Morning Worship"
               disabled={loading}
             />
-            {errors.title && <p className="mt-1 text-xs text-red-655 font-medium">{errors.title}</p>}
+            {errors.title && <p className="mt-1 text-xs text-red-600 font-medium">{errors.title}</p>}
           </div>
 
           {/* Date */}
@@ -148,45 +149,27 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               disabled={loading}
             />
-            {errors.date && <p className="mt-1 text-xs text-red-655 font-medium">{errors.date}</p>}
+            {errors.date && <p className="mt-1 text-xs text-red-600 font-medium">{errors.date}</p>}
           </div>
 
-          {/* Start Time & End Time */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="schedule-start" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                Start Time *
-              </label>
-              <input
-                id="schedule-start"
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-                disabled={loading}
-              />
-              {errors.startTime && <p className="mt-1 text-xs text-red-655 font-medium">{errors.startTime}</p>}
-            </div>
-
-            <div>
-              <label htmlFor="schedule-end" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                End Time *
-              </label>
-              <input
-                id="schedule-end"
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-                disabled={loading}
-              />
-              {errors.endTime && <p className="mt-1 text-xs text-red-655 font-medium">{errors.endTime}</p>}
-            </div>
+          {/* Start Time */}
+          <div>
+            <label htmlFor="schedule-start" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Start Time *
+            </label>
+            <input
+              id="schedule-start"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              disabled={loading}
+            />
+            {errors.startTime && <p className="mt-1 text-xs text-red-600 font-medium">{errors.startTime}</p>}
           </div>
-          {errors.timeSpan && <p className="text-xs text-red-655 font-medium mt-1">{errors.timeSpan}</p>}
 
           {/* Cancellation Toggle */}
           <div className="flex items-center space-x-3 pt-2">
@@ -208,7 +191,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
               disabled={loading}
             >
               Cancel

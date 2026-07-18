@@ -75,10 +75,6 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       }
     }
     
-    if (!rank.trim()) {
-      newErrors.rank = 'Rank is required.'
-    }
-    
     if (phoneNumber.trim()) {
       const phoneRegex = /^\+?[0-9]{7,15}$/
       if (!phoneRegex.test(phoneNumber.trim())) {
@@ -151,11 +147,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 type="text"
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 placeholder="John"
                 disabled={loading}
               />
-              {errors.firstName && <p className="mt-1 text-xs text-red-650 font-medium">{errors.firstName}</p>}
+              {errors.firstName && <p className="mt-1 text-xs text-red-600 font-medium">{errors.firstName}</p>}
             </div>
 
             <div>
@@ -167,11 +163,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 type="text"
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-255 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 placeholder="Doe"
                 disabled={loading}
               />
-              {errors.lastName && <p className="mt-1 text-xs text-red-650 font-medium">{errors.lastName}</p>}
+              {errors.lastName && <p className="mt-1 text-xs text-red-600 font-medium">{errors.lastName}</p>}
             </div>
           </div>
 
@@ -186,7 +182,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 type="text"
                 value={middleName}
                 onChange={(e) => setMiddleName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 placeholder="Smith"
                 disabled={loading}
               />
@@ -201,7 +197,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 type="text"
                 value={suffix}
                 onChange={(e) => setSuffix(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 placeholder="Jr., III"
                 disabled={loading}
               />
@@ -216,7 +212,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
                 placeholder="Johnny"
                 disabled={loading}
               />
@@ -226,18 +222,18 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           {/* Rank */}
           <div>
             <label htmlFor="modal-rank" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Rank / Designation *
+              Rank / Designation
             </label>
             <input
               id="modal-rank"
               type="text"
               value={rank}
               onChange={(e) => setRank(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               placeholder="e.g. Coordinator, Brother, Sister"
               disabled={loading}
             />
-            {errors.rank && <p className="mt-1 text-xs text-red-650 font-medium">{errors.rank}</p>}
+            {errors.rank && <p className="mt-1 text-xs text-red-600 font-medium">{errors.rank}</p>}
           </div>
 
           {/* Phone Number */}
@@ -250,11 +246,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               type="text"
               value={phoneNumber}
               onChange={(e) => setPhoneNumber(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               placeholder="e.g. +639123456789"
               disabled={loading}
             />
-            {errors.phoneNumber && <p className="mt-1 text-xs text-red-655 font-medium">{errors.phoneNumber}</p>}
+            {errors.phoneNumber && <p className="mt-1 text-xs text-red-600 font-medium">{errors.phoneNumber}</p>}
           </div>
 
           {/* Status */}
@@ -266,7 +262,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               id="modal-status"
               value={status}
               onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
-              className="mt-1 block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               disabled={loading}
             >
               <option value="active">Active</option>

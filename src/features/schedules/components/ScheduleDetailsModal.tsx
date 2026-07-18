@@ -33,7 +33,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
     upcoming: { label: 'Upcoming', badge: 'bg-green-50 border border-green-100 text-green-600' },
     ongoing: { label: 'Ongoing', badge: 'bg-blue-50 border border-blue-100 text-blue-600' },
     completed: { label: 'Completed', badge: 'bg-gray-100 border border-gray-200 text-gray-600' },
-    cancelled: { label: 'Cancelled', badge: 'bg-red-50 border border-red-100 text-red-650' },
+    cancelled: { label: 'Cancelled', badge: 'bg-red-50 border border-red-100 text-red-600' },
   }[status]
 
   // Map assigned members' full names
@@ -158,7 +158,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
             </button>
             <button
               onClick={handleDeleteClick}
-              className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-3 py-1.5 text-xs font-semibold text-red-655 transition-colors cursor-pointer shadow-sm"
+              className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors cursor-pointer shadow-sm"
             >
               Delete
             </button>

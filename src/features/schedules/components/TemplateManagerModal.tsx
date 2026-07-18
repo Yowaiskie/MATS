@@ -258,7 +258,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
         {/* Content */}
         <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-xs text-red-655 font-medium">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-xs text-red-600 font-medium">
               {error}
             </div>
           )}
@@ -311,7 +311,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                             className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border cursor-pointer ${
                               t.active 
                                 ? 'bg-green-50 border-green-100 text-green-600' 
-                                : 'bg-gray-100 border-gray-200 text-gray-550'
+                                : 'bg-gray-100 border-gray-200 text-gray-500'
                             }`}
                           >
                             {t.active ? 'Active' : 'Inactive'}
@@ -337,7 +337,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                         </button>
                         <button
                           onClick={() => handleDeleteTemplate(t.id)}
-                          className="text-xs text-red-655 hover:text-red-755 font-semibold cursor-pointer"
+                          className="text-xs text-red-600 hover:text-red-700 font-semibold cursor-pointer"
                         >
                           Delete
                         </button>
@@ -361,7 +361,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
                     placeholder="e.g. Sunday 6AM Mass"
                   />
                 </div>
@@ -374,7 +374,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     required
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
                     placeholder="e.g. Sunday Mass"
                   />
                 </div>
@@ -385,7 +385,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   <select
                     value={dayOfWeek}
                     onChange={(e) => setDayOfWeek(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
                   >
                     {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d) => (
                       <option key={d} value={d}>{d}</option>
@@ -415,7 +415,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     required
                     value={startTime}
                     onChange={(e) => setStartTime(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
                   />
                 </div>
 
@@ -427,7 +427,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     required
                     value={endTime}
                     onChange={(e) => setEndTime(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
                   />
                 </div>
               </div>
@@ -497,7 +497,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     required
                     value={genStartDate}
                     onChange={(e) => setGenStartDate(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
                   />
                 </div>
 
@@ -508,7 +508,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                     required
                     value={genEndDate}
                     onChange={(e) => setGenEndDate(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
                   />
                 </div>
               </div>
@@ -536,7 +536,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                               <span className="text-[10px] text-gray-400 ml-2 font-medium">({t.dayOfWeek} | {t.startTime} - {t.endTime})</span>
                             </div>
                             <span className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold uppercase border ${
-                              t.active ? 'bg-green-50 border border-green-100 text-green-600' : 'bg-gray-100 border border-gray-200 text-gray-550'
+                              t.active ? 'bg-green-50 border border-green-100 text-green-600' : 'bg-gray-100 border border-gray-200 text-gray-500'
                             }`}>
                               {t.active ? 'Active' : 'Inactive'}
                             </span>
@@ -602,8 +602,8 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
 
               {generationReport.validationErrors.length > 0 && (
                 <div className="space-y-1.5">
-                  <h5 className="text-xs font-bold text-red-655">⚠️ Validation Conflict Warnings ({generationReport.validationErrors.length})</h5>
-                  <div className="max-h-32 overflow-y-auto border border-gray-250 bg-red-50/30 rounded-lg p-3 space-y-1">
+                  <h5 className="text-xs font-bold text-red-600">⚠️ Validation Conflict Warnings ({generationReport.validationErrors.length})</h5>
+                  <div className="max-h-32 overflow-y-auto border border-gray-200 bg-red-50/30 rounded-lg p-3 space-y-1">
                     {generationReport.validationErrors.map((errorStr: string, index: number) => (
                       <div key={index} className="text-[10px] text-red-700 leading-tight">
                         • {errorStr}

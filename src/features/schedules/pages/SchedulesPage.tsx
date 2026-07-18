@@ -11,6 +11,8 @@ import { CSVImporterModal } from '../components/CSVImporterModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
+import type { AttendanceSession } from '@/types/attendance'
+import { attendanceService } from '@/services/attendanceService'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
 const PAGE_SIZE = 12
@@ -22,8 +24,10 @@ export const SchedulesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
 
   // Filter states
-  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'ongoing' | 'completed' | 'cancelled'>('all')
   const [dateFilter, setDateFilter] = useState('')
+  const [timeFilter, setTimeFilter] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>([])
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -60,6 +64,9 @@ export const SchedulesPage: React.FC = () => {
       const memberData = await memberService.getMembers(true)
       setAllMembersProfiles(memberData)
       setActiveMembers(memberData.filter(m => m.status === 'active'))
+
+      const sessionsData = await attendanceService.getAllSessions()
+      setAttendanceSessions(sessionsData)
     } catch (err: any) {
       console.error(err)
       setError('Failed to load schedule or member records.')
@@ -75,7 +82,12 @@ export const SchedulesPage: React.FC = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [statusFilter, dateFilter])
+  }, [dateFilter, timeFilter, searchQuery])
+
+  // Reset time filter when date filter changes
+  useEffect(() => {
+    setTimeFilter('')
+  }, [dateFilter])
 
   // Clear selection when exiting bulk mode
   useEffect(() => {
@@ -163,15 +175,70 @@ export const SchedulesPage: React.FC = () => {
   }
 
   // ── Filter & paginate ─────────────────────────────────────────
-  const filteredSchedules = useMemo(() =>
-    schedules.filter((s) => {
+  const formatTime12 = (timeStr: string) => {
+    if (!timeStr) return ''
+    const parts = timeStr.split(':')
+    if (parts.length < 2) return timeStr
+    let h = parseInt(parts[0], 10)
+    const m = parts[1].padStart(2, '0')
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12
+    h = h ? h : 12
+    return `${h}:${m} ${ampm}`
+  }
+
+  const availableSchedulesForSelectedDate = useMemo(() => {
+    if (!dateFilter) return []
+    return schedules
+      .filter((s) => s.date === dateFilter)
+      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+  }, [schedules, dateFilter])
+
+  const getAttendanceState = (scheduleId: string, status: string): 'finalized' | 'pending' | 'none' => {
+    if (status === 'upcoming' || status === 'cancelled') return 'none'
+    const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
+    if (session && session.locked) return 'finalized'
+    return 'pending'
+  }
+
+  const filteredSchedules = useMemo(() => {
+    const getFullMonthName = (dateStr: string) => {
+      if (!dateStr) return ''
+      const parts = dateStr.split('-')
+      if (parts.length !== 3) return dateStr
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ]
+      const m = months[parseInt(parts[1], 10) - 1] || parts[1]
+      const d = parseInt(parts[2], 10)
+      return `${m} ${d} ${parts[0]}`
+    }
+
+    return schedules.filter((s) => {
       const matchesDate = !dateFilter || s.date === dateFilter
-      const computedStatus = getScheduleStatus(s)
-      const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
-      return matchesDate && matchesStatus
-    }),
-    [schedules, dateFilter, statusFilter]
-  )
+      const matchesTime = !timeFilter || s.startTime === timeFilter
+
+      if (!matchesDate || !matchesTime) return false
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const words = q.split(/\s+/)
+        return words.every((word) => {
+          const formattedDate = getFullMonthName(s.date).toLowerCase()
+          const formattedTime = (formatTime12(s.startTime) + ' ' + formatTime12(s.endTime)).toLowerCase()
+          return (
+            s.title.toLowerCase().includes(word) ||
+            s.date.toLowerCase().includes(word) ||
+            formattedDate.includes(word) ||
+            formattedTime.includes(word)
+          )
+        })
+      }
+
+      return true
+    })
+  }, [schedules, dateFilter, timeFilter, searchQuery])
 
   const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -215,14 +282,14 @@ export const SchedulesPage: React.FC = () => {
 
           <button
             onClick={() => setTemplatesOpen(true)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Templates
           </button>
 
           <button
             onClick={() => setCsvImportOpen(true)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
             Import CSV
           </button>
@@ -242,6 +309,21 @@ export const SchedulesPage: React.FC = () => {
 
       {/* Filters bar */}
       <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-xs">
+        {/* Search filter */}
+        <div className="flex flex-col space-y-1 flex-1">
+          <label htmlFor="filter-search" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Search Schedules
+          </label>
+          <input
+            id="filter-search"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+            placeholder="e.g. July 5 4 PM Mass"
+          />
+        </div>
+
         {/* Date filter */}
         <div className="flex flex-col space-y-1 flex-1">
           <label htmlFor="filter-date" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
@@ -252,36 +334,39 @@ export const SchedulesPage: React.FC = () => {
             type="date"
             value={dateFilter}
             onChange={(e) => setDateFilter(e.target.value)}
-            className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-1.5 text-xs text-gray-750 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
           />
         </div>
 
-        {/* Status filter */}
+        {/* Time / Schedule filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-status" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Filter by Status
+          <label htmlFor="filter-time" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Select Time / Schedule
           </label>
           <select
-            id="filter-status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+            id="filter-time"
+            value={timeFilter}
+            onChange={(e) => setTimeFilter(e.target.value)}
+            disabled={!dateFilter}
+            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 disabled:bg-gray-50"
           >
-            <option value="all">All Statuses</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
+            <option value="">{dateFilter ? 'All Times' : 'Select Date First'}</option>
+            {availableSchedulesForSelectedDate.map((s) => (
+              <option key={s.id} value={s.startTime}>
+                {formatTime12(s.startTime)} - {s.title}
+              </option>
+            ))}
           </select>
         </div>
 
         {/* Clear filters */}
-        {(dateFilter || statusFilter !== 'all') && (
+        {(dateFilter || timeFilter || searchQuery) && (
           <div className="flex items-end justify-start">
             <button
               onClick={() => {
                 setDateFilter('')
-                setStatusFilter('all')
+                setTimeFilter('')
+                setSearchQuery('')
               }}
               className="text-xs text-blue-600 hover:text-blue-700 font-bold py-2 px-3 transition-colors cursor-pointer"
             >
@@ -290,13 +375,6 @@ export const SchedulesPage: React.FC = () => {
           </div>
         )}
       </div>
-
-      {/* Error Panel */}
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-650">
-          {error}
-        </div>
-      )}
 
       {/* Main Grid content */}
       {loading ? (
@@ -316,6 +394,7 @@ export const SchedulesPage: React.FC = () => {
             setSelectedDate(dateStr)
             setFormOpen(true)
           }}
+          getAttendanceState={getAttendanceState}
         />
       ) : filteredSchedules.length > 0 ? (
         <>
@@ -376,6 +455,7 @@ export const SchedulesPage: React.FC = () => {
                 totalAssigned={schedule.assignedMembers?.length || 0}
                 isSelected={selectedIds.has(schedule.id)}
                 onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
+                attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule))}
                 onEdit={(s) => {
                   setSelectedSchedule(s)
                   setFormOpen(true)
@@ -494,7 +574,6 @@ export const SchedulesPage: React.FC = () => {
         isOpen={detailsOpen}
         onClose={() => {
           setDetailsOpen(false)
-          setSelectedSchedule(null)
         }}
         schedule={selectedSchedule}
         activeMembers={allMembersProfiles}
@@ -549,11 +628,14 @@ export const SchedulesPage: React.FC = () => {
 
       {/* Alert Dialog */}
       <AlertModal
-        isOpen={!!alertModal}
-        onClose={() => setAlertModal(null)}
+        isOpen={!!alertModal || !!error}
+        onClose={() => {
+          setAlertModal(null)
+          setError(null)
+        }}
         variant="error"
-        title={alertModal?.title ?? ''}
-        message={alertModal?.message ?? ''}
+        title={alertModal?.title ?? 'Error'}
+        message={alertModal?.message ?? error ?? ''}
       />
     </div>
   )

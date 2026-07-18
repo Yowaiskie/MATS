@@ -80,6 +80,7 @@ export const generateCommunityReport = (
     if (status === 'late') return 'L'
     if (status === 'absent') return 'A'
     if (status === 'excused') return 'E'
+    if (status === 'observer') return 'O'
     return 'A' // default fallback if undefined
   }
 
@@ -88,6 +89,7 @@ export const generateCommunityReport = (
   let lateCount = 0
   let absentCount = 0
   let excusedCount = 0
+  let observerCount = 0
 
   const assignedList = assignedMembers.length > 0
     ? assignedMembers
@@ -99,6 +101,7 @@ export const generateCommunityReport = (
           else if (status === 'late') lateCount++
           else if (status === 'absent') absentCount++
           else if (status === 'excused') excusedCount++
+          else if (status === 'observer') observerCount++
 
           const statusShortcut = mapStatus(status)
           return `${idx + 1}. ${getFullName(member)} - ${statusShortcut}`
@@ -133,6 +136,7 @@ export const generateCommunityReport = (
   result = result.replace(/\{\{lateCount\}\}/g, String(lateCount))
   result = result.replace(/\{\{absentCount\}\}/g, String(absentCount))
   result = result.replace(/\{\{excusedCount\}\}/g, String(excusedCount))
+  result = result.replace(/\{\{observerCount\}\}/g, String(observerCount))
 
   return result
 }

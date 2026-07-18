@@ -143,5 +143,17 @@ export const attendanceService = {
       finalizedBy: locked ? adminEmail : null,
       updatedAt: serverTimestamp()
     })
+  },
+
+  /**
+   * Fetches all attendance sessions.
+   */
+  async getAllSessions(): Promise<AttendanceSession[]> {
+    const sessionsRef = collection(db, SESSIONS_COLLECTION)
+    const snapshot = await getDocs(sessionsRef)
+    return snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as AttendanceSession[]
   }
 }

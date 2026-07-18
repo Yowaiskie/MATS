@@ -118,7 +118,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="block w-full pl-9 pr-3 py-2 border border-gray-250 bg-white rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+            className="block w-full pl-9 pr-3 py-2 border border-gray-200 bg-white rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
             placeholder="Search name, rank, phone..."
           />
         </div>
@@ -133,7 +133,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               id="filter-status"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-              className="border border-gray-250 bg-white rounded-lg text-xs px-2.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+              className="border border-gray-200 bg-white rounded-lg text-xs px-2.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
             >
               <option value="all">All</option>
               <option value="active">Active</option>
@@ -316,7 +316,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                             </button>
                             <button
                               onClick={() => onArchive(member.id)}
-                              className="text-xs text-red-650 hover:text-red-750 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                              className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
                             >
                               Archive
                             </button>
@@ -331,7 +331,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                             </button>
                             <button
                               onClick={() => onDelete(member.id)}
-                              className="text-xs text-red-650 hover:text-red-750 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                              className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
                             >
                               Delete
                             </button>

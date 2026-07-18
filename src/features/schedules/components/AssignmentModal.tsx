@@ -105,7 +105,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         {/* Content Section */}
         <div className="mt-4 flex-1 flex flex-col overflow-hidden space-y-4">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-655 font-medium">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650 font-medium">
               {error}
             </div>
           )}
@@ -121,7 +121,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="block w-full pl-9 pr-3 py-2 border border-gray-250 bg-white rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              className="block w-full pl-9 pr-3 py-2 border border-gray-200 bg-white rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50 transition-shadow duration-150"
               placeholder="Filter active members by name..."
               disabled={loading}
             />
@@ -136,9 +136,8 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 const disabled = (!!conflictWith && !isSelected) || loading // disable checking if double booked or loading
 
                 return (
-                  <div 
+                  <label 
                     key={member.id} 
-                    onClick={() => !disabled && handleToggle(member.id)}
                     className={`flex items-center justify-between p-3 transition-colors ${
                       disabled 
                         ? 'opacity-40 cursor-not-allowed' 
@@ -149,7 +148,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => {}} // handled by parent div click
+                        onChange={() => !disabled && handleToggle(member.id)}
                         disabled={disabled}
                         className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
                       />
@@ -165,11 +164,11 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
                     {/* Conflict tag warning */}
                     {conflictWith && (
-                      <span className="inline-block rounded-md bg-red-50 border border-red-100 text-red-655 px-2 py-0.5 text-[10px] font-semibold max-w-[150px] truncate" title={`Assigned to ${conflictWith}`}>
+                      <span className="inline-block rounded-md bg-red-50 border border-red-100 text-red-600 px-2 py-0.5 text-[10px] font-semibold max-w-[150px] truncate" title={`Assigned to ${conflictWith}`}>
                         Booked: {conflictWith}
                       </span>
                     )}
-                  </div>
+                  </label>
                 )
               })
             ) : (
@@ -185,7 +184,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
             disabled={loading}
           >
             Cancel

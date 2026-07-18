@@ -105,7 +105,7 @@ export const DashboardOverview: React.FC = () => {
 
   const cardStats = [
     { name: 'Active Members', value: String(data.stats.activeMembers), color: 'text-green-600', bg: 'bg-green-50/50', border: 'border-green-100', desc: 'Registered and active servers' },
-    { name: 'Archived Members', value: String(data.stats.archivedMembers), color: 'text-gray-600', bg: 'bg-gray-50/50', border: 'border-gray-150', desc: 'Inactive or retired profiles' },
+    { name: 'Archived Members', value: String(data.stats.archivedMembers), color: 'text-gray-600', bg: 'bg-gray-50/50', border: 'border-gray-200', desc: 'Inactive or retired profiles' },
     { name: 'Upcoming Schedules', value: String(data.stats.upcomingSchedules), color: 'text-emerald-600', bg: 'bg-emerald-50/50', border: 'border-emerald-100', desc: 'Future services planned' },
     { 
       name: 'Ongoing Schedule', 

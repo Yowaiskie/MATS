@@ -4,6 +4,7 @@ import type { ReportRawData, OverallSummary, MemberReportRow, ScheduleReportRow,
 import { Card } from '@/components/Card'
 import { FilterBar } from '../components/FilterBar'
 import { SummaryCards } from '../components/SummaryCards'
+import { AlertModal } from '@/components/Dialog'
 
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly'
 
@@ -122,12 +123,6 @@ export const ReportsPage: React.FC = () => {
         onSearchQueryChange={setSearchQuery}
       />
 
-      {/* Error notify */}
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      )}
 
       {/* Overall Summary cards (Persists on the top of report tables) */}
       {!loading && rawData && <SummaryCards summary={overallSummary} />}
@@ -315,6 +310,15 @@ export const ReportsPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Error Alert Modal */}
+      <AlertModal
+        isOpen={!!error}
+        onClose={() => setError(null)}
+        variant="error"
+        title="Error"
+        message={error ?? ''}
+      />
     </div>
   )
 }
