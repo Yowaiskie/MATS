@@ -47,9 +47,16 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
             </span>
           )}
         </span>
-        <span className="text-[11px] text-blue-600 uppercase tracking-wider font-medium">
-          {member.rank}
-        </span>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11px] text-blue-600 uppercase tracking-wider font-medium">
+            {member.rank}
+          </span>
+          {member.order && (
+            <span className="inline-block px-1.5 py-0.2 rounded text-[10px] font-bold border bg-gray-50 border-gray-200 text-gray-700">
+              {member.order}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Input Options Column */}

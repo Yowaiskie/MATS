@@ -1,5 +1,14 @@
 export type MemberStatus = 'active' | 'inactive' | 'archived'
 
+export const ORDER_GROUPS = [
+  'Order of San Pedro',
+  'Order of San Juan',
+  'Order of San Tiago',
+  'Order of San Andres'
+] as const
+
+export type OrderGroup = typeof ORDER_GROUPS[number]
+
 export interface Member {
   id: string
   firstName: string

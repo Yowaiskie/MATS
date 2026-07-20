@@ -109,7 +109,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
     const colMonthJoined = findCol('month_joined', 'monthjoined')
     const colInvestiture = findCol('date_of_investiture', 'dateofinvestiture', 'investiture')
     const colPosition = findCol('position')
-    const colOrder = findCol('order')
+    const colOrder = findCol('order', 'ordergroup', 'group', 'order_group', 'order group', 'team')
     const colRank = findCol('rank')
     const colStatus = findCol('status')
 

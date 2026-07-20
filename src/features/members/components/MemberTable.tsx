@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
+import { ORDER_GROUPS } from '@/types/member'
 import { getFullName } from '@/utils/member'
 
 interface MemberTableProps {
@@ -34,6 +35,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [orderFilter, setOrderFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
 
@@ -59,6 +61,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
       const matchesSearch =
         computedFullname.includes(query) ||
         member.rank.toLowerCase().includes(query) ||
+        (member.order || '').toLowerCase().includes(query) ||
         (member.phoneNumber || '').includes(query)
 
       const matchesStatus =
@@ -66,7 +69,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         statusFilter === 'all' ||
         member.status === statusFilter
 
-      return matchesSearch && matchesStatus
+      const matchesOrder =
+        orderFilter === 'all' ||
+        (orderFilter === 'none' ? !member.order : member.order === orderFilter)
+
+      return matchesSearch && matchesStatus && matchesOrder
     })
     .sort((a, b) => {
       let aVal = ''
@@ -123,22 +130,42 @@ export const MemberTable: React.FC<MemberTableProps> = ({
           />
         </div>
 
-        {/* Status filter (active tab only) */}
+        {/* Status & Order Filters (active tab only) */}
         {!showArchived && (
-          <div className="flex items-center space-x-2 w-full md:w-auto">
-            <label htmlFor="filter-status" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-              Filter Status:
-            </label>
-            <select
-              id="filter-status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
-              className="border border-gray-200 bg-white rounded-lg text-xs px-2.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-            >
-              <option value="all">All</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
+          <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+            <div className="flex items-center space-x-1.5">
+              <label htmlFor="filter-order" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                Order:
+              </label>
+              <select
+                id="filter-order"
+                value={orderFilter}
+                onChange={(e) => setOrderFilter(e.target.value)}
+                className="border border-gray-200 bg-white rounded-lg text-xs px-2.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                <option value="all">All Orders</option>
+                {ORDER_GROUPS.map((grp) => (
+                  <option key={grp} value={grp}>{grp}</option>
+                ))}
+                <option value="none">Unassigned / No Order</option>
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-1.5">
+              <label htmlFor="filter-status" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                Status:
+              </label>
+              <select
+                id="filter-status"
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'inactive')}
+                className="border border-gray-200 bg-white rounded-lg text-xs px-2.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+            </div>
           </div>
         )}
       </div>
@@ -247,6 +274,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     <SortIcon field="rank" />
                   </span>
                 </th>
+                <th className="p-4 text-gray-400">Order / Group</th>
                 <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('status')}>
                   <span className="flex items-center space-x-1">
                     <span>Status</span>
@@ -261,6 +289,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               {filteredMembers.length > 0 ? (
                 filteredMembers.map((member) => {
                   const isSelected = selectedIds.has(member.id)
+                  const orderBadgeStyle = member.order
+                    ? {
+                        'Order of San Pedro': 'bg-blue-50 border-blue-200 text-blue-700',
+                        'Order of San Juan': 'bg-emerald-50 border-emerald-200 text-emerald-700',
+                        'Order of San Tiago': 'bg-purple-50 border-purple-200 text-purple-700',
+                        'Order of San Andres': 'bg-amber-50 border-amber-200 text-amber-700'
+                      }[member.order] || 'bg-gray-50 border-gray-200 text-gray-700'
+                    : ''
                   return (
                     <tr
                       key={member.id}
@@ -290,6 +326,15 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       </td>
                       <td className="p-4 text-gray-600 whitespace-nowrap">
                         {member.rank}
+                      </td>
+                      <td className="p-4 whitespace-nowrap">
+                        {member.order ? (
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${orderBadgeStyle}`}>
+                            {member.order}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-gray-400 italic">--</span>
+                        )}
                       </td>
                       <td className="p-4 whitespace-nowrap">
                         <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold capitalize border ${

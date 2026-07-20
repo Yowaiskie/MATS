@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member, MemberInput } from '@/types/member'
+import { ORDER_GROUPS } from '@/types/member'
 import { isDuplicateName } from '@/utils/member'
 
 interface MemberFormModalProps {
@@ -23,6 +24,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [suffix, setSuffix] = useState('')
   const [nickname, setNickname] = useState('')
   const [rank, setRank] = useState('')
+  const [order, setOrder] = useState('')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [loading, setLoading] = useState(false)
@@ -36,6 +38,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setSuffix(member.suffix || '')
       setNickname(member.nickname || '')
       setRank(member.rank)
+      setOrder(member.order || '')
       setStatus(member.status === 'archived' ? 'active' : member.status)
       setPhoneNumber(member.phoneNumber || '')
     } else {
@@ -45,6 +48,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setSuffix('')
       setNickname('')
       setRank('')
+      setOrder('')
       setStatus('active')
       setPhoneNumber('')
     }
@@ -99,6 +103,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         suffix: suffix.trim() || undefined,
         nickname: nickname.trim() || undefined,
         rank: rank.trim(),
+        order: order.trim() || undefined,
         status,
         phoneNumber: phoneNumber.trim() || undefined,
       })
@@ -234,6 +239,45 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               disabled={loading}
             />
             {errors.rank && <p className="mt-1 text-xs text-red-600 font-medium">{errors.rank}</p>}
+          </div>
+
+          {/* Order / Group (Optional) */}
+          <div>
+            <label htmlFor="modal-order" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Order / Group <span className="text-gray-400 font-normal lowercase">(optional)</span>
+            </label>
+            <select
+              id="modal-order"
+              value={ORDER_GROUPS.includes(order as any) ? order : (order ? 'custom' : '')}
+              onChange={(e) => {
+                if (e.target.value !== 'custom') {
+                  setOrder(e.target.value)
+                } else if (!ORDER_GROUPS.includes(order as any)) {
+                  // Keep current custom value
+                } else {
+                  setOrder('')
+                }
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              disabled={loading}
+            >
+              <option value="">-- No Order / Unassigned --</option>
+              {ORDER_GROUPS.map((grp) => (
+                <option key={grp} value={grp}>{grp}</option>
+              ))}
+              <option value="custom">Other / Custom Order Name...</option>
+            </select>
+
+            {(!ORDER_GROUPS.includes(order as any) && order !== '') && (
+              <input
+                type="text"
+                value={order}
+                onChange={(e) => setOrder(e.target.value)}
+                placeholder="Enter custom order or group name"
+                className="mt-2 block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:border-blue-500 focus:outline-none transition-shadow"
+                disabled={loading}
+              />
+            )}
           </div>
 
           {/* Phone Number */}

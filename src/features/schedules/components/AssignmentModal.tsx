@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
+import { ORDER_GROUPS } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { getFullName } from '@/utils/member'
 import { isTimeOverlapping } from '@/utils/scheduleUtils'
@@ -62,6 +63,24 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     )
   }
 
+  const handleToggleOrderGroup = (orderGroup: string) => {
+    setError(null)
+    const groupMembers = activeMembers.filter(m => m.order === orderGroup)
+    const groupMemberIds = groupMembers.map(m => m.id)
+    if (groupMemberIds.length === 0) return
+
+    const allSelected = groupMemberIds.every(id => selectedIds.includes(id))
+
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !groupMemberIds.includes(id)))
+    } else {
+      const selectableIds = groupMembers
+        .filter(m => !getConflictDetails(m.id) || selectedIds.includes(m.id))
+        .map(m => m.id)
+      setSelectedIds(prev => Array.from(new Set([...prev, ...selectableIds])))
+    }
+  }
+
   const handleSave = async () => {
     setLoading(true)
     setError(null)
@@ -76,9 +95,14 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     }
   }
 
-  const filteredMembers = activeMembers.filter((m) =>
-    getFullName(m).toLowerCase().includes(search.toLowerCase().trim())
-  )
+  const filteredMembers = activeMembers.filter((m) => {
+    const q = search.toLowerCase().trim()
+    if (!q) return true
+    return (
+      getFullName(m).toLowerCase().includes(q) ||
+      (m.order && m.order.toLowerCase().includes(q))
+    )
+  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -103,12 +127,40 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         </div>
 
         {/* Content Section */}
-        <div className="mt-4 flex-1 flex flex-col overflow-hidden space-y-4">
+        <div className="mt-4 flex-1 flex flex-col overflow-hidden space-y-3">
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650 font-medium">
               {error}
             </div>
           )}
+
+          {/* Quick Select by Order Group */}
+          <div>
+            <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
+              Quick Select Order / Group:
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {ORDER_GROUPS.map((grp) => {
+                const groupMembers = activeMembers.filter(m => m.order === grp)
+                if (groupMembers.length === 0) return null
+                const allSelected = groupMembers.every(m => selectedIds.includes(m.id))
+                return (
+                  <button
+                    key={grp}
+                    type="button"
+                    onClick={() => handleToggleOrderGroup(grp)}
+                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors cursor-pointer ${
+                      allSelected
+                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                    }`}
+                  >
+                    {allSelected ? '✓ ' : '+ '} {grp} ({groupMembers.length})
+                  </button>
+                )
+              })}
+            </div>
+          </div>
 
           {/* Search bar */}
           <div className="relative">
@@ -121,8 +173,8 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="block w-full pl-9 pr-3 py-2 border border-gray-200 bg-white rounded-lg text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              placeholder="Filter active members by name..."
+              className="block w-full pl-9 pr-3 py-2 border border-gray-200 bg-white rounded-lg text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              placeholder="Filter members by name or order..."
               disabled={loading}
             />
           </div>

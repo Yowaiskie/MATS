@@ -14,6 +14,7 @@ import { generateCommunityReport } from '@/utils/communityReport'
 import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
+import { ORDER_GROUPS } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary } from '@/utils/attendance'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
@@ -60,18 +61,55 @@ export const AttendancePage: React.FC = () => {
   const [backConfirmOpen, setBackConfirmOpen] = useState(false)
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [selectedOrderGroup, setSelectedOrderGroup] = useState<string>('all')
 
   const displayMembers = useMemo(() => {
     const combined = [...assignedMembers, ...otherServers]
-    if (!searchQuery.trim()) return combined
-    const query = searchQuery.toLowerCase().trim()
-    return combined.filter(m => 
-      m.firstName.toLowerCase().includes(query) ||
-      m.lastName.toLowerCase().includes(query) ||
-      (m.middleName && m.middleName.toLowerCase().includes(query)) ||
-      (m.nickname && m.nickname.toLowerCase().includes(query))
-    )
-  }, [assignedMembers, otherServers, searchQuery])
+    return combined.filter(m => {
+      // 1. Group Filter
+      if (selectedOrderGroup !== 'all') {
+        if (selectedOrderGroup === 'none') {
+          if (m.order) return false
+        } else if (m.order !== selectedOrderGroup) {
+          return false
+        }
+      }
+      // 2. Search Query
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase().trim()
+        const matches =
+          m.firstName.toLowerCase().includes(query) ||
+          m.lastName.toLowerCase().includes(query) ||
+          (m.middleName && m.middleName.toLowerCase().includes(query)) ||
+          (m.nickname && m.nickname.toLowerCase().includes(query)) ||
+          (m.order && m.order.toLowerCase().includes(query))
+        if (!matches) return false
+      }
+      return true
+    })
+  }, [assignedMembers, otherServers, selectedOrderGroup, searchQuery])
+
+  const orderGroupCounts = useMemo(() => {
+    const combined = [...assignedMembers, ...otherServers]
+    const counts: Record<string, number> = {
+      all: combined.length,
+      'Order of San Pedro': 0,
+      'Order of San Juan': 0,
+      'Order of San Tiago': 0,
+      'Order of San Andres': 0,
+      none: 0
+    }
+    combined.forEach(m => {
+      if (m.order && counts[m.order] !== undefined) {
+        counts[m.order]++
+      } else if (m.order) {
+        counts[m.order] = (counts[m.order] || 0) + 1
+      } else {
+        counts.none++
+      }
+    })
+    return counts
+  }, [assignedMembers, otherServers])
 
   // Initialize form state
   const isDirty = JSON.stringify(formState) !== JSON.stringify(originalState)
@@ -508,6 +546,55 @@ export const AttendancePage: React.FC = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
               <span>Assign All Active Servers</span>
+            </button>
+          )}
+        </div>
+
+        {/* Order Group Filter Pills Bar */}
+        <div className="flex items-center gap-2 overflow-x-auto px-4 py-3 border-b border-gray-100 bg-white">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Filter Order:</span>
+          <button
+            type="button"
+            onClick={() => setSelectedOrderGroup('all')}
+            className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
+              selectedOrderGroup === 'all'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            All Orders ({orderGroupCounts.all})
+          </button>
+
+          {ORDER_GROUPS.map((grp) => {
+            const count = orderGroupCounts[grp] || 0
+            const isSelected = selectedOrderGroup === grp
+            return (
+              <button
+                key={grp}
+                type="button"
+                onClick={() => setSelectedOrderGroup(grp)}
+                className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap ${
+                  isSelected
+                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                    : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {grp} ({count})
+              </button>
+            )
+          })}
+
+          {orderGroupCounts.none > 0 && (
+            <button
+              type="button"
+              onClick={() => setSelectedOrderGroup('none')}
+              className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap ${
+                selectedOrderGroup === 'none'
+                  ? 'bg-gray-700 border-gray-700 text-white shadow-xs'
+                  : 'bg-white border-gray-200 text-gray-500 hover:bg-gray-50'
+              }`}
+            >
+              Unassigned ({orderGroupCounts.none})
             </button>
           )}
         </div>
