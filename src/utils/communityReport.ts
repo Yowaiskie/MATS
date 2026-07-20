@@ -91,8 +91,13 @@ export const generateCommunityReport = (
   let excusedCount = 0
   let observerCount = 0
 
-  const assignedList = assignedMembers.length > 0
-    ? assignedMembers
+  const visibleAssigned = assignedMembers.filter(member => {
+    const status = formState[member.id]?.status
+    return status !== 'alumni'
+  })
+
+  const assignedList = visibleAssigned.length > 0
+    ? visibleAssigned
         .map((member, idx) => {
           const state = formState[member.id]
           const status = state?.status
@@ -109,8 +114,13 @@ export const generateCommunityReport = (
         .join('\n')
     : 'NO SERVERS!'
 
-  const otherList = unassignedMembers.length > 0
-    ? unassignedMembers
+  const visibleOther = unassignedMembers.filter(member => {
+    const status = formState[member.id]?.status
+    return status !== 'alumni'
+  })
+
+  const otherList = visibleOther.length > 0
+    ? visibleOther
         .map((member, idx) => `${idx + 1}. ${getFullName(member)}`)
         .join('\n')
     : ''

@@ -11,6 +11,7 @@ interface AttendanceRowProps {
   onRemarksChange: (remarks: string) => void
   disabled: boolean
   isOtherServer?: boolean
+  onRemove?: () => void
 }
 
 export const AttendanceRow: React.FC<AttendanceRowProps> = ({
@@ -21,6 +22,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
   onRemarksChange,
   disabled,
   isOtherServer = false,
+  onRemove,
 }) => {
   const [showRemarksInput, setShowRemarksInput] = useState(!!remarks)
 
@@ -30,6 +32,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
     { value: 'absent', label: 'Absent', activeColor: 'bg-red-600 border-red-600 text-white font-bold' },
     { value: 'excused', label: 'Excused', activeColor: 'bg-gray-500 border-gray-500 text-white font-bold' },
     { value: 'observer', label: 'Observer', activeColor: 'bg-purple-600 border-purple-600 text-white font-bold' },
+    { value: 'alumni', label: 'Alumni', activeColor: 'bg-teal-600 border-teal-600 text-white font-bold' },
   ]
 
   return (
@@ -50,9 +53,9 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
       </div>
 
       {/* Input Options Column */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
         {/* Toggle Pills */}
-        <div className="flex items-center border border-gray-200 bg-gray-50 rounded-lg overflow-hidden shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5">
           {statusOptions.map((opt) => {
             const isActive = status === opt.value
             return (
@@ -61,10 +64,10 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
                 type="button"
                 onClick={() => !disabled && onStatusChange(opt.value)}
                 disabled={disabled}
-                className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider border-r border-gray-200 last:border-r-0 transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
                   isActive 
-                    ? opt.activeColor 
-                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-50'
+                    ? opt.activeColor + ' shadow-sm' 
+                    : 'bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 disabled:opacity-50'
                 }`}
               >
                 {opt.label}
@@ -73,19 +76,35 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
           })}
         </div>
 
-        {/* Remarks Toggle Button */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowRemarksInput(prev => !prev)}
-            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold tracking-wide transition-colors cursor-pointer ${
-              showRemarksInput || remarks
-                ? 'border-blue-200 bg-blue-50 text-blue-600'
-                : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            {remarks ? 'Has Remarks' : 'Add Remarks'}
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Remarks Toggle Button */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowRemarksInput(prev => !prev)}
+              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold tracking-wide transition-colors cursor-pointer ${
+                showRemarksInput || remarks
+                  ? 'border-blue-200 bg-blue-50 text-blue-600'
+                  : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {remarks ? 'Has Remarks' : 'Add Remarks'}
+            </button>
+          </div>
+
+          {/* Remove Button for Other Server */}
+          {isOtherServer && !disabled && onRemove && (
+            <div>
+              <button
+                type="button"
+                onClick={onRemove}
+                className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[11px] font-bold tracking-wide text-red-600 transition-all cursor-pointer shadow-sm"
+                title="Remove this server from attendance list"
+              >
+                Remove
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

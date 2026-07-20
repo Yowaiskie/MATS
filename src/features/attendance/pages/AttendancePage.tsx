@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
@@ -11,6 +11,7 @@ import { AttendanceRow } from '../components/AttendanceRow'
 import { CommunityReportModal } from '../components/CommunityReportModal'
 import { AddOtherServerModal } from '../components/AddOtherServerModal'
 import { generateCommunityReport } from '@/utils/communityReport'
+import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
@@ -44,6 +45,7 @@ export const AttendancePage: React.FC = () => {
   // Local Form state
   const [formState, setFormState] = useState<FormState>({})
   const [originalState, setOriginalState] = useState<FormState>({})
+  const [pendingDeleteIds, setPendingDeleteIds] = useState<string[]>([])
   
   // Page state
   const [loading, setLoading] = useState(true)
@@ -57,8 +59,19 @@ export const AttendancePage: React.FC = () => {
   const [lockConfirm, setLockConfirm] = useState<{ nextLocked: boolean } | null>(null)
   const [backConfirmOpen, setBackConfirmOpen] = useState(false)
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
-  const displayMembers = [...assignedMembers, ...otherServers]
+  const displayMembers = useMemo(() => {
+    const combined = [...assignedMembers, ...otherServers]
+    if (!searchQuery.trim()) return combined
+    const query = searchQuery.toLowerCase().trim()
+    return combined.filter(m => 
+      m.firstName.toLowerCase().includes(query) ||
+      m.lastName.toLowerCase().includes(query) ||
+      (m.middleName && m.middleName.toLowerCase().includes(query)) ||
+      (m.nickname && m.nickname.toLowerCase().includes(query))
+    )
+  }, [assignedMembers, otherServers, searchQuery])
 
   // Initialize form state
   const isDirty = JSON.stringify(formState) !== JSON.stringify(originalState)
@@ -170,11 +183,64 @@ export const AttendancePage: React.FC = () => {
     setFormState((prev) => {
       const next = { ...prev }
       displayMembers.forEach((member) => {
-        next[member.id] = {
-          ...next[member.id],
-          status: action === 'clear' ? undefined : action
+        const currentStatus = prev[member.id]?.status
+        if (action === 'clear') {
+          next[member.id] = {
+            ...next[member.id],
+            status: undefined
+          }
+        } else if (currentStatus === undefined) {
+          next[member.id] = {
+            ...next[member.id],
+            status: action
+          }
         }
       })
+      return next
+    })
+  }
+
+  const handleAssignAll = () => {
+    const activeProfiles = allMembersProfiles.filter(m => m.status === 'active')
+    const existingIds = new Set([...assignedMembers, ...otherServers].map(m => m.id))
+    const toAdd = activeProfiles.filter(m => !existingIds.has(m.id))
+    
+    if (toAdd.length === 0) return
+    
+    setOtherServers(prev => {
+      const next = [...prev, ...toAdd]
+      next.sort((a, b) => {
+        const lastA = a.lastName.toLowerCase()
+        const lastB = b.lastName.toLowerCase()
+        if (lastA !== lastB) return lastA.localeCompare(lastB)
+        return a.firstName.toLowerCase().localeCompare(b.firstName.toLowerCase())
+      })
+      return next
+    })
+    
+    setFormState(prev => {
+      const next = { ...prev }
+      toAdd.forEach(m => {
+        next[m.id] = {
+          status: undefined,
+          remarks: '',
+          isOtherServer: true
+        }
+      })
+      return next
+    })
+  }
+
+  const handleRemoveOtherServer = (memberId: string) => {
+    const recordId = formState[memberId]?.id
+    if (recordId) {
+      setPendingDeleteIds(prev => [...prev, recordId])
+    }
+
+    setOtherServers(prev => prev.filter(m => m.id !== memberId))
+    setFormState(prev => {
+      const next = { ...prev }
+      delete next[memberId]
       return next
     })
   }
@@ -204,13 +270,16 @@ export const AttendancePage: React.FC = () => {
   const handleSave = async () => {
     if (!session || !schedule) return
 
+    const allSessionMembers = [...assignedMembers, ...otherServers]
+
     // Ensure all displayed members have a status marked
-    const unselectedMembers = displayMembers.filter(
+    const unselectedMembers = allSessionMembers.filter(
       m => !formState[m.id] || formState[m.id].status === undefined
     )
     
     if (unselectedMembers.length > 0) {
-      setError('Please select attendance status for all servers before saving.')
+      const namesList = unselectedMembers.map(m => getFullName(m)).join(', ')
+      setError(`Cannot save. Please select attendance status for: ${namesList}`)
       return
     }
 
@@ -219,7 +288,7 @@ export const AttendancePage: React.FC = () => {
     setSuccessMsg(null)
 
     try {
-      const inputs = displayMembers.map((m) => ({
+      const inputs = allSessionMembers.map((m) => ({
         id: formState[m.id]?.id,
         memberId: m.id,
         status: formState[m.id].status as AttendanceStatus,
@@ -234,6 +303,14 @@ export const AttendancePage: React.FC = () => {
         inputs,
         user?.email || 'Admin'
       )
+
+      // Delete removed other servers from Firestore
+      if (pendingDeleteIds.length > 0) {
+        await Promise.all(
+          pendingDeleteIds.map(recordId => attendanceService.deleteAttendanceRecord(recordId))
+        )
+        setPendingDeleteIds([])
+      }
 
       setSuccessMsg('Attendance records successfully updated!')
       
@@ -254,14 +331,49 @@ export const AttendancePage: React.FC = () => {
   }
 
   const handleLockConfirmed = async () => {
-    if (!session || !lockConfirm) return
+    if (!session || !lockConfirm || !schedule) return
     const { nextLocked } = lockConfirm
     setLockConfirm(null)
     setSaving(true)
     setError(null)
     setSuccessMsg(null)
     try {
-      const adminEmail = user?.email || 'admin'
+      const adminEmail = user?.email || 'Admin'
+      
+      if (nextLocked) {
+        // Validation before locking
+        const allSessionMembers = [...assignedMembers, ...otherServers]
+        const unselectedMembers = allSessionMembers.filter(
+          m => !formState[m.id] || formState[m.id].status === undefined
+        )
+        
+        if (unselectedMembers.length > 0) {
+          const namesList = unselectedMembers.map(m => getFullName(m)).join(', ')
+          setError(`Cannot lock session. Please select attendance status for: ${namesList}`)
+          setSaving(false)
+          return
+        }
+
+        // Auto-save unsaved changes before locking
+        if (isDirty) {
+          const inputs = allSessionMembers.map((m) => ({
+            id: formState[m.id]?.id,
+            memberId: m.id,
+            status: formState[m.id].status as AttendanceStatus,
+            remarks: formState[m.id].remarks || '',
+            isOtherServer: formState[m.id].isOtherServer ?? false
+          }))
+
+          await attendanceService.saveAttendanceRecords(
+            session.id,
+            schedule.id,
+            schedule.date,
+            inputs,
+            adminEmail
+          )
+        }
+      }
+
       await attendanceService.setSessionLockState(session.id, nextLocked, adminEmail)
       setSuccessMsg(
         nextLocked
@@ -288,12 +400,12 @@ export const AttendancePage: React.FC = () => {
 
   // Live Summary Calculation
   const computedSummary = calculateAttendanceSummary(
-    displayMembers
+    ([...assignedMembers, ...otherServers])
       .map(m => formState[m.id]?.status)
       .filter((status): status is AttendanceStatus => status !== undefined)
       .map(status => ({ status }))
   )
-  computedSummary.total = displayMembers.length
+  computedSummary.total = [...assignedMembers, ...otherServers].length
 
   if (loading) {
     return (
@@ -355,6 +467,49 @@ export const AttendancePage: React.FC = () => {
 
       {/* Form Area */}
       <Card>
+        {/* Search & Bulk Assign Actions Bar */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
+          {/* Search Input */}
+          <div className="relative w-full sm:max-w-xs">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+              <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </span>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search server name..."
+              className="block w-full rounded-lg border border-gray-200 pl-9 pr-3 py-2 text-xs bg-white text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Quick Assign Action */}
+          {!(session?.locked ?? false) && (
+            <button
+              type="button"
+              onClick={handleAssignAll}
+              className="w-full sm:w-auto rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-xs font-semibold text-blue-700 transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              <span>Assign All Active Servers</span>
+            </button>
+          )}
+        </div>
+
         <div className="divide-y divide-gray-100">
           {displayMembers.length > 0 ? (
             displayMembers.map((member) => (
@@ -367,11 +522,16 @@ export const AttendancePage: React.FC = () => {
                 onRemarksChange={(remarks) => handleRowRemarksChange(member.id, remarks)}
                 disabled={saving || (session?.locked ?? false)}
                 isOtherServer={formState[member.id]?.isOtherServer}
+                onRemove={() => handleRemoveOtherServer(member.id)}
               />
             ))
           ) : (
             <div className="py-12 text-center text-sm text-gray-400">
-              No members are assigned to this service schedule. Select "Assign Servers" or click "+ Add Other Server" to populate.
+              {searchQuery.trim() ? (
+                <span>No active servers match search query "{searchQuery}"</span>
+              ) : (
+                <span>No members are assigned to this service schedule. Select "Assign Servers" or click "+ Add Other Server" to populate.</span>
+              )}
             </div>
           )}
         </div>

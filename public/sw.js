@@ -5,6 +5,7 @@ const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
+  '/manifest.webmanifest',
   '/ministy_logo.jpg',
   '/icon-192.png',
   '/icon-512.png',

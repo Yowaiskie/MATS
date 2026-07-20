@@ -8,7 +8,8 @@ import {
   writeBatch,
   serverTimestamp,
   addDoc,
-  updateDoc
+  updateDoc,
+  deleteDoc
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { AttendanceSession, AttendanceRecord, AttendanceInput } from '@/types/attendance'
@@ -173,5 +174,13 @@ export const attendanceService = {
       id: doc.id,
       ...doc.data()
     })) as AttendanceSession[]
+  },
+
+  /**
+   * Deletes a single attendance record document.
+   */
+  async deleteAttendanceRecord(recordId: string): Promise<void> {
+    const docRef = doc(db, ATTENDANCE_COLLECTION, recordId)
+    await deleteDoc(docRef)
   }
 }
