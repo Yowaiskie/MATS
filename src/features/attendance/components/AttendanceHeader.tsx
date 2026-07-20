@@ -2,6 +2,7 @@ import React from 'react'
 import type { Schedule } from '@/types/schedule'
 import type { AttendanceSession } from '@/types/attendance'
 import type { AttendanceSummary } from '@/utils/attendance'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 interface AttendanceHeaderProps {
   schedule: Schedule
@@ -24,6 +25,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
   isSaving,
   isDirty,
 }) => {
+  const { isAdmin } = useAuth()
   return (
     <div className="space-y-4">
       {/* Session details & Lock indicator */}
@@ -49,27 +51,29 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
           )}
         </div>
 
-        {/* Lock/Unlock trigger */}
-        <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
-          <button
-            onClick={onGenerateReport}
-            disabled={isDirty || isSaving}
-            className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto cursor-pointer shadow-sm"
-          >
-            Generate Community Report
-          </button>
-          <button
-            onClick={onToggleLock}
-            disabled={isSaving}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-40 w-full md:w-auto cursor-pointer ${
-              session.locked
-                ? 'border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 shadow-sm'
-                : 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
-            }`}
-          >
-            {session.locked ? 'Unlock Attendance Session' : 'Finalize & Lock Session'}
-          </button>
-        </div>
+        {/* Lock/Unlock & Report triggers (Admin Only) */}
+        {isAdmin && (
+          <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+            <button
+              onClick={onGenerateReport}
+              disabled={isDirty || isSaving}
+              className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto cursor-pointer shadow-sm"
+            >
+              Generate Community Report
+            </button>
+            <button
+              onClick={onToggleLock}
+              disabled={isSaving}
+              className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-40 w-full md:w-auto cursor-pointer ${
+                session.locked
+                  ? 'border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 shadow-sm'
+                  : 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
+              }`}
+            >
+              {session.locked ? 'Unlock Attendance Session' : 'Finalize & Lock Session'}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Live summary counters */}

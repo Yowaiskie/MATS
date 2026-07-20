@@ -47,43 +47,62 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if the current user exists in the users collection with 'admin' role
-    function isAdmin() {
+    // Helper function to check if user is authenticated and registered in system
+    function isAuthenticated() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Helper function to check if current user is an admin
+    function isAdmin() {
+      return isAuthenticated() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // users collection: Users can read their own profile, but only admins can create/write/delete
+    // users collection
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow read: if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // members, schedules, attendanceSessions, and attendance collections
-    // Only authenticated admins can Read, Create, Update, Delete
+    // members collection
     match /members/{memberId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
+    // schedules collection
     match /schedules/{scheduleId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
+    // attendanceSessions collection
     match /attendanceSessions/{sessionId} {
-      allow read, write: if isAdmin();
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
     
+    // attendance collection
     match /attendance/{attendanceId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAuthenticated();
     }
 
+    // settings collection
     match /settings/{settingsId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
+    // scheduleTemplates collection
     match /scheduleTemplates/{templateId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // auditLogs collection
+    match /auditLogs/{logId} {
+      allow read, write: if isAuthenticated();
     }
   }
 }

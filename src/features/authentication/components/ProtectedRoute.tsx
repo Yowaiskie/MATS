@@ -4,10 +4,11 @@ import { useAuth } from '../AuthContext'
 
 interface RouteProps {
   children: React.ReactNode
+  adminOnly?: boolean
 }
 
-export const ProtectedRoute: React.FC<RouteProps> = ({ children }) => {
-  const { user, loading } = useAuth()
+export const ProtectedRoute: React.FC<RouteProps> = ({ children, adminOnly = false }) => {
+  const { user, isAdmin, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -24,6 +25,10 @@ export const ProtectedRoute: React.FC<RouteProps> = ({ children }) => {
   if (!user) {
     // Redirect to login but save the current location they tried to access
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  if (adminOnly && !isAdmin) {
+    return <Navigate to="/schedules" replace />
   }
 
   return <>{children}</>

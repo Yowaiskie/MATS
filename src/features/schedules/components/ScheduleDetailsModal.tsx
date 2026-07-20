@@ -2,8 +2,10 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
+import type { ScheduleAttendanceState } from '@/types/attendance'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 interface ScheduleDetailsModalProps {
   isOpen: boolean
@@ -13,6 +15,7 @@ interface ScheduleDetailsModalProps {
   onEdit: (s: Schedule) => void
   onDelete: (id: string) => void
   onManageAssignments: (s: Schedule) => void
+  attendanceState?: ScheduleAttendanceState
 }
 
 export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
@@ -23,7 +26,9 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
   onEdit,
   onDelete,
   onManageAssignments,
+  attendanceState = 'none',
 }) => {
+  const { isAdmin } = useAuth()
   if (!isOpen || !schedule) return null
 
   const status = getScheduleStatus(schedule)
@@ -150,32 +155,42 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4 flex-wrap gap-2 bg-white">
           <div className="flex items-center space-x-1.5">
-            <button
-              onClick={handleEditClick}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-            >
-              Edit
-            </button>
-            <button
-              onClick={handleDeleteClick}
-              className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors cursor-pointer shadow-sm"
-            >
-              Delete
-            </button>
+            {isAdmin && (
+              <>
+                <button
+                  onClick={handleEditClick}
+                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleDeleteClick}
+                  className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-3 py-1.5 text-xs font-semibold text-red-600 transition-colors cursor-pointer shadow-sm"
+                >
+                  Delete
+                </button>
+              </>
+            )}
           </div>
           
           <div className="flex items-center space-x-1.5">
-            <button
-              onClick={handleManageClick}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer shadow-sm"
-            >
-              Assign
-            </button>
+            {isAdmin && (
+              <button
+                onClick={handleManageClick}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer shadow-sm"
+              >
+                Assign
+              </button>
+            )}
             <Link
               to={`/attendance?scheduleId=${schedule.id}`}
-              className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 text-xs font-bold text-white transition-colors text-center cursor-pointer shadow-sm"
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-bold text-white transition-colors text-center cursor-pointer shadow-sm ${
+                attendanceState === 'finalized'
+                  ? 'bg-slate-700 hover:bg-slate-800'
+                  : 'bg-blue-600 hover:bg-blue-500'
+              }`}
             >
-              Take Attendance
+              {attendanceState === 'finalized' ? 'View Attendance' : 'Take Attendance'}
             </Link>
           </div>
         </div>

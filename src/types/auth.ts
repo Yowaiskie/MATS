@@ -1,7 +1,10 @@
+export type UserRole = 'admin' | 'user'
+
 export interface UserProfile {
   uid: string
   email: string
-  role: 'admin'
+  displayName?: string
+  role: UserRole
   createdAt?: string
   updatedAt?: string
 }

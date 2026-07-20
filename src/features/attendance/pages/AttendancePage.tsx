@@ -10,6 +10,7 @@ import { AttendanceHeader } from '../components/AttendanceHeader'
 import { AttendanceRow } from '../components/AttendanceRow'
 import { CommunityReportModal } from '../components/CommunityReportModal'
 import { AddOtherServerModal } from '../components/AddOtherServerModal'
+import { UnlockSessionModal } from '../components/UnlockSessionModal'
 import { generateCommunityReport } from '@/utils/communityReport'
 import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
@@ -58,6 +59,7 @@ export const AttendancePage: React.FC = () => {
 
   // Confirm dialog state
   const [lockConfirm, setLockConfirm] = useState<{ nextLocked: boolean } | null>(null)
+  const [unlockPasswordModalOpen, setUnlockPasswordModalOpen] = useState(false)
   const [backConfirmOpen, setBackConfirmOpen] = useState(false)
   const [pendingNavTarget, setPendingNavTarget] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -351,10 +353,26 @@ export const AttendancePage: React.FC = () => {
         setPendingDeleteIds([])
       }
 
-      setSuccessMsg('Attendance records successfully updated!')
+      setSuccessMsg('Attendance records successfully saved!')
       
-      // Reload records to refresh IDs and local baseline
-      await loadData()
+      // Re-fetch updated records to refresh document IDs and reset baseline without full page reload
+      const records = await attendanceService.getAttendanceForSession(session.id)
+      const updatedFormState: FormState = { ...formState }
+      assignedMembers.forEach((m) => {
+        const record = records.find(r => r.memberId === m.id)
+        if (updatedFormState[m.id]) {
+          updatedFormState[m.id].id = record?.id
+        }
+      })
+      otherServers.forEach((m) => {
+        const record = records.find(r => r.memberId === m.id)
+        if (updatedFormState[m.id]) {
+          updatedFormState[m.id].id = record?.id
+        }
+      })
+
+      setFormState(updatedFormState)
+      setOriginalState(JSON.parse(JSON.stringify(updatedFormState)))
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to save attendance records.')
@@ -363,10 +381,33 @@ export const AttendancePage: React.FC = () => {
     }
   }
 
-  // Toggle session locked state — opens confirm modal first
+  // Toggle session locked state
   const handleToggleLock = () => {
     if (!session) return
-    setLockConfirm({ nextLocked: !session.locked })
+    if (session.locked) {
+      // Unlocking requires account password verification!
+      setUnlockPasswordModalOpen(true)
+    } else {
+      setLockConfirm({ nextLocked: true })
+    }
+  }
+
+  const handleExecuteUnlock = async () => {
+    if (!session || !schedule) return
+    setSaving(true)
+    setError(null)
+    setSuccessMsg(null)
+    try {
+      const adminEmail = user?.email || 'Admin'
+      await attendanceService.setSessionLockState(session.id, false, adminEmail, schedule.title)
+      setSuccessMsg('Attendance session unlocked successfully.')
+      await loadData()
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || 'Failed to unlock attendance session.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleLockConfirmed = async () => {
@@ -648,8 +689,8 @@ export const AttendancePage: React.FC = () => {
               {displayMembers.length > 0 && (
                 <button
                   onClick={handleSave}
-                  disabled={saving}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-700 px-5 py-2.5 text-xs font-semibold text-white transition-colors disabled:opacity-50 shadow-sm cursor-pointer"
+                  disabled={saving || !isDirty}
+                  className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed px-5 py-2.5 text-xs font-semibold text-white transition-colors shadow-sm cursor-pointer"
                 >
                   {saving ? 'Saving changes...' : 'Save Attendance Records'}
                 </button>
@@ -704,21 +745,27 @@ export const AttendancePage: React.FC = () => {
         />
       )}
 
-      {/* Lock / Unlock Confirm Modal */}
+      {/* Lock Confirm Modal (For Finalizing) */}
       <ConfirmModal
         isOpen={!!lockConfirm}
         onClose={() => setLockConfirm(null)}
         onConfirm={handleLockConfirmed}
-        variant={lockConfirm?.nextLocked ? 'danger' : 'warning'}
-        title={lockConfirm?.nextLocked ? 'Finalize & Lock Session' : 'Unlock Attendance Session'}
-        message={
-          lockConfirm?.nextLocked
-            ? 'Are you sure you want to finalize and lock attendance? You will not be able to modify records unless unlocked.'
-            : 'Are you sure you want to unlock this session for edits?'
-        }
-        confirmLabel={lockConfirm?.nextLocked ? 'Finalize & Lock' : 'Unlock'}
+        variant="danger"
+        title="Finalize & Lock Session"
+        message="Are you sure you want to finalize and lock attendance? You will not be able to modify records unless unlocked with your admin password."
+        confirmLabel="Finalize & Lock"
         loading={saving}
       />
+
+      {/* Password Required Unlock Modal */}
+      {schedule && (
+        <UnlockSessionModal
+          isOpen={unlockPasswordModalOpen}
+          onClose={() => setUnlockPasswordModalOpen(false)}
+          onConfirmUnlock={handleExecuteUnlock}
+          scheduleTitle={schedule.title}
+        />
+      )}
 
       {/* Unsaved Changes — Back Navigation Warning */}
       <ConfirmModal

@@ -2,52 +2,62 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if the current user exists in the users collection with 'admin' role
-    function isAdmin() {
+    // Helper function to check if user is authenticated and registered in system
+    function isAuthenticated() {
       return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    // Helper function to check if current user is an admin
+    function isAdmin() {
+      return isAuthenticated() && 
              get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
     }
 
-    // users collection: Users can read their own profile, but only admins can create/write/delete
+    // users collection: Any authenticated user can read profiles, but only admins can create/update/delete
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+      allow read: if request.auth != null;
       allow write: if isAdmin();
     }
 
-    // members collection
+    // members collection: Authenticated users can read, admins can modify
     match /members/{memberId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
-    // schedules collection
+    // schedules collection: Authenticated users can read, admins can modify
     match /schedules/{scheduleId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
     
-    // attendanceSessions collection
+    // attendanceSessions collection: Authenticated users can read, create, and update attendance sessions
     match /attendanceSessions/{sessionId} {
-      allow read, write: if isAdmin();
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
     
-    // attendance collection
+    // attendance collection: Authenticated users (attendance takers & admins) can read and save attendance
     match /attendance/{attendanceId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAuthenticated();
     }
 
-    // settings collection
+    // settings collection: Authenticated users can read settings, admins can update
     match /settings/{settingsId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // scheduleTemplates collection
+    // scheduleTemplates collection: Authenticated users can read, admins can modify
     match /scheduleTemplates/{templateId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
     }
 
-    // auditLogs collection
+    // auditLogs collection: Authenticated users can log actions and admins can view
     match /auditLogs/{logId} {
-      allow read, write: if isAdmin();
+      allow read, write: if isAuthenticated();
     }
   }
 }

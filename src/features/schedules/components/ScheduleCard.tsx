@@ -4,6 +4,7 @@ import type { Schedule } from '@/types/schedule'
 import type { ScheduleAttendanceState } from '@/types/attendance'
 import { Card } from '@/components/Card'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 interface ScheduleCardProps {
   schedule: Schedule
@@ -26,6 +27,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   onToggleSelect,
   attendanceState = 'none',
 }) => {
+  const { isAdmin } = useAuth()
   const computedStatus = getScheduleStatus(schedule)
 
   // Status mapping matching user guidelines
@@ -134,39 +136,48 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 justify-end pt-1 flex-wrap">
-          {/* Take Attendance Link */}
+          {/* Attendance Link */}
           {(computedStatus === 'ongoing' || computedStatus === 'completed') && (
             <Link
               to={`/attendance?scheduleId=${schedule.id}`}
-              className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer"
+              className={`rounded-lg px-3 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer ${
+                attendanceState === 'finalized'
+                  ? 'bg-slate-700 hover:bg-slate-800'
+                  : 'bg-blue-600 hover:bg-blue-500'
+              }`}
             >
-              Take Attendance
+              {attendanceState === 'finalized' ? 'View Attendance' : 'Take Attendance'}
             </Link>
           )}
 
-          {/* Manage Assignments */}
-          <button
-            onClick={() => onManageAssignments(schedule)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xxs font-semibold text-blue-600 hover:text-blue-700 transition-colors shadow-sm cursor-pointer"
-          >
-            Assign Servers
-          </button>
+          {/* Admin Action Controls */}
+          {isAdmin && (
+            <>
+              {/* Manage Assignments */}
+              <button
+                onClick={() => onManageAssignments(schedule)}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xxs font-semibold text-blue-600 hover:text-blue-700 transition-colors shadow-sm cursor-pointer"
+              >
+                Assign Servers
+              </button>
 
-          {/* Edit Button */}
-          <button
-            onClick={() => onEdit(schedule)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1.5 text-xxs font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-sm cursor-pointer"
-          >
-            Edit
-          </button>
+              {/* Edit Button */}
+              <button
+                onClick={() => onEdit(schedule)}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1.5 text-xxs font-semibold text-gray-600 hover:text-gray-900 transition-colors shadow-sm cursor-pointer"
+              >
+                Edit
+              </button>
 
-          {/* Delete Button */}
-          <button
-            onClick={() => onDelete(schedule.id)}
-            className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-2.5 py-1.5 text-xxs font-semibold text-red-600 transition-colors shadow-sm cursor-pointer"
-          >
-            Delete
-          </button>
+              {/* Delete Button */}
+              <button
+                onClick={() => onDelete(schedule.id)}
+                className="rounded-lg border border-red-200 bg-red-50 hover:bg-red-100/50 px-2.5 py-1.5 text-xxs font-semibold text-red-600 transition-colors shadow-sm cursor-pointer"
+              >
+                Delete
+              </button>
+            </>
+          )}
         </div>
       </div>
     </Card>

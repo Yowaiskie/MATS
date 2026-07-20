@@ -19,7 +19,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 const PAGE_SIZE = 12
 
 export const SchedulesPage: React.FC = () => {
-  const { profile } = useAuth()
+  const { profile, isAdmin } = useAuth()
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -292,30 +292,34 @@ export const SchedulesPage: React.FC = () => {
             </button>
           </div>
 
-          <button
-            onClick={() => setTemplatesOpen(true)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-          >
-            Templates
-          </button>
+          {isAdmin && (
+            <>
+              <button
+                onClick={() => setTemplatesOpen(true)}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+              >
+                Templates
+              </button>
 
-          <button
-            onClick={() => setCsvImportOpen(true)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-          >
-            Import CSV
-          </button>
+              <button
+                onClick={() => setCsvImportOpen(true)}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+              >
+                Import CSV
+              </button>
 
-          <button
-            onClick={() => {
-              setSelectedSchedule(null)
-              setSelectedDate('')
-              setFormOpen(true)
-            }}
-            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
-          >
-            Create Schedule
-          </button>
+              <button
+                onClick={() => {
+                  setSelectedSchedule(null)
+                  setSelectedDate('')
+                  setFormOpen(true)
+                }}
+                className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
+              >
+                Create Schedule
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -421,6 +425,7 @@ export const SchedulesPage: React.FC = () => {
             setDetailsOpen(true)
           }}
           onDateClick={(dateStr) => {
+            if (!isAdmin) return
             setSelectedSchedule(null)
             setSelectedDate(dateStr)
             setFormOpen(true)
@@ -430,19 +435,20 @@ export const SchedulesPage: React.FC = () => {
       ) : filteredSchedules.length > 0 ? (
         <>
           {/* Bulk actions toolbar */}
-          <div className="flex items-center justify-between gap-3 px-1">
-            <div className="flex items-center gap-3">
-              {/* Bulk select toggle */}
-              <button
-                onClick={() => setBulkSelectMode(v => !v)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
-                  bulkSelectMode
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                {bulkSelectMode ? 'Cancel Selection' : 'Select'}
-              </button>
+          {isAdmin && (
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div className="flex items-center gap-3">
+                {/* Bulk select toggle */}
+                <button
+                  onClick={() => setBulkSelectMode(v => !v)}
+                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                    bulkSelectMode
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
+                >
+                  {bulkSelectMode ? 'Cancel Selection' : 'Select'}
+                </button>
 
               {bulkSelectMode && (
                 <>
@@ -476,6 +482,7 @@ export const SchedulesPage: React.FC = () => {
               </button>
             )}
           </div>
+          )}
 
           {/* Cards grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -608,6 +615,7 @@ export const SchedulesPage: React.FC = () => {
         }}
         schedule={selectedSchedule}
         activeMembers={allMembersProfiles}
+        attendanceState={selectedSchedule ? getAttendanceState(selectedSchedule.id, getScheduleStatus(selectedSchedule)) : 'none'}
         onEdit={(s) => {
           setSelectedSchedule(s)
           setFormOpen(true)

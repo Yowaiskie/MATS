@@ -1,6 +1,8 @@
 import { 
   signInWithEmailAndPassword, 
   signOut,
+  EmailAuthProvider,
+  reauthenticateWithCredential
 } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
@@ -19,6 +21,19 @@ export const authService = {
    */
   async logout(): Promise<void> {
     await signOut(auth)
+  },
+
+  /**
+   * Re-authenticates current logged in user with their password to confirm high-security actions (e.g. unlocking session).
+   */
+  async verifyPassword(password: string): Promise<boolean> {
+    const currentUser = auth.currentUser
+    if (!currentUser || !currentUser.email) {
+      throw new Error('No active authenticated user session found.')
+    }
+    const credential = EmailAuthProvider.credential(currentUser.email, password)
+    await reauthenticateWithCredential(currentUser, credential)
+    return true
   },
 
   /**

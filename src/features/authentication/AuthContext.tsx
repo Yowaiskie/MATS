@@ -3,11 +3,14 @@ import { onAuthStateChanged, browserLocalPersistence, setPersistence } from 'fir
 import type { User } from 'firebase/auth'
 import { auth } from '@/firebase/config'
 import { authService } from '@/services/authService'
-import type { UserProfile } from '@/types/auth'
+import type { UserProfile, UserRole } from '@/types/auth'
 
 interface AuthContextType {
   user: User | null
   profile: UserProfile | null
+  role: UserRole
+  isAdmin: boolean
+  isUser: boolean
   loading: boolean
   error: string | null
   login: (email: string, password: string) => Promise<void>
@@ -90,11 +93,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }
 
+  const role: UserRole = profile?.role || 'user'
+  const isAdmin = role === 'admin'
+  const isUser = role === 'user'
+
   return (
     <AuthContext.Provider 
       value={{
         user,
         profile,
+        role,
+        isAdmin,
+        isUser,
         loading,
         error,
         login,

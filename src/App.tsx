@@ -11,6 +11,7 @@ import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
 import { ReportsPage } from '@/features/reports/pages/ReportsPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { AuditPage } from '@/features/audit/pages/AuditPage'
+import { UsersPage } from '@/features/users/pages/UsersPage'
 
 function App() {
   return (
@@ -40,7 +41,11 @@ function App() {
               
               <Route 
                 path="/members" 
-                element={<MembersPage />} 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <MembersPage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
@@ -59,13 +64,30 @@ function App() {
               />
               
               <Route 
+                path="/users" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <UsersPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              <Route 
                 path="/settings" 
-                element={<SettingsPage />} 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <SettingsPage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/audit" 
-                element={<AuditPage />} 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AuditPage />
+                  </ProtectedRoute>
+                } 
               />
             </Route>
 
