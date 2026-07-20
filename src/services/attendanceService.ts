@@ -39,6 +39,7 @@ export const attendanceService = {
     const docRef = await addDoc(sessionsRef, {
       scheduleId,
       locked: false,
+      hasRecords: false,
       finalizedAt: null,
       finalizedBy: null,
       createdAt: serverTimestamp(),
@@ -73,7 +74,8 @@ export const attendanceService = {
     scheduleId: string,
     date: string,
     inputs: AttendanceInput[],
-    performedBy = 'System'
+    performedBy = 'System',
+    scheduleTitle?: string
   ): Promise<void> {
     // 1. Verify if session is locked
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId)
@@ -125,17 +127,20 @@ export const attendanceService = {
       await batch.commit()
     }
 
-    // 3. Mark update timestamp on parent session
+    // 3. Mark update timestamp & hasRecords on parent session
     await updateDoc(sessionRef, {
+      hasRecords: true,
       updatedAt: serverTimestamp()
     })
+
+    const titleStr = scheduleTitle ? `'${scheduleTitle}'` : `schedule (${date})`
 
     await auditService.logAction(
       'ATTENDANCE_SAVE',
       'attendance',
-      `Saved ${inputs.length} attendance records for schedule ID: ${scheduleId}`,
+      `Saved ${inputs.length} attendance records for ${titleStr}`,
       performedBy,
-      { sessionId, scheduleId, date, recordCount: inputs.length }
+      { sessionId, scheduleId, scheduleTitle, date, recordCount: inputs.length }
     )
   },
 
@@ -145,7 +150,8 @@ export const attendanceService = {
   async setSessionLockState(
     sessionId: string,
     locked: boolean,
-    adminEmail: string | null
+    adminEmail: string | null,
+    scheduleTitle?: string
   ): Promise<void> {
     const sessionRef = doc(db, SESSIONS_COLLECTION, sessionId)
     await updateDoc(sessionRef, {
@@ -155,25 +161,39 @@ export const attendanceService = {
       updatedAt: serverTimestamp()
     })
 
+    const titleStr = scheduleTitle ? ` for '${scheduleTitle}'` : ''
+
     await auditService.logAction(
       locked ? 'ATTENDANCE_LOCK' : 'ATTENDANCE_UNLOCK',
       'attendance',
-      `${locked ? 'Finalized and locked' : 'Unlocked'} attendance session (ID: ${sessionId})`,
+      `${locked ? 'Finalized and locked' : 'Unlocked'} attendance session${titleStr}`,
       adminEmail || 'System',
-      { sessionId }
+      { sessionId, scheduleTitle, lockState: locked ? 'Finalized & Locked' : 'Unlocked' }
     )
   },
 
   /**
-   * Fetches all attendance sessions.
+   * Fetches all attendance sessions with accurate record detection.
    */
   async getAllSessions(): Promise<AttendanceSession[]> {
     const sessionsRef = collection(db, SESSIONS_COLLECTION)
     const snapshot = await getDocs(sessionsRef)
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as AttendanceSession[]
+    
+    // Fetch distinct session IDs that have saved attendance records
+    const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
+    const recordsSnapshot = await getDocs(attendanceRef)
+    const activeSessionIdsWithRecords = new Set(
+      recordsSnapshot.docs.map(doc => doc.data().sessionId)
+    )
+
+    return snapshot.docs.map(doc => {
+      const data = doc.data()
+      return {
+        id: doc.id,
+        ...data,
+        hasRecords: data.hasRecords ?? activeSessionIdsWithRecords.has(doc.id)
+      }
+    }) as AttendanceSession[]
   },
 
   /**

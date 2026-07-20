@@ -1,12 +1,13 @@
 import React, { useState } from 'react'
 import type { Schedule, ScheduleStatus } from '@/types/schedule'
+import type { ScheduleAttendanceState } from '@/types/attendance'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
 interface CalendarViewProps {
   schedules: Schedule[]
   onSelectSchedule: (schedule: Schedule) => void
   onDateClick?: (dateStr: string) => void
-  getAttendanceState?: (scheduleId: string, status: string) => 'finalized' | 'pending' | 'none'
+  getAttendanceState?: (scheduleId: string, status: string) => ScheduleAttendanceState
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -132,6 +133,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         
         <div className="flex items-center space-x-2">
           <button
+            type="button"
             onClick={handlePrevMonth}
             className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 p-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer shadow-xs"
             aria-label="Previous Month"
@@ -142,6 +144,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </button>
           
           <button
+            type="button"
             onClick={handleToday}
             className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
           >
@@ -149,6 +152,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </button>
           
           <button
+            type="button"
             onClick={handleNextMonth}
             className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 p-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer shadow-xs"
             aria-label="Next Month"
@@ -199,7 +203,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   {cell.dayNum}
                 </span>
-                
+
                 {daySchedules.length > 0 && (
                   <span className="text-[10px] text-gray-400 font-bold font-mono">
                     {daySchedules.length}
@@ -212,41 +216,46 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {displayedSchedules.map((s) => {
                   const status = getScheduleStatus(s)
                   const dotColor = getStatusColor(status)
-                  
-                    const attendanceState = getAttendanceState?.(s.id, status) ?? 'none'
-                    
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          onSelectSchedule(s)
-                        }}
-                        className={`w-full text-left border rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden ${
-                          attendanceState === 'finalized'
-                            ? 'bg-green-50 border-green-200 hover:bg-green-100/70 text-green-700 font-semibold shadow-2xs'
-                            : attendanceState === 'pending'
-                              ? 'bg-red-50 border-red-200 hover:bg-red-100/70 text-red-600 font-semibold shadow-2xs'
+                  const attendanceState = getAttendanceState?.(s.id, status) ?? 'none'
+
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        onSelectSchedule(s)
+                      }}
+                      className={`w-full text-left border rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden ${
+                        attendanceState === 'finalized'
+                          ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100/70 text-emerald-700 font-semibold shadow-2xs'
+                          : attendanceState === 'in_progress'
+                            ? 'bg-amber-50 border-amber-200 hover:bg-amber-100/70 text-amber-700 font-semibold shadow-2xs'
+                            : attendanceState === 'untaken'
+                              ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70 text-slate-700 font-semibold shadow-2xs'
                               : 'bg-gray-50 hover:bg-gray-100/60 border-gray-200 text-gray-700'
-                        }`}
-                        title={`${s.title} (${formatTime12(s.startTime)})`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
-                        <span className={`text-[10px] font-bold truncate block leading-tight ${
-                          attendanceState === 'finalized' 
-                            ? 'text-green-700' 
-                            : attendanceState === 'pending'
-                              ? 'text-red-600'
+                      }`}
+                      title={`${s.title} (${formatTime12(s.startTime)})`}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
+                      <span className={`text-[10px] font-bold truncate block leading-tight ${
+                        attendanceState === 'finalized' 
+                          ? 'text-emerald-700' 
+                          : attendanceState === 'in_progress'
+                            ? 'text-amber-700'
+                            : attendanceState === 'untaken'
+                              ? 'text-slate-600'
                               : 'text-gray-700'
-                        }`}>
-                          {formatTime12(s.startTime)}
-                        </span>
-                      </button>
-                    )
+                      }`}>
+                        {formatTime12(s.startTime)}
+                      </span>
+                    </button>
+                  )
                 })}
                 
                 {hasOverflow && (
                   <button
+                    type="button"
                     onClick={(e) => toggleExpand(e, cell.dateStr)}
                     className="text-[9px] text-blue-600 font-bold px-1.5 py-0.5 mt-0.5 leading-none text-left hover:underline cursor-pointer"
                   >

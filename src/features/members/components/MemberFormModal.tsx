@@ -76,9 +76,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     }
     
     if (phoneNumber.trim()) {
-      const phoneRegex = /^\+?[0-9]{7,15}$/
+      const phoneRegex = /^[0-9]{11}$/
       if (!phoneRegex.test(phoneNumber.trim())) {
-        newErrors.phoneNumber = 'Invalid phone number. Use 7-15 digits.'
+        newErrors.phoneNumber = 'Phone number must be exactly 11 digits (e.g. 09123456789).'
       }
     }
     
@@ -243,11 +243,12 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             </label>
             <input
               id="modal-phone"
-              type="text"
+              type="tel"
+              maxLength={11}
               value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value)}
+              onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 11))}
               className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              placeholder="e.g. +639123456789"
+              placeholder="e.g. 09123456789"
               disabled={loading}
             />
             {errors.phoneNumber && <p className="mt-1 text-xs text-red-600 font-medium">{errors.phoneNumber}</p>}

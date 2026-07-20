@@ -301,7 +301,8 @@ export const AttendancePage: React.FC = () => {
         schedule.id,
         schedule.date,
         inputs,
-        user?.email || 'Admin'
+        user?.email || 'Admin',
+        schedule.title
       )
 
       // Delete removed other servers from Firestore
@@ -369,12 +370,13 @@ export const AttendancePage: React.FC = () => {
             schedule.id,
             schedule.date,
             inputs,
-            adminEmail
+            adminEmail,
+            schedule.title
           )
         }
       }
 
-      await attendanceService.setSessionLockState(session.id, nextLocked, adminEmail)
+      await attendanceService.setSessionLockState(session.id, nextLocked, adminEmail, schedule.title)
       setSuccessMsg(
         nextLocked
           ? 'Attendance session finalized and locked successfully!'

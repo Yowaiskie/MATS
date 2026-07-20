@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import type { Schedule } from '@/types/schedule'
+import type { ScheduleAttendanceState } from '@/types/attendance'
 import { Card } from '@/components/Card'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
@@ -12,7 +13,7 @@ interface ScheduleCardProps {
   totalAssigned: number
   isSelected?: boolean
   onToggleSelect?: (id: string) => void
-  attendanceState?: 'finalized' | 'pending' | 'none'
+  attendanceState?: ScheduleAttendanceState
 }
 
 export const ScheduleCard: React.FC<ScheduleCardProps> = ({
@@ -67,10 +68,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
       isSelected 
         ? 'border-blue-400 ring-2 ring-blue-200' 
         : attendanceState === 'finalized'
-          ? 'border-green-300 bg-green-50/15'
-          : attendanceState === 'pending'
-            ? 'border-red-300 bg-red-50/15 animate-none'
-            : 'border-gray-200/70'
+          ? 'border-emerald-300 bg-emerald-50/15'
+          : attendanceState === 'in_progress'
+            ? 'border-amber-300 bg-amber-50/15'
+            : attendanceState === 'untaken'
+              ? 'border-slate-200 bg-slate-50/20'
+              : 'border-gray-200/70'
     }`}>
       <div className="flex flex-col h-full justify-between space-y-4">
         {/* Header Title & Status */}
@@ -102,13 +105,18 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                 {computedStatus}
               </span>
               {attendanceState === 'finalized' && (
-                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-green-100 border border-green-200 text-green-700 font-semibold shadow-xs">
+                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-100 border border-emerald-200 text-emerald-700 shadow-xs">
                   ✓ Finalized
                 </span>
               )}
-              {attendanceState === 'pending' && (
-                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-red-100 border border-red-205 text-red-600 font-semibold shadow-xs">
-                  ⚠️ Unfinalized
+              {attendanceState === 'in_progress' && (
+                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-100 border border-amber-200 text-amber-700 shadow-xs">
+                  🟡 In Progress
+                </span>
+              )}
+              {attendanceState === 'untaken' && (
+                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-slate-100 border border-slate-200 text-slate-600 shadow-xs">
+                  ⚪ Untaken
                 </span>
               )}
             </div>

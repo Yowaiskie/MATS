@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/Card'
 import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
@@ -6,6 +6,7 @@ import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 
 // Mock data for the Live Preview function
 const mockSchedule: Schedule = {
@@ -37,34 +38,6 @@ const mockUnassignedMembers: Member[] = [
   { id: 'm-5', firstName: 'Marcial', lastName: 'Rimando', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
-const tokenGroups = [
-  {
-    title: 'Schedule Information',
-    tokens: [
-      { label: 'Schedule Date', value: '{{scheduleDate}}' },
-      { label: 'Schedule Title', value: '{{scheduleTitle}}' },
-      { label: 'Start Time', value: '{{startTime}}' },
-      { label: 'End Time', value: '{{endTime}}' },
-    ]
-  },
-  {
-    title: 'Attendance Statistics',
-    tokens: [
-      { label: 'Present Count', value: '{{presentCount}}' },
-      { label: 'Late Count', value: '{{lateCount}}' },
-      { label: 'Absent Count', value: '{{absentCount}}' },
-      { label: 'Excused Count', value: '{{excusedCount}}' },
-    ]
-  },
-  {
-    title: 'Member Lists',
-    tokens: [
-      { label: 'Assigned Members', value: '{{assignedMembers}}' },
-      { label: 'Other Servers', value: '{{otherServers}}' },
-    ]
-  }
-]
-
 export const SettingsPage: React.FC = () => {
   const { profile } = useAuth()
   const [template, setTemplate] = useState('')
@@ -73,34 +46,8 @@ export const SettingsPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [showPreview, setShowPreview] = useState(true)
   const [confirmRestore, setConfirmRestore] = useState(false)
-
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
-
-  const insertToken = (token: string) => {
-    const textarea = textareaRef.current
-    if (!textarea) {
-      setTemplate(prev => prev + token)
-      return
-    }
-
-    const start = textarea.selectionStart
-    const end = textarea.selectionEnd
-    const text = textarea.value
-
-    const before = text.substring(0, start)
-    const after = text.substring(end, text.length)
-
-    const newText = before + token + after
-    setTemplate(newText)
-
-    const newPos = start + token.length
-    setTimeout(() => {
-      textarea.focus()
-      textarea.setSelectionRange(newPos, newPos)
-    }, 0)
-  }
+  const [copied, setCopied] = useState(false)
 
   // Load baseline template settings
   const loadTemplate = async () => {
@@ -151,6 +98,16 @@ export const SettingsPage: React.FC = () => {
     mockUnassignedMembers
   )
 
+  const handleCopyPreview = async () => {
+    try {
+      await navigator.clipboard.writeText(previewText)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy preview text:', err)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -158,7 +115,6 @@ export const SettingsPage: React.FC = () => {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">System Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Configure parameters and message layouts for the Ministry of Altar Servers.</p>
       </div>
-
 
       {loading ? (
         <Card>
@@ -168,88 +124,52 @@ export const SettingsPage: React.FC = () => {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Template Editor */}
-          <Card className="p-0 overflow-hidden">
-            <div className="px-5 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-              <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Report Template Editor</h3>
-              <button
-                onClick={handleRestoreDefault}
-                className="text-xs font-semibold text-red-500 hover:text-red-700 transition-colors cursor-pointer"
-              >
-                Restore Default
-              </button>
-            </div>
-            
-            <div className="p-5 space-y-4">
-              <div className="rounded-lg bg-blue-50 border border-blue-100 p-3 text-[11px] text-blue-700">
-                <span className="font-semibold">Tip:</span> Click any token below to insert it into your template at the cursor position.
-              </div>
-              
-              {/* Placeholders helper tags grouped */}
-              <div className="space-y-3 pb-2">
-                {tokenGroups.map((group) => (
-                  <div key={group.title} className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide block">{group.title}</span>
-                    <div className="flex flex-wrap gap-1.5">
-                      {group.tokens.map((token) => (
-                        <button
-                          key={token.value}
-                          type="button"
-                          onClick={() => insertToken(token.value)}
-                          className="inline-flex items-center gap-1 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-200 rounded-lg px-2.5 py-1 text-[11px] font-semibold text-gray-700 hover:text-blue-600 transition-colors cursor-pointer select-none shadow-sm"
-                          title={`Insert ${token.value}`}
-                        >
-                          {token.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+          {/* Template Editor Column */}
+          <div className="lg:col-span-7">
+            <ReportTemplateEditor
+              value={template}
+              onChange={setTemplate}
+              onRestoreDefault={handleRestoreDefault}
+              onSave={handleSave}
+              saving={saving}
+              isDirty={template !== originalTemplate}
+            />
+          </div>
 
-              <textarea
-                ref={textareaRef}
-                value={template}
-                onChange={(e) => setTemplate(e.target.value)}
-                className="w-full min-h-[350px] rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs font-mono text-gray-700 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 resize-y"
-                placeholder="Paste or write report template layout here..."
-              />
-
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                <button
-                  onClick={() => setShowPreview(!showPreview)}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-800 transition-colors cursor-pointer shadow-sm"
-                >
-                  {showPreview ? 'Hide Preview' : 'Show Preview'}
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving || template === originalTemplate}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-5 py-2 text-xs font-semibold text-white transition-colors cursor-pointer shadow-sm"
-                >
-                  {saving ? 'Saving...' : 'Save Template'}
-                </button>
-              </div>
-            </div>
-          </Card>
-
-          {/* Live Preview Display */}
-          {showPreview && (
-            <Card className="p-0 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/50">
-                <h3 className="text-sm font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
-              </div>
-              <div className="p-5 flex flex-col h-[85%]">
-                <div className="flex-1 rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs font-mono text-gray-700 overflow-y-auto whitespace-pre-wrap select-text leading-relaxed">
-                  {previewText}
+          {/* Live Preview Column */}
+          <div className="lg:col-span-5 sticky top-6">
+            <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
+              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
                 </div>
-                <p className="text-[11px] text-gray-400 mt-3 text-center italic">
-                  * Dynamic values represent a sample Sunday Mass service.
-                </p>
+                
+                <button
+                  type="button"
+                  onClick={handleCopyPreview}
+                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                >
+                  {copied ? '✓ Copied!' : '📋 Copy Sample'}
+                </button>
+              </div>
+
+              <div className="p-4 space-y-3">
+                <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-xs font-mono text-gray-800 whitespace-pre-wrap select-text leading-relaxed min-h-[320px] max-h-[500px] overflow-y-auto">
+                  {previewText || <span className="text-gray-400 italic">No output text generated.</span>}
+                </div>
+
+                <div className="rounded-lg bg-gray-50 p-2.5 border border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
+                  <span>Showing sample Sunday Mass schedule</span>
+                  <span className="font-mono text-gray-400">{previewText.length} chars</span>
+                </div>
               </div>
             </Card>
-          )}
+          </div>
         </div>
       )}
 

@@ -48,7 +48,7 @@ export const SchedulesPage: React.FC = () => {
   const [csvImportOpen, setCsvImportOpen] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>('')
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
 
   // Dialog state
@@ -197,11 +197,15 @@ export const SchedulesPage: React.FC = () => {
       .sort((a, b) => a.startTime.localeCompare(b.startTime))
   }, [schedules, dateFilter])
 
-  const getAttendanceState = (scheduleId: string, status: string): 'finalized' | 'pending' | 'none' => {
+  const [attendanceFilter, setAttendanceFilter] = useState<'all' | ScheduleAttendanceState>('all')
+
+  const getAttendanceState = (scheduleId: string, status: string): ScheduleAttendanceState => {
     if (status === 'upcoming' || status === 'cancelled') return 'none'
     const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
-    if (session && session.locked) return 'finalized'
-    return 'pending'
+    if (!session) return 'untaken'
+    if (session.locked) return 'finalized'
+    if (session.hasRecords === true) return 'in_progress'
+    return 'untaken'
   }
 
   const filteredSchedules = useMemo(() => {
@@ -224,6 +228,11 @@ export const SchedulesPage: React.FC = () => {
 
       if (!matchesDate || !matchesTime) return false
 
+      if (attendanceFilter !== 'all') {
+        const attState = getAttendanceState(s.id, getScheduleStatus(s))
+        if (attState !== attendanceFilter) return false
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase()
         const words = q.split(/\s+/)
@@ -241,7 +250,7 @@ export const SchedulesPage: React.FC = () => {
 
       return true
     })
-  }, [schedules, dateFilter, timeFilter, searchQuery])
+  }, [schedules, dateFilter, timeFilter, attendanceFilter, searchQuery, attendanceSessions])
 
   const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -344,7 +353,7 @@ export const SchedulesPage: React.FC = () => {
         {/* Time / Schedule filter */}
         <div className="flex flex-col space-y-1 flex-1">
           <label htmlFor="filter-time" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Select Time / Schedule
+            Select Time
           </label>
           <select
             id="filter-time"
@@ -362,14 +371,33 @@ export const SchedulesPage: React.FC = () => {
           </select>
         </div>
 
+        {/* Attendance Status Filter */}
+        <div className="flex flex-col space-y-1 flex-1">
+          <label htmlFor="filter-attendance" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            Attendance Tracking
+          </label>
+          <select
+            id="filter-attendance"
+            value={attendanceFilter}
+            onChange={(e) => setAttendanceFilter(e.target.value as any)}
+            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+          >
+            <option value="all">All Tracking Statuses</option>
+            <option value="untaken">⚪ Untaken (Not Started)</option>
+            <option value="in_progress">🟡 In Progress (Unfinalized)</option>
+            <option value="finalized">✓ Finalized (Locked)</option>
+          </select>
+        </div>
+
         {/* Clear filters */}
-        {(dateFilter || timeFilter || searchQuery) && (
+        {(dateFilter || timeFilter || searchQuery || attendanceFilter !== 'all') && (
           <div className="flex items-end justify-start">
             <button
               onClick={() => {
                 setDateFilter('')
                 setTimeFilter('')
                 setSearchQuery('')
+                setAttendanceFilter('all')
               }}
               className="text-xs text-blue-600 hover:text-blue-700 font-bold py-2 px-3 transition-colors cursor-pointer"
             >
