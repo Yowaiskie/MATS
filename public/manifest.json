@@ -28,5 +28,21 @@
       "type": "image/png",
       "purpose": "maskable"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "Schedules",
+      "short_name": "Schedules",
+      "description": "View Ministry Service Schedules",
+      "url": "/schedules",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Take Attendance",
+      "short_name": "Attendance",
+      "description": "Take Ministry Attendance",
+      "url": "/attendance",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

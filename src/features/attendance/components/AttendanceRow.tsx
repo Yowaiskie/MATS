@@ -11,6 +11,7 @@ interface AttendanceRowProps {
   onRemarksChange: (remarks: string) => void
   disabled: boolean
   isOtherServer?: boolean
+  isMeetingSchedule?: boolean
   onRemove?: () => void
 }
 
@@ -22,11 +23,12 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
   onRemarksChange,
   disabled,
   isOtherServer = false,
+  isMeetingSchedule = false,
   onRemove,
 }) => {
   const [showRemarksInput, setShowRemarksInput] = useState(!!remarks)
 
-  const statusOptions: { value: AttendanceStatus; label: string; activeColor: string }[] = [
+  const allStatusOptions: { value: AttendanceStatus; label: string; activeColor: string }[] = [
     { value: 'present', label: 'Present', activeColor: 'bg-green-600 border-green-600 text-white font-bold' },
     { value: 'late', label: 'Late', activeColor: 'bg-yellow-500 border-yellow-500 text-white font-bold' },
     { value: 'absent', label: 'Absent', activeColor: 'bg-red-600 border-red-600 text-white font-bold' },
@@ -34,6 +36,10 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
     { value: 'observer', label: 'Observer', activeColor: 'bg-purple-600 border-purple-600 text-white font-bold' },
     { value: 'alumni', label: 'Alumni', activeColor: 'bg-teal-600 border-teal-600 text-white font-bold' },
   ]
+
+  const statusOptions = isMeetingSchedule
+    ? allStatusOptions.filter((opt) => opt.value !== 'observer')
+    : allStatusOptions
 
   return (
     <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-blue-50/40 transition-colors">

@@ -10,6 +10,8 @@ interface FilterBarProps {
   onYearChange: (val: number) => void
   searchQuery: string
   onSearchQueryChange: (val: string) => void
+  statusFilter?: string
+  onStatusFilterChange?: (val: string) => void
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
@@ -22,6 +24,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onYearChange,
   searchQuery,
   onSearchQueryChange,
+  statusFilter = 'all',
+  onStatusFilterChange,
 }) => {
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i)
 
@@ -68,11 +72,31 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             id="filter-year"
             value={selectedYear}
             onChange={(e) => onYearChange(Number(e.target.value))}
-            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer"
           >
             {years.map(y => (
               <option key={y} value={y}>{y}</option>
             ))}
+          </select>
+        </div>
+      )}
+
+      {/* Suspension Status Filter (Only for Member tab) */}
+      {activeTab === 'member' && onStatusFilterChange && (
+        <div className="flex flex-col space-y-1.5 w-full md:w-56">
+          <label htmlFor="filter-suspension" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            Suspension Status
+          </label>
+          <select
+            id="filter-suspension"
+            value={statusFilter}
+            onChange={(e) => onStatusFilterChange(e.target.value)}
+            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer"
+          >
+            <option value="all">All Statuses</option>
+            <option value="warning">🟡 Warning Only</option>
+            <option value="suspended">🔴 Suspended Only</option>
+            <option value="active">🟢 Active / Good Standing</option>
           </select>
         </div>
       )}

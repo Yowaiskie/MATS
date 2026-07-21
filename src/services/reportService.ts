@@ -10,6 +10,8 @@ import type { Schedule } from '@/types/schedule'
 import type { AttendanceRecord } from '@/types/attendance'
 import { calculateAttendanceSummary, calculateAttendanceRate } from '@/utils/attendance'
 import { getFullName } from '@/utils/member'
+import { settingsService, DEFAULT_POLICY_SETTINGS } from '@/services/settingsService'
+import type { SuspensionPolicySettings } from '@/services/settingsService'
 
 const MEMBERS_COLLECTION = 'members'
 const SCHEDULES_COLLECTION = 'schedules'
@@ -19,6 +21,7 @@ export interface ReportRawData {
   members: Member[]
   schedules: Schedule[]
   attendance: AttendanceRecord[]
+  policy: SuspensionPolicySettings
 }
 
 export interface OverallSummary {
@@ -28,6 +31,16 @@ export interface OverallSummary {
   excused: number
   total: number
   rate: number // percentage, e.g. 94.25
+}
+
+export interface MissedScheduleItem {
+  scheduleId: string
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  isSunday: boolean
+  isMeeting: boolean
 }
 
 export interface MemberReportRow {
@@ -41,6 +54,13 @@ export interface MemberReportRow {
   absent: number
   excused: number
   rate: number
+  warningStatus: 'active' | 'warning' | 'suspended'
+  warningCategory: 'none' | 'sunday' | 'weekday' | 'meeting' | 'multiple' // which category triggered warning/suspension
+  missedSchedules: MissedScheduleItem[]
+  sundayAbsences: number
+  weekdayAbsences: number
+  meetingAbsences: number
+  policyAbsencesCount: number // max of the category counts
 }
 
 export interface ScheduleReportRow {
@@ -72,7 +92,7 @@ export interface MonthlyReportRow {
 
 export const reportService = {
   /**
-   * Loads members, schedules, and attendance records from Firestore once.
+   * Loads members, schedules, attendance records, and system policy settings from Firestore once.
    * Performs date filtering at query level if range is provided.
    */
   async loadReportData(startDate?: string, endDate?: string): Promise<ReportRawData> {
@@ -100,10 +120,11 @@ export const reportService = {
       )
     }
 
-    const [membersSnap, schedulesSnap, attendanceSnap] = await Promise.all([
+    const [membersSnap, schedulesSnap, attendanceSnap, policy] = await Promise.all([
       getDocs(membersRef),
       getDocs(schedulesRef),
-      getDocs(attendanceQuery)
+      getDocs(attendanceQuery),
+      settingsService.getPolicySettings()
     ])
 
     const members = membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Member[]
@@ -132,7 +153,7 @@ export const reportService = {
       return timeA.localeCompare(timeB)
     })
 
-    return { members, schedules, attendance }
+    return { members, schedules, attendance, policy }
   },
 
   /**
@@ -148,19 +169,122 @@ export const reportService = {
   },
 
   /**
-   * Generates stats grouped per member.
+   * Generates stats grouped per member, including dynamic attendance warning & suspension calculations.
    */
-  generateMemberReport(data: ReportRawData): MemberReportRow[] {
-    const { members, attendance } = data
-    
+  generateMemberReport(data: ReportRawData, policyOverride?: SuspensionPolicySettings): MemberReportRow[] {
+    const { members, schedules, attendance, policy: defaultPolicy } = data
+    const policy = policyOverride || defaultPolicy || DEFAULT_POLICY_SETTINGS
+
+    // Map schedules by ID for quick lookup
+    const schedulesMap = new Map<string, Schedule>()
+    schedules.forEach(s => schedulesMap.set(s.id, s))
+
+    // Calculate cutoff date for evaluationMonths (if evaluationMonths > 0)
+    let cutoffDateStr = ''
+    if (policy.evaluationMonths && policy.evaluationMonths > 0) {
+      const d = new Date()
+      d.setMonth(d.getMonth() - policy.evaluationMonths)
+      cutoffDateStr = d.toISOString().split('T')[0]
+    }
+
     return members.map((member) => {
       const memberRecords = attendance.filter(r => r.memberId === member.id)
       const summary = calculateAttendanceSummary(memberRecords)
       const rate = calculateAttendanceRate(summary)
-      
+
+      const missedSchedules: MissedScheduleItem[] = []
+      let sundayAbsentCount = 0
+      let weekdayAbsentCount = 0
+      let meetingAbsentCount = 0
+      let sundayLateCount = 0
+      let weekdayLateCount = 0
+      let meetingLateCount = 0
+
+      memberRecords.forEach(rec => {
+        const schedule = schedulesMap.get(rec.scheduleId)
+        const dateStr = rec.attendanceDate || schedule?.date || ''
+        const title = schedule?.title || 'Mass / Meeting'
+
+        // Check date cutoff if evaluationMonths is set
+        if (cutoffDateStr && dateStr < cutoffDateStr) {
+          return
+        }
+
+        const dateObj = new Date(dateStr)
+        const isSunday = dateObj.getDay() === 0 || title.toLowerCase().includes('sunday')
+        const isMeeting = title.toLowerCase().includes('meeting') || title.toLowerCase().includes('assembly')
+        const isWeekday = !isSunday && !isMeeting
+
+        const shouldCountAsAbsence = rec.status === 'absent'
+        const shouldCountAsLate = rec.status === 'late'
+
+        if (shouldCountAsAbsence) {
+          const item: MissedScheduleItem = {
+            scheduleId: rec.scheduleId,
+            title,
+            date: dateStr,
+            startTime: schedule?.startTime || '',
+            endTime: schedule?.endTime || '',
+            isSunday,
+            isMeeting
+          }
+          missedSchedules.push(item)
+        }
+
+        // Policy absence equivalent:
+        // 1 absent = 1 absence, 2 lates = 1 absence.
+        if (isMeeting && policy.includeMeetings) {
+          if (shouldCountAsAbsence) meetingAbsentCount++
+          else if (shouldCountAsLate) meetingLateCount++
+        } else if (isSunday && policy.includeSundays) {
+          if (shouldCountAsAbsence) sundayAbsentCount++
+          else if (shouldCountAsLate) sundayLateCount++
+        } else if (isWeekday && policy.includeWeekdays) {
+          if (shouldCountAsAbsence) weekdayAbsentCount++
+          else if (shouldCountAsLate) weekdayLateCount++
+        }
+      })
+
+      const sundayAbsences = sundayAbsentCount + Math.floor(sundayLateCount / 2)
+      const weekdayAbsences = weekdayAbsentCount + Math.floor(weekdayLateCount / 2)
+      const meetingAbsences = meetingAbsentCount + Math.floor(meetingLateCount / 2)
+
+      // Sort missed schedules by date descending (most recent first)
+      missedSchedules.sort((a, b) => b.date.localeCompare(a.date))
+
+      // Determine dynamic warning / suspension status PER CATEGORY
+      // A member is warned/suspended if ANY single category reaches the threshold
+      const maxCategoryAbsences = Math.max(sundayAbsences, weekdayAbsences, meetingAbsences)
+      let warningStatus: 'active' | 'warning' | 'suspended' = 'active'
+      let warningCategory: 'none' | 'sunday' | 'weekday' | 'meeting' | 'multiple' = 'none'
+
+      const sundaySuspended = policy.includeSundays && sundayAbsences >= policy.suspensionAbsenceThreshold
+      const weekdaySuspended = policy.includeWeekdays && weekdayAbsences >= policy.suspensionAbsenceThreshold
+      const meetingSuspended = policy.includeMeetings && meetingAbsences >= policy.suspensionAbsenceThreshold
+      const sundayWarning = policy.includeSundays && sundayAbsences >= policy.warningAbsenceThreshold
+      const weekdayWarning = policy.includeWeekdays && weekdayAbsences >= policy.warningAbsenceThreshold
+      const meetingWarning = policy.includeMeetings && meetingAbsences >= policy.warningAbsenceThreshold
+
+      const suspendedCount = [sundaySuspended, weekdaySuspended, meetingSuspended].filter(Boolean).length
+      const warningCount = [sundayWarning, weekdayWarning, meetingWarning].filter(Boolean).length
+
+      if (suspendedCount > 0) {
+        warningStatus = 'suspended'
+        if (suspendedCount > 1) warningCategory = 'multiple'
+        else if (sundaySuspended) warningCategory = 'sunday'
+        else if (weekdaySuspended) warningCategory = 'weekday'
+        else warningCategory = 'meeting'
+      } else if (warningCount > 0) {
+        warningStatus = 'warning'
+        if (warningCount > 1) warningCategory = 'multiple'
+        else if (sundayWarning) warningCategory = 'sunday'
+        else if (weekdayWarning) warningCategory = 'weekday'
+        else warningCategory = 'meeting'
+      }
+
       return {
         memberId: member.id,
-        name: getFullName(member),
+        name: getFullName(member, false), // Exclude nickname from report tables
         rank: member.rank,
         status: member.status,
         totalAssigned: summary.total,
@@ -168,7 +292,14 @@ export const reportService = {
         late: summary.late,
         absent: summary.absent,
         excused: summary.excused,
-        rate
+        rate,
+        warningStatus,
+        warningCategory,
+        missedSchedules,
+        sundayAbsences,
+        weekdayAbsences,
+        meetingAbsences,
+        policyAbsencesCount: maxCategoryAbsences
       }
     })
     // Sort by name alphabetically

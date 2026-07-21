@@ -74,6 +74,9 @@ export const generateCommunityReport = (
   formState: FormState,
   unassignedMembers: Member[]
 ): string => {
+  const isMeetingSchedule = (schedule.title || '').toLowerCase().includes('meeting')
+    || (schedule.title || '').toLowerCase().includes('assembly')
+
   // Helper to map status to shortcut character
   const mapStatus = (status?: AttendanceStatus): string => {
     if (status === 'present') return 'P'
@@ -82,6 +85,56 @@ export const generateCommunityReport = (
     if (status === 'excused') return 'E'
     if (status === 'observer') return 'O'
     return 'A' // default fallback if undefined
+  }
+
+  if (isMeetingSchedule) {
+    const allMeetingMembers = [...assignedMembers, ...unassignedMembers]
+    const memberMap = new Map<string, Member>()
+    allMeetingMembers.forEach((member) => {
+      if (!memberMap.has(member.id)) memberMap.set(member.id, member)
+    })
+
+    const normalizeStatus = (status?: AttendanceStatus | string) => {
+      return typeof status === 'string' ? status.trim().toLowerCase() : ''
+    }
+
+    const statusBuckets: Record<'present' | 'late' | 'absent' | 'excused', string[]> = {
+      present: [],
+      late: [],
+      absent: [],
+      excused: [],
+    }
+
+    Object.entries(formState).forEach(([memberId, row]) => {
+      const normalized = normalizeStatus(row?.status)
+      if (
+        normalized !== 'present' &&
+        normalized !== 'late' &&
+        normalized !== 'absent' &&
+        normalized !== 'excused'
+      ) {
+        return
+      }
+
+      const member = memberMap.get(memberId)
+      const displayName = member ? getFullName(member, false) : memberId
+      statusBuckets[normalized].push(displayName)
+    })
+
+    const sections: string[] = []
+    const addSection = (label: string, names: string[]) => {
+      if (names.length === 0) return
+      const lines = names.map((name, index) => `${index + 1}. ${name}`)
+      sections.push(`${label}:\n${lines.join('\n')}`)
+    }
+
+    addSection('Present', statusBuckets.present)
+    addSection('Late', statusBuckets.late)
+    addSection('Absent', statusBuckets.absent)
+    addSection('Excused', statusBuckets.excused)
+
+    const meetingHeader = `${formatReadableDate(schedule.date || '')} ${toTitleCase(schedule.title || '')} ${formatReadableTime(schedule.startTime || '')}${schedule.endTime ? ` - ${formatReadableTime(schedule.endTime)}` : ''}`
+    return [meetingHeader, ...sections].join('\n\n').trim()
   }
 
   // Count marks and format lists
@@ -109,7 +162,7 @@ export const generateCommunityReport = (
           else if (status === 'observer') observerCount++
 
           const statusShortcut = mapStatus(status)
-          return `${idx + 1}. ${getFullName(member)} - ${statusShortcut}`
+          return `${idx + 1}. ${getFullName(member, false)} - ${statusShortcut}`
         })
         .join('\n')
     : 'NO SERVERS!'
@@ -121,7 +174,7 @@ export const generateCommunityReport = (
 
   const otherList = visibleOther.length > 0
     ? visibleOther
-        .map((member, idx) => `${idx + 1}. ${getFullName(member)}`)
+        .map((member, idx) => `${idx + 1}. ${getFullName(member, false)}`)
         .join('\n')
     : ''
 

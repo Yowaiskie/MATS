@@ -81,6 +81,46 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     }
   }
 
+  const getSelectableMemberIds = (members: Member[]) => {
+    return members
+      .filter((m) => !getConflictDetails(m.id) || selectedIds.includes(m.id))
+      .map((m) => m.id)
+  }
+
+  const handleSelectAllVisible = () => {
+    setError(null)
+    const selectableVisibleIds = getSelectableMemberIds(filteredMembers)
+    if (selectableVisibleIds.length === 0) return
+
+    const allVisibleSelected = selectableVisibleIds.every((id) => selectedIds.includes(id))
+    if (allVisibleSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !selectableVisibleIds.includes(id)))
+      return
+    }
+
+    setSelectedIds((prev) => Array.from(new Set([...prev, ...selectableVisibleIds])))
+  }
+
+  const handleAssignAll = () => {
+    setError(null)
+    const selectableActiveIds = getSelectableMemberIds(activeMembers)
+    setSelectedIds(Array.from(new Set(selectableActiveIds)))
+  }
+
+  const handleClearAll = () => {
+    setError(null)
+    setSelectedIds([])
+  }
+
+  const filteredMembers = activeMembers.filter((m) => {
+    const q = search.toLowerCase().trim()
+    if (!q) return true
+    return (
+      getFullName(m).toLowerCase().includes(q) ||
+      (m.order && m.order.toLowerCase().includes(q))
+    )
+  })
+
   const handleSave = async () => {
     setLoading(true)
     setError(null)
@@ -94,15 +134,6 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       setLoading(false)
     }
   }
-
-  const filteredMembers = activeMembers.filter((m) => {
-    const q = search.toLowerCase().trim()
-    if (!q) return true
-    return (
-      getFullName(m).toLowerCase().includes(q) ||
-      (m.order && m.order.toLowerCase().includes(q))
-    )
-  })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -177,6 +208,38 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
               placeholder="Filter members by name or order..."
               disabled={loading}
             />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Selected: {selectedIds.length}
+            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={handleAssignAll}
+                disabled={loading || activeMembers.length === 0}
+                className="rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Assign All Active
+              </button>
+              <button
+                type="button"
+                onClick={handleSelectAllVisible}
+                disabled={loading || filteredMembers.length === 0}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1 text-[10px] font-bold text-gray-700 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Select All Visible
+              </button>
+              <button
+                type="button"
+                onClick={handleClearAll}
+                disabled={loading || selectedIds.length === 0}
+                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1 text-[10px] font-bold text-gray-500 transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                Clear All
+              </button>
+            </div>
           </div>
 
           {/* Members checklist container */}

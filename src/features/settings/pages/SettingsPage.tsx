@@ -7,6 +7,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
+import { PolicySettingsCard } from '../components/PolicySettingsCard'
 
 // Mock data for the Live Preview function
 const mockSchedule: Schedule = {
@@ -124,51 +125,59 @@ export const SettingsPage: React.FC = () => {
           </div>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Template Editor Column */}
-          <div className="lg:col-span-7">
-            <ReportTemplateEditor
-              value={template}
-              onChange={setTemplate}
-              onRestoreDefault={handleRestoreDefault}
-              onSave={handleSave}
-              saving={saving}
-              isDirty={template !== originalTemplate}
-            />
-          </div>
+        <div className="space-y-6">
+          {/* Dynamic Policy Rules Card */}
+          <PolicySettingsCard
+            onNotifySuccess={(msg) => setSuccessMsg(msg)}
+            onNotifyError={(msg) => setError(msg)}
+          />
 
-          {/* Live Preview Column */}
-          <div className="lg:col-span-5 sticky top-6">
-            <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
-              <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                  </span>
-                  <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
-                </div>
-                
-                <button
-                  type="button"
-                  onClick={handleCopyPreview}
-                  className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-                >
-                  {copied ? '✓ Copied!' : '📋 Copy Sample'}
-                </button>
-              </div>
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {/* Template Editor Column */}
+            <div className="lg:col-span-7">
+              <ReportTemplateEditor
+                value={template}
+                onChange={setTemplate}
+                onRestoreDefault={handleRestoreDefault}
+                onSave={handleSave}
+                saving={saving}
+                isDirty={template !== originalTemplate}
+              />
+            </div>
 
-              <div className="p-4 space-y-3">
-                <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-xs font-mono text-gray-800 whitespace-pre-wrap select-text leading-relaxed min-h-[320px] max-h-[500px] overflow-y-auto">
-                  {previewText || <span className="text-gray-400 italic">No output text generated.</span>}
+            {/* Live Preview Column */}
+            <div className="lg:col-span-5 sticky top-6">
+              <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
+                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleCopyPreview}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
+                  >
+                    {copied ? '✓ Copied!' : '📋 Copy Sample'}
+                  </button>
                 </div>
 
-                <div className="rounded-lg bg-gray-50 p-2.5 border border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
-                  <span>Showing sample Sunday Mass schedule</span>
-                  <span className="font-mono text-gray-400">{previewText.length} chars</span>
+                <div className="p-4 space-y-3">
+                  <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-xs font-mono text-gray-800 whitespace-pre-wrap select-text leading-relaxed min-h-[320px] max-h-[500px] overflow-y-auto">
+                    {previewText || <span className="text-gray-400 italic">No output text generated.</span>}
+                  </div>
+
+                  <div className="rounded-lg bg-gray-50 p-2.5 border border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
+                    <span>Showing sample Sunday Mass schedule</span>
+                    <span className="font-mono text-gray-400">{previewText.length} chars</span>
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </div>
           </div>
         </div>
       )}

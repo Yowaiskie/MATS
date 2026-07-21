@@ -1,11 +1,10 @@
-const CACHE_NAME = 'mats-static-v1';
+const CACHE_NAME = 'mats-static-v2';
 
 // Static assets to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/manifest.webmanifest',
   '/ministy_logo.jpg',
   '/icon-192.png',
   '/icon-512.png',
@@ -28,10 +27,11 @@ function isFirebaseOrApiRequest(url) {
 }
 
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(PRECACHE_ASSETS);
-    }).then(() => self.skipWaiting())
+    })
   );
 });
 
@@ -85,9 +85,9 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
 
-        // If it's a navigation request and not in cache, fallback to app shell /index.html
+        // If it's a navigation request and not in cache, fallback to app shell /index.html for SPA routing
         if (request.mode === 'navigate') {
-          const appShell = await caches.match('/index.html');
+          const appShell = await caches.match('/index.html') || await caches.match('/');
           if (appShell) {
             return appShell;
           }

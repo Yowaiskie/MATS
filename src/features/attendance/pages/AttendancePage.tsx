@@ -11,6 +11,7 @@ import { AttendanceRow } from '../components/AttendanceRow'
 import { CommunityReportModal } from '../components/CommunityReportModal'
 import { AddOtherServerModal } from '../components/AddOtherServerModal'
 import { UnlockSessionModal } from '../components/UnlockSessionModal'
+import { AssignmentModal } from '@/features/schedules/components/AssignmentModal'
 import { generateCommunityReport } from '@/utils/communityReport'
 import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
@@ -38,11 +39,13 @@ export const AttendancePage: React.FC = () => {
   const navigate = useNavigate()
 
   const [schedule, setSchedule] = useState<Schedule | null>(null)
+  const [allSchedules, setAllSchedules] = useState<Schedule[]>([])
   const [session, setSession] = useState<AttendanceSession | null>(null)
   const [assignedMembers, setAssignedMembers] = useState<Member[]>([])
   const [otherServers, setOtherServers] = useState<Member[]>([])
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
   const [addOtherServerOpen, setAddOtherServerOpen] = useState(false)
+  const [assignmentOpen, setAssignmentOpen] = useState(false)
   
   // Local Form state
   const [formState, setFormState] = useState<FormState>({})
@@ -115,6 +118,8 @@ export const AttendancePage: React.FC = () => {
 
   // Initialize form state
   const isDirty = JSON.stringify(formState) !== JSON.stringify(originalState)
+  const isMeetingSchedule = (schedule?.title || '').toLowerCase().includes('meeting')
+    || (schedule?.title || '').toLowerCase().includes('assembly')
 
   // Trigger unload prompt warning if forms are dirty
   useEffect(() => {
@@ -141,6 +146,7 @@ export const AttendancePage: React.FC = () => {
     try {
       // 1. Load schedules & verify match
       const schedulesList = await scheduleService.getSchedules()
+      setAllSchedules(schedulesList)
       const matchedSchedule = schedulesList.find(s => s.id === scheduleId)
       
       if (!matchedSchedule) {
@@ -168,7 +174,9 @@ export const AttendancePage: React.FC = () => {
       const otherServerRecords = records.filter(r => r.isOtherServer === true)
       const otherServerMemberIds = otherServerRecords.map(r => r.memberId)
 
-      const otherServerProfiles = allMembers.filter(m => otherServerMemberIds.includes(m.id))
+      const otherServerProfiles = allMembers.filter(
+        (m) => otherServerMemberIds.includes(m.id) && !assignedIds.includes(m.id)
+      )
       otherServerProfiles.sort((a, b) => {
         const lastA = a.lastName.toLowerCase()
         const lastB = b.lastName.toLowerCase()
@@ -240,35 +248,41 @@ export const AttendancePage: React.FC = () => {
     })
   }
 
-  const handleAssignAll = () => {
-    const activeProfiles = allMembersProfiles.filter(m => m.status === 'active')
-    const existingIds = new Set([...assignedMembers, ...otherServers].map(m => m.id))
-    const toAdd = activeProfiles.filter(m => !existingIds.has(m.id))
-    
-    if (toAdd.length === 0) return
-    
-    setOtherServers(prev => {
-      const next = [...prev, ...toAdd]
-      next.sort((a, b) => {
-        const lastA = a.lastName.toLowerCase()
-        const lastB = b.lastName.toLowerCase()
-        if (lastA !== lastB) return lastA.localeCompare(lastB)
-        return a.firstName.toLowerCase().localeCompare(b.firstName.toLowerCase())
-      })
-      return next
-    })
-    
-    setFormState(prev => {
-      const next = { ...prev }
-      toAdd.forEach(m => {
-        next[m.id] = {
-          status: undefined,
-          remarks: '',
-          isOtherServer: true
-        }
-      })
-      return next
-    })
+  const handleAssignAll = async () => {
+    if (!schedule) return
+    setSaving(true)
+    setError(null)
+    setSuccessMsg(null)
+    try {
+      const activeIds = allMembersProfiles
+        .filter((m) => m.status === 'active')
+        .map((m) => m.id)
+      await scheduleService.assignMembers(schedule.id, activeIds, user?.email || 'Admin')
+      await loadData()
+      setSuccessMsg('All active servers are now assigned to this schedule.')
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || 'Failed to assign all active servers.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveAssignments = async (targetScheduleId: string, assignedIds: string[]) => {
+    setSaving(true)
+    setError(null)
+    setSuccessMsg(null)
+    try {
+      await scheduleService.assignMembers(targetScheduleId, assignedIds, user?.email || 'Admin')
+      setAssignmentOpen(false)
+      await loadData()
+      setSuccessMsg('Assigned servers updated successfully.')
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || 'Failed to update assigned servers.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleRemoveOtherServer = (memberId: string) => {
@@ -578,16 +592,25 @@ export const AttendancePage: React.FC = () => {
 
           {/* Quick Assign Action */}
           {!(session?.locked ?? false) && (
-            <button
-              type="button"
-              onClick={handleAssignAll}
-              className="w-full sm:w-auto rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-xs font-semibold text-blue-700 transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-              </svg>
-              <span>Assign All Active Servers</span>
-            </button>
+            <div className="w-full sm:w-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAssignmentOpen(true)}
+                className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors cursor-pointer shadow-sm"
+              >
+                Edit Assigned Servers
+              </button>
+              <button
+                type="button"
+                onClick={handleAssignAll}
+                className="w-full sm:w-auto rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-xs font-semibold text-blue-700 transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                <span>Assign All Active Servers</span>
+              </button>
+            </div>
           )}
         </div>
 
@@ -652,6 +675,7 @@ export const AttendancePage: React.FC = () => {
                 onRemarksChange={(remarks) => handleRowRemarksChange(member.id, remarks)}
                 disabled={saving || (session?.locked ?? false)}
                 isOtherServer={formState[member.id]?.isOtherServer}
+                isMeetingSchedule={isMeetingSchedule}
                 onRemove={() => handleRemoveOtherServer(member.id)}
               />
             ))
@@ -660,7 +684,7 @@ export const AttendancePage: React.FC = () => {
               {searchQuery.trim() ? (
                 <span>No active servers match search query "{searchQuery}"</span>
               ) : (
-                <span>No members are assigned to this service schedule. Select "Assign Servers" or click "+ Add Other Server" to populate.</span>
+                <span>No members are assigned to this service schedule. Select "Edit Assigned Servers" to populate.</span>
               )}
             </div>
           )}
@@ -670,14 +694,16 @@ export const AttendancePage: React.FC = () => {
         {!(session?.locked ?? false) && (
           <div className="flex items-center justify-between p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl flex-wrap gap-4">
             <div>
-              <button
-                type="button"
-                onClick={() => setAddOtherServerOpen(true)}
-                disabled={saving}
-                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2.5 text-xs font-semibold text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
-              >
-                + Add Other Server
-              </button>
+              {!isMeetingSchedule && (
+                <button
+                  type="button"
+                  onClick={() => setAddOtherServerOpen(true)}
+                  disabled={saving}
+                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2.5 text-xs font-semibold text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+                >
+                  + Add Other Server
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-3">
@@ -708,7 +734,7 @@ export const AttendancePage: React.FC = () => {
         />
       )}
 
-      {schedule && (
+      {schedule && !isMeetingSchedule && (
         <AddOtherServerModal
           isOpen={addOtherServerOpen}
           onClose={() => setAddOtherServerOpen(false)}
@@ -744,6 +770,15 @@ export const AttendancePage: React.FC = () => {
           currentOtherServerIds={otherServers.map(m => m.id)}
         />
       )}
+
+      <AssignmentModal
+        isOpen={assignmentOpen}
+        onClose={() => setAssignmentOpen(false)}
+        schedule={schedule}
+        activeMembers={allMembersProfiles.filter((m) => m.status === 'active')}
+        allSchedules={allSchedules}
+        onSave={handleSaveAssignments}
+      />
 
       {/* Lock Confirm Modal (For Finalizing) */}
       <ConfirmModal
