@@ -9,7 +9,6 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
 
-// Mock data for the Live Preview function
 const mockSchedule: Schedule = {
   id: 'mock-123',
   title: 'Sunday Mass',
@@ -39,8 +38,38 @@ const mockUnassignedMembers: Member[] = [
   { id: 'm-5', firstName: 'Marcial', lastName: 'Rimando', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
+type TabId = 'policy' | 'template'
+
+const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const FileTextIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <line x1="16" y1="13" x2="8" y2="13" />
+    <line x1="16" y1="17" x2="8" y2="17" />
+    <polyline points="10 9 9 9 8 9" />
+  </svg>
+)
+
+const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+  </svg>
+)
+
+const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
+  { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
+  { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> }
+]
+
 export const SettingsPage: React.FC = () => {
   const { profile } = useAuth()
+  const [activeTab, setActiveTab] = useState<TabId>('policy')
   const [template, setTemplate] = useState('')
   const [originalTemplate, setOriginalTemplate] = useState('')
   const [loading, setLoading] = useState(true)
@@ -50,7 +79,6 @@ export const SettingsPage: React.FC = () => {
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  // Load baseline template settings
   const loadTemplate = async () => {
     setLoading(true)
     setError(null)
@@ -90,7 +118,6 @@ export const SettingsPage: React.FC = () => {
     setConfirmRestore(true)
   }
 
-  // Generate live preview text dynamically as user types
   const previewText = generateCommunityReport(
     template || DEFAULT_REPORT_TEMPLATE,
     mockSchedule,
@@ -111,10 +138,26 @@ export const SettingsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">System Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Configure parameters and message layouts for the Ministry of Altar Servers.</p>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-2 sm:gap-1 p-1 bg-gray-100 rounded-xl w-full sm:w-auto">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`flex items-center justify-center sm:justify-start gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-all cursor-pointer min-h-[44px] ${
+              activeTab === tab.id
+                ? 'bg-white text-gray-900 shadow-sm'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            <span className="text-gray-500">{tab.icon}</span>
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
 
       {loading ? (
@@ -125,64 +168,63 @@ export const SettingsPage: React.FC = () => {
           </div>
         </Card>
       ) : (
-        <div className="space-y-6">
-          {/* Dynamic Policy Rules Card */}
-          <PolicySettingsCard
-            onNotifySuccess={(msg) => setSuccessMsg(msg)}
-            onNotifyError={(msg) => setError(msg)}
-          />
+        <div>
+          {activeTab === 'policy' ? (
+            <PolicySettingsCard
+              onNotifySuccess={(msg) => setSuccessMsg(msg)}
+              onNotifyError={(msg) => setError(msg)}
+            />
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-7 flex flex-col min-h-0">
+                <ReportTemplateEditor
+                  value={template}
+                  onChange={setTemplate}
+                  onRestoreDefault={handleRestoreDefault}
+                  onSave={handleSave}
+                  saving={saving}
+                  isDirty={template !== originalTemplate}
+                />
+              </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-            {/* Template Editor Column */}
-            <div className="lg:col-span-7">
-              <ReportTemplateEditor
-                value={template}
-                onChange={setTemplate}
-                onRestoreDefault={handleRestoreDefault}
-                onSave={handleSave}
-                saving={saving}
-                isDirty={template !== originalTemplate}
-              />
+              <div className="lg:col-span-5 flex flex-col min-h-0">
+                <Card className="p-0 border border-gray-200 shadow-xs flex flex-col flex-1">
+                  <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleCopyPreview}
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer min-h-[32px]"
+                    >
+                      <CopyIcon className="w-3.5 h-3.5" />
+                      {copied ? 'Copied!' : 'Copy Sample'}
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3">
+                    <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-xs font-mono text-gray-800 whitespace-pre-wrap select-text leading-relaxed">
+                      {previewText || <span className="text-gray-400 italic">No output text generated.</span>}
+                    </div>
+
+                    <div className="rounded-lg bg-gray-50 p-2.5 border border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
+                      <span>Showing sample Sunday Mass schedule</span>
+                      <span className="font-mono text-gray-400">{previewText.length} chars</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
             </div>
-
-            {/* Live Preview Column */}
-            <div className="lg:col-span-5 sticky top-6">
-              <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
-                <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-                    </span>
-                    <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
-                  </div>
-                  
-                  <button
-                    type="button"
-                    onClick={handleCopyPreview}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-                  >
-                    {copied ? '✓ Copied!' : '📋 Copy Sample'}
-                  </button>
-                </div>
-
-                <div className="p-4 space-y-3">
-                  <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-4 text-xs font-mono text-gray-800 whitespace-pre-wrap select-text leading-relaxed min-h-[320px] max-h-[500px] overflow-y-auto">
-                    {previewText || <span className="text-gray-400 italic">No output text generated.</span>}
-                  </div>
-
-                  <div className="rounded-lg bg-gray-50 p-2.5 border border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
-                    <span>Showing sample Sunday Mass schedule</span>
-                    <span className="font-mono text-gray-400">{previewText.length} chars</span>
-                  </div>
-                </div>
-              </Card>
-            </div>
-          </div>
+          )}
         </div>
       )}
 
-      {/* Restore Default Template Confirm */}
       <ConfirmModal
         isOpen={confirmRestore}
         onClose={() => setConfirmRestore(false)}
@@ -196,7 +238,6 @@ export const SettingsPage: React.FC = () => {
         confirmLabel="Restore Default"
       />
 
-      {/* Error Alert Modal */}
       <AlertModal
         isOpen={!!error}
         onClose={() => setError(null)}
@@ -205,7 +246,6 @@ export const SettingsPage: React.FC = () => {
         message={error ?? ''}
       />
 
-      {/* Success Alert Modal */}
       <AlertModal
         isOpen={!!successMsg}
         onClose={() => setSuccessMsg(null)}
