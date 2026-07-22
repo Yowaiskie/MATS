@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { userService } from '@/services/userService'
+import { settingsService } from '@/services/settingsService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
+import type { UserProfile, UserRole, ModuleKey, UserPermissions, PermissionPreset } from '@/types/auth'
 import type { OrderGroup } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
@@ -18,13 +19,62 @@ const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'audit', label: 'Audit Trail', description: 'View system security and activity logs' },
 ]
 
+const PRESET_ICONS: { [key: string]: React.ReactNode } = {
+  clipboard: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+    </svg>
+  ),
+  users: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  ),
+  shield: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+    </svg>
+  ),
+  calendar: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+  chart: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+    </svg>
+  ),
+  settings: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    </svg>
+  )
+}
+
 export const UsersPage: React.FC = () => {
   const { profile: currentAdmin, isAdmin } = useAuth()
   const [users, setUsers] = useState<UserProfile[]>([])
+  const [presets, setPresets] = useState<PermissionPreset[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  // Presets Management Modal State
+  const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false)
+  const [presetEditing, setPresetEditing] = useState<PermissionPreset | null>(null)
+  const [presetFormName, setPresetFormName] = useState('')
+  const [presetFormDesc, setPresetFormDesc] = useState('')
+  const [presetFormIcon, setPresetFormIcon] = useState<'clipboard' | 'users' | 'shield' | 'calendar' | 'chart' | 'settings'>('clipboard')
+  const [presetFormRole, setPresetFormRole] = useState<UserRole>('user')
+  const [presetFormModules, setPresetFormModules] = useState<ModuleKey[]>(['dashboard', 'attendance'])
+  const [presetFormTakeAttendance, setPresetFormTakeAttendance] = useState(true)
+  const [presetFormFinalizeAttendance, setPresetFormFinalizeAttendance] = useState(false)
+  const [presetFormViewSchedules, setPresetFormViewSchedules] = useState(true)
+  const [presetFormManageSchedules, setPresetFormManageSchedules] = useState(false)
+  const [presetFormViewReports, setPresetFormViewReports] = useState(false)
+  const [presetFormExportReports, setPresetFormExportReports] = useState(false)
 
   // Register / Edit User Form state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -34,6 +84,7 @@ export const UsersPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<UserRole>('user')
+  const [activePresetId, setActivePresetId] = useState<string | null>(null)
   
   // Permissions state
   const [allowedModules, setAllowedModules] = useState<ModuleKey[]>(['dashboard', 'attendance'])
@@ -52,11 +103,15 @@ export const UsersPage: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await userService.getUsers()
-      setUsers(data)
+      const [usersData, presetsData] = await Promise.all([
+        userService.getUsers(),
+        settingsService.getPermissionPresets()
+      ])
+      setUsers(usersData)
+      setPresets(presetsData)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load user accounts list.')
+      setError('Failed to load user accounts list and permission presets.')
     } finally {
       setLoading(false)
     }
@@ -66,37 +121,109 @@ export const UsersPage: React.FC = () => {
     loadData()
   }, [])
 
-  // Preset role appliers
-  const applyPresetRole = (preset: 'admin' | 'attendance_taker' | 'order_leader') => {
-    if (preset === 'admin') {
-      setRole('admin')
-      setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports', 'members', 'users', 'settings', 'audit'])
-      setCanTakeAttendance(true)
-      setCanFinalizeAttendance(true)
-      setCanViewSchedules(true)
-      setCanManageSchedules(true)
-      setCanViewReports(true)
-      setCanExportReports(true)
-      setAssignedOrder('')
-    } else if (preset === 'attendance_taker') {
-      setRole('user')
-      setAllowedModules(['dashboard', 'schedules', 'attendance'])
-      setCanTakeAttendance(true)
-      setCanFinalizeAttendance(false)
-      setCanViewSchedules(true)
-      setCanManageSchedules(false)
-      setCanViewReports(false)
-      setCanExportReports(false)
-      setAssignedOrder('')
-    } else if (preset === 'order_leader') {
-      setRole('order_leader')
-      setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports'])
-      setCanTakeAttendance(true)
-      setCanFinalizeAttendance(false)
-      setCanViewSchedules(true)
-      setCanManageSchedules(false)
-      setCanViewReports(true)
-      setCanExportReports(true)
+  // Preset role applier
+  const applyPreset = (p: PermissionPreset) => {
+    setActivePresetId(p.id)
+    setRole(p.role)
+    setAllowedModules(p.allowedModules)
+    setCanTakeAttendance(p.canTakeAttendance)
+    setCanFinalizeAttendance(p.canFinalizeAttendance)
+    setCanViewSchedules(p.canViewSchedules)
+    setCanManageSchedules(p.canManageSchedules)
+    setCanViewReports(p.canViewReports)
+    setCanExportReports(p.canExportReports)
+    if (p.assignedOrder) {
+      setAssignedOrder(p.assignedOrder)
+    }
+  }
+
+  const handleOpenAddPreset = () => {
+    setPresetEditing(null)
+    setPresetFormName('')
+    setPresetFormDesc('')
+    setPresetFormIcon('clipboard')
+    setPresetFormRole('user')
+    setPresetFormModules(['dashboard', 'attendance'])
+    setPresetFormTakeAttendance(true)
+    setPresetFormFinalizeAttendance(false)
+    setPresetFormViewSchedules(true)
+    setPresetFormManageSchedules(false)
+    setPresetFormViewReports(false)
+    setPresetFormExportReports(false)
+  }
+
+  const handleOpenEditPreset = (p: PermissionPreset) => {
+    setPresetEditing(p)
+    setPresetFormName(p.name)
+    setPresetFormDesc(p.description)
+    setPresetFormIcon(p.icon)
+    setPresetFormRole(p.role)
+    setPresetFormModules(p.allowedModules)
+    setPresetFormTakeAttendance(p.canTakeAttendance)
+    setPresetFormFinalizeAttendance(p.canFinalizeAttendance)
+    setPresetFormViewSchedules(p.canViewSchedules)
+    setPresetFormManageSchedules(p.canManageSchedules)
+    setPresetFormViewReports(p.canViewReports)
+    setPresetFormExportReports(p.canExportReports)
+  }
+
+  const handleSavePreset = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!presetFormName.trim()) {
+      setError('Preset name is required.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const newPreset: PermissionPreset = {
+        id: presetEditing ? presetEditing.id : `preset_${Date.now()}`,
+        name: presetFormName.trim(),
+        description: presetFormDesc.trim(),
+        icon: presetFormIcon,
+        role: presetFormRole,
+        allowedModules: presetFormModules,
+        canTakeAttendance: presetFormTakeAttendance,
+        canFinalizeAttendance: presetFormFinalizeAttendance,
+        canViewSchedules: presetFormViewSchedules,
+        canManageSchedules: presetFormManageSchedules,
+        canViewReports: presetFormViewReports,
+        canExportReports: presetFormExportReports
+      }
+
+      let updatedPresets: PermissionPreset[] = []
+      if (presetEditing) {
+        updatedPresets = presets.map(p => p.id === presetEditing.id ? newPreset : p)
+      } else {
+        updatedPresets = [...presets, newPreset]
+      }
+
+      await settingsService.savePermissionPresets(updatedPresets, currentAdmin?.email || 'Admin')
+      setPresets(updatedPresets)
+      setPresetEditing(null)
+      setSuccessMsg(`Preset '${newPreset.name}' successfully saved!`)
+    } catch (err: any) {
+      console.error(err)
+      setError('Failed to save permission preset.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDeletePreset = async (presetId: string) => {
+    const p = presets.find(x => x.id === presetId)
+    if (!p) return
+    setSaving(true)
+    try {
+      const updated = presets.filter(x => x.id !== presetId)
+      await settingsService.savePermissionPresets(updated, currentAdmin?.email || 'Admin')
+      setPresets(updated)
+      setSuccessMsg(`Preset '${p.name}' was removed.`)
+    } catch (err: any) {
+      console.error(err)
+      setError('Failed to delete permission preset.')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -106,7 +233,9 @@ export const UsersPage: React.FC = () => {
     setPassword('')
     setConfirmPassword('')
     setDisplayName('')
-    applyPresetRole('attendance_taker')
+    if (presets.length > 0) {
+      applyPreset(presets[0])
+    }
     setError(null)
     setIsModalOpen(true)
   }
@@ -122,7 +251,8 @@ export const UsersPage: React.FC = () => {
 
     const perms = userToEdit.permissions
     if (userToEdit.role === 'admin') {
-      applyPresetRole('admin')
+      const adminPreset = presets.find(p => p.role === 'admin')
+      if (adminPreset) applyPreset(adminPreset)
     } else if (perms) {
       setAllowedModules(perms.allowedModules || ['dashboard', 'attendance'])
       setCanTakeAttendance(perms.canTakeAttendance ?? true)
@@ -132,7 +262,7 @@ export const UsersPage: React.FC = () => {
       setCanViewReports(perms.canViewReports ?? false)
       setCanExportReports(perms.canExportReports ?? false)
     } else {
-      applyPresetRole('attendance_taker')
+      if (presets.length > 0) applyPreset(presets[0])
     }
     setError(null)
     setIsModalOpen(true)
@@ -516,62 +646,46 @@ export const UsersPage: React.FC = () => {
 
               {/* Quick Role Presets */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Quick Access Presets</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">Quick Access Presets</label>
                   <button
                     type="button"
-                    onClick={() => applyPresetRole('attendance_taker')}
-                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                      role === 'user'
-                        ? 'border-blue-500 bg-blue-50/70 text-blue-900 font-semibold ring-1 ring-blue-500'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-                    }`}
+                    onClick={() => {
+                      handleOpenAddPreset()
+                      setIsPresetsModalOpen(true)
+                    }}
+                    className="text-[10px] font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
                   >
-                    <div className="text-xs font-bold flex items-center gap-1.5">
-                      <svg className="h-4 w-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                      </svg>
-                      <span>Attendance Taker</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">Take & save attendance only</div>
+                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Manage / Add Presets</span>
                   </button>
+                </div>
 
-                  <button
-                    type="button"
-                    onClick={() => applyPresetRole('order_leader')}
-                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                      role === 'order_leader'
-                        ? 'border-amber-500 bg-amber-50/70 text-amber-900 font-semibold ring-1 ring-amber-500'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    <div className="text-xs font-bold flex items-center gap-1.5">
-                      <svg className="h-4 w-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                      </svg>
-                      <span>Order Leader</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">Reports scoped to order</div>
-                  </button>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  {presets.map((p) => {
+                    const isSelected = activePresetId === p.id
 
-                  <button
-                    type="button"
-                    onClick={() => applyPresetRole('admin')}
-                    disabled={editingUser?.uid === currentAdmin?.uid}
-                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                      role === 'admin'
-                        ? 'border-purple-500 bg-purple-50/70 text-purple-900 font-semibold ring-1 ring-purple-500'
-                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
-                    }`}
-                  >
-                    <div className="text-xs font-bold flex items-center gap-1.5">
-                      <svg className="h-4 w-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                      </svg>
-                      <span>Full Admin</span>
-                    </div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">Full system control</div>
-                  </button>
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => applyPreset(p)}
+                        className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                          isSelected
+                            ? 'border-blue-500 bg-blue-50/70 text-blue-900 font-semibold ring-1 ring-blue-500 shadow-xs'
+                            : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+                        }`}
+                      >
+                        <div className="text-xs font-bold flex items-center gap-1.5">
+                          <span className="text-blue-600">{PRESET_ICONS[p.icon] || PRESET_ICONS.clipboard}</span>
+                          <span className="truncate">{p.name}</span>
+                        </div>
+                        <div className="text-[10px] text-gray-500 mt-0.5 line-clamp-1">{p.description}</div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
@@ -718,6 +832,179 @@ export const UsersPage: React.FC = () => {
                 ) : (
                   <span>{editingUser ? 'Save Permissions' : 'Create Account'}</span>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Presets Management Modal */}
+      {isPresetsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={() => setIsPresetsModalOpen(false)}></div>
+          <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-2xl border border-gray-200 bg-white shadow-2xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-white shrink-0">
+              <div className="flex items-center space-x-2.5">
+                <span className="p-2 bg-purple-50 rounded-xl text-purple-600 border border-purple-100">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+                  </svg>
+                </span>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Manage System Permission Presets</h3>
+                  <p className="text-xs text-gray-500">Create, edit, or remove dynamic access presets.</p>
+                </div>
+              </div>
+              <button onClick={() => setIsPresetsModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer p-1 rounded-lg hover:bg-gray-100">✕</button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Presets List */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-gray-400">Available Presets ({presets.length})</span>
+                  <button
+                    type="button"
+                    onClick={handleOpenAddPreset}
+                    className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                  >
+                    + Add New Preset
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {presets.map(p => (
+                    <div key={p.id} className="flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-gray-50/50">
+                      <div className="flex items-center gap-3">
+                        <span className="p-2 bg-white rounded-lg border border-gray-200 text-blue-600">
+                          {PRESET_ICONS[p.icon] || PRESET_ICONS.clipboard}
+                        </span>
+                        <div>
+                          <div className="text-xs font-bold text-gray-900">{p.name}</div>
+                          <div className="text-[11px] text-gray-500">{p.description}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditPreset(p)}
+                          className="px-2.5 py-1 text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 rounded-md hover:bg-blue-100 cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePreset(p.id)}
+                          className="px-2.5 py-1 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-md hover:bg-red-100 cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Add / Edit Preset Form */}
+              <form onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
+                  {presetEditing ? `Edit Preset: ${presetEditing.name}` : 'Create New Permission Preset'}
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Preset Name *</label>
+                    <input
+                      type="text"
+                      required
+                      value={presetFormName}
+                      onChange={(e) => setPresetFormName(e.target.value)}
+                      placeholder="e.g. Secretary"
+                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Icon Style *</label>
+                    <select
+                      value={presetFormIcon}
+                      onChange={(e) => setPresetFormIcon(e.target.value as any)}
+                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-500 cursor-pointer"
+                    >
+                      <option value="clipboard">Clipboard (Attendance)</option>
+                      <option value="users">Group (Order Leader)</option>
+                      <option value="shield">Shield (Admin)</option>
+                      <option value="calendar">Calendar (Schedules)</option>
+                      <option value="chart">Chart (Reports)</option>
+                      <option value="settings">Settings (Config)</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Description</label>
+                  <input
+                    type="text"
+                    value={presetFormDesc}
+                    onChange={(e) => setPresetFormDesc(e.target.value)}
+                    placeholder="e.g. Manage schedules & view attendance"
+                    className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Module Access</label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {ALL_MODULES.map(m => {
+                      const checked = presetFormModules.includes(m.key)
+                      return (
+                        <label key={m.key} className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              if (checked) {
+                                setPresetFormModules(prev => prev.filter(x => x !== m.key))
+                              } else {
+                                setPresetFormModules(prev => [...prev, m.key])
+                              }
+                            }}
+                            className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5"
+                          />
+                          <span>{m.label}</span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
+                  {presetEditing && (
+                    <button
+                      type="button"
+                      onClick={handleOpenAddPreset}
+                      className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel Edit
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    {presetEditing ? 'Update Preset' : 'Save New Preset'}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <div className="p-4 border-t border-gray-100 bg-white flex justify-end shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsPresetsModalOpen(false)}
+                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+              >
+                Done / Close
               </button>
             </div>
           </div>

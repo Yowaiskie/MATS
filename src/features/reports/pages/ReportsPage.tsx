@@ -70,13 +70,18 @@ export const ReportsPage: React.FC = () => {
   const getFilteredMemberRows = (): MemberReportRow[] => {
     if (!rawData) return []
 
-    // If logged in user is an Order Leader with an assigned order, scope raw members to their order first
+    // If logged in user is an Order Leader (or has assigned order scoping), scope raw members to their order first
     let scopedRawData = rawData
-    if (profile?.role === 'order_leader' && profile?.assignedOrder) {
-      const targetOrder = profile.assignedOrder
+    const assignedOrderScope = profile?.permissions?.assignedOrder || profile?.assignedOrder
+    if ((profile?.role === 'order_leader' || assignedOrderScope) && assignedOrderScope) {
+      const targetOrder = assignedOrderScope.toLowerCase().trim()
       scopedRawData = {
         ...rawData,
-        members: rawData.members.filter(m => m.order === targetOrder)
+        members: rawData.members.filter(m => {
+          if (!m.order) return false
+          const memberOrder = m.order.toLowerCase().trim()
+          return memberOrder.includes(targetOrder) || targetOrder.includes(memberOrder)
+        })
       }
     }
 
@@ -191,13 +196,13 @@ export const ReportsPage: React.FC = () => {
       />
 
       {/* Order Leader Scope Banner */}
-      {profile?.role === 'order_leader' && profile?.assignedOrder && (
+      {(profile?.role === 'order_leader' || profile?.permissions?.assignedOrder || profile?.assignedOrder) && (profile?.permissions?.assignedOrder || profile?.assignedOrder) && (
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-900 shadow-xs">
           <svg className="h-5 w-5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
           </svg>
           <div className="text-xs">
-            <span className="font-bold">Order Leader View Active:</span> Member reports and statistics are scoped exclusively for <strong className="text-blue-700 font-extrabold">{profile.assignedOrder}</strong>.
+            <span className="font-bold">Order Scoped View Active:</span> Member reports and statistics are filtered exclusively for <strong className="text-blue-700 font-extrabold">{profile.permissions?.assignedOrder || profile.assignedOrder}</strong>.
           </div>
         </div>
       )}

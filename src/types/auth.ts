@@ -29,6 +29,22 @@ export interface UserPermissions {
   assignedOrder?: OrderGroup
 }
 
+export interface PermissionPreset {
+  id: string
+  name: string
+  description: string
+  icon: 'clipboard' | 'users' | 'shield' | 'calendar' | 'chart' | 'settings'
+  role: UserRole
+  allowedModules: ModuleKey[]
+  canTakeAttendance: boolean
+  canFinalizeAttendance: boolean
+  canViewSchedules: boolean
+  canManageSchedules: boolean
+  canViewReports: boolean
+  canExportReports: boolean
+  assignedOrder?: OrderGroup
+}
+
 export interface UserProfile {
   uid: string
   email: string

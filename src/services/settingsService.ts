@@ -1,6 +1,7 @@
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
+import type { PermissionPreset } from '@/types/auth'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
@@ -37,7 +38,90 @@ export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
   includeMeetings: true
 }
 
+const PRESETS_DOC = 'permissionPresets'
+
+export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
+  {
+    id: 'preset_attendance_taker',
+    name: 'Attendance Taker',
+    description: 'Take & save attendance only',
+    icon: 'clipboard',
+    role: 'user',
+    allowedModules: ['dashboard', 'schedules', 'attendance'],
+    canTakeAttendance: true,
+    canFinalizeAttendance: false,
+    canViewSchedules: true,
+    canManageSchedules: false,
+    canViewReports: false,
+    canExportReports: false
+  },
+  {
+    id: 'preset_order_leader',
+    name: 'Order Leader',
+    description: 'Reports scoped to assigned order',
+    icon: 'users',
+    role: 'order_leader',
+    allowedModules: ['dashboard', 'schedules', 'attendance', 'reports'],
+    canTakeAttendance: true,
+    canFinalizeAttendance: false,
+    canViewSchedules: true,
+    canManageSchedules: false,
+    canViewReports: true,
+    canExportReports: true
+  },
+  {
+    id: 'preset_admin',
+    name: 'Full Admin',
+    description: 'Full system control and configuration',
+    icon: 'shield',
+    role: 'admin',
+    allowedModules: ['dashboard', 'schedules', 'attendance', 'reports', 'members', 'users', 'settings', 'audit'],
+    canTakeAttendance: true,
+    canFinalizeAttendance: true,
+    canViewSchedules: true,
+    canManageSchedules: true,
+    canViewReports: true,
+    canExportReports: true
+  }
+]
+
 export const settingsService = {
+  /**
+   * Fetches custom permission presets from Firestore.
+   */
+  async getPermissionPresets(): Promise<PermissionPreset[]> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, PRESETS_DOC)
+      const docSnap = await getDoc(docRef)
+      if (docSnap.exists() && docSnap.data().presets) {
+        return docSnap.data().presets as PermissionPreset[]
+      }
+      return DEFAULT_PERMISSION_PRESETS
+    } catch (err) {
+      console.error('Failed to load permission presets:', err)
+      return DEFAULT_PERMISSION_PRESETS
+    }
+  },
+
+  /**
+   * Saves updated permission presets to Firestore.
+   */
+  async savePermissionPresets(presets: PermissionPreset[], performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, PRESETS_DOC)
+    await setDoc(docRef, {
+      presets,
+      updatedAt: serverTimestamp()
+    }, { merge: true })
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated dynamic system permission presets (${presets.length} presets)`,
+      performedBy,
+      { presetsCount: presets.length }
+    )
+  },
+
   /**
    * Fetches the custom report template from Firestore.
    * If it doesn't exist, returns the default template.
