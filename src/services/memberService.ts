@@ -29,7 +29,11 @@ export const memberService = {
     })) as Member[]
     
     if (!includeArchived) {
-      members = members.filter(m => m.status === 'active' || m.status === 'inactive')
+      // Active Members tab: show active and inactive members (exclude archived)
+      members = members.filter(m => m.status !== 'archived')
+    } else {
+      // Archived Members tab: show ONLY archived members
+      members = members.filter(m => m.status === 'archived')
     }
     
     members.sort((a, b) => {
