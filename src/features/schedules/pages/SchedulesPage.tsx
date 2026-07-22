@@ -18,6 +18,11 @@ import { useAuth } from '@/features/authentication/AuthContext'
 
 const PAGE_SIZE = 12
 
+const getTodayString = () => {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
 export const SchedulesPage: React.FC = () => {
   const { profile, isAdmin } = useAuth()
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -26,7 +31,7 @@ export const SchedulesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
 
   // Filter states
-  const [dateFilter, setDateFilter] = useState('')
+  const [dateFilter, setDateFilter] = useState(getTodayString())
   const [timeFilter, setTimeFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>([])
@@ -345,13 +350,22 @@ export const SchedulesPage: React.FC = () => {
           <label htmlFor="filter-date" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Filter by Date
           </label>
-          <input
-            id="filter-date"
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-          />
+          <div className="flex gap-1.5">
+            <input
+              id="filter-date"
+              type="date"
+              value={dateFilter}
+              onChange={(e) => setDateFilter(e.target.value)}
+              className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+            />
+            <button
+              type="button"
+              onClick={() => setDateFilter(getTodayString())}
+              className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer min-h-[36px]"
+            >
+              Today
+            </button>
+          </div>
         </div>
 
         {/* Time / Schedule filter */}
@@ -387,9 +401,9 @@ export const SchedulesPage: React.FC = () => {
             className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
           >
             <option value="all">All Tracking Statuses</option>
-            <option value="untaken">⚪ Untaken (Not Started)</option>
-            <option value="in_progress">🟡 In Progress (Unfinalized)</option>
-            <option value="finalized">✓ Finalized (Locked)</option>
+            <option value="untaken">Untaken (Not Started)</option>
+            <option value="in_progress">In Progress (Unfinalized)</option>
+            <option value="finalized">Finalized (Locked)</option>
           </select>
         </div>
 
@@ -398,7 +412,7 @@ export const SchedulesPage: React.FC = () => {
           <div className="flex items-end justify-start">
             <button
               onClick={() => {
-                setDateFilter('')
+                setDateFilter(getTodayString())
                 setTimeFilter('')
                 setSearchQuery('')
                 setAttendanceFilter('all')
@@ -579,8 +593,26 @@ export const SchedulesPage: React.FC = () => {
           <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-2 text-sm font-bold text-gray-900">No schedules found</h3>
-          <p className="mt-1 text-xs text-gray-500">Create a schedule or check active filter values.</p>
+          <h3 className="mt-2 text-sm font-bold text-gray-900">
+            {dateFilter === getTodayString() ? 'No schedule yet' : 'No schedules found'}
+          </h3>
+          <p className="mt-1 text-xs text-gray-500">
+            {dateFilter === getTodayString()
+              ? 'There are no schedules scheduled for today.'
+              : 'No schedules match the selected date. Try a different date.'}
+          </p>
+          {isAdmin && dateFilter === getTodayString() && (
+            <button
+              onClick={() => {
+                setSelectedSchedule(null)
+                setSelectedDate(getTodayString())
+                setFormOpen(true)
+              }}
+              className="mt-4 rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+            >
+              Create Schedule for Today
+            </button>
+          )}
         </div>
       )}
 

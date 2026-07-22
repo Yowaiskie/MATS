@@ -94,9 +94,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer"
           >
             <option value="all">All Statuses</option>
-            <option value="warning">🟡 Warning Only</option>
-            <option value="suspended">🔴 Suspended Only</option>
-            <option value="active">🟢 Active / Good Standing</option>
+            <option value="warning">Warning Only</option>
+            <option value="suspended">Suspended Only</option>
+            <option value="active">Active / Good Standing</option>
           </select>
         </div>
       )}

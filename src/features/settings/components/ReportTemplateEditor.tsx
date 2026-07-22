@@ -160,7 +160,7 @@ export const ReportTemplateEditor: React.FC<ReportTemplateEditorProps> = ({
                     className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium border ${token.borderColor} ${token.bgColor} ${token.textColor} transition-all cursor-pointer shadow-sm hover:scale-[1.02] active:scale-95 min-h-[32px]`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${token.dotColor} shrink-0`} />
-                    <span className="hidden sm:inline">{token.label}</span>
+                    <span>{token.label}</span>
                   </button>
                 ))}
               </div>
