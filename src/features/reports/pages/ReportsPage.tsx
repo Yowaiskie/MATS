@@ -7,6 +7,8 @@ import { SummaryCards } from '../components/SummaryCards'
 import { AbsenceBreakdownModal } from '../components/AbsenceBreakdownModal'
 import { AlertModal } from '@/components/Dialog'
 
+import { downloadMembersReportPdf } from '@/utils/memberPdfReport'
+
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly'
 
 export const ReportsPage: React.FC = () => {
@@ -109,6 +111,11 @@ export const ReportsPage: React.FC = () => {
     setShowBreakdownModal(true)
   }
 
+  const handleDownloadMemberPdf = () => {
+    const filteredRows = getFilteredMemberRows()
+    downloadMembersReportPdf(filteredRows, { start: startDate, end: endDate })
+  }
+
   return (
     <div className="space-y-6">
       {/* Header page */}
@@ -117,6 +124,19 @@ export const ReportsPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Reports & Analytics</h1>
           <p className="text-sm text-gray-500 mt-1">Review attendance aggregates, server metrics, and analytics.</p>
         </div>
+
+        {/* Header Action Buttons */}
+        {activeTab === 'member' && (
+          <button
+            onClick={handleDownloadMemberPdf}
+            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm flex items-center gap-1.5 self-start sm:self-auto"
+          >
+            <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download PDF
+          </button>
+        )}
       </div>
 
       {/* Tabs list triggers */}
@@ -231,7 +251,7 @@ export const ReportsPage: React.FC = () => {
                     <th className="px-4 py-3 text-center">Absent</th>
                     <th className="px-4 py-3 text-center">Excused</th>
                     <th className="px-4 py-3 text-right">Rate</th>
-                    <th className="px-4 py-3 text-center">Warning</th>
+                    <th className="px-4 py-3 text-center">Status</th>
                     <th className="px-4 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
