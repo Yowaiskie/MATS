@@ -13,7 +13,8 @@ import {
 import { initializeApp, getApps } from 'firebase/app'
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'firebase/auth'
 import { db, firebaseConfig } from '@/firebase/config'
-import type { UserProfile, UserRole } from '@/types/auth'
+import type { UserProfile, UserRole, UserPermissions } from '@/types/auth'
+import type { OrderGroup } from '@/types/member'
 import { auditService } from '@/services/auditService'
 
 const USERS_COLLECTION = 'users'
@@ -37,7 +38,7 @@ export const userService = {
    * Uses a secondary app instance so the active admin session is NOT logged out.
    */
   async registerNewUserWithAuth(
-    data: { email: string; password?: string; displayName?: string; role: UserRole },
+    data: { email: string; password?: string; displayName?: string; role: UserRole; assignedOrder?: OrderGroup; permissions?: Partial<UserPermissions> },
     performedBy = 'System'
   ): Promise<void> {
     let uid = ''
@@ -62,7 +63,9 @@ export const userService = {
         uid,
         email: data.email,
         displayName: data.displayName,
-        role: data.role
+        role: data.role,
+        assignedOrder: data.assignedOrder,
+        permissions: data.permissions
       },
       performedBy
     )
@@ -72,7 +75,7 @@ export const userService = {
    * Creates or updates a user profile in Firestore.
    */
   async saveUserProfile(
-    profileData: { uid: string; email: string; displayName?: string; role: UserRole },
+    profileData: { uid: string; email: string; displayName?: string; role: UserRole; assignedOrder?: OrderGroup; permissions?: Partial<UserPermissions> },
     performedBy = 'System'
   ): Promise<void> {
     const userDocRef = doc(db, USERS_COLLECTION, profileData.uid)
@@ -83,6 +86,8 @@ export const userService = {
       email: profileData.email.toLowerCase().trim(),
       displayName: profileData.displayName?.trim() || '',
       role: profileData.role,
+      assignedOrder: profileData.assignedOrder || '',
+      permissions: profileData.permissions || null,
       updatedAt: serverTimestamp(),
       ...(existingSnap.exists() ? {} : { createdAt: serverTimestamp() })
     }

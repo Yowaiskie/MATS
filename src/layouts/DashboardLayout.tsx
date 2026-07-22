@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/authentication/AuthContext'
+import type { ModuleKey } from '@/types/auth'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { InstallPWAButton } from '@/components/InstallPWAButton'
 
@@ -49,7 +50,7 @@ const icons: { [key: string]: React.ReactNode } = {
 }
 
 export const DashboardLayout: React.FC = () => {
-  const { profile, isAdmin, logout } = useAuth()
+  const { profile, logout, hasModuleAccess } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -68,18 +69,18 @@ export const DashboardLayout: React.FC = () => {
     }
   }
 
-  const navigation = [
-    { name: 'Dashboard', href: '/' },
-    { name: 'Schedules', href: '/schedules' },
-    { name: 'Attendance', href: '/attendance' },
-    { name: 'Reports', href: '/reports' },
-    ...(isAdmin ? [
-      { name: 'Members', href: '/members' },
-      { name: 'User Management', href: '/users' },
-      { name: 'Settings', href: '/settings' },
-      { name: 'Audit Trail', href: '/audit' },
-    ] : [])
+  const allNavigation: { name: string; href: string; moduleKey: ModuleKey }[] = [
+    { name: 'Dashboard', href: '/', moduleKey: 'dashboard' },
+    { name: 'Schedules', href: '/schedules', moduleKey: 'schedules' },
+    { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
+    { name: 'Reports', href: '/reports', moduleKey: 'reports' },
+    { name: 'Members', href: '/members', moduleKey: 'members' },
+    { name: 'User Management', href: '/users', moduleKey: 'users' },
+    { name: 'Settings', href: '/settings', moduleKey: 'settings' },
+    { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
   ]
+
+  const navigation = allNavigation.filter(item => hasModuleAccess(item.moduleKey))
 
   const isActive = (href: string) => {
     if (href === '/') {

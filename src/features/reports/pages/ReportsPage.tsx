@@ -6,12 +6,15 @@ import { FilterBar } from '../components/FilterBar'
 import { SummaryCards } from '../components/SummaryCards'
 import { AbsenceBreakdownModal } from '../components/AbsenceBreakdownModal'
 import { AlertModal } from '@/components/Dialog'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 import { downloadMembersReportPdf } from '@/utils/memberPdfReport'
 
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly'
 
 export const ReportsPage: React.FC = () => {
+  const { profile, canAction } = useAuth()
+  const canExport = canAction('canExportReports')
   const [activeTab, setActiveTab] = useState<TabType>('summary')
 
   // Date and filter states
@@ -66,7 +69,18 @@ export const ReportsPage: React.FC = () => {
 
   const getFilteredMemberRows = (): MemberReportRow[] => {
     if (!rawData) return []
-    let rows = reportService.generateMemberReport(rawData)
+
+    // If logged in user is an Order Leader with an assigned order, scope raw members to their order first
+    let scopedRawData = rawData
+    if (profile?.role === 'order_leader' && profile?.assignedOrder) {
+      const targetOrder = profile.assignedOrder
+      scopedRawData = {
+        ...rawData,
+        members: rawData.members.filter(m => m.order === targetOrder)
+      }
+    }
+
+    let rows = reportService.generateMemberReport(scopedRawData)
 
     // Apply search query filter
     if (searchQuery.trim()) {
@@ -126,7 +140,7 @@ export const ReportsPage: React.FC = () => {
         </div>
 
         {/* Header Action Buttons */}
-        {activeTab === 'member' && (
+        {activeTab === 'member' && canExport && (
           <button
             onClick={handleDownloadMemberPdf}
             className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm flex items-center gap-1.5 self-start sm:self-auto"
@@ -175,6 +189,18 @@ export const ReportsPage: React.FC = () => {
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
       />
+
+      {/* Order Leader Scope Banner */}
+      {profile?.role === 'order_leader' && profile?.assignedOrder && (
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl border border-blue-200 bg-blue-50/70 text-blue-900 shadow-xs">
+          <svg className="h-5 w-5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+          <div className="text-xs">
+            <span className="font-bold">Order Leader View Active:</span> Member reports and statistics are scoped exclusively for <strong className="text-blue-700 font-extrabold">{profile.assignedOrder}</strong>.
+          </div>
+        </div>
+      )}
 
       {/* Policy Summary Banner (visible on Member tab) */}
       {activeTab === 'member' && !loading && rawData?.policy && (

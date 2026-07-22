@@ -3,7 +3,7 @@ import { onAuthStateChanged, browserLocalPersistence, setPersistence } from 'fir
 import type { User } from 'firebase/auth'
 import { auth } from '@/firebase/config'
 import { authService } from '@/services/authService'
-import type { UserProfile, UserRole } from '@/types/auth'
+import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
 
 interface AuthContextType {
   user: User | null
@@ -16,6 +16,8 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   clearError: () => void
+  hasModuleAccess: (moduleKey: ModuleKey) => boolean
+  canAction: (actionKey: keyof UserPermissions) => boolean
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -97,6 +99,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isAdmin = role === 'admin'
   const isUser = role === 'user'
 
+  const hasModuleAccess = (moduleKey: ModuleKey): boolean => {
+    if (!profile) return false
+    if (profile.role === 'admin') return true
+    if (!profile.permissions || !profile.permissions.allowedModules) {
+      // Legacy user role defaults
+      if (moduleKey === 'dashboard' || moduleKey === 'schedules' || moduleKey === 'attendance' || moduleKey === 'reports') return true
+      return false
+    }
+    return profile.permissions.allowedModules.includes(moduleKey)
+  }
+
+  const canAction = (actionKey: keyof UserPermissions): boolean => {
+    if (!profile) return false
+    if (profile.role === 'admin') return true
+    if (!profile.permissions) {
+      // Legacy default
+      if (actionKey === 'canTakeAttendance' || actionKey === 'canViewSchedules' || actionKey === 'canViewReports') return true
+      return false
+    }
+    return Boolean(profile.permissions[actionKey])
+  }
+
   return (
     <AuthContext.Provider 
       value={{
@@ -109,7 +133,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         error,
         login,
         logout,
-        clearError
+        clearError,
+        hasModuleAccess,
+        canAction
       }}
     >
       {children}

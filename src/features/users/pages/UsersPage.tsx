@@ -1,9 +1,22 @@
 import React, { useState, useEffect } from 'react'
 import { userService } from '@/services/userService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { UserProfile, UserRole } from '@/types/auth'
+import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
+import type { OrderGroup } from '@/types/member'
+import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
+
+const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
+  { key: 'dashboard', label: 'Dashboard Overview', description: 'Access main metrics and overview dashboard' },
+  { key: 'schedules', label: 'Schedules', description: 'View or manage ministry schedules and assignments' },
+  { key: 'attendance', label: 'Attendance', description: 'Record and track server attendance' },
+  { key: 'reports', label: 'Reports & Analytics', description: 'View member metrics and export PDF reports' },
+  { key: 'members', label: 'Member Directory', description: 'Manage altar server profiles and records' },
+  { key: 'users', label: 'User Management', description: 'Manage system accounts and access permissions' },
+  { key: 'settings', label: 'Settings', description: 'Configure system policies and templates' },
+  { key: 'audit', label: 'Audit Trail', description: 'View system security and activity logs' },
+]
 
 export const UsersPage: React.FC = () => {
   const { profile: currentAdmin, isAdmin } = useAuth()
@@ -19,10 +32,18 @@ export const UsersPage: React.FC = () => {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState<UserRole>('user')
+  
+  // Permissions state
+  const [allowedModules, setAllowedModules] = useState<ModuleKey[]>(['dashboard', 'attendance'])
+  const [canTakeAttendance, setCanTakeAttendance] = useState(true)
+  const [canFinalizeAttendance, setCanFinalizeAttendance] = useState(false)
+  const [canViewSchedules, setCanViewSchedules] = useState(true)
+  const [canManageSchedules, setCanManageSchedules] = useState(false)
+  const [canViewReports, setCanViewReports] = useState(false)
+  const [canExportReports, setCanExportReports] = useState(false)
+  const [assignedOrder, setAssignedOrder] = useState<OrderGroup | ''>('')
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -45,15 +66,47 @@ export const UsersPage: React.FC = () => {
     loadData()
   }, [])
 
+  // Preset role appliers
+  const applyPresetRole = (preset: 'admin' | 'attendance_taker' | 'order_leader') => {
+    if (preset === 'admin') {
+      setRole('admin')
+      setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports', 'members', 'users', 'settings', 'audit'])
+      setCanTakeAttendance(true)
+      setCanFinalizeAttendance(true)
+      setCanViewSchedules(true)
+      setCanManageSchedules(true)
+      setCanViewReports(true)
+      setCanExportReports(true)
+      setAssignedOrder('')
+    } else if (preset === 'attendance_taker') {
+      setRole('user')
+      setAllowedModules(['dashboard', 'schedules', 'attendance'])
+      setCanTakeAttendance(true)
+      setCanFinalizeAttendance(false)
+      setCanViewSchedules(true)
+      setCanManageSchedules(false)
+      setCanViewReports(false)
+      setCanExportReports(false)
+      setAssignedOrder('')
+    } else if (preset === 'order_leader') {
+      setRole('order_leader')
+      setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports'])
+      setCanTakeAttendance(true)
+      setCanFinalizeAttendance(false)
+      setCanViewSchedules(true)
+      setCanManageSchedules(false)
+      setCanViewReports(true)
+      setCanExportReports(true)
+    }
+  }
+
   const handleOpenAddModal = () => {
     setEditingUser(null)
     setEmail('')
     setPassword('')
     setConfirmPassword('')
-    setShowPassword(false)
-    setShowConfirmPassword(false)
     setDisplayName('')
-    setRole('user')
+    applyPresetRole('attendance_taker')
     setError(null)
     setIsModalOpen(true)
   }
@@ -63,12 +116,36 @@ export const UsersPage: React.FC = () => {
     setEmail(userToEdit.email)
     setPassword('')
     setConfirmPassword('')
-    setShowPassword(false)
-    setShowConfirmPassword(false)
     setDisplayName(userToEdit.displayName || '')
     setRole(userToEdit.role || 'user')
+    setAssignedOrder(userToEdit.assignedOrder || '')
+
+    const perms = userToEdit.permissions
+    if (userToEdit.role === 'admin') {
+      applyPresetRole('admin')
+    } else if (perms) {
+      setAllowedModules(perms.allowedModules || ['dashboard', 'attendance'])
+      setCanTakeAttendance(perms.canTakeAttendance ?? true)
+      setCanFinalizeAttendance(perms.canFinalizeAttendance ?? false)
+      setCanViewSchedules(perms.canViewSchedules ?? true)
+      setCanManageSchedules(perms.canManageSchedules ?? false)
+      setCanViewReports(perms.canViewReports ?? false)
+      setCanExportReports(perms.canExportReports ?? false)
+    } else {
+      applyPresetRole('attendance_taker')
+    }
     setError(null)
     setIsModalOpen(true)
+  }
+
+  const toggleModule = (key: ModuleKey) => {
+    setAllowedModules(prev => {
+      if (prev.includes(key)) {
+        return prev.filter(k => k !== key)
+      } else {
+        return [...prev, key]
+      }
+    })
   }
 
   const handleSaveUser = async (e: React.FormEvent) => {
@@ -94,6 +171,22 @@ export const UsersPage: React.FC = () => {
       }
     }
 
+    if (role === 'order_leader' && !assignedOrder) {
+      setError('Please select an Assigned Order for the Order Leader account.')
+      return
+    }
+
+    const permissionsPayload: UserPermissions = {
+      allowedModules,
+      canTakeAttendance,
+      canFinalizeAttendance,
+      canViewSchedules,
+      canManageSchedules,
+      canViewReports,
+      canExportReports,
+      assignedOrder: assignedOrder || undefined
+    }
+
     setSaving(true)
     setError(null)
     setSuccessMsg(null)
@@ -110,28 +203,28 @@ export const UsersPage: React.FC = () => {
             uid: editingUser.uid,
             email: email.trim(),
             displayName: displayName.trim() || undefined,
-            role
+            role,
+            assignedOrder: role === 'order_leader' ? (assignedOrder as OrderGroup) : undefined,
+            permissions: permissionsPayload
           },
           currentAdmin?.email || 'Admin'
         )
 
-        let msg = `User profile '${email.trim()}' successfully updated!`
-        if (password.trim()) {
-          msg += ' Password updated successfully.'
-        }
-        setSuccessMsg(msg)
+        setSuccessMsg(`User profile '${email.trim()}' successfully updated with custom permissions!`)
       } else {
         await userService.registerNewUserWithAuth(
           {
             email: email.trim(),
             password: password.trim(),
             displayName: displayName.trim() || undefined,
-            role
+            role,
+            assignedOrder: role === 'order_leader' ? (assignedOrder as OrderGroup) : undefined,
+            permissions: permissionsPayload
           },
           currentAdmin?.email || 'Admin'
         )
 
-        setSuccessMsg(`User account '${email.trim()}' created in Firebase Auth & registered with role '${role === 'admin' ? 'Admin' : 'Attendance Taker'}'!`)
+        setSuccessMsg(`User account '${email.trim()}' registered in system with dynamic module permissions!`)
       }
 
       setIsModalOpen(false)
@@ -192,7 +285,7 @@ export const UsersPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">User Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage admin and attendance taker accounts and system permissions.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage user accounts and configure custom module permissions.</p>
         </div>
         <button
           onClick={handleOpenAddModal}
@@ -226,14 +319,15 @@ export const UsersPage: React.FC = () => {
               <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
                 <th className="px-6 py-3.5">User Email</th>
                 <th className="px-6 py-3.5">Display Name</th>
-                <th className="px-6 py-3.5">System Role</th>
+                <th className="px-6 py-3.5">Role / Scope</th>
+                <th className="px-6 py-3.5">Allowed Modules</th>
                 <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
               {loading ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center">
+                  <td colSpan={5} className="px-6 py-12 text-center">
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
                       <span className="text-xs text-gray-500">Loading user accounts...</span>
@@ -242,7 +336,7 @@ export const UsersPage: React.FC = () => {
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-6 py-12 text-center text-xs text-gray-400 italic">
+                  <td colSpan={5} className="px-6 py-12 text-center text-xs text-gray-400 italic">
                     No user accounts found in database.
                   </td>
                 </tr>
@@ -269,24 +363,33 @@ export const UsersPage: React.FC = () => {
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${
                           u.role === 'admin'
                             ? 'bg-purple-50 border-purple-200 text-purple-700'
+                            : u.role === 'order_leader'
+                            ? 'bg-amber-50 border-amber-200 text-amber-700'
                             : 'bg-blue-50 border-blue-200 text-blue-700'
                         }`}>
                           {u.role === 'admin' ? (
-                            <>
-                              <svg className="h-3.5 w-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                              </svg>
-                              <span>Admin (Full Access)</span>
-                            </>
+                            <span>Admin (Full System)</span>
+                          ) : u.role === 'order_leader' ? (
+                            <span>Order Leader ({u.assignedOrder || 'All Orders'})</span>
                           ) : (
-                            <>
-                              <svg className="h-3.5 w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                              </svg>
-                              <span>Attendance Taker (Take & Save Only)</span>
-                            </>
+                            <span>Attendance Taker</span>
                           )}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-gray-500">
+                        {u.role === 'admin' ? (
+                          <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">All Modules</span>
+                        ) : u.permissions?.allowedModules ? (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {u.permissions.allowedModules.map(m => (
+                              <span key={m} className="capitalize text-[10px] font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
+                                {m}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-gray-400 italic text-[11px]">Default Access</span>
+                        )}
                       </td>
                       <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-2">
                         <button
@@ -296,7 +399,7 @@ export const UsersPage: React.FC = () => {
                           <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                             <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                           </svg>
-                          <span>Edit</span>
+                          <span>Edit Permissions</span>
                         </button>
                         {!isCurrent && (
                           <button
@@ -323,135 +426,261 @@ export const UsersPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+            <div className="flex items-center justify-between pb-3 border-b border-gray-100 sticky top-0 bg-white z-10">
               <div className="flex items-center space-x-2">
-                <span className="p-1.5 bg-blue-50 rounded-lg text-blue-600 border border-blue-100">
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                <span className="p-2 bg-blue-50 rounded-xl text-blue-600 border border-blue-100">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
                   </svg>
                 </span>
-                <h3 className="text-sm font-bold text-gray-900">
-                  {editingUser ? 'Edit User Profile & Access' : 'Register New User Account'}
-                </h3>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">
+                    {editingUser ? 'Edit Account & Permissions' : 'Register New User Account'}
+                  </h3>
+                  <p className="text-xs text-gray-500">Configure credentials and fine-tune module access.</p>
+                </div>
               </div>
-              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer">✕</button>
+              <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer p-1 rounded-lg hover:bg-gray-100">✕</button>
             </div>
 
             {/* Modal Form */}
-            <form onSubmit={handleSaveUser} className="mt-4 space-y-4">
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">User Email *</label>
-                <input
-                  type="email"
-                  required
-                  disabled={!!editingUser}
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. officer@mas.com"
-                  className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 disabled:bg-gray-100 disabled:opacity-75"
-                />
+            <form onSubmit={handleSaveUser} className="mt-4 space-y-6">
+              {/* Account Credentials */}
+              <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200/80 space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
+                  <svg className="h-3.5 w-3.5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Account Profile
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">User Email *</label>
+                    <input
+                      type="email"
+                      required
+                      disabled={!!editingUser}
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="e.g. taker@mas.com"
+                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 disabled:bg-gray-100"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Display Name (Optional)</label>
+                    <input
+                      type="text"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      placeholder="e.g. San Pedro Leader"
+                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Password Fields */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                      {editingUser ? 'New Password (Optional)' : 'Password *'}
+                    </label>
+                    <input
+                      type="password"
+                      required={!editingUser}
+                      minLength={6}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder={editingUser ? 'Leave blank to keep...' : '••••••••'}
+                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                      {editingUser ? 'Confirm Password' : 'Confirm Password *'}
+                    </label>
+                    <input
+                      type="password"
+                      required={!editingUser || password.length > 0}
+                      minLength={6}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirm password..."
+                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                    />
+                  </div>
+                </div>
               </div>
 
-              {/* Password Field 1 */}
+              {/* Quick Role Presets */}
               <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-                  {editingUser ? 'New Password (Optional)' : 'New Password (min. 6 chars) *'}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required={!editingUser}
-                    minLength={6}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder={editingUser ? 'Leave blank to keep current password...' : '••••••••'}
-                    className="block w-full rounded-lg border border-gray-200 px-3 py-2 pr-10 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
-                  />
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-2">Quick Access Presets</label>
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
-                    title={showPassword ? 'Hide Password' : 'Show Password'}
+                    onClick={() => applyPresetRole('attendance_taker')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      role === 'user'
+                        ? 'border-blue-500 bg-blue-50/70 text-blue-900 font-semibold ring-1 ring-blue-500'
+                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+                    }`}
                   >
-                    {showPassword ? (
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.025 10.025 0 014.122-.963c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
+                    <div className="text-xs font-bold flex items-center gap-1">📋 Attendance Taker</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Take & save attendance only</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => applyPresetRole('order_leader')}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      role === 'order_leader'
+                        ? 'border-amber-500 bg-amber-50/70 text-amber-900 font-semibold ring-1 ring-amber-500'
+                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-xs font-bold flex items-center gap-1">👥 Order Leader</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Reports scoped to order</div>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => applyPresetRole('admin')}
+                    disabled={editingUser?.uid === currentAdmin?.uid}
+                    className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                      role === 'admin'
+                        ? 'border-purple-500 bg-purple-50/70 text-purple-900 font-semibold ring-1 ring-purple-500'
+                        : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-700'
+                    }`}
+                  >
+                    <div className="text-xs font-bold flex items-center gap-1">🛡️ Full Admin</div>
+                    <div className="text-[10px] text-gray-500 mt-0.5">Full system control</div>
                   </button>
                 </div>
               </div>
 
-              {/* Password Field 2 — Confirm Password */}
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-                  {editingUser ? 'Confirm New Password (Optional)' : 'Confirm New Password *'}
-                </label>
-                <div className="relative">
-                  <input
-                    type={showConfirmPassword ? 'text' : 'password'}
-                    required={!editingUser || password.length > 0}
-                    minLength={6}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder={editingUser ? 'Re-type new password to confirm...' : 'Confirm new password...'}
-                    className="block w-full rounded-lg border border-gray-200 px-3 py-2 pr-10 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword(v => !v)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
-                    title={showConfirmPassword ? 'Hide Password' : 'Show Password'}
-                  >
-                    {showConfirmPassword ? (
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858-5.908a10.025 10.025 0 014.122-.963c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21M3 3l18 18" />
-                      </svg>
-                    ) : (
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
-                  </button>
+              {/* Module Access Checkboxes */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center justify-between">
+                  <span>Module Navigation Access</span>
+                  <span className="text-[10px] font-normal text-gray-400">Select allowed sidebar menus</span>
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {ALL_MODULES.map((mod) => {
+                    const checked = allowedModules.includes(mod.key)
+                    return (
+                      <label
+                        key={mod.key}
+                        className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer ${
+                          checked
+                            ? 'border-blue-300 bg-blue-50/40 text-gray-900'
+                            : 'border-gray-200 bg-white text-gray-500 hover:bg-gray-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleModule(mod.key)}
+                          className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                        <div>
+                          <div className="text-xs font-bold">{mod.label}</div>
+                          <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{mod.description}</div>
+                        </div>
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Display Name (Optional)</label>
-                <input
-                  type="text"
-                  value={displayName}
-                  onChange={(e) => setDisplayName(e.target.value)}
-                  placeholder="e.g. Order of San Pedro"
-                  className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
-                />
+              {/* Granular Action Restrictions */}
+              <div className="space-y-4 pt-2 border-t border-gray-100">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">Action Permissions & Scoping</h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Attendance Controls */}
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                    <span className="text-xs font-bold text-gray-900 block">Attendance Permissions</span>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canTakeAttendance}
+                        onChange={(e) => setCanTakeAttendance(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Can Take & Save Attendance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canFinalizeAttendance}
+                        onChange={(e) => setCanFinalizeAttendance(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Can Finalize & Lock Attendance Sessions</span>
+                    </label>
+                  </div>
+
+                  {/* Schedule Controls */}
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                    <span className="text-xs font-bold text-gray-900 block">Schedule Permissions</span>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canViewSchedules}
+                        onChange={(e) => setCanViewSchedules(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Can View Schedules</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canManageSchedules}
+                        onChange={(e) => setCanManageSchedules(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Can Add / Edit / Delete Schedules</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Reports & Order Scoping */}
+                <div className="p-3.5 rounded-xl border border-amber-200/80 bg-amber-50/40 space-y-3">
+                  <span className="text-xs font-bold text-amber-900 block">Reports & Order Scoping</span>
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canExportReports}
+                        onChange={(e) => setCanExportReports(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Can Download / Export PDF Reports</span>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">Assigned Order Group (Filter Scope)</label>
+                    <select
+                      value={assignedOrder}
+                      onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
+                      className="block w-full sm:w-64 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-amber-500 cursor-pointer"
+                    >
+                      <option value="">-- All Orders (Unrestricted Scope) --</option>
+                      {ORDER_GROUPS.map((grp) => (
+                        <option key={grp} value={grp}>{grp}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[10px] text-amber-700">If selected, member reports will be filtered exclusively for this Order.</p>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">System Access Role *</label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  disabled={editingUser?.uid === currentAdmin?.uid}
-                  className="block w-full rounded-lg border border-gray-200 px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 disabled:opacity-60 cursor-pointer"
-                >
-                  <option value="user">Attendance Taker (Take & Save Only)</option>
-                  <option value="admin">Admin (Full System Access)</option>
-                </select>
-                {editingUser?.uid === currentAdmin?.uid && (
-                  <p className="mt-1 text-[10px] text-amber-600 font-medium">You cannot change your own admin role.</p>
-                )}
-              </div>
-
-              <div className="flex justify-end space-x-3 pt-3 border-t border-gray-100">
+              {/* Modal Actions */}
+              <div className="flex justify-end space-x-3 pt-3 border-t border-gray-100 sticky bottom-0 bg-white z-10">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
@@ -462,7 +691,7 @@ export const UsersPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5"
+                  className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5"
                 >
                   {saving ? (
                     <>
@@ -470,7 +699,7 @@ export const UsersPage: React.FC = () => {
                       <span>Saving...</span>
                     </>
                   ) : (
-                    <span>{editingUser ? 'Update Profile' : 'Create Account & Save'}</span>
+                    <span>{editingUser ? 'Save Permissions' : 'Create Account'}</span>
                   )}
                 </button>
               </div>

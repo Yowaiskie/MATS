@@ -25,7 +25,8 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
   isSaving,
   isDirty,
 }) => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, canAction } = useAuth()
+  const canFinalize = isAdmin || canAction('canFinalizeAttendance')
   return (
     <div className="space-y-4">
       {/* Session details & Lock indicator */}
@@ -51,8 +52,8 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
           )}
         </div>
 
-        {/* Lock/Unlock & Report triggers (Admin Only) */}
-        {isAdmin && (
+        {/* Lock/Unlock & Report triggers */}
+        {canFinalize && (
           <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
             <button
               onClick={onGenerateReport}
