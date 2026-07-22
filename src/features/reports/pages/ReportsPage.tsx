@@ -242,27 +242,27 @@ export const ReportsPage: React.FC = () => {
               <table className="w-full text-left text-xs border-collapse">
                 <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
                   <tr>
-                    <th className="px-4 py-3">Server Name</th>
-                    <th className="px-4 py-3">Rank</th>
-                    <th className="px-4 py-3">Status</th>
-                    <th className="px-4 py-3 text-center">Assigned</th>
-                    <th className="px-4 py-3 text-center">Present</th>
-                    <th className="px-4 py-3 text-center">Late</th>
-                    <th className="px-4 py-3 text-center">Absent</th>
-                    <th className="px-4 py-3 text-center">Excused</th>
-                    <th className="px-4 py-3 text-right">Rate</th>
-                    <th className="px-4 py-3 text-center">Status</th>
-                    <th className="px-4 py-3 text-center">Actions</th>
+                    <th className="px-3 py-3">Server Name</th>
+                    <th className="px-2 py-3">Rank</th>
+                    <th className="px-2 py-3">Status</th>
+                    <th className="px-2 py-3 text-center">Assigned</th>
+                    <th className="px-2 py-3 text-center">Present</th>
+                    <th className="px-2 py-3 text-center">Late</th>
+                    <th className="px-2 py-3 text-center">Absent</th>
+                    <th className="px-2 py-3 text-center">Excused</th>
+                    <th className="px-2 py-3 text-right">Rate</th>
+                    <th className="px-2 py-3 text-center">Status</th>
+                    <th className="px-3 py-3 text-center">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {getFilteredMemberRows().length > 0 ? (
                     getFilteredMemberRows().map((row) => (
                       <tr key={row.memberId} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-4 py-4 text-gray-900 font-semibold whitespace-nowrap">{row.name}</td>
-                        <td className="px-4 py-4 text-gray-600 whitespace-nowrap">{row.rank}</td>
-                        <td className="px-4 py-4 whitespace-nowrap">
-                          <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                        <td className="px-3 py-3 text-gray-900 font-semibold">{row.name}</td>
+                        <td className="px-2 py-3 text-gray-600">{row.rank}</td>
+                        <td className="px-2 py-3">
+                          <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                             row.status === 'active'
                               ? 'bg-green-50 border border-green-200 text-green-700'
                               : row.status === 'inactive'
@@ -272,16 +272,16 @@ export const ReportsPage: React.FC = () => {
                             {row.status}
                           </span>
                         </td>
-                        <td className="px-4 py-4 text-center text-gray-700 font-semibold">{row.totalAssigned}</td>
-                        <td className="px-4 py-4 text-center text-green-600 font-semibold">{row.present}</td>
-                        <td className="px-4 py-4 text-center text-yellow-600 font-semibold">{row.late}</td>
-                        <td className="px-4 py-4 text-center text-red-600 font-semibold">{row.absent}</td>
-                        <td className="px-4 py-4 text-center text-gray-500">{row.excused}</td>
-                        <td className="px-4 py-4 text-right text-gray-900 font-bold">{row.rate}%</td>
+                        <td className="px-2 py-3 text-center text-gray-700 font-semibold">{row.totalAssigned}</td>
+                        <td className="px-2 py-3 text-center text-green-600 font-semibold">{row.present}</td>
+                        <td className="px-2 py-3 text-center text-yellow-600 font-semibold">{row.late}</td>
+                        <td className="px-2 py-3 text-center text-red-600 font-semibold">{row.absent}</td>
+                        <td className="px-2 py-3 text-center text-gray-500">{row.excused}</td>
+                        <td className="px-2 py-3 text-right text-gray-900 font-bold">{row.rate}%</td>
                         {/* Warning / Suspension Badge */}
-                        <td className="px-4 py-4 text-center whitespace-nowrap">
-                          <div className="flex flex-col items-center gap-1">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                        <td className="px-2 py-3 text-center">
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
                               row.warningStatus === 'suspended'
                                 ? 'bg-red-50 border-red-200 text-red-700'
                                 : row.warningStatus === 'warning'
@@ -313,20 +313,20 @@ export const ReportsPage: React.FC = () => {
                             {(row.sundayAbsences > 0 || row.weekdayAbsences > 0 || row.meetingAbsences > 0) && (
                               <span className="text-[9px] text-gray-400 font-medium">
                                 {[
-                                  row.sundayAbsences > 0 && `S: ${row.sundayAbsences}`,
-                                  row.weekdayAbsences > 0 && `W: ${row.weekdayAbsences}`,
-                                  row.meetingAbsences > 0 && `M: ${row.meetingAbsences}`
+                                  row.sundayAbsences > 0 && `S:${row.sundayAbsences}`,
+                                  row.weekdayAbsences > 0 && `W:${row.weekdayAbsences}`,
+                                  row.meetingAbsences > 0 && `M:${row.meetingAbsences}`
                                 ].filter(Boolean).join(' · ')}
                               </span>
                             )}
                           </div>
                         </td>
                         {/* View Breakdown Button */}
-                        <td className="px-4 py-4 text-center whitespace-nowrap">
+                        <td className="px-3 py-3 text-center">
                           {row.missedSchedules.length > 0 ? (
                             <button
                               onClick={() => handleViewBreakdown(row)}
-                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors cursor-pointer border border-blue-200"
+                              className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer border border-blue-200"
                             >
                               <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
