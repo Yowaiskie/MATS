@@ -426,10 +426,10 @@ export const UsersPage: React.FC = () => {
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={() => setIsModalOpen(false)}></div>
-          <div className="relative w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-gray-100 sticky top-0 bg-white z-10">
-              <div className="flex items-center space-x-2">
+          <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border border-gray-200 bg-white shadow-2xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
+            {/* Modal Fixed Header */}
+            <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-white shrink-0">
+              <div className="flex items-center space-x-2.5">
                 <span className="p-2 bg-blue-50 rounded-xl text-blue-600 border border-blue-100">
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
@@ -445,8 +445,8 @@ export const UsersPage: React.FC = () => {
               <button onClick={() => setIsModalOpen(false)} className="text-gray-400 hover:text-gray-700 cursor-pointer p-1 rounded-lg hover:bg-gray-100">✕</button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSaveUser} className="mt-4 space-y-6">
+            {/* Modal Scrollable Body */}
+            <form id="user-form" onSubmit={handleSaveUser} className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Account Credentials */}
               <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200/80 space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
@@ -678,32 +678,33 @@ export const UsersPage: React.FC = () => {
                   </div>
                 </div>
               </div>
-
-              {/* Modal Actions */}
-              <div className="flex justify-end space-x-3 pt-3 border-t border-gray-100 sticky bottom-0 bg-white z-10">
-                <button
-                  type="button"
-                  onClick={() => setIsModalOpen(false)}
-                  className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5"
-                >
-                  {saving ? (
-                    <>
-                      <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                      <span>Saving...</span>
-                    </>
-                  ) : (
-                    <span>{editingUser ? 'Save Permissions' : 'Create Account'}</span>
-                  )}
-                </button>
-              </div>
             </form>
+
+            {/* Modal Fixed Footer */}
+            <div className="flex items-center justify-end space-x-3 p-4 border-t border-gray-100 bg-white shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsModalOpen(false)}
+                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="user-form"
+                disabled={saving}
+                className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5"
+              >
+                {saving ? (
+                  <>
+                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <span>{editingUser ? 'Save Permissions' : 'Create Account'}</span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
