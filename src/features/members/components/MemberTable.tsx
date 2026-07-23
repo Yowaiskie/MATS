@@ -363,7 +363,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                               onClick={() => onArchive(member.id)}
                               className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
                             >
-                              Archive
+                              Delete
                             </button>
                           </>
                         ) : (

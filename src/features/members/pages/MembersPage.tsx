@@ -50,7 +50,7 @@ export const MembersPage: React.FC = () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await memberService.getMembers(showArchived)
+      const data = await memberService.getMembers(showArchived ? 'archived_only' : false)
       setMembers(data)
     } catch (err: any) {
       console.error(err)
@@ -85,11 +85,12 @@ export const MembersPage: React.FC = () => {
     const { id } = confirmArchive
     setConfirmArchive(null)
     try {
-      await memberService.archiveMember(id, profile?.email || 'Admin')
+      await memberService.deleteMember(id, profile?.email || 'Admin')
       await loadMembers()
+      setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
     } catch (err) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Archive Failed', message: 'Failed to archive member. Please try again.' })
+      setAlertModal({ variant: 'error', title: 'Delete Failed', message: 'Failed to delete member. Please try again.' })
     }
   }
 
@@ -151,19 +152,19 @@ export const MembersPage: React.FC = () => {
     setSelectedIds(new Set())
   }, [])
 
-  // Bulk archive confirmed
+  // Bulk delete confirmed
   const handleBulkArchiveConfirmed = async () => {
     setBulkProcessing(true)
     try {
       const ids = Array.from(selectedIds)
-      await memberService.bulkArchiveMembers(ids, profile?.email || 'Admin')
+      await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkArchiveOpen(false)
       setSelectedIds(new Set())
       await loadMembers()
-      setAlertModal({ variant: 'success', title: 'Bulk Archive Complete', message: `${ids.length} member(s) have been archived.` })
+      setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Bulk Archive Failed', message: err.message || 'Failed to archive selected members.' })
+      setAlertModal({ variant: 'error', title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected members.' })
     } finally {
       setBulkProcessing(false)
     }
@@ -320,26 +321,26 @@ export const MembersPage: React.FC = () => {
         existingMembers={members}
       />
 
-      {/* Single Archive Confirm Dialog */}
+      {/* Single Delete Confirm Dialog */}
       <ConfirmModal
         isOpen={!!confirmArchive}
         onClose={() => setConfirmArchive(null)}
         onConfirm={handleArchiveConfirmed}
-        variant="warning"
-        title="Archive Member"
-        message={`Are you sure you want to archive ${confirmArchive?.name}? They will be deactivated from scheduling.`}
-        confirmLabel="Archive"
+        variant="danger"
+        title="Permanently Delete Member"
+        message={`Are you sure you want to delete ${confirmArchive?.name}? This document will be permanently removed from the system.`}
+        confirmLabel="Delete Permanently"
       />
 
-      {/* Bulk Archive Confirm Dialog */}
+      {/* Bulk Delete Confirm Dialog */}
       <ConfirmModal
         isOpen={bulkArchiveOpen}
         onClose={() => setBulkArchiveOpen(false)}
         onConfirm={handleBulkArchiveConfirmed}
-        variant="warning"
-        title={`Archive ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
-        message={`Are you sure you want to archive ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? They will be deactivated from scheduling.`}
-        confirmLabel={`Archive ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        variant="danger"
+        title={`Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
+        message={`Are you sure you want to permanently delete ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        confirmLabel={`Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''} Permanently`}
         loading={bulkProcessing}
       />
 

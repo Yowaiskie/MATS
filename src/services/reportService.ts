@@ -120,11 +120,17 @@ export const reportService = {
       )
     }
 
-    const [membersSnap, schedulesSnap, attendanceSnap, policy] = await Promise.all([
+    let policy = DEFAULT_POLICY_SETTINGS
+    try {
+      policy = await settingsService.getPolicySettings()
+    } catch (err) {
+      console.warn('Could not load policy settings for report:', err)
+    }
+
+    const [membersSnap, schedulesSnap, attendanceSnap] = await Promise.all([
       getDocs(membersRef),
       getDocs(schedulesRef),
-      getDocs(attendanceQuery),
-      settingsService.getPolicySettings()
+      getDocs(attendanceQuery)
     ])
 
     const members = membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Member[]

@@ -41,17 +41,21 @@ export const dashboardService = {
     todaySchedules: Schedule[]
     activities: ActivityLog[]
   }> {
-    // Perform parallel reads to load all primary collections
-    const [allMembers, allSchedules, sessionSnapshot] = await Promise.all([
-      memberService.getMembers(true), // include archived
-      scheduleService.getSchedules(),
-      getDocs(collection(db, 'attendanceSessions'))
-    ])
+    let attendanceSessions: AttendanceSession[] = []
+    try {
+      const sessionSnapshot = await getDocs(collection(db, 'attendanceSessions'))
+      attendanceSessions = sessionSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as AttendanceSession[]
+    } catch (err) {
+      console.warn('Could not load attendanceSessions for dashboard:', err)
+    }
 
-    const attendanceSessions = sessionSnapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as AttendanceSession[]
+    const [allMembers, allSchedules] = await Promise.all([
+      memberService.getMembers(true),
+      scheduleService.getSchedules()
+    ])
 
     // 1. Calculate statistics
     const activeMembers = allMembers.filter(m => m.status === 'active').length

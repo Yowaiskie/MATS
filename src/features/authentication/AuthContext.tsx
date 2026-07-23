@@ -41,7 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (currentUser) {
         try {
-          const userProfile = await authService.getUserProfile(currentUser.uid)
+          const userProfile = await authService.getUserProfile(currentUser.uid, currentUser.email)
           
           if (userProfile) {
             setUser(currentUser)

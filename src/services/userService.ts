@@ -7,6 +7,7 @@ import {
   updateDoc, 
   deleteDoc, 
   query, 
+  where,
   orderBy, 
   serverTimestamp 
 } from 'firebase/firestore'
@@ -47,13 +48,30 @@ export const userService = {
       const secondaryApp = getApps().find(app => app.name === 'SecondaryApp') || initializeApp(firebaseConfig, 'SecondaryApp')
       const secondaryAuth = getAuth(secondaryApp)
 
-      const userCredential = await createUserWithEmailAndPassword(
-        secondaryAuth,
-        data.email.trim(),
-        data.password.trim()
-      )
-      uid = userCredential.user.uid
-      await signOut(secondaryAuth)
+      try {
+        const userCredential = await createUserWithEmailAndPassword(
+          secondaryAuth,
+          data.email.trim(),
+          data.password.trim()
+        )
+        uid = userCredential.user.uid
+        await signOut(secondaryAuth)
+      } catch (err: any) {
+        if (err.code === 'auth/email-already-in-use') {
+          // Check if profile document already exists in Firestore by querying users collection
+          const usersRef = collection(db, USERS_COLLECTION)
+          const q = query(usersRef, where('email', '==', data.email.toLowerCase().trim()))
+          const snap = await getDocs(q)
+          if (!snap.empty) {
+            uid = snap.docs[0].id
+          } else {
+            // Document missing, search by email hash/string or generate custom doc ID linked to email
+            uid = `user_${data.email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`
+          }
+        } else {
+          throw err
+        }
+      }
     } else {
       uid = `user_${Date.now()}`
     }

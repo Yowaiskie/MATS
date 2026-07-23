@@ -20,7 +20,7 @@ export const memberService = {
    * Fetches all members from Firestore, ordered by lastName then firstName.
    * If includeArchived is false, it excludes 'archived' status members.
    */
-  async getMembers(includeArchived = false): Promise<Member[]> {
+  async getMembers(includeArchived: boolean | 'archived_only' = false): Promise<Member[]> {
     const membersRef = collection(db, MEMBERS_COLLECTION)
     const snapshot = await getDocs(membersRef)
     let members = snapshot.docs.map(doc => ({
@@ -28,13 +28,14 @@ export const memberService = {
       ...doc.data()
     })) as Member[]
     
-    if (!includeArchived) {
-      // Active Members tab: show active and inactive members (exclude archived)
-      members = members.filter(m => m.status !== 'archived')
-    } else {
+    if (includeArchived === 'archived_only') {
       // Archived Members tab: show ONLY archived members
       members = members.filter(m => m.status === 'archived')
+    } else if (!includeArchived) {
+      // Active Members tab: show active and inactive members (exclude archived)
+      members = members.filter(m => m.status !== 'archived')
     }
+    // If includeArchived === true (or 'all'), return ALL members (active, inactive, archived) without filtering out active ones!
     
     members.sort((a, b) => {
       const lastA = (a.lastName || '').toLowerCase()

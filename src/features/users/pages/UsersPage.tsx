@@ -328,13 +328,15 @@ export const UsersPage: React.FC = () => {
           return
         }
 
+        const selectedOrder = assignedOrder ? (assignedOrder as OrderGroup) : undefined
+
         await userService.saveUserProfile(
           {
             uid: editingUser.uid,
             email: email.trim(),
             displayName: displayName.trim() || undefined,
             role,
-            assignedOrder: role === 'order_leader' ? (assignedOrder as OrderGroup) : undefined,
+            assignedOrder: selectedOrder,
             permissions: permissionsPayload
           },
           currentAdmin?.email || 'Admin'
@@ -342,13 +344,15 @@ export const UsersPage: React.FC = () => {
 
         setSuccessMsg(`User profile '${email.trim()}' successfully updated with custom permissions!`)
       } else {
+        const selectedOrder = assignedOrder ? (assignedOrder as OrderGroup) : undefined
+
         await userService.registerNewUserWithAuth(
           {
             email: email.trim(),
             password: password.trim(),
             displayName: displayName.trim() || undefined,
             role,
-            assignedOrder: role === 'order_leader' ? (assignedOrder as OrderGroup) : undefined,
+            assignedOrder: selectedOrder,
             permissions: permissionsPayload
           },
           currentAdmin?.email || 'Admin'
@@ -362,9 +366,7 @@ export const UsersPage: React.FC = () => {
     } catch (err: any) {
       console.error(err)
       let msg = err.message || 'Failed to save user profile.'
-      if (err.code === 'auth/email-already-in-use') {
-        msg = 'An account with this email address already exists in Firebase Auth.'
-      } else if (err.code === 'auth/weak-password') {
+      if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters long.'
       }
       setError(msg)

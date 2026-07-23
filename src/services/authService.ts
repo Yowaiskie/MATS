@@ -4,7 +4,7 @@ import {
   EmailAuthProvider,
   reauthenticateWithCredential
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
 import type { UserProfile } from '@/types/auth'
 
@@ -40,12 +40,26 @@ export const authService = {
    * Fetches the user profile from the Firestore users collection.
    * Returns null if the profile does not exist.
    */
-  async getUserProfile(uid: string): Promise<UserProfile | null> {
-    const userDocRef = doc(db, 'users', uid)
-    const userDoc = await getDoc(userDocRef)
-    if (userDoc.exists()) {
-      return userDoc.data() as UserProfile
+  async getUserProfile(uid: string, email?: string | null): Promise<UserProfile | null> {
+    try {
+      const userDocRef = doc(db, 'users', uid)
+      const userDoc = await getDoc(userDocRef)
+      if (userDoc.exists()) {
+        return userDoc.data() as UserProfile
+      }
+
+      if (email) {
+        const usersRef = collection(db, 'users')
+        const q = query(usersRef, where('email', '==', email.toLowerCase().trim()))
+        const snap = await getDocs(q)
+        if (!snap.empty) {
+          return snap.docs[0].data() as UserProfile
+        }
+      }
+    } catch (err) {
+      console.warn('Could not fetch user profile from Firestore:', err)
     }
+
     return null
   }
 }

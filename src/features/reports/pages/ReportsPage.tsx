@@ -61,31 +61,51 @@ export const ReportsPage: React.FC = () => {
     setStatusFilter('all')
   }, [activeTab])
 
-  // Computed views based on rawData
-  const getOverallSummary = (): OverallSummary => {
-    if (!rawData) return { present: 0, late: 0, absent: 0, excused: 0, total: 0, rate: 0 }
-    return reportService.generateOverallSummary(rawData)
-  }
+  // Compute scoped raw data based on logged in user's assignedOrder (or permissions assignedOrder)
+  const getScopedRawData = (): ReportRawData | null => {
+    if (!rawData) return null
 
-  const getFilteredMemberRows = (): MemberReportRow[] => {
-    if (!rawData) return []
-
-    // If logged in user is an Order Leader (or has assigned order scoping), scope raw members to their order first
-    let scopedRawData = rawData
+    // Determine target order scope from permissions or profile
     const assignedOrderScope = profile?.permissions?.assignedOrder || profile?.assignedOrder
-    if ((profile?.role === 'order_leader' || assignedOrderScope) && assignedOrderScope) {
+    const isOrderLeaderRole = profile?.role === 'order_leader' || !!profile?.permissions?.assignedOrder
+
+    if (isOrderLeaderRole && assignedOrderScope) {
       const targetOrder = assignedOrderScope.toLowerCase().trim()
-      scopedRawData = {
+      
+      // Filter members matching target order
+      const scopedMembers = rawData.members.filter(m => {
+        if (!m.order) return false
+        const memberOrder = m.order.toLowerCase().trim()
+        return memberOrder.includes(targetOrder) || targetOrder.includes(memberOrder)
+      })
+
+      const scopedMemberIds = new Set(scopedMembers.map(m => m.id))
+
+      // Filter attendance records to only include assigned scoped members
+      const scopedAttendance = rawData.attendance.filter(a => scopedMemberIds.has(a.memberId))
+
+      return {
         ...rawData,
-        members: rawData.members.filter(m => {
-          if (!m.order) return false
-          const memberOrder = m.order.toLowerCase().trim()
-          return memberOrder.includes(targetOrder) || targetOrder.includes(memberOrder)
-        })
+        members: scopedMembers,
+        attendance: scopedAttendance
       }
     }
 
-    let rows = reportService.generateMemberReport(scopedRawData)
+    return rawData
+  }
+
+  const scopedData = getScopedRawData()
+
+  // Computed views based on scopedData
+  const getOverallSummary = (): OverallSummary => {
+    if (!scopedData) return { present: 0, late: 0, absent: 0, excused: 0, total: 0, rate: 0 }
+    return reportService.generateOverallSummary(scopedData)
+  }
+
+  const getFilteredMemberRows = (): MemberReportRow[] => {
+    if (!scopedData) return []
+
+    let rows = reportService.generateMemberReport(scopedData)
 
     // Apply search query filter
     if (searchQuery.trim()) {
@@ -102,16 +122,16 @@ export const ReportsPage: React.FC = () => {
   }
 
   const getFilteredScheduleRows = (): ScheduleReportRow[] => {
-    if (!rawData) return []
-    const rows = reportService.generateScheduleReport(rawData)
+    if (!scopedData) return []
+    const rows = reportService.generateScheduleReport(scopedData)
     if (!searchQuery.trim()) return rows
     const query = searchQuery.toLowerCase().trim()
     return rows.filter(r => r.title.toLowerCase().includes(query))
   }
 
   const getMonthlyRows = (): MonthlyReportRow[] => {
-    if (!rawData) return []
-    return reportService.generateMonthlyReport(rawData, selectedYear)
+    if (!scopedData) return []
+    return reportService.generateMonthlyReport(scopedData, selectedYear)
   }
 
   const overallSummary = getOverallSummary()
