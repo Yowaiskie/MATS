@@ -61,6 +61,8 @@ export interface MemberReportRow {
   weekdayAbsences: number
   meetingAbsences: number
   policyAbsencesCount: number // max of the category counts
+  otherServerCount: number
+  otherServerSchedules: MissedScheduleItem[]
 }
 
 export interface ScheduleReportRow {
@@ -199,6 +201,7 @@ export const reportService = {
       const rate = calculateAttendanceRate(summary)
 
       const missedSchedules: MissedScheduleItem[] = []
+      const otherServerSchedules: MissedScheduleItem[] = []
       let sundayAbsentCount = 0
       let weekdayAbsentCount = 0
       let meetingAbsentCount = 0
@@ -223,6 +226,18 @@ export const reportService = {
 
         const shouldCountAsAbsence = rec.status === 'absent'
         const shouldCountAsLate = rec.status === 'late'
+
+        if (rec.isOtherServer) {
+          otherServerSchedules.push({
+            scheduleId: rec.scheduleId,
+            title,
+            date: dateStr,
+            startTime: schedule?.startTime || '',
+            endTime: schedule?.endTime || '',
+            isSunday,
+            isMeeting
+          })
+        }
 
         if (shouldCountAsAbsence) {
           const item: MissedScheduleItem = {
@@ -255,8 +270,9 @@ export const reportService = {
       const weekdayAbsences = weekdayAbsentCount + Math.floor(weekdayLateCount / 2)
       const meetingAbsences = meetingAbsentCount + Math.floor(meetingLateCount / 2)
 
-      // Sort missed schedules by date descending (most recent first)
+      // Sort missed and other server schedules by date descending (most recent first)
       missedSchedules.sort((a, b) => b.date.localeCompare(a.date))
+      otherServerSchedules.sort((a, b) => b.date.localeCompare(a.date))
 
       // Determine dynamic warning / suspension status PER CATEGORY
       // A member is warned/suspended if ANY single category reaches the threshold
@@ -305,7 +321,9 @@ export const reportService = {
         sundayAbsences,
         weekdayAbsences,
         meetingAbsences,
-        policyAbsencesCount: maxCategoryAbsences
+        policyAbsencesCount: maxCategoryAbsences,
+        otherServerCount: otherServerSchedules.length,
+        otherServerSchedules
       }
     })
     // Sort by name alphabetically
