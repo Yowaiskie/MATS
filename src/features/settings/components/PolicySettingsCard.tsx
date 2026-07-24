@@ -145,22 +145,43 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
             <div className="h-0.5 w-4 bg-blue-400 rounded-full"></div>
             <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Evaluation Window</h3>
           </div>
-          <div className="max-w-md">
-            <label className="block text-xs font-semibold text-gray-700 mb-1.5">
-              Evaluation Period Duration <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={policy.evaluationMonths}
-              onChange={(e) => setPolicy(p => ({ ...p, evaluationMonths: parseInt(e.target.value, 10) }))}
-              className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow cursor-pointer bg-white"
-            >
-              <option value={1}>1 Month (Last 30 days)</option>
-              <option value={2}>2 Months (Last 60 days)</option>
-              <option value={3}>3 Months (Quarterly / 90 days)</option>
-              <option value={6}>6 Months (Semi-annual)</option>
-              <option value={0}>All Time (Entire Schedule History)</option>
-            </select>
-            <p className="mt-1 text-xs text-gray-400">Time window of schedule history evaluated for absences.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Evaluation Calendar Month Picker
+              </label>
+              <div className="relative">
+                <input
+                  type="month"
+                  value={policy.evaluationMonthStr || ''}
+                  onChange={(e) => setPolicy(p => ({ ...p, evaluationMonthStr: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow cursor-pointer bg-white font-medium"
+                />
+              </div>
+              <p className="mt-1 text-xs text-gray-400">Pick a specific calendar month (e.g. July 2026)</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">
+                Or Duration (Months) <span className="text-red-500">*</span>
+              </label>
+              <select
+                value={policy.evaluationMonths}
+                onChange={(e) => setPolicy(p => ({ ...p, evaluationMonths: parseInt(e.target.value, 10), evaluationMonthStr: '' }))}
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow cursor-pointer bg-white font-medium"
+              >
+                <option value={1}>1 Month (Last 30 Days)</option>
+                <option value={2}>2 Months (Last 60 Days)</option>
+                <option value={3}>3 Months (Quarterly / 90 Days)</option>
+                <option value={4}>4 Months</option>
+                <option value={5}>5 Months</option>
+                <option value={6}>6 Months (Semi-annual)</option>
+                <option value={9}>9 Months</option>
+                <option value={12}>12 Months (1 Year)</option>
+                <option value={0}>All Time (No cutoff date)</option>
+              </select>
+              <p className="mt-1 text-xs text-gray-400">Relative sliding timeframe</p>
+            </div>
           </div>
         </div>
 

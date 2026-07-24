@@ -54,7 +54,7 @@ export interface MemberReportRow {
   absent: number
   excused: number
   rate: number
-  warningStatus: 'active' | 'warning' | 'suspended'
+  warningStatus: 'active' | 'warning' | 'suspended' | 'inactive'
   warningCategory: 'none' | 'sunday' | 'weekday' | 'meeting' | 'multiple' // which category triggered warning/suspension
   missedSchedules: MissedScheduleItem[]
   sundayAbsences: number
@@ -187,9 +187,17 @@ export const reportService = {
     const schedulesMap = new Map<string, Schedule>()
     schedules.forEach(s => schedulesMap.set(s.id, s))
 
-    // Calculate cutoff date for evaluationMonths (if evaluationMonths > 0)
+    // Calculate cutoff date for evaluationMonths or specific evaluationMonthStr
     let cutoffDateStr = ''
-    if (policy.evaluationMonths && policy.evaluationMonths > 0) {
+    let endDateLimitStr = ''
+    if (policy.evaluationMonthStr) {
+      const [yearStr, monthStr] = policy.evaluationMonthStr.split('-')
+      const year = parseInt(yearStr, 10)
+      const month = parseInt(monthStr, 10)
+      cutoffDateStr = `${year}-${String(month).padStart(2, '0')}-01`
+      const lastDayNum = new Date(year, month, 0).getDate()
+      endDateLimitStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`
+    } else if (policy.evaluationMonths && policy.evaluationMonths > 0) {
       const d = new Date()
       d.setMonth(d.getMonth() - policy.evaluationMonths)
       cutoffDateStr = d.toISOString().split('T')[0]
@@ -214,8 +222,8 @@ export const reportService = {
         const dateStr = rec.attendanceDate || schedule?.date || ''
         const title = schedule?.title || 'Mass / Meeting'
 
-        // Check date cutoff if evaluationMonths is set
-        if (cutoffDateStr && dateStr < cutoffDateStr) {
+        // Check date cutoff if evaluationMonths or evaluationMonthStr is set
+        if ((cutoffDateStr && dateStr < cutoffDateStr) || (endDateLimitStr && dateStr > endDateLimitStr)) {
           return
         }
 
@@ -274,10 +282,10 @@ export const reportService = {
       missedSchedules.sort((a, b) => b.date.localeCompare(a.date))
       otherServerSchedules.sort((a, b) => b.date.localeCompare(a.date))
 
-      // Determine dynamic warning / suspension status PER CATEGORY
-      // A member is warned/suspended if ANY single category reaches the threshold
+      // Determine dynamic warning / suspension / inactive status PER CATEGORY
+      // Member is inactive if they have 0% attendance rate (0 assigned presents)
       const maxCategoryAbsences = Math.max(sundayAbsences, weekdayAbsences, meetingAbsences)
-      let warningStatus: 'active' | 'warning' | 'suspended' = 'active'
+      let warningStatus: 'active' | 'warning' | 'suspended' | 'inactive' = 'active'
       let warningCategory: 'none' | 'sunday' | 'weekday' | 'meeting' | 'multiple' = 'none'
 
       const sundaySuspended = policy.includeSundays && sundayAbsences >= policy.suspensionAbsenceThreshold
@@ -290,7 +298,10 @@ export const reportService = {
       const suspendedCount = [sundaySuspended, weekdaySuspended, meetingSuspended].filter(Boolean).length
       const warningCount = [sundayWarning, weekdayWarning, meetingWarning].filter(Boolean).length
 
-      if (suspendedCount > 0) {
+      const effectiveTotal = summary.total - summary.excused
+      if (summary.present === 0 && summary.absent > 0 && otherServerSchedules.length === 0 && effectiveTotal > 0) {
+        warningStatus = 'inactive'
+      } else if (suspendedCount > 0) {
         warningStatus = 'suspended'
         if (suspendedCount > 1) warningCategory = 'multiple'
         else if (sundaySuspended) warningCategory = 'sunday'

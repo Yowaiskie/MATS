@@ -89,6 +89,8 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
                   ? 'bg-red-50 border-red-200 text-red-700'
                   : memberRow.warningStatus === 'warning'
                   ? 'bg-amber-50 border-amber-200 text-amber-700'
+                  : memberRow.warningStatus === 'inactive'
+                  ? 'bg-slate-100 border-slate-300 text-slate-700'
                   : 'bg-emerald-50 border-emerald-200 text-emerald-700'
               }`}>
                 {memberRow.warningStatus === 'suspended' ? (
@@ -104,6 +106,13 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                     <span>Warning</span>
+                  </>
+                ) : memberRow.warningStatus === 'inactive' ? (
+                  <>
+                    <svg className="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                    </svg>
+                    <span>Inactive</span>
                   </>
                 ) : (
                   <>
@@ -132,14 +141,26 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
             </div>
           </div>
 
+          {/* Inactive Status Banner */}
+          {memberRow.warningStatus === 'inactive' && (
+            <div className="p-2.5 rounded-lg border border-slate-300 bg-slate-100 text-slate-800 text-[11px] flex items-start gap-2">
+              <svg className="h-3.5 w-3.5 text-slate-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <strong className="font-semibold">Inactive Status:</strong> This member has 0 serves (0% Attendance Rate) in the evaluated period and is marked Inactive.
+              </div>
+            </div>
+          )}
+
           {/* Other Server Consideration Banner */}
-          {otherServerCount > 0 && (memberRow.warningStatus === 'suspended' || memberRow.warningStatus === 'warning') && (
+          {otherServerCount > 0 && (
             <div className="p-2.5 rounded-lg border border-indigo-200 bg-indigo-50/70 text-indigo-900 text-[11px] flex items-start gap-2">
               <svg className="h-3.5 w-3.5 text-indigo-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
               <div>
-                <strong className="font-semibold">Leniency Context:</strong> This member has <strong>{otherServerCount} extra service(s) logged as Other Server</strong>. Admins may consider these additional services for leniency even though assigned schedule absences were flagged.
+                <strong className="font-semibold">Leniency Context:</strong> This member has <strong>{otherServerCount} extra service(s) logged as Other Server</strong>. Admins may consider these additional services for leniency.
               </div>
             </div>
           )}

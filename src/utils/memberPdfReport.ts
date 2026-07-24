@@ -125,6 +125,8 @@ export const downloadMembersReportPdf = async (
       ? 'SUSPENDED'
       : r.warningStatus === 'warning'
       ? 'WARNING'
+      : r.warningStatus === 'inactive'
+      ? 'INACTIVE'
       : 'ACTIVE'
 
     return [
@@ -180,6 +182,9 @@ export const downloadMembersReportPdf = async (
         } else if (val === 'WARNING') {
           data.cell.styles.textColor = [180, 83, 9]  // Amber 700
           data.cell.styles.fillColor = [254, 243, 199] // Amber 100
+        } else if (val === 'INACTIVE') {
+          data.cell.styles.textColor = [71, 85, 105] // Slate 700
+          data.cell.styles.fillColor = [241, 245, 249] // Slate 100
         } else {
           data.cell.styles.textColor = [21, 128, 61] // Emerald 700
           data.cell.styles.fillColor = [220, 252, 231] // Emerald 100

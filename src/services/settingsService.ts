@@ -23,6 +23,7 @@ export interface SuspensionPolicySettings {
   warningAbsenceThreshold: number // default 2
   suspensionAbsenceThreshold: number // default 3
   evaluationMonths: number // default 1 (0 = All Time)
+  evaluationMonthStr?: string // e.g. "2026-07"
   includeSundays: boolean // default true
   includeWeekdays: boolean // default false
   includeMeetings: boolean // default true
@@ -33,6 +34,7 @@ export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
   warningAbsenceThreshold: 2,
   suspensionAbsenceThreshold: 3,
   evaluationMonths: 1,
+  evaluationMonthStr: '',
   includeSundays: true,
   includeWeekdays: false,
   includeMeetings: true

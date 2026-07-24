@@ -31,9 +31,36 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 
   return (
     <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-sm select-none">
-      {/* Date range filters (Used by Summary, Member, Schedule tabs) */}
+      {/* Date range & Month Picker filters (Used by Summary, Member, Schedule tabs) */}
       {activeTab !== 'monthly' && (
         <>
+          <div className="flex flex-col space-y-1.5 w-full md:w-52">
+            <label htmlFor="filter-month-select" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+              Select Month
+            </label>
+            <input
+              id="filter-month-select"
+              type="month"
+              onChange={(e) => {
+                const val = e.target.value
+                if (!val) {
+                  onStartDateChange('')
+                  onEndDateChange('')
+                  return
+                }
+                const [yearStr, monthStr] = val.split('-')
+                const year = parseInt(yearStr, 10)
+                const month = parseInt(monthStr, 10)
+                const firstDay = `${year}-${String(month).padStart(2, '0')}-01`
+                const lastDayNum = new Date(year, month, 0).getDate()
+                const lastDay = `${year}-${String(month).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`
+                onStartDateChange(firstDay)
+                onEndDateChange(lastDay)
+              }}
+              className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
+            />
+          </div>
+
           <div className="flex flex-col space-y-1.5 flex-1">
             <label htmlFor="filter-start" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
               Start Date
@@ -85,7 +112,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {activeTab === 'member' && onStatusFilterChange && (
         <div className="flex flex-col space-y-1.5 w-full md:w-56">
           <label htmlFor="filter-suspension" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
-            Suspension Status
+            Evaluation Status
           </label>
           <select
             id="filter-suspension"
@@ -94,9 +121,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer"
           >
             <option value="all">All Statuses</option>
+            <option value="active">Active / Good Standing</option>
             <option value="warning">Warning Only</option>
             <option value="suspended">Suspended Only</option>
-            <option value="active">Active / Good Standing</option>
+            <option value="inactive">Inactive (0 Serves)</option>
           </select>
         </div>
       )}

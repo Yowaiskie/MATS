@@ -4,12 +4,14 @@ import { scheduleService } from '@/services/scheduleService'
 import type { AuditLog, AuditCategory, AuditAction } from '@/types/audit'
 import type { Schedule } from '@/types/schedule'
 import { Card } from '@/components/Card'
+import { Pagination } from '@/components/Pagination'
 
 export const AuditPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [schedulesMap, setSchedulesMap] = useState<Record<string, Schedule>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -46,6 +48,10 @@ export const AuditPage: React.FC = () => {
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, categoryFilter, actionFilter])
 
   // Format firestore timestamp
   const formatTimestamp = (ts: any) => {
@@ -409,7 +415,7 @@ export const AuditPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log) => (
+                filteredLogs.slice((currentPage - 1) * 10, currentPage * 10).map((log) => (
                   <tr key={log.id} className="hover:bg-gray-50/30 transition-colors">
                     {/* Timestamp */}
                     <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
@@ -462,6 +468,12 @@ export const AuditPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredLogs.length}
+          pageSize={10}
+          onPageChange={setCurrentPage}
+        />
       </Card>
 
       {/* Human-Friendly Details Modal */}

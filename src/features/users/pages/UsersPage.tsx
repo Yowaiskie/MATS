@@ -7,6 +7,7 @@ import type { OrderGroup } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
+import { Pagination } from '@/components/Pagination'
 
 const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'dashboard', label: 'Dashboard Overview', description: 'Access main metrics and overview dashboard' },
@@ -60,6 +61,7 @@ export const UsersPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Presets Management Modal State
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false)
@@ -473,7 +475,7 @@ export const UsersPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                users.map((u) => {
+                users.slice((currentPage - 1) * 10, currentPage * 10).map((u) => {
                   const isCurrent = u.uid === currentAdmin?.uid
 
                   return (
@@ -552,6 +554,12 @@ export const UsersPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={users.length}
+          pageSize={10}
+          onPageChange={setCurrentPage}
+        />
       </Card>
 
       {/* Add / Edit User Modal */}

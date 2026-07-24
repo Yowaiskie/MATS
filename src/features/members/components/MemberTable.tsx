@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { getFullName } from '@/utils/member'
+import { Pagination } from '@/components/Pagination'
 
 interface MemberTableProps {
   members: Member[]
@@ -38,11 +39,13 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   const [orderFilter, setOrderFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
+  const [currentPage, setCurrentPage] = useState(1)
 
-  // Clear selection when tab switches
+  // Reset page when filters change
   useEffect(() => {
+    setCurrentPage(1)
     onClearSelection()
-  }, [showArchived])
+  }, [showArchived, searchTerm, statusFilter, orderFilter])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -109,6 +112,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({
     sortField === field ? (
       <span className="text-blue-500">{sortDirection === 'asc' ? ' ▲' : ' ▼'}</span>
     ) : null
+
+  const paginatedMembers = filteredMembers.slice((currentPage - 1) * 10, currentPage * 10)
 
   return (
     <div className="space-y-4">
@@ -286,8 +291,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
-              {filteredMembers.length > 0 ? (
-                filteredMembers.map((member) => {
+              {paginatedMembers.length > 0 ? (
+                paginatedMembers.map((member) => {
                   const isSelected = selectedIds.has(member.id)
                   const orderBadgeStyle = member.order
                     ? {
@@ -396,6 +401,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Controls */}
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredMembers.length}
+          pageSize={10}
+          onPageChange={setCurrentPage}
+        />
       </div>
     </div>
   )

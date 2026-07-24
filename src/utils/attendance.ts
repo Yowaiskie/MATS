@@ -37,10 +37,12 @@ export const calculateAttendanceSummary = (
 
 /**
  * Computes attendance percentage rate rounded to two decimal places:
- * Present / (Present + Late + Absent + Excused) * 100
+ * Present / (Total Assigned - Excused) * 100
+ * Excused schedules are excluded from the required denominator so they do not penalize the member's rate.
  */
 export const calculateAttendanceRate = (summary: AttendanceSummary): number => {
-  if (summary.total === 0) return 0
-  const rate = (summary.present / summary.total) * 100
+  const effectiveTotal = summary.total - summary.excused
+  if (effectiveTotal <= 0) return summary.total > 0 ? 100 : 0
+  const rate = (summary.present / effectiveTotal) * 100
   return Number(rate.toFixed(2))
 }
