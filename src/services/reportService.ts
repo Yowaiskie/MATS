@@ -10,6 +10,7 @@ import type { Schedule } from '@/types/schedule'
 import type { AttendanceRecord } from '@/types/attendance'
 import { calculateAttendanceSummary, calculateAttendanceRate } from '@/utils/attendance'
 import { getFullName } from '@/utils/member'
+import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
 import { settingsService, DEFAULT_POLICY_SETTINGS } from '@/services/settingsService'
 import type { SuspensionPolicySettings } from '@/services/settingsService'
 
@@ -227,8 +228,7 @@ export const reportService = {
           return
         }
 
-        const dateObj = new Date(dateStr)
-        const isSunday = dateObj.getDay() === 0 || title.toLowerCase().includes('sunday')
+        const isSunday = isSundayOrAnticipatedMass(title, dateStr, schedule?.startTime)
         const isMeeting = title.toLowerCase().includes('meeting') || title.toLowerCase().includes('assembly')
         const isWeekday = !isSunday && !isMeeting
 

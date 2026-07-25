@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mats-static-v2';
+const CACHE_NAME = 'mats-static-v3';
 
 // Static assets to pre-cache on install
 const PRECACHE_ASSETS = [
@@ -9,8 +9,12 @@ const PRECACHE_ASSETS = [
   '/icon-192.png',
   '/icon-512.png',
   '/icon-512-maskable.png',
+  '/android-chrome-192x192.png',
+  '/android-chrome-512x512.png',
   '/apple-touch-icon.png',
-  '/favicon.svg'
+  '/favicon.ico',
+  '/favicon-16x16.png',
+  '/favicon-32x32.png'
 ];
 
 // Helper to determine if a request is targeting Firebase/Firestore or dynamic data APIs
@@ -51,13 +55,12 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
+  const url = request.url;
 
-  // Only handle GET requests
-  if (request.method !== 'GET') {
+  // Only handle GET requests with http/https schemes (ignore chrome-extension://, blob:, data:, etc.)
+  if (request.method !== 'GET' || (!url.startsWith('http://') && !url.startsWith('https://'))) {
     return;
   }
-
-  const url = request.url;
 
   // CRITICAL REQUIREMENT: Always bypass cache for Firebase & Firestore network requests
   if (isFirebaseOrApiRequest(url)) {
@@ -73,8 +76,10 @@ self.addEventListener('fetch', (event) => {
         if (networkResponse && networkResponse.status === 200 && networkResponse.type === 'basic') {
           const responseToCache = networkResponse.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(request, responseToCache);
-          });
+            cache.put(request, responseToCache).catch((err) => {
+              console.warn('Failed to cache resource:', url, err);
+            });
+          }).catch(() => {});
         }
         return networkResponse;
       })

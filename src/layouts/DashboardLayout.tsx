@@ -5,6 +5,7 @@ import type { ModuleKey } from '@/types/auth'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { InstallPWAButton } from '@/components/InstallPWAButton'
 
+// Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
   Dashboard: (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,25 +110,26 @@ export const DashboardLayout: React.FC = () => {
       <OfflineBanner />
 
       {/* Top Navbar */}
-      <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/95">
+      <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95">
         <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            {/* Hamburger for Mobile */}
+          <div className="flex items-center space-x-3 sm:space-x-4">
+            {/* Hamburger Button for Mobile */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="sm:hidden text-gray-500 hover:text-gray-900 focus:outline-none p-1 rounded-lg hover:bg-gray-100 transition-colors"
+              className="sm:hidden text-gray-600 hover:text-gray-900 focus:outline-none p-2 rounded-xl hover:bg-gray-100 transition-all border border-gray-200/60 bg-gray-50/80 active:scale-95 cursor-pointer shadow-2xs"
               aria-label="Toggle navigation menu"
             >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileMenuOpen ? "M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} />
               </svg>
             </button>
 
-            {/* Collapse toggle for Desktop */}
+            {/* Collapse Toggle Button for Desktop */}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="hidden sm:inline-block text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none"
+              className="hidden sm:inline-flex text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-all focus:outline-none cursor-pointer border border-transparent hover:border-gray-200"
               aria-label="Toggle sidebar collapse"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collapsed ? "M13 5l7 7-7 7M5 5l7 7-7 7" : "M11 19l-7-7 7-7M19 19l-7-7 7-7"} />
@@ -140,11 +142,11 @@ export const DashboardLayout: React.FC = () => {
               <span>/</span>
               <span className="text-gray-700 font-bold tracking-normal text-sm capitalize">{getPageTitle()}</span>
             </div>
-            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize">{getPageTitle()}</span>
+            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize truncate max-w-[160px]">{getPageTitle()}</span>
           </div>
 
           {/* Top Nav Right Actions */}
-          <div className="flex items-center space-x-3">
+          <div className="flex items-center space-x-2 sm:space-x-3">
             <InstallPWAButton />
             <span className="text-xs text-gray-500 hidden md:inline-block">
               User: <strong className="text-gray-700 font-semibold">{profile?.email || 'Admin'}</strong>
@@ -152,7 +154,7 @@ export const DashboardLayout: React.FC = () => {
             <button
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
             >
               {loggingOut ? 'Signing out...' : 'Sign Out'}
             </button>
@@ -168,14 +170,14 @@ export const DashboardLayout: React.FC = () => {
           }`}
         >
           {/* Logo Brand Header */}
-          <div className="flex items-center space-x-3 px-2 pb-4 border-b border-gray-100 mb-4 overflow-hidden">
+          <div className="flex items-center space-x-3 px-2 pb-4 border-b border-gray-100 mb-4 overflow-hidden shrink-0">
             <img 
               src="/ministy_logo.jpg" 
               alt="Logo" 
               className="h-9 w-9 rounded-lg border border-gray-200/60 object-cover shrink-0" 
             />
             {!collapsed && (
-              <span className="font-extrabold text-base tracking-tight text-gray-900 transition-opacity duration-150">
+              <span className="font-extrabold text-base tracking-tight text-gray-900 transition-opacity duration-150 truncate">
                 MATS Portal
               </span>
             )}
@@ -205,6 +207,15 @@ export const DashboardLayout: React.FC = () => {
               )
             })}
           </nav>
+
+          {!collapsed && (
+            <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 shrink-0">
+              <div className="truncate">
+                <div className="text-[10px] uppercase font-bold text-gray-400">Signed in as</div>
+                <div className="font-semibold text-gray-800 truncate text-[11px]">{profile?.email || 'Admin'}</div>
+              </div>
+            </div>
+          )}
         </aside>
 
         {/* Mobile Navigation Drawer */}
@@ -212,28 +223,34 @@ export const DashboardLayout: React.FC = () => {
           <div className="sm:hidden fixed inset-0 z-50 flex">
             {/* Overlay */}
             <div 
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" 
+              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity" 
               onClick={() => setMobileMenuOpen(false)}
             ></div>
 
             {/* Sidebar drawer */}
-            <aside className="relative w-64 max-w-xs bg-white border-r border-gray-200 p-5 space-y-4 flex flex-col z-50 animate-in slide-in-from-left duration-200">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center space-x-2">
-                  <img src="/ministy_logo.jpg" alt="Logo" className="h-8 w-8 rounded object-cover" />
-                  <span className="font-extrabold text-sm text-gray-900">MATS Portal</span>
+            <aside className="relative w-64 max-w-xs bg-white border-r border-gray-200/90 p-4 space-y-4 flex flex-col z-50 shadow-2xl animate-in slide-in-from-left duration-200">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+                <div className="flex items-center space-x-2.5 overflow-hidden">
+                  <img src="/ministy_logo.jpg" alt="Logo" className="h-8 w-8 rounded-lg border border-gray-200/60 object-cover shrink-0" />
+                  <span className="font-extrabold text-sm text-gray-900 tracking-tight truncate">MATS Portal</span>
                 </div>
+
+                {/* Clean Exit/Close Button */}
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="text-gray-400 hover:text-gray-900 p-1 rounded-lg"
+                  className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-all border border-gray-200/80 cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center"
+                  aria-label="Close navigation menu"
+                  title="Close Menu"
                 >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6" />
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
 
-              <nav className="space-y-1.5 flex-1">
+              {/* Navigation Items */}
+              <nav className="space-y-1.5 flex-1 overflow-y-auto">
                 {navigation.map((item) => {
                   const active = isActive(item.href)
                   return (
@@ -241,26 +258,34 @@ export const DashboardLayout: React.FC = () => {
                       key={item.name}
                       to={item.href}
                       onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center space-x-3 rounded-lg px-3.5 py-2.5 text-sm transition-colors ${
+                      className={`flex items-center space-x-3 rounded-lg px-3.5 py-2.5 text-sm transition-all ${
                         active
                           ? 'bg-blue-50 text-blue-600 font-bold border-l-4 border-blue-600'
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
+                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
                       }`}
                     >
                       <span className={`shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`}>
                         {icons[item.name]}
                       </span>
-                      <span>{item.name}</span>
+                      <span className="truncate">{item.name}</span>
                     </Link>
                   )
                 })}
               </nav>
+
+              {/* Mobile Drawer Footer User Profile */}
+              <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 shrink-0">
+                <div className="truncate">
+                  <div className="text-[10px] uppercase font-bold text-gray-400">Signed in as</div>
+                  <div className="font-semibold text-gray-800 truncate">{profile?.email || 'Admin'}</div>
+                </div>
+              </div>
             </aside>
           </div>
         )}
 
         {/* Main Content Pane */}
-        <main className="flex-1 p-6 sm:p-8 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
             {/* Outlet renders the matched nested route child */}
             <Outlet />
