@@ -12,6 +12,7 @@ import { ReportsPage } from '@/features/reports/pages/ReportsPage'
 import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { AuditPage } from '@/features/audit/pages/AuditPage'
 import { UsersPage } from '@/features/users/pages/UsersPage'
+import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswordPage'
 
 function App() {
   return (
@@ -63,6 +64,11 @@ function App() {
                 element={<ReportsPage />} 
               />
               
+              <Route 
+                path="/change-password" 
+                element={<ChangePasswordPage />} 
+              />
+
               <Route 
                 path="/users" 
                 element={

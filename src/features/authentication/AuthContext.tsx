@@ -101,6 +101,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const hasModuleAccess = (moduleKey: ModuleKey): boolean => {
     if (!profile) return false
+    if (moduleKey === 'changePassword') return true
     if (profile.role === 'admin') return true
     if (!profile.permissions || !profile.permissions.allowedModules) {
       // Legacy user role defaults

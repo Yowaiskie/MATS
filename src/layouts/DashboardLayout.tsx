@@ -47,6 +47,12 @@ const icons: { [key: string]: React.ReactNode } = {
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
+  ),
+  'Change Password': (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2v4a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2h6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 7V5a2 2 0 114 0v2" />
+    </svg>
   )
 }
 
@@ -79,6 +85,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'User Management', href: '/users', moduleKey: 'users' },
     { name: 'Settings', href: '/settings', moduleKey: 'settings' },
     { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
+    { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
   ]
 
   const navigation = allNavigation.filter(item => hasModuleAccess(item.moduleKey))
@@ -101,6 +108,7 @@ export const DashboardLayout: React.FC = () => {
     if (path.startsWith('/users')) return 'User Management'
     if (path.startsWith('/settings')) return 'System Settings'
     if (path.startsWith('/audit')) return 'System Audit Trail'
+    if (path.startsWith('/change-password')) return 'Change Password'
     return 'Dashboard'
   }
 

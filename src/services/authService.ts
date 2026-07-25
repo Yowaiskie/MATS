@@ -2,11 +2,13 @@ import {
   signInWithEmailAndPassword, 
   signOut,
   EmailAuthProvider,
-  reauthenticateWithCredential
+  reauthenticateWithCredential,
+  updatePassword
 } from 'firebase/auth'
 import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
 import type { UserProfile } from '@/types/auth'
+import { auditService } from '@/services/auditService'
 
 export const authService = {
   /**
@@ -34,6 +36,35 @@ export const authService = {
     const credential = EmailAuthProvider.credential(currentUser.email, password)
     await reauthenticateWithCredential(currentUser, credential)
     return true
+  },
+
+  /**
+   * Changes the password for the currently logged-in user.
+   */
+  async changePassword(currentPassword: string, newPassword: string): Promise<void> {
+    const currentUser = auth.currentUser
+    if (!currentUser || !currentUser.email) {
+      throw new Error('No active user session found. Please log in again.')
+    }
+
+    if (newPassword.length < 6) {
+      throw new Error('New password must be at least 6 characters long.')
+    }
+
+    // 1. Re-authenticate
+    const credential = EmailAuthProvider.credential(currentUser.email, currentPassword)
+    await reauthenticateWithCredential(currentUser, credential)
+
+    // 2. Update password
+    await updatePassword(currentUser, newPassword)
+
+    // 3. Log audit event
+    await auditService.logAction(
+      'USER_PASSWORD_CHANGE',
+      'system',
+      `User ${currentUser.email} changed their account password.`,
+      currentUser.email
+    )
   },
 
   /**

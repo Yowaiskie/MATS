@@ -167,7 +167,8 @@ export const AuditPage: React.FC = () => {
   const actions: AuditAction[] = [
     'MEMBER_CREATE', 'MEMBER_UPDATE', 'MEMBER_DELETE', 'MEMBER_ARCHIVE', 'MEMBER_IMPORT',
     'SCHEDULE_CREATE', 'SCHEDULE_UPDATE', 'SCHEDULE_DELETE', 'SCHEDULE_ASSIGN',
-    'ATTENDANCE_SAVE', 'ATTENDANCE_LOCK', 'ATTENDANCE_UNLOCK', 'SETTINGS_UPDATE'
+    'ATTENDANCE_SAVE', 'ATTENDANCE_LOCK', 'ATTENDANCE_UNLOCK', 'SETTINGS_UPDATE',
+    'USER_PASSWORD_CHANGE'
   ]
 
   // Badges color mapping
@@ -192,7 +193,8 @@ export const AuditPage: React.FC = () => {
     ATTENDANCE_SAVE: 'bg-blue-100 text-blue-800 border-blue-200',
     ATTENDANCE_LOCK: 'bg-purple-100 text-purple-800 border-purple-200',
     ATTENDANCE_UNLOCK: 'bg-orange-100 text-orange-800 border-orange-200',
-    SETTINGS_UPDATE: 'bg-pink-100 text-pink-800 border-pink-200'
+    SETTINGS_UPDATE: 'bg-pink-100 text-pink-800 border-pink-200',
+    USER_PASSWORD_CHANGE: 'bg-cyan-100 text-cyan-800 border-cyan-200'
   }
 
   // Friendly human-readable property key dictionary
