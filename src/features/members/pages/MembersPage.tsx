@@ -46,8 +46,8 @@ export const MembersPage: React.FC = () => {
     setSelectedIds(new Set())
   }, [showArchived])
 
-  const loadMembers = async () => {
-    setLoading(true)
+  const loadMembers = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
       const data = await memberService.getMembers(showArchived ? 'archived_only' : false)
@@ -56,7 +56,7 @@ export const MembersPage: React.FC = () => {
       console.error(err)
       setError('Failed to load member records.')
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }
 
@@ -72,7 +72,7 @@ export const MembersPage: React.FC = () => {
     } else {
       await memberService.addMember(input, actor)
     }
-    await loadMembers()
+    await loadMembers(false)
   }
 
   const handleArchive = (id: string) => {
@@ -86,7 +86,7 @@ export const MembersPage: React.FC = () => {
     setConfirmArchive(null)
     try {
       await memberService.deleteMember(id, profile?.email || 'Admin')
-      await loadMembers()
+      await loadMembers(false)
       setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
     } catch (err) {
       console.error(err)
@@ -105,7 +105,7 @@ export const MembersPage: React.FC = () => {
     setConfirmDelete(null)
     try {
       await memberService.deleteMember(id, profile?.email || 'Admin')
-      await loadMembers()
+      await loadMembers(false)
       setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
     } catch (err) {
       console.error(err)
@@ -116,7 +116,7 @@ export const MembersPage: React.FC = () => {
   const handleRestore = async (id: string) => {
     try {
       await memberService.restoreMember(id, profile?.email || 'Admin')
-      await loadMembers()
+      await loadMembers(false)
     } catch (err) {
       console.error(err)
       setAlertModal({ variant: 'error', title: 'Restore Failed', message: 'Failed to restore member. Please try again.' })
@@ -125,7 +125,7 @@ export const MembersPage: React.FC = () => {
 
   const handleImport = async (inputs: MemberInput[]) => {
     await memberService.importMembersBatch(inputs, profile?.email || 'Admin')
-    await loadMembers()
+    await loadMembers(false)
   }
 
   // ── Bulk selection helpers ────────────────────────────────────
@@ -160,7 +160,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkArchiveOpen(false)
       setSelectedIds(new Set())
-      await loadMembers()
+      await loadMembers(false)
       setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
     } catch (err: any) {
       console.error(err)
@@ -178,7 +178,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkRestoreMembers(ids, profile?.email || 'Admin')
       setBulkRestoreOpen(false)
       setSelectedIds(new Set())
-      await loadMembers()
+      await loadMembers(false)
       setAlertModal({ variant: 'success', title: 'Bulk Restore Complete', message: `${ids.length} member(s) have been restored to active.` })
     } catch (err: any) {
       console.error(err)
@@ -196,7 +196,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
-      await loadMembers()
+      await loadMembers(false)
       setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
     } catch (err: any) {
       console.error(err)

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS } from '@/types/member'
+import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { getFullName } from '@/utils/member'
 import { isTimeOverlapping } from '@/utils/scheduleUtils'
@@ -271,9 +271,16 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                         <span className="text-sm font-bold text-gray-900 block">
                           {getFullName(member)}
                         </span>
-                        <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
-                          {member.rank}
-                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                            {member.rank}
+                          </span>
+                          {member.order && (
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(member.order)}`}>
+                              {member.order}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
 

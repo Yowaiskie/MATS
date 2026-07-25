@@ -94,7 +94,7 @@ export const Pagination: React.FC<PaginationProps> = ({
 
         <button
           onClick={handleNext}
-          disabled={currentPage < totalPages}
+          disabled={currentPage >= totalPages}
           className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
         >
           Next

@@ -16,7 +16,7 @@ import { generateCommunityReport } from '@/utils/communityReport'
 import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS } from '@/types/member'
+import { ORDER_GROUPS, ORDER_COLORS } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary } from '@/utils/attendance'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
@@ -61,6 +61,7 @@ export const AttendancePage: React.FC = () => {
   const [template, setTemplate] = useState('')
 
   // Confirm dialog state
+  const [confirmRemoveMember, setConfirmRemoveMember] = useState<{ id: string; name: string } | null>(null)
   const [lockConfirm, setLockConfirm] = useState<{ nextLocked: boolean } | null>(null)
   const [unlockPasswordModalOpen, setUnlockPasswordModalOpen] = useState(false)
   const [backConfirmOpen, setBackConfirmOpen] = useState(false)
@@ -285,18 +286,54 @@ export const AttendancePage: React.FC = () => {
     }
   }
 
-  const handleRemoveOtherServer = (memberId: string) => {
-    const recordId = formState[memberId]?.id
-    if (recordId) {
-      setPendingDeleteIds(prev => [...prev, recordId])
-    }
+  const handleRemoveServerConfirmed = async () => {
+    if (!confirmRemoveMember) return
+    const { id: memberId, name: memberName } = confirmRemoveMember
+    setConfirmRemoveMember(null)
 
-    setOtherServers(prev => prev.filter(m => m.id !== memberId))
-    setFormState(prev => {
-      const next = { ...prev }
-      delete next[memberId]
-      return next
-    })
+    setSaving(true)
+    setError(null)
+    setSuccessMsg(null)
+
+    try {
+      const isOther = formState[memberId]?.isOtherServer
+      const recordId = formState[memberId]?.id
+
+      // Delete Firestore attendance record immediately if exists
+      if (recordId) {
+        await attendanceService.deleteAttendanceRecord(recordId)
+      }
+
+      if (isOther) {
+        setOtherServers((prev) => prev.filter((m) => m.id !== memberId))
+      } else {
+        setAssignedMembers((prev) => prev.filter((m) => m.id !== memberId))
+        if (schedule) {
+          const updatedAssigned = (schedule.assignedMembers || []).filter((id) => id !== memberId)
+          setSchedule((prev) => (prev ? { ...prev, assignedMembers: updatedAssigned } : null))
+          await scheduleService.assignMembers(schedule.id, updatedAssigned, user?.email || 'Admin')
+        }
+      }
+
+      setFormState((prev) => {
+        const next = { ...prev }
+        delete next[memberId]
+        return next
+      })
+
+      setOriginalState((prev) => {
+        const next = { ...prev }
+        delete next[memberId]
+        return next
+      })
+
+      setSuccessMsg(`${memberName} was removed from this attendance list.`)
+    } catch (err: any) {
+      console.error(err)
+      setError('Failed to remove server. Please try again.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   // Row state updates
@@ -632,6 +669,7 @@ export const AttendancePage: React.FC = () => {
           {ORDER_GROUPS.map((grp) => {
             const count = orderGroupCounts[grp] || 0
             const isSelected = selectedOrderGroup === grp
+            const activeStyle = ORDER_COLORS[grp]?.activeTab || 'bg-blue-600 border-blue-600 text-white shadow-xs'
             return (
               <button
                 key={grp}
@@ -639,7 +677,7 @@ export const AttendancePage: React.FC = () => {
                 onClick={() => setSelectedOrderGroup(grp)}
                 className={`px-3 py-1 rounded-full text-xs font-bold transition-all cursor-pointer border whitespace-nowrap ${
                   isSelected
-                    ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
+                    ? activeStyle
                     : 'bg-white border-gray-200 text-gray-700 hover:bg-gray-50'
                 }`}
               >
@@ -676,15 +714,37 @@ export const AttendancePage: React.FC = () => {
                 disabled={saving || (session?.locked ?? false)}
                 isOtherServer={formState[member.id]?.isOtherServer}
                 isMeetingSchedule={isMeetingSchedule}
-                onRemove={() => handleRemoveOtherServer(member.id)}
+                onRemove={() => setConfirmRemoveMember({ id: member.id, name: getFullName(member) })}
               />
             ))
           ) : (
-            <div className="py-12 text-center text-sm text-gray-400">
+            <div className="py-12 px-4 text-center flex flex-col items-center justify-center space-y-3">
+              <div className="h-12 w-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-xs">
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+              </div>
               {searchQuery.trim() ? (
-                <span>No active servers match search query "{searchQuery}"</span>
+                <p className="text-sm font-medium text-gray-500">No active servers match search query "{searchQuery}"</p>
               ) : (
-                <span>No members are assigned to this service schedule. Select "Edit Assigned Servers" to populate.</span>
+                <>
+                  <h4 className="text-sm font-bold text-gray-900">No Servers Assigned Yet</h4>
+                  <p className="text-xs text-gray-500 max-w-sm">
+                    No members are assigned to this service schedule. Add or assign servers now to start taking attendance.
+                  </p>
+                  {!(session?.locked ?? false) && (
+                    <button
+                      type="button"
+                      onClick={() => setAssignmentOpen(true)}
+                      className="mt-2 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition-all cursor-pointer shadow-sm"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>Add / Assign Servers</span>
+                    </button>
+                  )}
+                </>
               )}
             </div>
           )}
@@ -778,6 +838,18 @@ export const AttendancePage: React.FC = () => {
         activeMembers={allMembersProfiles.filter((m) => m.status === 'active')}
         allSchedules={allSchedules}
         onSave={handleSaveAssignments}
+      />
+
+      {/* Confirm Remove Server Modal */}
+      <ConfirmModal
+        isOpen={!!confirmRemoveMember}
+        onClose={() => setConfirmRemoveMember(null)}
+        onConfirm={handleRemoveServerConfirmed}
+        variant="danger"
+        title="Remove Server from Attendance"
+        message={`Are you sure you want to remove ${confirmRemoveMember?.name || 'this server'} from this attendance list?`}
+        confirmLabel="Remove Server"
+        loading={saving}
       />
 
       {/* Lock Confirm Modal (For Finalizing) */}

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS } from '@/types/member'
+import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import { Pagination } from '@/components/Pagination'
 
@@ -113,7 +113,16 @@ export const MemberTable: React.FC<MemberTableProps> = ({
       <span className="text-blue-500">{sortDirection === 'asc' ? ' ▲' : ' ▼'}</span>
     ) : null
 
-  const paginatedMembers = filteredMembers.slice((currentPage - 1) * 10, currentPage * 10)
+  const totalPages = Math.max(1, Math.ceil(filteredMembers.length / 10))
+  const safeCurrentPage = Math.min(currentPage, totalPages)
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages)
+    }
+  }, [currentPage, totalPages])
+
+  const paginatedMembers = filteredMembers.slice((safeCurrentPage - 1) * 10, safeCurrentPage * 10)
 
   return (
     <div className="space-y-4">
@@ -294,14 +303,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               {paginatedMembers.length > 0 ? (
                 paginatedMembers.map((member) => {
                   const isSelected = selectedIds.has(member.id)
-                  const orderBadgeStyle = member.order
-                    ? {
-                        'Order of San Pedro': 'bg-blue-50 border-blue-200 text-blue-700',
-                        'Order of San Juan': 'bg-emerald-50 border-emerald-200 text-emerald-700',
-                        'Order of San Tiago': 'bg-purple-50 border-purple-200 text-purple-700',
-                        'Order of San Andres': 'bg-amber-50 border-amber-200 text-amber-700'
-                      }[member.order] || 'bg-gray-50 border-gray-200 text-gray-700'
-                    : ''
+                  const orderBadgeStyle = member.order ? getOrderBadgeStyle(member.order) : ''
                   return (
                     <tr
                       key={member.id}

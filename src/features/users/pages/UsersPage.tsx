@@ -101,8 +101,8 @@ export const UsersPage: React.FC = () => {
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
 
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
       const [usersData, presetsData] = await Promise.all([
@@ -115,7 +115,7 @@ export const UsersPage: React.FC = () => {
       console.error(err)
       setError('Failed to load user accounts list and permission presets.')
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }
 
@@ -364,7 +364,7 @@ export const UsersPage: React.FC = () => {
       }
 
       setIsModalOpen(false)
-      await loadData()
+      await loadData(false)
     } catch (err: any) {
       console.error(err)
       let msg = err.message || 'Failed to save user profile.'
@@ -395,7 +395,7 @@ export const UsersPage: React.FC = () => {
       )
       setSuccessMsg(`User '${deleteTarget.email}' removed from system.`)
       setDeleteTarget(null)
-      await loadData()
+      await loadData(false)
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to delete user profile.')

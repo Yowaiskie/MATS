@@ -60,8 +60,8 @@ export const SchedulesPage: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string } | null>(null)
 
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
       const scheduleData = await scheduleService.getSchedules()
@@ -78,7 +78,7 @@ export const SchedulesPage: React.FC = () => {
       console.error(err)
       setError('Failed to load schedule or member records.')
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }
 
@@ -111,7 +111,7 @@ export const SchedulesPage: React.FC = () => {
     } else {
       await scheduleService.addSchedule(input, actor)
     }
-    await loadData()
+    await loadData(false)
   }
 
   const handleDelete = (id: string) => {
@@ -124,7 +124,7 @@ export const SchedulesPage: React.FC = () => {
     setConfirmDelete(null)
     try {
       await scheduleService.deleteSchedule(id, profile?.email || 'Admin')
-      await loadData()
+      await loadData(false)
     } catch (err: any) {
       console.error(err)
       setAlertModal({ title: 'Delete Failed', message: err.message || 'Failed to delete schedule.' })
@@ -133,7 +133,7 @@ export const SchedulesPage: React.FC = () => {
 
   const handleSaveAssignments = async (scheduleId: string, assignedIds: string[]) => {
     await scheduleService.assignMembers(scheduleId, assignedIds, profile?.email || 'Admin')
-    await loadData()
+    await loadData(false)
   }
 
   // ── Bulk select helpers ───────────────────────────────────────
@@ -166,7 +166,7 @@ export const SchedulesPage: React.FC = () => {
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
       setBulkSelectMode(false)
-      await loadData()
+      await loadData(false)
 
       if (skippedIds.length > 0) {
         setAlertModal({
