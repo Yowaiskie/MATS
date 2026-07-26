@@ -316,7 +316,7 @@ export const UsersPage: React.FC = () => {
       canManageSchedules,
       canViewReports,
       canExportReports,
-      assignedOrder: assignedOrder || undefined
+      ...(assignedOrder ? { assignedOrder } : {})
     }
 
     setSaving(true)
@@ -324,8 +324,17 @@ export const UsersPage: React.FC = () => {
     setSuccessMsg(null)
     try {
       if (editingUser) {
+        const isEditingCoordinator = editingUser.email.toLowerCase() === 'coordinator@mas.com'
+        const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
+
         if (editingUser.uid === currentAdmin?.uid && role !== 'admin') {
           setError('You cannot revoke your own admin access.')
+          setSaving(false)
+          return
+        }
+
+        if (isEditingCoordinator && !isCurrentCoordinator && role !== 'admin') {
+          setError('Only the Coordinator account (coordinator@mas.com) can modify its own role.')
           setSaving(false)
           return
         }
@@ -381,6 +390,15 @@ export const UsersPage: React.FC = () => {
     if (!deleteTarget) return
     if (deleteTarget.uid === currentAdmin?.uid) {
       setError('You cannot delete your own account.')
+      setDeleteTarget(null)
+      return
+    }
+
+    const isTargetCoordinator = deleteTarget.email.toLowerCase() === 'coordinator@mas.com'
+    const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
+
+    if (isTargetCoordinator && !isCurrentCoordinator) {
+      setError('Only the Coordinator account (coordinator@mas.com) can delete its own account.')
       setDeleteTarget(null)
       return
     }
@@ -535,7 +553,7 @@ export const UsersPage: React.FC = () => {
                           </svg>
                           <span>Edit Permissions</span>
                         </button>
-                        {!isCurrent && (
+                        {!isCurrent && !(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
                           <button
                             onClick={() => setDeleteTarget(u)}
                             className="inline-flex items-center gap-1 text-red-600 hover:text-red-800 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100 rounded-md transition-colors cursor-pointer border border-red-100"
