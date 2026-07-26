@@ -123,9 +123,12 @@ export const UsersPage: React.FC = () => {
     loadData()
   }, [])
 
+  const [activePresetName, setActivePresetName] = useState<string>('')
+
   // Preset role applier
   const applyPreset = (p: PermissionPreset) => {
     setActivePresetId(p.id)
+    setActivePresetName(p.name)
     setRole(p.role)
     setAllowedModules(p.allowedModules)
     setCanTakeAttendance(p.canTakeAttendance)
@@ -136,6 +139,8 @@ export const UsersPage: React.FC = () => {
     setCanExportReports(p.canExportReports)
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
+    } else {
+      setAssignedOrder('')
     }
   }
 
@@ -316,7 +321,8 @@ export const UsersPage: React.FC = () => {
       canManageSchedules,
       canViewReports,
       canExportReports,
-      ...(assignedOrder ? { assignedOrder } : {})
+      ...(assignedOrder ? { assignedOrder } : {}),
+      ...(activePresetName ? { presetName: activePresetName } : {})
     }
 
     setSaving(true)
@@ -521,6 +527,8 @@ export const UsersPage: React.FC = () => {
                         }`}>
                           {u.role === 'admin' ? (
                             <span>Admin (Full System)</span>
+                          ) : u.permissions?.presetName ? (
+                            <span>{u.permissions.presetName}{u.role === 'order_leader' ? ` (${u.assignedOrder || 'All Orders'})` : ''}</span>
                           ) : u.role === 'order_leader' ? (
                             <span>Order Leader ({u.assignedOrder || 'All Orders'})</span>
                           ) : (

@@ -28,6 +28,7 @@ export interface UserPermissions {
   canViewReports: boolean
   canExportReports: boolean
   assignedOrder?: OrderGroup
+  presetName?: string
 }
 
 export interface PermissionPreset {
@@ -52,6 +53,7 @@ export interface UserProfile {
   displayName?: string
   role: UserRole
   assignedOrder?: OrderGroup
+  presetName?: string
   permissions?: Partial<UserPermissions>
   createdAt?: string
   updatedAt?: string
