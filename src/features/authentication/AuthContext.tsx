@@ -3,6 +3,7 @@ import { onAuthStateChanged, browserLocalPersistence, setPersistence } from 'fir
 import type { User } from 'firebase/auth'
 import { auth } from '@/firebase/config'
 import { authService } from '@/services/authService'
+import { auditService } from '@/services/auditService'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
 
 interface AuthContextType {
@@ -76,6 +77,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null)
     try {
       await authService.login(email, password)
+      
+      // Log login event in audit logs asynchronously
+      auditService.logAction(
+        'USER_LOGIN',
+        'system',
+        `User '${email.trim().toLowerCase()}' successfully logged into the system`,
+        email.trim().toLowerCase(),
+        { email: email.trim().toLowerCase() }
+      ).catch(console.error)
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please verify credentials.')
       setLoading(false)

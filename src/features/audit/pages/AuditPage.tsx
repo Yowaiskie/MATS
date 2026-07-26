@@ -194,7 +194,8 @@ export const AuditPage: React.FC = () => {
     ATTENDANCE_LOCK: 'bg-purple-100 text-purple-800 border-purple-200',
     ATTENDANCE_UNLOCK: 'bg-orange-100 text-orange-800 border-orange-200',
     SETTINGS_UPDATE: 'bg-pink-100 text-pink-800 border-pink-200',
-    USER_PASSWORD_CHANGE: 'bg-cyan-100 text-cyan-800 border-cyan-200'
+    USER_PASSWORD_CHANGE: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    USER_LOGIN: 'bg-teal-100 text-teal-800 border-teal-200'
   }
 
   // Friendly human-readable property key dictionary

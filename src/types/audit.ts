@@ -15,6 +15,7 @@ export type AuditAction =
   | 'ATTENDANCE_UNLOCK'
   | 'SETTINGS_UPDATE'
   | 'USER_PASSWORD_CHANGE'
+  | 'USER_LOGIN'
 
 export interface AuditLog {
   id: string
