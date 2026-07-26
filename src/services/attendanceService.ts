@@ -127,9 +127,11 @@ export const attendanceService = {
       await batch.commit()
     }
 
-    // 3. Mark update timestamp & hasRecords on parent session
+    // 3. Mark update timestamp & last updated user on parent session
     await updateDoc(sessionRef, {
       hasRecords: true,
+      lastUpdatedBy: performedBy,
+      lastUpdatedAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
 
@@ -173,25 +175,65 @@ export const attendanceService = {
   },
 
   /**
-   * Fetches all attendance sessions with accurate record detection.
+   * Fetches all attendance sessions with accurate record detection & audit log / timestamp fallback for older sessions.
    */
   async getAllSessions(): Promise<AttendanceSession[]> {
     const sessionsRef = collection(db, SESSIONS_COLLECTION)
     const snapshot = await getDocs(sessionsRef)
     
-    // Fetch distinct session IDs that have saved attendance records
+    // 1. Fetch all attendance records
     const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
     const recordsSnapshot = await getDocs(attendanceRef)
-    const activeSessionIdsWithRecords = new Set(
-      recordsSnapshot.docs.map(doc => doc.data().sessionId)
-    )
+
+    // Map session ID to its latest record timestamp and record count
+    const sessionRecordMeta: Record<string, { latestTimestamp: any; count: number }> = {}
+    recordsSnapshot.docs.forEach(doc => {
+      const data = doc.data()
+      const sId = data.sessionId
+      if (!sId) return
+      if (!sessionRecordMeta[sId]) {
+        sessionRecordMeta[sId] = { latestTimestamp: data.updatedAt || data.createdAt, count: 1 }
+      } else {
+        sessionRecordMeta[sId].count++
+        if (data.updatedAt && (!sessionRecordMeta[sId].latestTimestamp || data.updatedAt > sessionRecordMeta[sId].latestTimestamp)) {
+          sessionRecordMeta[sId].latestTimestamp = data.updatedAt
+        }
+      }
+    })
+
+    // 2. Fetch audit logs for ATTENDANCE_SAVE actions to recover past editor emails
+    const auditMap: Record<string, { performedBy: string; timestamp: any }> = {}
+    try {
+      const auditRef = collection(db, 'auditLogs')
+      const auditSnap = await getDocs(query(auditRef, where('action', '==', 'ATTENDANCE_SAVE')))
+      auditSnap.docs.forEach(doc => {
+        const d = doc.data()
+        const sId = d.details?.sessionId
+        if (sId) {
+          if (!auditMap[sId] || (d.timestamp && d.timestamp > auditMap[sId].timestamp)) {
+            auditMap[sId] = { performedBy: d.performedBy, timestamp: d.timestamp }
+          }
+        }
+      })
+    } catch (e) {
+      console.warn('Could not read audit logs for session fallback:', e)
+    }
 
     return snapshot.docs.map(doc => {
       const data = doc.data()
+      const meta = sessionRecordMeta[doc.id]
+      const auditInfo = auditMap[doc.id]
+
+      const hasRecords = data.hasRecords ?? (meta ? meta.count > 0 : false)
+      const lastUpdatedBy = data.lastUpdatedBy || auditInfo?.performedBy || (hasRecords ? 'System / Previous Log' : null)
+      const lastUpdatedAt = data.lastUpdatedAt || auditInfo?.timestamp || meta?.latestTimestamp || data.updatedAt || null
+
       return {
         id: doc.id,
         ...data,
-        hasRecords: data.hasRecords ?? activeSessionIdsWithRecords.has(doc.id)
+        hasRecords,
+        lastUpdatedBy,
+        lastUpdatedAt
       }
     }) as AttendanceSession[]
   },

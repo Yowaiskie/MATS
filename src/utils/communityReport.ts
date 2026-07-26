@@ -84,6 +84,7 @@ export const generateCommunityReport = (
     if (status === 'absent') return 'A'
     if (status === 'excused') return 'E'
     if (status === 'observer') return 'O'
+    if (status === 'formation') return 'F'
     return 'A' // default fallback if undefined
   }
 
@@ -143,6 +144,7 @@ export const generateCommunityReport = (
   let absentCount = 0
   let excusedCount = 0
   let observerCount = 0
+  let formationCount = 0
 
   const visibleAssigned = assignedMembers.filter(member => {
     const status = formState[member.id]?.status
@@ -160,6 +162,7 @@ export const generateCommunityReport = (
           else if (status === 'absent') absentCount++
           else if (status === 'excused') excusedCount++
           else if (status === 'observer') observerCount++
+          else if (status === 'formation') formationCount++
 
           const statusShortcut = mapStatus(status)
           return `${idx + 1}. ${getFullName(member, false)} - ${statusShortcut}`
@@ -200,6 +203,7 @@ export const generateCommunityReport = (
   result = result.replace(/\{\{absentCount\}\}/g, String(absentCount))
   result = result.replace(/\{\{excusedCount\}\}/g, String(excusedCount))
   result = result.replace(/\{\{observerCount\}\}/g, String(observerCount))
+  result = result.replace(/\{\{formationCount\}\}/g, String(formationCount))
 
   return result
 }

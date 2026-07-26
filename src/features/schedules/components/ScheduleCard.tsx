@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
 import type { Schedule } from '@/types/schedule'
-import type { ScheduleAttendanceState } from '@/types/attendance'
+import type { ScheduleAttendanceState, AttendanceSession } from '@/types/attendance'
 import { Card } from '@/components/Card'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -11,10 +11,12 @@ interface ScheduleCardProps {
   onEdit: (schedule: Schedule) => void
   onDelete: (id: string) => void | Promise<void>
   onManageAssignments: (schedule: Schedule) => void
+  onView?: (schedule: Schedule) => void
   totalAssigned: number
   isSelected?: boolean
   onToggleSelect?: (id: string) => void
   attendanceState?: ScheduleAttendanceState
+  session?: AttendanceSession | null
 }
 
 export const ScheduleCard: React.FC<ScheduleCardProps> = ({
@@ -22,10 +24,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   onEdit,
   onDelete,
   onManageAssignments,
+  onView,
   totalAssigned,
   isSelected = false,
   onToggleSelect,
   attendanceState = 'none',
+  session = null,
 }) => {
   const { isAdmin } = useAuth()
   const computedStatus = getScheduleStatus(schedule)
@@ -36,6 +40,29 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     ongoing: 'bg-blue-50 border border-blue-100 text-blue-600',
     completed: 'bg-gray-100 border border-gray-200 text-gray-600',
     cancelled: 'bg-red-50 border border-red-100 text-red-600',
+  }
+
+  // Format timestamp helper
+  const formatTime = (ts: any) => {
+    if (!ts) return ''
+    try {
+      let dateObj: Date | null = null
+      if (typeof ts.toDate === 'function') {
+        dateObj = ts.toDate()
+      } else if (ts.seconds) {
+        dateObj = new Date(ts.seconds * 1000)
+      } else if (ts instanceof Date) {
+        dateObj = ts
+      } else if (typeof ts === 'string' || typeof ts === 'number') {
+        dateObj = new Date(ts)
+      }
+      if (dateObj && !isNaN(dateObj.getTime())) {
+        return dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      }
+    } catch (e) {
+      console.error(e)
+    }
+    return ''
   }
 
   // Helper to format date nicely
@@ -58,25 +85,22 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     const parts = timeStr.split(':')
     if (parts.length < 2) return timeStr
     let h = parseInt(parts[0], 10)
-    const m = parts[1].padStart(2, '0')
+    const m = parts[1]
     const ampm = h >= 12 ? 'PM' : 'AM'
     h = h % 12
     h = h ? h : 12
     return `${h}:${m} ${ampm}`
   }
 
+  const getCardBorderStyle = () => {
+    if (isSelected) return 'ring-2 ring-blue-500 bg-blue-50/20 border-blue-400'
+    if (attendanceState === 'in_progress') return 'border-amber-400 bg-gradient-to-b from-amber-50/40 via-amber-50/10 to-white shadow-xs'
+    if (attendanceState === 'finalized') return 'border-emerald-300 bg-emerald-50/15'
+    return 'border-gray-200/70 hover:border-gray-300'
+  }
+
   return (
-    <Card className={`hover:shadow-md transition-shadow duration-200 ${
-      isSelected 
-        ? 'border-blue-400 ring-2 ring-blue-200' 
-        : attendanceState === 'finalized'
-          ? 'border-emerald-300 bg-emerald-50/15'
-          : attendanceState === 'in_progress'
-            ? 'border-amber-300 bg-amber-50/15'
-            : attendanceState === 'untaken'
-              ? 'border-slate-200 bg-slate-50/20'
-              : 'border-gray-200/70'
-    }`}>
+    <Card className={`relative flex flex-col justify-between transition-all duration-200 hover:shadow-md ${getCardBorderStyle()}`}>
       <div className="flex flex-col h-full justify-between space-y-4">
         {/* Header Title & Status */}
         <div className="space-y-1">
@@ -102,18 +126,19 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
             <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[50%]" title={schedule.title}>
               {schedule.title}
             </h4>
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex items-center gap-1.5 shrink-0">
               <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border ${statusColors[computedStatus]}`}>
                 {computedStatus}
               </span>
               {attendanceState === 'finalized' && (
-                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-emerald-100 border border-emerald-200 text-emerald-700 shadow-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-emerald-100 border border-emerald-300 text-emerald-800 shadow-xs">
                   ✓ Finalized
                 </span>
               )}
               {attendanceState === 'in_progress' && (
-                <span className="inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase bg-amber-100 border border-amber-200 text-amber-700 shadow-xs">
-                  🟡 In Progress
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500 text-white border border-amber-600 shadow-sm animate-pulse tracking-wide">
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-ping" />
+                  IN PROGRESS
                 </span>
               )}
               {attendanceState === 'untaken' && (
@@ -126,6 +151,22 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           <p className="text-xs text-gray-500 font-medium">
             📅 {formatCardDate(schedule.date)} • 🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
           </p>
+
+          {/* Last track info */}
+          {session?.lastUpdatedBy ? (
+            <p className="text-[11px] text-amber-900 font-semibold bg-amber-100/90 border border-amber-300/80 px-2.5 py-1.5 rounded-lg mt-2 flex items-center justify-between shadow-2xs">
+              <span className="truncate">👤 Taken by: <strong className="font-bold text-amber-950">{session.lastUpdatedBy}</strong></span>
+              {session.lastUpdatedAt && (
+                <span className="text-[10px] text-amber-800 font-medium shrink-0 ml-1.5">
+                  {formatTime(session.lastUpdatedAt) ? `${formatTime(session.lastUpdatedAt)}` : ''}
+                </span>
+              )}
+            </p>
+          ) : session?.finalizedBy ? (
+            <p className="text-[11px] text-emerald-900 font-semibold bg-emerald-100/80 border border-emerald-300 px-2.5 py-1.5 rounded-lg mt-2 truncate shadow-2xs">
+              ✓ Finalized by: <strong>{session.finalizedBy}</strong>
+            </p>
+          ) : null}
         </div>
 
         {/* Assigned Counter */}
@@ -136,18 +177,42 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-2 justify-end pt-1 flex-wrap">
-          {/* Attendance Link */}
+          {/* Attendance Link Buttons */}
           {(computedStatus === 'ongoing' || computedStatus === 'completed') && (
-            <Link
-              to={`/attendance?scheduleId=${schedule.id}`}
-              className={`rounded-lg px-3 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer ${
-                attendanceState === 'finalized'
-                  ? 'bg-slate-700 hover:bg-slate-800'
-                  : 'bg-blue-600 hover:bg-blue-500'
-              }`}
-            >
-              {attendanceState === 'finalized' ? 'View Attendance' : 'Take Attendance'}
-            </Link>
+            <>
+              {attendanceState === 'finalized' ? (
+                <Link
+                  to={`/attendance?scheduleId=${schedule.id}`}
+                  className="rounded-lg bg-slate-700 hover:bg-slate-800 px-3 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                >
+                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  <span>View Attendance</span>
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    to={`/attendance?scheduleId=${schedule.id}`}
+                    className="rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xxs font-bold text-white transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                  >
+                    <span>Take Attendance</span>
+                  </Link>
+                  <button
+                    type="button"
+                    onClick={() => onView ? onView(schedule) : onManageAssignments(schedule)}
+                    className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xxs font-bold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                  >
+                    <svg className="h-3 w-3 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
+                    <span>View</span>
+                  </button>
+                </>
+              )}
+            </>
           )}
 
           {/* Admin Action Controls */}

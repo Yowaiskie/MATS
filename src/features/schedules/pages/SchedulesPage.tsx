@@ -508,6 +508,7 @@ export const SchedulesPage: React.FC = () => {
                 isSelected={selectedIds.has(schedule.id)}
                 onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
                 attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule))}
+                session={attendanceSessions.find((sess) => sess.scheduleId === schedule.id)}
                 onEdit={(s) => {
                   setSelectedSchedule(s)
                   setFormOpen(true)
@@ -516,6 +517,10 @@ export const SchedulesPage: React.FC = () => {
                 onManageAssignments={(s) => {
                   setSelectedSchedule(s)
                   setAssignmentOpen(true)
+                }}
+                onView={(s) => {
+                  setSelectedSchedule(s)
+                  setDetailsOpen(true)
                 }}
               />
             ))}

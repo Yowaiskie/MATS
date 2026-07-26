@@ -28,7 +28,8 @@ export const TOKENS: TokenItem[] = [
   { key: '{{presentCount}}', label: 'Present Count', category: 'stats', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700' },
   { key: '{{lateCount}}', label: 'Late Count', category: 'stats', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700' },
   { key: '{{absentCount}}', label: 'Absent Count', category: 'stats', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700' },
-  { key: '{{excusedCount}}', label: 'Excused Count', category: 'stats', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700' },
+  { key: '{{observerCount}}', label: 'Observer Count', category: 'stats', borderColor: 'border-purple-200', dotColor: 'bg-purple-500', bgColor: 'bg-purple-50', textColor: 'text-purple-700' },
+  { key: '{{formationCount}}', label: 'Formation Count', category: 'stats', borderColor: 'border-indigo-200', dotColor: 'bg-indigo-500', bgColor: 'bg-indigo-50', textColor: 'text-indigo-700' },
 ]
 
 const groupedTokens = TOKENS.reduce((acc, token) => {

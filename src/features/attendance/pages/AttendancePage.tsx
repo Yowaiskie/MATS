@@ -337,7 +337,7 @@ export const AttendancePage: React.FC = () => {
   }
 
   // Row state updates
-  const handleRowStatusChange = (memberId: string, status: AttendanceStatus) => {
+  const handleRowStatusChange = (memberId: string, status: AttendanceStatus | undefined) => {
     setFormState(prev => ({
       ...prev,
       [memberId]: {

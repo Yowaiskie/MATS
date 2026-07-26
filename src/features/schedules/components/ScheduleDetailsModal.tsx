@@ -1,11 +1,12 @@
-import React from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import type { ScheduleAttendanceState } from '@/types/attendance'
+import type { ScheduleAttendanceState, AttendanceRecord } from '@/types/attendance'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { attendanceService } from '@/services/attendanceService'
 
 interface ScheduleDetailsModalProps {
   isOpen: boolean
@@ -29,6 +30,32 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
   attendanceState = 'none',
 }) => {
   const { isAdmin } = useAuth()
+  const [loadingAttendance, setLoadingAttendance] = useState(false)
+  const [records, setRecords] = useState<AttendanceRecord[]>([])
+
+  useEffect(() => {
+    if (!isOpen || !schedule) return
+
+    let isMounted = true
+    const loadSessionData = async () => {
+      setLoadingAttendance(true)
+      try {
+        const sess = await attendanceService.getOrCreateSession(schedule.id)
+        if (!isMounted) return
+        const recs = await attendanceService.getAttendanceForSession(sess.id)
+        if (!isMounted) return
+        setRecords(recs)
+      } catch (err) {
+        console.error('Failed to load session details in modal:', err)
+      } finally {
+        if (isMounted) setLoadingAttendance(false)
+      }
+    }
+
+    loadSessionData()
+    return () => { isMounted = false }
+  }, [isOpen, schedule])
+
   if (!isOpen || !schedule) return null
 
   const status = getScheduleStatus(schedule)
@@ -41,10 +68,14 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
     cancelled: { label: 'Cancelled', badge: 'bg-red-50 border border-red-100 text-red-600' },
   }[status]
 
-  // Map assigned members' full names
+  // Map assigned members
   const assignedProfiles = activeMembers.filter((m) =>
     (schedule.assignedMembers || []).includes(m.id)
   )
+
+  // Other Servers (servers who served but are not on the default assigned list)
+  const otherServerMemberIds = records.filter(r => r.isOtherServer).map(r => r.memberId)
+  const otherServerProfiles = activeMembers.filter(m => otherServerMemberIds.includes(m.id) && !(schedule.assignedMembers || []).includes(m.id))
 
   const handleEditClick = () => {
     onEdit(schedule)
@@ -61,7 +92,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
     onClose()
   }
 
-  // Format date helper: converts "YYYY-MM-DD" to human readable format
+  // Format date helper
   const formatHeaderDate = (dateStr: string) => {
     if (!dateStr) return ''
     const parts = dateStr.split('-')
@@ -87,6 +118,17 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
     h = h % 12
     h = h ? h : 12
     return `${h}:${m} ${ampm}`
+  }
+
+  const getStatusBadge = (statusVal?: string) => {
+    if (!statusVal) return <span className="text-[10px] text-gray-400 italic">No record</span>
+    switch (statusVal) {
+      case 'present': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-green-100 text-green-700 uppercase">Present</span>
+      case 'late': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase">Late</span>
+      case 'absent': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-red-100 text-red-700 uppercase">Absent</span>
+      case 'excused': return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 uppercase">Excused</span>
+      default: return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-gray-100 text-gray-600 uppercase">{statusVal}</span>
+    }
   }
 
   return (
@@ -136,20 +178,58 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
 
           {/* Assigned Members */}
           <div className="border-t border-gray-100 pt-3">
-            <h5 className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assigned Altar Servers</h5>
-            <div className="mt-2 space-y-1.5">
+            <div className="flex items-center justify-between">
+              <h5 className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assigned Altar Servers ({assignedProfiles.length})</h5>
+              {loadingAttendance && <span className="text-[10px] text-blue-600 animate-pulse">Loading attendance...</span>}
+            </div>
+            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
               {assignedProfiles.length === 0 ? (
                 <p className="text-xs text-gray-400 italic">No servers assigned to this schedule yet.</p>
               ) : (
-                assignedProfiles.map((m) => (
-                  <div key={m.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-gray-50/50 border border-gray-150">
-                    <span className="font-semibold text-gray-800">{getFullName(m)}</span>
-                    <span className="text-[10px] text-blue-600 font-bold uppercase">{m.rank}</span>
-                  </div>
-                ))
+                assignedProfiles.map((m) => {
+                  const rec = records.find(r => r.memberId === m.id)
+                  return (
+                    <div key={m.id} className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50/70 border border-gray-200">
+                      <div>
+                        <div className="font-semibold text-gray-900">{getFullName(m)}</div>
+                        {m.rank && <div className="text-[10px] text-gray-400">{m.rank}</div>}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStatusBadge(rec?.status)}
+                      </div>
+                    </div>
+                  )
+                })
               )}
             </div>
           </div>
+
+          {/* Other Servers */}
+          {(otherServerProfiles.length > 0 || records.some(r => r.isOtherServer)) && (
+            <div className="border-t border-gray-100 pt-3">
+              <h5 className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Other Servers ({otherServerProfiles.length})</h5>
+              <div className="mt-2 space-y-1.5 max-h-36 overflow-y-auto">
+                {otherServerProfiles.length === 0 ? (
+                  <p className="text-xs text-gray-400 italic">No other servers added.</p>
+                ) : (
+                  otherServerProfiles.map((m) => {
+                    const rec = records.find(r => r.memberId === m.id)
+                    return (
+                      <div key={m.id} className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-indigo-50/40 border border-indigo-100">
+                        <div>
+                          <div className="font-semibold text-gray-900">{getFullName(m)}</div>
+                          {m.rank && <div className="text-[10px] text-indigo-400">{m.rank}</div>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(rec?.status)}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer Actions */}

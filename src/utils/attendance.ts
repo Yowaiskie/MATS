@@ -6,6 +6,7 @@ export interface AttendanceSummary {
   absent: number
   excused: number
   observer: number
+  formation: number
   total: number
 }
 
@@ -21,6 +22,7 @@ export const calculateAttendanceSummary = (
     absent: 0,
     excused: 0,
     observer: 0,
+    formation: 0,
     total: records.length
   }
 
@@ -30,6 +32,7 @@ export const calculateAttendanceSummary = (
     else if (record.status === 'absent') summary.absent++
     else if (record.status === 'excused') summary.excused++
     else if (record.status === 'observer') summary.observer++
+    else if (record.status === 'formation') summary.formation++
   })
 
   return summary

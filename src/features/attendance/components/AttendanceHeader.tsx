@@ -45,11 +45,23 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
           <p className="text-xs text-gray-500 mt-1">
             {schedule.date} • {schedule.startTime} - {schedule.endTime}
           </p>
-          {session.locked && session.finalizedBy && (
-            <p className="text-[11px] text-gray-400 mt-0.5">
-              Finalized by: {session.finalizedBy}
+          {session.locked && session.finalizedBy ? (
+            <p className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-1">
+              <span>✓ Finalized by:</span>
+              <strong className="font-semibold">{session.finalizedBy}</strong>
             </p>
-          )}
+          ) : session.lastUpdatedBy ? (
+            <p className="text-[11px] text-amber-700 font-medium mt-1 flex items-center gap-1">
+              <span>🟡 In Progress (Last edited by:</span>
+              <strong className="font-semibold">{session.lastUpdatedBy}</strong>
+              {session.lastUpdatedAt && (
+                <span>
+                  at {session.lastUpdatedAt.toDate ? session.lastUpdatedAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'recently'}
+                </span>
+              )}
+              <span>)</span>
+            </p>
+          ) : null}
         </div>
 
         {/* Lock/Unlock & Report triggers */}
@@ -78,7 +90,7 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
       </div>
 
       {/* Live summary counters */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
         {/* Total assigned */}
         <div className="p-4 rounded-xl border border-gray-200 bg-white text-center shadow-sm">
           <span className="block text-[10px] font-semibold uppercase tracking-wider text-gray-400">Total Assigned</span>
@@ -113,6 +125,12 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
         <div className="p-4 rounded-xl border border-purple-100 bg-purple-50 text-center shadow-sm">
           <span className="block text-[10px] font-semibold uppercase tracking-wider text-purple-600">Observer</span>
           <span className="text-2xl font-bold text-purple-700 mt-1 block">{summary.observer}</span>
+        </div>
+
+        {/* Formation */}
+        <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50 text-center shadow-sm">
+          <span className="block text-[10px] font-semibold uppercase tracking-wider text-indigo-600">Formation</span>
+          <span className="text-2xl font-bold text-indigo-700 mt-1 block">{summary.formation || 0}</span>
         </div>
       </div>
 
