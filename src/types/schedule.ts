@@ -7,6 +7,7 @@ export interface Schedule {
   startTime: string // HH:MM
   endTime: string // HH:MM
   status: ScheduleStatus
+  isLocked?: boolean
   assignedMembers: string[] // Array of member document IDs
   createdAt: any // Firestore Timestamp
   updatedAt: any // Firestore Timestamp
@@ -18,6 +19,7 @@ export interface ScheduleInput {
   startTime: string
   endTime: string
   status?: ScheduleStatus
+  isLocked?: boolean
   assignedMembers?: string[]
 }
 

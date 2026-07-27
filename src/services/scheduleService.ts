@@ -101,6 +101,25 @@ export const scheduleService = {
   },
 
   /**
+   * Toggles the locked status of a schedule.
+   */
+  async toggleLockSchedule(id: string, isLocked: boolean, performedBy = 'System'): Promise<void> {
+    const scheduleRef = doc(db, SCHEDULES_COLLECTION, id)
+    await updateDoc(scheduleRef, {
+      isLocked,
+      updatedAt: serverTimestamp()
+    })
+
+    await auditService.logAction(
+      'SCHEDULE_UPDATE',
+      'schedule',
+      `${isLocked ? 'Finalized & Locked' : 'Unlocked'} schedule with ID: ${id}`,
+      performedBy,
+      { scheduleId: id, isLocked }
+    )
+  },
+
+  /**
    * Deletes a schedule and all its associated attendance records.
    */
   async deleteSchedule(id: string, performedBy = 'System'): Promise<void> {

@@ -182,6 +182,20 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
+  const handleToggleLock = async (s: Schedule) => {
+    try {
+      const nextLocked = !s.isLocked
+      await scheduleService.toggleLockSchedule(s.id, nextLocked, profile?.email || 'Admin')
+      await loadData(false)
+      setAlertModal({
+        title: nextLocked ? 'Schedule Locked' : 'Schedule Unlocked',
+        message: nextLocked ? `Schedule "${s.title}" has been finalized & locked.` : `Schedule "${s.title}" is now unlocked.`
+      })
+    } catch (err: any) {
+      setAlertModal({ title: 'Lock Error', message: err.message || 'Failed to update schedule lock state.' })
+    }
+  }
+
   // ── Filter & paginate ─────────────────────────────────────────
   const formatTime12 = (timeStr: string) => {
     if (!timeStr) return ''
@@ -266,7 +280,7 @@ export const SchedulesPage: React.FC = () => {
   const someSelected = selectedIds.size > 0
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -465,67 +479,68 @@ export const SchedulesPage: React.FC = () => {
                   {bulkSelectMode ? 'Cancel Selection' : 'Select'}
                 </button>
 
-              {bulkSelectMode && (
-                <>
-                  {/* Select / deselect all across ALL pages */}
-                  <button
-                    onClick={handleSelectAll}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer transition-colors"
-                  >
-                    {allFilteredSelected ? 'Deselect All' : 'Select All'}
-                  </button>
+                {bulkSelectMode && (
+                  <>
+                    {/* Select / deselect all across ALL pages */}
+                    <button
+                      onClick={handleSelectAll}
+                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer transition-colors"
+                    >
+                      {allFilteredSelected ? 'Deselect All' : 'Select All'}
+                    </button>
 
-                  {someSelected && (
-                    <span className="text-xs text-gray-500">
-                      {selectedIds.size}{totalPages > 1 ? ` / ${filteredSchedules.length}` : ''} selected
-                    </span>
-                  )}
-                </>
+                    {someSelected && (
+                      <span className="text-xs text-gray-500">
+                        {selectedIds.size}{totalPages > 1 ? ` / ${filteredSchedules.length}` : ''} selected
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Bulk delete button */}
+              {bulkSelectMode && selectedIds.size > 0 && (
+                <button
+                  onClick={() => setBulkDeleteOpen(true)}
+                  className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  Delete {selectedIds.size} Selected
+                </button>
               )}
             </div>
-
-            {/* Bulk delete button */}
-            {bulkSelectMode && selectedIds.size > 0 && (
-              <button
-                onClick={() => setBulkDeleteOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete {selectedIds.size} Selected
-              </button>
-            )}
-          </div>
           )}
 
           {/* Cards grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentPageItems.map((schedule) => (
-              <ScheduleCard
-                key={schedule.id}
-                schedule={schedule}
-                totalAssigned={schedule.assignedMembers?.length || 0}
-                isSelected={selectedIds.has(schedule.id)}
-                onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
-                attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule))}
-                session={attendanceSessions.find((sess) => sess.scheduleId === schedule.id)}
-                onEdit={(s) => {
-                  setSelectedSchedule(s)
-                  setFormOpen(true)
-                }}
-                onDelete={handleDelete}
-                onManageAssignments={(s) => {
-                  setSelectedSchedule(s)
-                  setAssignmentOpen(true)
-                }}
-                onView={(s) => {
-                  setSelectedSchedule(s)
-                  setDetailsOpen(true)
-                }}
-              />
-            ))}
-          </div>
+        {currentPageItems.map((schedule) => (
+          <ScheduleCard
+            key={schedule.id}
+            schedule={schedule}
+            totalAssigned={schedule.assignedMembers?.length || 0}
+            isSelected={selectedIds.has(schedule.id)}
+            onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
+            attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule))}
+            session={attendanceSessions.find((sess) => sess.scheduleId === schedule.id)}
+            onToggleLock={handleToggleLock}
+            onEdit={(s) => {
+              setSelectedSchedule(s)
+              setFormOpen(true)
+            }}
+            onDelete={handleDelete}
+            onManageAssignments={(s) => {
+              setSelectedSchedule(s)
+              setAssignmentOpen(true)
+            }}
+            onView={(s) => {
+              setSelectedSchedule(s)
+              setDetailsOpen(true)
+            }}
+          />
+        ))}
+      </div>
 
           {/* Pagination */}
           {totalPages > 1 && (
