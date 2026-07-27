@@ -123,8 +123,8 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                 )}
               </button>
             )}
-            <h4 className="text-sm font-bold text-gray-900 leading-tight truncate max-w-[50%]" title={schedule.title}>
-              {schedule.title}
+            <h4 className="text-sm font-bold text-gray-900 leading-tight truncate flex-1" title={`${schedule.title} ${formatTime12(schedule.startTime)}`}>
+              {schedule.title} <span className="text-blue-600 font-extrabold ml-1">{formatTime12(schedule.startTime)}</span>
             </h4>
             <div className="flex items-center gap-1.5 shrink-0">
               <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border ${statusColors[computedStatus]}`}>

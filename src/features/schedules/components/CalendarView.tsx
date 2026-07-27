@@ -247,7 +247,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                               ? 'text-slate-600'
                               : 'text-gray-700'
                       }`}>
-                        {formatTime12(s.startTime)}
+                        {s.title} <span className="font-normal opacity-85 ml-0.5">{formatTime12(s.startTime)}</span>
                       </span>
                     </button>
                   )

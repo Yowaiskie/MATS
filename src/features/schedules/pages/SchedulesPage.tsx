@@ -228,7 +228,8 @@ export const SchedulesPage: React.FC = () => {
     }
 
     return schedules.filter((s) => {
-      const matchesDate = !dateFilter || s.date === dateFilter
+      // In Calendar View, display all month schedules without restricting to single dateFilter
+      const matchesDate = viewMode === 'calendar' || !dateFilter || s.date === dateFilter
       const matchesTime = !timeFilter || s.startTime === timeFilter
 
       if (!matchesDate || !matchesTime) return false
@@ -255,7 +256,7 @@ export const SchedulesPage: React.FC = () => {
 
       return true
     })
-  }, [schedules, dateFilter, timeFilter, attendanceFilter, searchQuery, attendanceSessions])
+  }, [schedules, dateFilter, timeFilter, attendanceFilter, searchQuery, attendanceSessions, viewMode])
 
   const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
