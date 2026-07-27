@@ -3,6 +3,7 @@ import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import { Pagination } from '@/components/Pagination'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 interface MemberTableProps {
   members: Member[]
@@ -34,6 +35,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onBulkDelete,
   onClearSelection,
 }) => {
+  const { isAdmin } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [orderFilter, setOrderFilter] = useState<string>('all')
@@ -358,36 +360,40 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                         {member.phoneNumber || '--'}
                       </td>
                       <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
-                        {member.status !== 'archived' ? (
-                          <>
-                            <button
-                              onClick={() => onEdit(member)}
-                              className="text-xs text-blue-600 hover:text-blue-700 font-semibold px-2.5 py-1 bg-blue-50 hover:bg-blue-100/70 rounded-md transition-colors cursor-pointer"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => onArchive(member.id)}
-                              className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
-                            >
-                              Delete
-                            </button>
-                          </>
+                        {isAdmin ? (
+                          member.status !== 'archived' ? (
+                            <>
+                              <button
+                                onClick={() => onEdit(member)}
+                                className="text-xs text-blue-600 hover:text-blue-700 font-semibold px-2.5 py-1 bg-blue-50 hover:bg-blue-100/70 rounded-md transition-colors cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => onArchive(member.id)}
+                                className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => onRestore(member.id)}
+                                className="text-xs text-green-600 hover:text-green-700 font-semibold px-2.5 py-1 bg-green-50 hover:bg-green-100/70 rounded-md transition-colors cursor-pointer"
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => onDelete(member.id)}
+                                className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </>
+                          )
                         ) : (
-                          <>
-                            <button
-                              onClick={() => onRestore(member.id)}
-                              className="text-xs text-green-600 hover:text-green-700 font-semibold px-2.5 py-1 bg-green-50 hover:bg-green-100/70 rounded-md transition-colors cursor-pointer"
-                            >
-                              Restore
-                            </button>
-                            <button
-                              onClick={() => onDelete(member.id)}
-                              className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
-                            >
-                              Delete
-                            </button>
-                          </>
+                          <span className="text-[11px] text-gray-400 font-medium italic">Read-only</span>
                         )}
                       </td>
                     </tr>

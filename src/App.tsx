@@ -42,11 +42,7 @@ function App() {
               
               <Route 
                 path="/members" 
-                element={
-                  <ProtectedRoute adminOnly>
-                    <MembersPage />
-                  </ProtectedRoute>
-                } 
+                element={<MembersPage />} 
               />
               
               <Route 
