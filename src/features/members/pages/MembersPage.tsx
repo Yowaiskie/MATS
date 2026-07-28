@@ -6,6 +6,7 @@ import { MemberTable } from '../components/MemberTable'
 import { MemberFormModal } from '../components/MemberFormModal'
 import { MemberImportModal } from '../components/MemberImportModal'
 import { MemberPDFImportModal } from '../components/MemberPDFImportModal'
+import { BulkRankEditModal } from '../components/BulkRankEditModal'
 import type { Member, MemberInput } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 
@@ -34,6 +35,7 @@ export const MembersPage: React.FC = () => {
   const [bulkArchiveOpen, setBulkArchiveOpen] = useState(false)
   const [bulkRestoreOpen, setBulkRestoreOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
+  const [bulkRankEditOpen, setBulkRankEditOpen] = useState(false)
   const [bulkProcessing, setBulkProcessing] = useState(false)
 
   // Set default modals state correctly
@@ -206,6 +208,24 @@ export const MembersPage: React.FC = () => {
     }
   }
 
+  // Bulk rank edit confirmed
+  const handleBulkRankEditConfirmed = async (newRank: string) => {
+    setBulkProcessing(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await memberService.bulkUpdateRank(ids, newRank, profile?.email || 'Admin')
+      setBulkRankEditOpen(false)
+      setSelectedIds(new Set())
+      await loadMembers(false)
+      setAlertModal({ variant: 'success', title: 'Bulk Rank Update Complete', message: `Successfully updated rank to '${newRank}' for ${ids.length} member(s).` })
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ variant: 'error', title: 'Bulk Rank Update Failed', message: err.message || 'Failed to update rank for selected members.' })
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header section */}
@@ -292,6 +312,7 @@ export const MembersPage: React.FC = () => {
             onToggleSelect={handleToggleSelect}
             onSelectAll={handleBulkActionButton}
             onBulkDelete={() => setBulkDeleteOpen(true)}
+            onBulkEditRank={() => setBulkRankEditOpen(true)}
             onClearSelection={handleClearSelection}
           />
         )}
@@ -379,6 +400,14 @@ export const MembersPage: React.FC = () => {
         message={`Are you sure you want to permanently delete ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
         confirmLabel={`Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''} Permanently`}
         loading={bulkProcessing}
+      />
+
+      {/* Bulk Rank Edit Modal */}
+      <BulkRankEditModal
+        isOpen={bulkRankEditOpen}
+        onClose={() => setBulkRankEditOpen(false)}
+        onConfirm={handleBulkRankEditConfirmed}
+        selectedCount={selectedIds.size}
       />
 
       {/* Alert Dialog */}

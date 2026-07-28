@@ -146,33 +146,46 @@ export const generateCommunityReport = (
   let observerCount = 0
   let formationCount = 0
 
+  // Helper to check if a member is a Squire
+  const isSquire = (member: Member) => (member.rank || '').trim().toLowerCase().includes('squire')
+
+  // Helper to accumulate status counters and format member line
+  const formatMemberLine = (member: Member, idx: number) => {
+    const state = formState[member.id]
+    const status = state?.status
+
+    if (status === 'present') presentCount++
+    else if (status === 'late') lateCount++
+    else if (status === 'absent') absentCount++
+    else if (status === 'excused') excusedCount++
+    else if (status === 'observer') observerCount++
+    else if (status === 'formation') formationCount++
+
+    const statusShortcut = mapStatus(status)
+    return `${idx + 1}. ${getFullName(member, false)} - ${statusShortcut}`
+  }
+
   const visibleAssigned = assignedMembers.filter(member => {
     const status = formState[member.id]?.status
-    return status !== 'alumni'
+    return status !== 'alumni' && !isSquire(member)
+  })
+
+  const visibleSquires = [...assignedMembers, ...unassignedMembers].filter(member => {
+    const status = formState[member.id]?.status
+    return status !== 'alumni' && isSquire(member)
   })
 
   const assignedList = visibleAssigned.length > 0
-    ? visibleAssigned
-        .map((member, idx) => {
-          const state = formState[member.id]
-          const status = state?.status
-          
-          if (status === 'present') presentCount++
-          else if (status === 'late') lateCount++
-          else if (status === 'absent') absentCount++
-          else if (status === 'excused') excusedCount++
-          else if (status === 'observer') observerCount++
-          else if (status === 'formation') formationCount++
-
-          const statusShortcut = mapStatus(status)
-          return `${idx + 1}. ${getFullName(member, false)} - ${statusShortcut}`
-        })
-        .join('\n')
+    ? visibleAssigned.map((member, idx) => formatMemberLine(member, idx)).join('\n')
     : 'NO SERVERS!'
+
+  const squiresList = visibleSquires.length > 0
+    ? visibleSquires.map((member, idx) => formatMemberLine(member, idx)).join('\n')
+    : ''
 
   const visibleOther = unassignedMembers.filter(member => {
     const status = formState[member.id]?.status
-    return status !== 'alumni'
+    return status !== 'alumni' && !isSquire(member)
   })
 
   const otherList = visibleOther.length > 0
@@ -183,14 +196,35 @@ export const generateCommunityReport = (
 
   // Replace placeholders dynamically with formatted values
   let result = template
-  
-  if (unassignedMembers.length === 0) {
-    // Remove "Other Servers:" and the placeholder if there are no other servers
-    result = result.replace(/\n*Other\s*Servers:\s*\{\{otherServers\}\}/i, '')
-    // Fallback if the placeholder is still there
+
+  // Remove {{otherServers}} first if there are no other servers
+  if (visibleOther.length === 0) {
+    result = result.replace(/\n*Other\s*Servers:\s*\{\{otherServers\}\}/gi, '')
     result = result.replace(/\{\{otherServers\}\}/g, '')
   } else {
     result = result.replace(/\{\{otherServers\}\}/g, otherList)
+  }
+
+  // Handle {{squires}} placeholder or append Squires section if missing
+  if (visibleSquires.length > 0) {
+    if (result.includes('{{squires}}')) {
+      // If template contains {{squires}}, ensure there is a "Squires:" header if not present
+      if (!/Squires:\s*\{\{squires\}\}/i.test(result)) {
+        result = result.replace(/\{\{squires\}\}/g, `Squires:\n${squiresList}`)
+      } else {
+        result = result.replace(/\{\{squires\}\}/g, squiresList)
+      }
+    } else {
+      // Template doesn't have {{squires}}, append "Squires:" section right below assigned members
+      if (result.includes('{{assignedMembers}}')) {
+        result = result.replace(/\{\{assignedMembers\}\}/g, `${assignedList}\n\nSquires:\n${squiresList}`)
+      } else {
+        result = result + `\n\nSquires:\n${squiresList}`
+      }
+    }
+  } else {
+    result = result.replace(/\n*Squires:\s*\{\{squires\}\}/gi, '')
+    result = result.replace(/\{\{squires\}\}/g, '')
   }
   
   result = result.replace(/\{\{scheduleDate\}\}/g, formatReadableDate(schedule.date || ''))

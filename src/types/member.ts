@@ -5,10 +5,19 @@ export const ORDER_GROUPS = [
   'Order of San Juan',
   'Order of San Tiago',
   'Order of San Andres',
-  'Officers'
+  'Officers',
+  'Squires'
 ] as const
 
 export type OrderGroup = typeof ORDER_GROUPS[number]
+
+export const MEMBER_RANKS = [
+  'Chevaliers',
+  'Paladins',
+  'Squires'
+] as const
+
+export type MemberRank = typeof MEMBER_RANKS[number]
 
 export interface OrderColorTheme {
   bg: string
@@ -53,6 +62,13 @@ export const ORDER_COLORS: Record<string, OrderColorTheme> = {
     text: 'text-purple-700',
     badge: 'bg-purple-50 border-purple-200 text-purple-700',
     activeTab: 'bg-purple-600 border-purple-600 text-white shadow-xs'
+  },
+  'Squires': {
+    bg: 'bg-indigo-50',
+    border: 'border-indigo-200',
+    text: 'text-indigo-700',
+    badge: 'bg-indigo-50 border-indigo-200 text-indigo-700',
+    activeTab: 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
   }
 }
 

@@ -17,6 +17,7 @@ interface MemberTableProps {
   onToggleSelect: (id: string) => void
   onSelectAll: () => void
   onBulkDelete: () => void
+  onBulkEditRank?: () => void
   onClearSelection: () => void
 }
 
@@ -33,6 +34,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onToggleSelect,
   onSelectAll,
   onBulkDelete,
+  onBulkEditRank,
   onClearSelection,
 }) => {
   const { isAdmin } = useAuth()
@@ -209,7 +211,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             </button>
           </div>
 
-          {/* Bulk action button */}
+          {/* Bulk action buttons */}
           {showArchived ? (
             <div className="flex items-center gap-2">
               <button
@@ -232,15 +234,28 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               </button>
             </div>
           ) : (
-            <button
-              onClick={onSelectAll}   // triggers bulk archive in parent
-              className="flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
-            >
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-              </svg>
-              Archive {selectedIds.size} Selected
-            </button>
+            <div className="flex items-center gap-2">
+              {onBulkEditRank && (
+                <button
+                  onClick={onBulkEditRank}
+                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Change Rank ({selectedIds.size})
+                </button>
+              )}
+              <button
+                onClick={onSelectAll}   // triggers bulk archive in parent
+                className="flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+                Archive {selectedIds.size} Selected
+              </button>
+            </div>
           )}
         </div>
       )}

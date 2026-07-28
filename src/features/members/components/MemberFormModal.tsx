@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member, MemberInput } from '@/types/member'
-import { ORDER_GROUPS } from '@/types/member'
+import { ORDER_GROUPS, MEMBER_RANKS } from '@/types/member'
 import { isDuplicateName } from '@/utils/member'
 
 interface MemberFormModalProps {
@@ -227,17 +227,40 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           {/* Rank */}
           <div>
             <label htmlFor="modal-rank" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Rank / Designation
+              Rank / Designation *
             </label>
-            <input
+            <select
               id="modal-rank"
-              type="text"
-              value={rank}
-              onChange={(e) => setRank(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              placeholder="e.g. Coordinator, Brother, Sister"
+              value={MEMBER_RANKS.includes(rank as any) ? rank : (rank ? 'custom' : '')}
+              onChange={(e) => {
+                if (e.target.value !== 'custom') {
+                  setRank(e.target.value)
+                } else if (!MEMBER_RANKS.includes(rank as any)) {
+                  // Keep current custom value
+                } else {
+                  setRank('')
+                }
+              }}
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150 cursor-pointer"
               disabled={loading}
-            />
+            >
+              <option value="">-- Select Rank --</option>
+              {MEMBER_RANKS.map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+              <option value="custom">Other / Custom Rank...</option>
+            </select>
+
+            {(!MEMBER_RANKS.includes(rank as any) && rank !== '') && (
+              <input
+                type="text"
+                value={rank}
+                onChange={(e) => setRank(e.target.value)}
+                placeholder="Enter custom rank name"
+                className="mt-2 block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:border-blue-500 focus:outline-none transition-shadow"
+                disabled={loading}
+              />
+            )}
             {errors.rank && <p className="mt-1 text-xs text-red-600 font-medium">{errors.rank}</p>}
           </div>
 

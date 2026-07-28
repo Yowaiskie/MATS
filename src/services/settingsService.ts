@@ -11,6 +11,9 @@ export const DEFAULT_REPORT_TEMPLATE = `{{scheduleDate}} ({{scheduleTitle}}, {{s
 
 {{assignedMembers}}
 
+Squires:
+{{squires}}
+
 Other Servers:
 {{otherServers}}`
 

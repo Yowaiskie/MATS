@@ -24,13 +24,15 @@ const mockSchedule: Schedule = {
 const mockAssignedMembers: Member[] = [
   { id: 'm-1', firstName: 'Michael', lastName: 'Camarador', rank: 'Knight', status: 'active', createdAt: '', updatedAt: '' },
   { id: 'm-2', firstName: 'Lance', lastName: 'Caoili', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' },
-  { id: 'm-3', firstName: 'Patrick', lastName: 'Jacobo', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' }
+  { id: 'm-3', firstName: 'Patrick', lastName: 'Jacobo', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' },
+  { id: 'm-6', firstName: 'Juan', lastName: 'Dela Cruz', rank: 'Squires', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
 const mockFormState = {
   'm-1': { status: 'present' as const, remarks: '' },
   'm-2': { status: 'absent' as const, remarks: '' },
-  'm-3': { status: 'present' as const, remarks: '' }
+  'm-3': { status: 'present' as const, remarks: '' },
+  'm-6': { status: 'present' as const, remarks: '' }
 }
 
 const mockUnassignedMembers: Member[] = [

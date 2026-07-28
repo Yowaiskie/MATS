@@ -103,6 +103,8 @@ export const AttendancePage: React.FC = () => {
       'Order of San Juan': 0,
       'Order of San Tiago': 0,
       'Order of San Andres': 0,
+      'Officers': 0,
+      'Squires': 0,
       none: 0
     }
     combined.forEach(m => {
