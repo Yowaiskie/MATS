@@ -129,15 +129,23 @@ export const PublicSchedulePage: React.FC = () => {
 
     const allPatterns = Array.from(patternMap.values())
     
+    const getSortWeight = (p: SchedulePattern) => {
+      // Anticipated mass on Saturday goes before Sunday
+      if (p.dayOfWeek === 6 && p.startTime >= '16:00') return -1
+      return p.dayOfWeek
+    }
+
     // Sort by dayOfWeek (Sun=0, Mon=1...) then startTime
     allPatterns.sort((a, b) => {
-      if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
+      const weightA = getSortWeight(a)
+      const weightB = getSortWeight(b)
+      if (weightA !== weightB) return weightA - weightB
       return a.startTime.localeCompare(b.startTime)
     })
 
     return {
-      sundayPatterns: allPatterns.filter(p => p.dayOfWeek === 0),
-      weekdayPatterns: allPatterns.filter(p => p.dayOfWeek !== 0)
+      sundayPatterns: allPatterns.filter(p => p.dayOfWeek === 0 || (p.dayOfWeek === 6 && p.startTime >= '16:00')),
+      weekdayPatterns: allPatterns.filter(p => p.dayOfWeek !== 0 && !(p.dayOfWeek === 6 && p.startTime >= '16:00'))
     }
   }, [publicationSchedules])
 
@@ -153,13 +161,7 @@ export const PublicSchedulePage: React.FC = () => {
     return max
   }, [sundayPatterns])
 
-  const maxRowsWeekday = useMemo(() => {
-    let max = 5
-    weekdayPatterns.forEach(p => {
-      if (p.assignedMembers.length > max) max = p.assignedMembers.length
-    })
-    return max
-  }, [weekdayPatterns])
+
 
   const hasSubmitted = useMemo(() => {
     if (!publication || !selectedMemberId) return false
@@ -378,11 +380,127 @@ export const PublicSchedulePage: React.FC = () => {
                           ) : (
                             <div
                               onClick={() => handleCellClick(pattern.id, isSunday)}
-                              className="inline-flex items-center justify-center px-4 py-3 rounded-2xl border border-dashed border-slate-200 bg-slate-50/50 text-slate-300 hover:border-indigo-300 hover:text-indigo-600 text-xs transition-all cursor-pointer select-none min-w-[140px]"
+                              className={`w-full h-full min-h-[44px] rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
+                                !isFinalized && !hasSubmitted
+                                  ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50'
+                                  : 'cursor-not-allowed opacity-50'
+                              }`}
                             >
-                              ----
+                              <span className="text-slate-300 text-lg font-light">+</span>
                             </div>
                           )}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const renderMatrixTable = (patterns: SchedulePattern[], title: string, subtitle: string, icon: string) => {
+    if (patterns.length === 0) return null
+
+    // Extract unique times and days
+    const uniqueTimes = Array.from(new Set(patterns.map(p => p.startTime))).sort()
+    
+    // Sort days correctly (1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat)
+    const uniqueDays = Array.from(new Set(patterns.map(p => p.dayOfWeek))).sort((a, b) => a - b)
+
+    const getDayNameFromIndex = (index: number) => {
+      const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
+      return days[index]
+    }
+
+    return (
+      <div className="mb-10">
+        <div className="flex items-center gap-4 mb-6">
+          <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center text-xl shadow-xs border border-teal-100">
+            {icon}
+          </div>
+          <div>
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">{title}</h2>
+            <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-left min-w-max">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="px-6 py-5 font-extrabold text-[10px] text-slate-500 uppercase tracking-widest w-24 sticky left-0 bg-slate-50/90 z-10 border-r border-slate-100">
+                    Time \ Day
+                  </th>
+                  {uniqueDays.map(d => (
+                    <th key={d} className="px-6 py-5 text-center min-w-[170px]">
+                      <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{getDayNameFromIndex(d)}</div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {uniqueTimes.map(time => (
+                  <tr key={time} className="transition-colors">
+                    <td className="px-6 py-4 font-black text-xs text-slate-900 uppercase sticky left-0 bg-white/90 z-10 border-r border-slate-100 whitespace-nowrap">
+                      {formatTime12Hour(time)}
+                    </td>
+                    {uniqueDays.map(day => {
+                      const pattern = patterns.find(p => p.dayOfWeek === day && p.startTime === time)
+                      
+                      if (!pattern) {
+                        return (
+                          <td key={`${day}-${time}`} className="px-4 py-4 text-center align-middle bg-slate-50/30">
+                            <span className="text-slate-300 font-bold tracking-widest text-xs">----</span>
+                          </td>
+                        )
+                      }
+
+                      const isSelectedByCurrentMember = pattern.scheduleIds.some(id => selectedScheduleIds.has(id))
+                      const savedMemberIds = pattern.assignedMembers
+
+                      const displayMembers: Array<{ id: string, name: string, isDraft: boolean }> = []
+                      
+                      savedMemberIds.forEach(id => {
+                         displayMembers.push({ id, name: memberMap.get(id) || 'Unknown', isDraft: false })
+                      })
+
+                      if (selectedMemberId && isSelectedByCurrentMember && !savedMemberIds.includes(selectedMemberId)) {
+                         displayMembers.push({ id: selectedMemberId, name: memberMap.get(selectedMemberId) || 'Unknown', isDraft: true })
+                      }
+
+                      return (
+                        <td 
+                          key={`${day}-${time}`} 
+                          className={`px-4 py-4 text-center align-top transition-colors ${!isFinalized && !hasSubmitted ? 'cursor-pointer hover:bg-slate-50/80' : ''}`}
+                          onClick={() => !isFinalized && !hasSubmitted && handleCellClick(pattern.id, false)}
+                        >
+                           <div className="flex flex-col gap-2 min-h-[100px] h-full rounded-xl border border-transparent hover:border-slate-200 p-1 transition-colors">
+                              {displayMembers.length > 0 ? (
+                                displayMembers.map(m => {
+                                  return (
+                                    <div key={m.id} className="px-3 py-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex flex-col items-start shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] bg-white text-slate-700 relative overflow-hidden group">
+                                       {m.isDraft && <div className="absolute inset-0 bg-indigo-50 opacity-50 pointer-events-none" />}
+                                       <div className="flex items-start gap-2 relative z-10">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1" />
+                                          <span className="text-left leading-snug break-words">
+                                            {m.name} 
+                                            {m.isDraft && <span className="ml-1 text-indigo-600 font-extrabold text-[9px] uppercase tracking-wider">(Draft)</span>}
+                                          </span>
+                                       </div>
+                                    </div>
+                                  )
+                                })
+                              ) : (
+                                <div className="flex-1 flex items-center justify-center">
+                                  <span className="text-slate-300 font-bold tracking-widest text-xs">----</span>
+                                </div>
+                              )}
+                           </div>
                         </td>
                       )
                     })}
@@ -447,7 +565,7 @@ export const PublicSchedulePage: React.FC = () => {
                       .sort((a, b) => a.lastName.localeCompare(b.lastName))
                       .map(m => (
                         <option key={m.id} value={m.id}>
-                          {m.lastName}, {m.firstName} {m.rank ? `(${m.rank})` : ''}
+                          {m.lastName}, {m.firstName}
                         </option>
                       ))}
                   </select>
@@ -511,7 +629,7 @@ export const PublicSchedulePage: React.FC = () => {
         ) : (
           <>
             {renderTable(sundayPatterns, maxRowsSunday, true, 'Sunday Masses', `Recurring Sunday Schedules`, '📅')}
-            {renderTable(weekdayPatterns, maxRowsWeekday, false, 'Weekday Masses', `Recurring Weekday Schedules`, '📆')}
+            {renderMatrixTable(weekdayPatterns, 'Weekday Masses', `Weekday Masses Schedule for ${publication?.name || ''}`, '📆')}
           </>
         )}
       </div>
