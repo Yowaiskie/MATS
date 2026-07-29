@@ -249,8 +249,7 @@ export const recurringService = {
   async generateSchedules(
     startDate: string,
     endDate: string,
-    templates: ScheduleTemplate[],
-    allMembers: Member[]
+    templates: ScheduleTemplate[]
   ): Promise<{ created: number; skipped: number; duplicates: number; validationErrors: string[] }> {
     const result = {
       created: 0,
@@ -309,51 +308,6 @@ export const recurringService = {
           continue
         }
 
-        // 3. Validation for default assigned members (active check & conflict check)
-        const validAssignedIds: string[] = []
-        let hasConflict = false
-
-        for (const memberId of temp.assignedMembers) {
-          const member = allMembers.find(m => m.id === memberId)
-          if (!member) {
-            result.validationErrors.push(
-              `Date ${dateStr} - Template "${temp.name}": Assigned member ID "${memberId}" not found.`
-            )
-            hasConflict = true
-            break
-          }
-          if (member.status !== 'active') {
-            result.validationErrors.push(
-              `Date ${dateStr} - Template "${temp.name}": Member ${getFullName(member)} is archived and cannot be assigned.`
-            )
-            hasConflict = true
-            break
-          }
-
-          // Check assignment overlap conflicts on this date
-          const conflicting = existingSchedules.find(s => 
-            s.date === dateStr &&
-            s.status !== 'cancelled' &&
-            s.assignedMembers.includes(memberId) &&
-            isTimeOverlapping(temp.startTime, slotEndTime, s.startTime, s.endTime)
-          )
-
-          if (conflicting) {
-            result.validationErrors.push(
-              `Date ${dateStr} - Template "${temp.name}": Member ${getFullName(member)} is already assigned to "${conflicting.title}" (${conflicting.startTime} - ${conflicting.endTime}).`
-            )
-            hasConflict = true
-            break
-          }
-
-          validAssignedIds.push(memberId)
-        }
-
-        if (hasConflict) {
-          result.skipped++
-          continue
-        }
-
         // 4. Create the schedule doc in Firestore
         try {
           const newId = await scheduleService.addSchedule({
@@ -362,7 +316,7 @@ export const recurringService = {
             startTime: temp.startTime,
             endTime: slotEndTime,
             status: 'upcoming',
-            assignedMembers: validAssignedIds
+            assignedMembers: []
           })
 
           // Add to in-memory list to catch conflicts in subsequent generator iterations
@@ -373,7 +327,7 @@ export const recurringService = {
             startTime: temp.startTime,
             endTime: slotEndTime,
             status: 'upcoming',
-            assignedMembers: validAssignedIds,
+            assignedMembers: [],
             createdAt: new Date(),
             updatedAt: new Date()
           })

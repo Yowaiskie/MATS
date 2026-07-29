@@ -44,6 +44,18 @@ export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
 }
 
 const PRESETS_DOC = 'permissionPresets'
+const PUBLIC_SCHEDULE_DOC = 'publicSchedule'
+
+export interface PublicScheduleSettings {
+  enabledMonth: number
+  enabledYear: number
+}
+
+export const DEFAULT_PUBLIC_SCHEDULE_SETTINGS: PublicScheduleSettings = {
+  enabledMonth: new Date().getMonth() + 1,
+  enabledYear: new Date().getFullYear()
+}
+
 
 export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
   {
@@ -219,5 +231,50 @@ export const settingsService = {
       performedBy,
       payload
     )
+  },
+
+  /**
+   * Fetches the public schedule configuration from Firestore.
+   */
+  async getPublicScheduleSettings(): Promise<PublicScheduleSettings> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, PUBLIC_SCHEDULE_DOC)
+      const docSnap = await getDoc(docRef)
+
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        return {
+          enabledMonth: data.enabledMonth ?? DEFAULT_PUBLIC_SCHEDULE_SETTINGS.enabledMonth,
+          enabledYear: data.enabledYear ?? DEFAULT_PUBLIC_SCHEDULE_SETTINGS.enabledYear
+        }
+      }
+      return DEFAULT_PUBLIC_SCHEDULE_SETTINGS
+    } catch (err) {
+      console.error('Failed to get public schedule settings:', err)
+      return DEFAULT_PUBLIC_SCHEDULE_SETTINGS
+    }
+  },
+
+  /**
+   * Saves the public schedule configuration to Firestore.
+   */
+  async savePublicScheduleSettings(settings: PublicScheduleSettings, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, PUBLIC_SCHEDULE_DOC)
+    const payload = {
+      enabledMonth: Number(settings.enabledMonth),
+      enabledYear: Number(settings.enabledYear),
+      updatedAt: serverTimestamp()
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated public schedule settings (Month: ${settings.enabledMonth}, Year: ${settings.enabledYear})`,
+      performedBy,
+      payload
+    )
   }
 }
+

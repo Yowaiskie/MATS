@@ -23,13 +23,13 @@ service cloud.firestore {
 
     // members collection: Authenticated users can read, authorized users can modify
     match /members/{memberId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAuthenticated();
     }
     
     // schedules collection: Authenticated users can read, authorized users can modify
     match /schedules/{scheduleId} {
-      allow read: if isAuthenticated();
+      allow read: if true;
       allow write: if isAuthenticated();
     }
     
@@ -58,6 +58,12 @@ service cloud.firestore {
     // auditLogs collection: Authenticated users can log actions and admins can view
     match /auditLogs/{logId} {
       allow read, write: if isAuthenticated();
+    }
+
+    // schedulePublications collection: Public can read, authenticated users can write
+    match /schedulePublications/{pubId} {
+      allow read: if true;
+      allow write: if isAuthenticated();
     }
   }
 }

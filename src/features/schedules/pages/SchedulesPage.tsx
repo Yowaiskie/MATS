@@ -8,6 +8,8 @@ import { CalendarView } from '../components/CalendarView'
 import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
 import { TemplateManagerModal } from '../components/TemplateManagerModal'
 import { CSVImporterModal } from '../components/CSVImporterModal'
+import { PublicationsTab } from '../components/PublicationsTab'
+import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
@@ -30,6 +32,8 @@ export const SchedulesPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>('schedules')
+
   // Filter states
   const [dateFilter, setDateFilter] = useState(getTodayString())
   const [timeFilter, setTimeFilter] = useState('')
@@ -44,6 +48,7 @@ export const SchedulesPage: React.FC = () => {
   const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteMonthOpen, setBulkDeleteMonthOpen] = useState(false)
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
@@ -285,64 +290,97 @@ export const SchedulesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Schedule Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Create weekly service schedules and assign altar servers.</p>
-        </div>
-        <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
-          {/* Segmented View Mode Toggle */}
-          <div className="flex border border-gray-200 bg-white rounded-lg p-1 shadow-xs">
+          <div className="flex gap-4 mt-3 border-b border-gray-200">
             <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white font-bold'
-                  : 'text-gray-500 hover:text-gray-900'
+              onClick={() => setActiveTab('schedules')}
+              className={`pb-2 text-sm font-bold transition-colors border-b-2 ${
+                activeTab === 'schedules' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              List View
+              Schedules
             </button>
             <button
-              onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                viewMode === 'calendar'
-                  ? 'bg-blue-600 text-white font-bold'
-                  : 'text-gray-500 hover:text-gray-900'
+              onClick={() => setActiveTab('publications')}
+              className={`pb-2 text-sm font-bold transition-colors border-b-2 ${
+                activeTab === 'publications' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
               }`}
             >
-              Calendar View
+              Publications
             </button>
           </div>
-
-          {isAdmin && (
+        </div>
+        <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
+          {activeTab === 'schedules' && (
             <>
-              <button
-                onClick={() => setTemplatesOpen(true)}
-                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-              >
-                Templates
-              </button>
+              {/* Segmented View Mode Toggle */}
+              <div className="flex border border-gray-200 bg-white rounded-lg p-1 shadow-xs">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  List View
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                    viewMode === 'calendar'
+                      ? 'bg-blue-600 text-white font-bold'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  Calendar View
+                </button>
+              </div>
 
-              <button
-                onClick={() => setCsvImportOpen(true)}
-                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-              >
-                Import CSV
-              </button>
+              {isAdmin && (
+                <>
+                  <button
+                    onClick={() => setTemplatesOpen(true)}
+                    className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                  >
+                    Templates
+                  </button>
 
-              <button
-                onClick={() => {
-                  setSelectedSchedule(null)
-                  setSelectedDate('')
-                  setFormOpen(true)
-                }}
-                className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
-              >
-                Create Schedule
-              </button>
+                  <button
+                    onClick={() => setCsvImportOpen(true)}
+                    className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                  >
+                    Import CSV
+                  </button>
+
+                  <button
+                    onClick={() => setBulkDeleteMonthOpen(true)}
+                    className="rounded-lg border border-red-200 bg-white hover:bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:text-red-700 transition-colors cursor-pointer shadow-sm"
+                    title="Delete all schedules for a specific month"
+                  >
+                    Bulk Delete Month
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedSchedule(null)
+                      setSelectedDate('')
+                      setFormOpen(true)
+                    }}
+                    className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
+                  >
+                    Create Schedule
+                  </button>
+                </>
+              )}
             </>
           )}
         </div>
       </div>
 
+      {activeTab === 'publications' ? (
+        <PublicationsTab />
+      ) : (
+        <>
       {/* Filters bar */}
       <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-xs">
         {/* Search filter */}
@@ -683,8 +721,6 @@ export const SchedulesPage: React.FC = () => {
       <TemplateManagerModal
         isOpen={templatesOpen}
         onClose={() => setTemplatesOpen(false)}
-        activeMembers={activeMembers}
-        allMembers={allMembersProfiles}
         onGenerateSuccess={loadData}
       />
 
@@ -693,6 +729,12 @@ export const SchedulesPage: React.FC = () => {
         onClose={() => setCsvImportOpen(false)}
         activeMembers={allMembersProfiles}
         onImportSuccess={loadData}
+      />
+
+      <BulkDeleteMonthModal
+        isOpen={bulkDeleteMonthOpen}
+        onClose={() => setBulkDeleteMonthOpen(false)}
+        onSuccess={() => loadData(false)}
       />
 
       {/* Single Delete Confirm Dialog */}
@@ -729,6 +771,8 @@ export const SchedulesPage: React.FC = () => {
         title={alertModal?.title ?? 'Error'}
         message={alertModal?.message ?? error ?? ''}
       />
+      </>
+      )}
     </div>
   )
 }

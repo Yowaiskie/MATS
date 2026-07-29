@@ -13,6 +13,7 @@ import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { AuditPage } from '@/features/audit/pages/AuditPage'
 import { UsersPage } from '@/features/users/pages/UsersPage'
 import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswordPage'
+import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePage'
 
 function App() {
   return (
@@ -29,6 +30,13 @@ function App() {
                 </PublicRoute>
               } 
             />
+
+            {/* Public Self-Service Schedule Link */}
+            <Route 
+              path="/public/schedule/:id" 
+              element={<PublicSchedulePage />} 
+            />
+
 
             {/* Protected Routes wrapped under a single layout parent */}
             <Route 

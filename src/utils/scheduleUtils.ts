@@ -121,3 +121,21 @@ export const isSundayOrAnticipatedMass = (
   return false
 }
 
+/**
+ * Converts a 24-hour time string (HH:MM) to a 12-hour AM/PM format.
+ * @param time24 - e.g. "14:30"
+ * @returns e.g. "2:30 PM"
+ */
+export const formatTime12Hour = (time24: string): string => {
+  if (!time24) return ''
+  const [hourStr, minuteStr] = time24.split(':')
+  if (!hourStr || !minuteStr) return time24
+
+  let hour = parseInt(hourStr, 10)
+  const ampm = hour >= 12 ? 'PM' : 'AM'
+  
+  hour = hour % 12
+  if (hour === 0) hour = 12
+
+  return `${hour}:${minuteStr} ${ampm}`
+}
