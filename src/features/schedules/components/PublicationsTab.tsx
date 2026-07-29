@@ -15,7 +15,14 @@ export const PublicationsTab: React.FC = () => {
   const [formOpen, setFormOpen] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<SchedulePublication | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [confirmFinalize, setConfirmFinalize] = useState<SchedulePublication | null>(null)
+  const [confirmStatusAction, setConfirmStatusAction] = useState<{
+    pub: SchedulePublication;
+    targetStatus: 'published' | 'archived';
+    isLocked: boolean;
+    title: string;
+    message: string;
+    confirmLabel: string;
+  } | null>(null)
   const [manageSubmissionsPub, setManageSubmissionsPub] = useState<SchedulePublication | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; type?: 'success' | 'error' } | null>(null)
 
@@ -60,14 +67,13 @@ export const PublicationsTab: React.FC = () => {
     }
   }
 
-  const handleToggleStatus = async (pub: SchedulePublication) => {
-    const nextStatus = pub.status === 'published' ? 'draft' : 'published'
+  const handlePublish = async (pub: SchedulePublication) => {
     try {
-      await publicationService.updatePublication(pub.id, { status: nextStatus })
+      await publicationService.updatePublication(pub.id, { status: 'published' })
       await loadData()
       setAlertModal({ 
-        title: 'Status Updated', 
-        message: `Publication is now ${nextStatus}.`,
+        title: 'Published', 
+        message: 'Publication is now open for scheduling.',
         type: 'success'
       })
     } catch (err: any) {
@@ -75,18 +81,18 @@ export const PublicationsTab: React.FC = () => {
     }
   }
 
-  const handleFinalizeConfirmed = async () => {
-    if (!confirmFinalize) return
-    const pub = confirmFinalize
-    setConfirmFinalize(null)
+  const handleStatusActionConfirmed = async () => {
+    if (!confirmStatusAction) return
+    const { pub, targetStatus, isLocked } = confirmStatusAction
+    setConfirmStatusAction(null)
     setLoading(true)
     try {
-      const lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, true)
-      await publicationService.updatePublication(pub.id, { status: 'archived' })
+      const lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, isLocked)
+      await publicationService.updatePublication(pub.id, { status: targetStatus })
       await loadData()
       setAlertModal({ 
-        title: 'Publication Finalized', 
-        message: `Successfully locked ${lockedCount} schedule(s) for the month and archived the publication. The public link is now closed.`,
+        title: targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Unfinalized', 
+        message: `Successfully ${isLocked ? 'locked' : 'unlocked'} ${lockedCount} schedule(s) for the month and set publication to ${targetStatus}.`,
         type: 'success'
       })
     } catch (err: any) {
@@ -220,66 +226,107 @@ export const PublicationsTab: React.FC = () => {
                       {pub.status}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-right flex justify-end gap-2">
-                    <button
-                      onClick={() => handleCopyLink(pub.id)}
-                      title="Copy Public Link"
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                        <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                      </svg>
-                    </button>
-                    <a
-                      href={`/public/schedule/${pub.id}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      title="Preview"
-                      className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                    </a>
-                    <button
-                      onClick={() => handleToggleStatus(pub)}
-                      title={pub.status === 'published' ? 'Unpublish' : 'Publish'}
-                      className="p-1.5 text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>
-                      </svg>
-                    </button>
-                    <button
-                      onClick={() => setConfirmFinalize(pub)}
-                      title="Finalize & Lock Schedules"
-                      className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    </button>
-                    <button
-                      onClick={() => setManageSubmissionsPub(pub)}
-                      title="Manage Submissions / Reset Users"
-                      className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedPublication(pub)
-                        setFormOpen(true)
-                      }}
-                      title="Edit"
-                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                    </button>
-                    <button
-                      onClick={() => handleDelete(pub.id)}
-                      title="Delete"
-                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                    </button>
+                  <td className="px-6 py-4 text-right">
+                    <div className="flex justify-end items-center gap-3">
+                      
+                      {/* Link Actions */}
+                      <div className="flex items-center gap-1 pr-3 border-r border-gray-200">
+                        <button
+                          onClick={() => handleCopyLink(pub.id)}
+                          title="Copy Public Link"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                          </svg>
+                        </button>
+                        <a
+                          href={`/public/schedule/${pub.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Preview"
+                          className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </a>
+                      </div>
+
+                      {/* Status Actions */}
+                      <div className="flex items-center gap-1 pr-3 border-r border-gray-200">
+                        {pub.status === 'draft' && (
+                          <button
+                            onClick={() => handlePublish(pub)}
+                            title="Publish (Open for Scheduling)"
+                            className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                          </button>
+                        )}
+                        {pub.status === 'published' && (
+                          <button
+                            onClick={() => setConfirmStatusAction({
+                              pub,
+                              targetStatus: 'archived',
+                              isLocked: true,
+                              title: 'Finalize & Lock Schedules',
+                              message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
+                              confirmLabel: 'Finalize & Lock'
+                            })}
+                            title="Finalize & Lock Schedules"
+                            className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                          </button>
+                        )}
+                        {pub.status === 'archived' && (
+                          <button
+                            onClick={() => setConfirmStatusAction({
+                              pub,
+                              targetStatus: 'published',
+                              isLocked: false,
+                              title: 'Unfinalize & Unlock Schedules',
+                              message: `Are you sure you want to unfinalize "${pub.name}"? This will unlock all schedules in its date range and re-open the public link so members can submit again.`,
+                              confirmLabel: 'Unfinalize & Unlock'
+                            })}
+                            title="Unfinalize & Unlock Schedules"
+                            className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M10.5 7h4v4"/></svg>
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Management Actions */}
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => setManageSubmissionsPub(pub)}
+                          title="Manage Submissions / Reset Users"
+                          className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedPublication(pub)
+                            setFormOpen(true)
+                          }}
+                          title="Edit"
+                          className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                        </button>
+                        <button
+                          onClick={() => handleDelete(pub.id)}
+                          title="Delete"
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -306,13 +353,12 @@ export const PublicationsTab: React.FC = () => {
       />
 
       <ConfirmModal
-        isOpen={!!confirmFinalize}
-        onClose={() => setConfirmFinalize(null)}
-        onConfirm={handleFinalizeConfirmed}
-        variant="warning"
-        title="Finalize Publication"
-        message={`Are you sure you want to finalize this publication? This will officially LOCK all schedules between ${confirmFinalize?.startDate} and ${confirmFinalize?.endDate}. The publication will be closed, and no further public submissions will be allowed.`}
-        confirmLabel="Finalize & Lock"
+        isOpen={!!confirmStatusAction}
+        onClose={() => setConfirmStatusAction(null)}
+        onConfirm={handleStatusActionConfirmed}
+        title={confirmStatusAction?.title || ''}
+        message={confirmStatusAction?.message || ''}
+        confirmLabel={confirmStatusAction?.confirmLabel || 'Confirm'}
       />
 
       <ManageSubmissionsModal
