@@ -287,6 +287,31 @@ export const memberService = {
   },
 
   /**
+   * Bulk-updates order/group for multiple members using batched writes.
+   */
+  async bulkUpdateOrder(ids: string[], newOrder: string, performedBy = 'System'): Promise<void> {
+    if (ids.length === 0) return
+    const BATCH_SIZE_LIMIT = 500
+    for (let i = 0; i < ids.length; i += BATCH_SIZE_LIMIT) {
+      const chunk = ids.slice(i, i + BATCH_SIZE_LIMIT)
+      const batch = writeBatch(db)
+      chunk.forEach(id => {
+        const ref = doc(db, MEMBERS_COLLECTION, id)
+        batch.update(ref, { order: newOrder.trim(), updatedAt: serverTimestamp() })
+      })
+      await batch.commit()
+    }
+
+    await auditService.logAction(
+      'MEMBER_UPDATE',
+      'member',
+      `Bulk updated order to '${newOrder}' for ${ids.length} members`,
+      performedBy,
+      { count: ids.length, newOrder, ids }
+    )
+  },
+
+  /**
    * Bulk-restores multiple archived members (sets status → 'active') using batched writes.
    */
   async bulkRestoreMembers(ids: string[], performedBy = 'System'): Promise<void> {

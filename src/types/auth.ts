@@ -12,6 +12,7 @@ export type ModuleKey =
   | 'settings' 
   | 'audit'
   | 'changePassword'
+  | 'excuses'
 
 export interface UserPermissions {
   allowedModules: ModuleKey[]

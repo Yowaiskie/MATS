@@ -1,4 +1,4 @@
-export type AuditCategory = 'member' | 'schedule' | 'attendance' | 'settings' | 'system'
+export type AuditCategory = 'member' | 'schedule' | 'attendance' | 'settings' | 'system' | 'excuse'
 
 export type AuditAction =
   | 'MEMBER_CREATE'
@@ -16,6 +16,10 @@ export type AuditAction =
   | 'SETTINGS_UPDATE'
   | 'USER_PASSWORD_CHANGE'
   | 'USER_LOGIN'
+  | 'EXCUSE_SUBMITTED'
+  | 'EXCUSE_APPROVED'
+  | 'EXCUSE_REJECTED'
+  | 'EXCUSE_CANCELLED'
 
 export interface AuditLog {
   id: string

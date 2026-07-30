@@ -65,5 +65,17 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAuthenticated();
     }
+
+    // counters collection: public can read/write to generate sequential tracking numbers
+    match /counters/{counterId} {
+      allow read, write: if true;
+    }
+
+    // excuseRequests collection: public can create and read (to check status), authenticated users can update
+    match /excuseRequests/{excuseId} {
+      allow create: if true;
+      allow read: if true;
+      allow update, delete: if isAuthenticated();
+    }
   }
 }

@@ -14,6 +14,8 @@ import { AuditPage } from '@/features/audit/pages/AuditPage'
 import { UsersPage } from '@/features/users/pages/UsersPage'
 import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswordPage'
 import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePage'
+import { PublicExcusePage } from '@/features/excuse/PublicExcusePage'
+import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
 
 function App() {
   return (
@@ -37,6 +39,11 @@ function App() {
               element={<PublicSchedulePage />} 
             />
 
+            {/* Public Excuse Link */}
+            <Route 
+              path="/public/excuse" 
+              element={<PublicExcusePage />} 
+            />
 
             {/* Protected Routes wrapped under a single layout parent */}
             <Route 
@@ -96,6 +103,15 @@ function App() {
                 element={
                   <ProtectedRoute adminOnly>
                     <AuditPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              <Route 
+                path="/excuses" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminExcusePage />
                   </ProtectedRoute>
                 } 
               />

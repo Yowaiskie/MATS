@@ -53,6 +53,11 @@ const icons: { [key: string]: React.ReactNode } = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2v4a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2h6z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 7V5a2 2 0 114 0v2" />
     </svg>
+  ),
+  Excuses: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
   )
 }
 
@@ -84,6 +89,7 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Members', href: '/members', moduleKey: 'members' },
     { name: 'User Management', href: '/users', moduleKey: 'users' },
     { name: 'Settings', href: '/settings', moduleKey: 'settings' },
+    { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
     { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
     { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
   ]
