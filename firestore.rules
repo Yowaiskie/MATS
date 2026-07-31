@@ -15,6 +15,22 @@ service cloud.firestore {
               get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'order_leader');
     }
 
+    // Helper function to check if the user has finance module access
+    function hasFinanceAccess() {
+      return isAuthenticated() &&
+             (
+               request.auth.token.email.lower() == 'coordinator@mas.com' ||
+               (
+                 exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                 (
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+                   get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'order_leader' ||
+                   'finance' in get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('permissions', {}).get('allowedModules', [])
+                 )
+               )
+             );
+    }
+
     // users collection: Any authenticated user can read profiles; admins/authorized managers can write
     match /users/{userId} {
       allow read: if request.auth != null;
@@ -76,6 +92,27 @@ service cloud.firestore {
       allow create: if true;
       allow read: if true;
       allow update, delete: if isAuthenticated();
+    }
+
+    // Finance Module Collections
+    match /financeIncome/{incomeId} {
+      allow read, write: if hasFinanceAccess();
+    }
+    
+    match /financeExpenses/{expenseId} {
+      allow read, write: if hasFinanceAccess();
+    }
+
+    match /financeCategories/{categoryId} {
+      allow read, write: if hasFinanceAccess();
+    }
+
+    match /financeFundRequests/{requestId} {
+      allow read, write: if hasFinanceAccess();
+    }
+
+    match /financePeriods/{periodId} {
+      allow read, write: if hasFinanceAccess();
     }
   }
 }

@@ -16,6 +16,7 @@ import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswo
 import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePage'
 import { PublicExcusePage } from '@/features/excuse/PublicExcusePage'
 import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
+import { FinancePage } from '@/features/finance/pages/FinancePage'
 
 function App() {
   return (
@@ -73,6 +74,11 @@ function App() {
               <Route 
                 path="/reports" 
                 element={<ReportsPage />} 
+              />
+
+              <Route 
+                path="/finance" 
+                element={<FinancePage />} 
               />
               
               <Route 

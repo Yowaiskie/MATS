@@ -15,6 +15,7 @@ const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'attendance', label: 'Attendance', description: 'Record and track server attendance' },
   { key: 'reports', label: 'Reports & Analytics', description: 'View member metrics and export PDF reports' },
   { key: 'members', label: 'Member Directory', description: 'Manage altar server profiles and records' },
+  { key: 'finance', label: 'Finance Management', description: 'Record income/expense, request funds and generate reports' },
   { key: 'users', label: 'User Management', description: 'Manage system accounts and access permissions' },
   { key: 'settings', label: 'Settings', description: 'Configure system policies and templates' },
   { key: 'audit', label: 'Audit Trail', description: 'View system security and activity logs' },
@@ -49,6 +50,11 @@ const PRESET_ICONS: { [key: string]: React.ReactNode } = {
   settings: (
     <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
       <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+    </svg>
+  ),
+  bank: (
+    <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
     </svg>
   )
 }
@@ -98,6 +104,23 @@ export const UsersPage: React.FC = () => {
   const [canExportReports, setCanExportReports] = useState(false)
   const [assignedOrder, setAssignedOrder] = useState<OrderGroup | ''>('')
 
+  // Finance permissions state
+  const [canViewFinanceDashboard, setCanViewFinanceDashboard] = useState(false)
+  const [canAddIncome, setCanAddIncome] = useState(false)
+  const [canEditIncome, setCanEditIncome] = useState(false)
+  const [canDeleteIncome, setCanDeleteIncome] = useState(false)
+  const [canCreateFundRequest, setCanCreateFundRequest] = useState(false)
+  const [canApproveFundRequest, setCanApproveFundRequest] = useState(false)
+  const [canRejectFundRequest, setCanRejectFundRequest] = useState(false)
+  const [canReleaseFunds, setCanReleaseFunds] = useState(false)
+  const [canSubmitLiquidation, setCanSubmitLiquidation] = useState(false)
+  const [canReviewLiquidation, setCanReviewLiquidation] = useState(false)
+  const [canViewFinanceReports, setCanViewFinanceReports] = useState(false)
+  const [canExportFinanceReports, setCanExportFinanceReports] = useState(false)
+  const [canManageFinanceCategories, setCanManageFinanceCategories] = useState(false)
+  const [canCloseFinancePeriod, setCanCloseFinancePeriod] = useState(false)
+  const [canReopenFinancePeriod, setCanReopenFinancePeriod] = useState(false)
+
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
 
@@ -137,6 +160,21 @@ export const UsersPage: React.FC = () => {
     setCanManageSchedules(p.canManageSchedules)
     setCanViewReports(p.canViewReports)
     setCanExportReports(p.canExportReports)
+    setCanViewFinanceDashboard(p.canViewFinanceDashboard ?? false)
+    setCanAddIncome(p.canAddIncome ?? false)
+    setCanEditIncome(p.canEditIncome ?? false)
+    setCanDeleteIncome(p.canDeleteIncome ?? false)
+    setCanCreateFundRequest(p.canCreateFundRequest ?? false)
+    setCanApproveFundRequest(p.canApproveFundRequest ?? false)
+    setCanRejectFundRequest(p.canRejectFundRequest ?? false)
+    setCanReleaseFunds(p.canReleaseFunds ?? false)
+    setCanSubmitLiquidation(p.canSubmitLiquidation ?? false)
+    setCanReviewLiquidation(p.canReviewLiquidation ?? false)
+    setCanViewFinanceReports(p.canViewFinanceReports ?? false)
+    setCanExportFinanceReports(p.canExportFinanceReports ?? false)
+    setCanManageFinanceCategories(p.canManageFinanceCategories ?? false)
+    setCanCloseFinancePeriod(p.canCloseFinancePeriod ?? false)
+    setCanReopenFinancePeriod(p.canReopenFinancePeriod ?? false)
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
     } else {
@@ -268,6 +306,21 @@ export const UsersPage: React.FC = () => {
       setCanManageSchedules(perms.canManageSchedules ?? false)
       setCanViewReports(perms.canViewReports ?? false)
       setCanExportReports(perms.canExportReports ?? false)
+      setCanViewFinanceDashboard(perms.canViewFinanceDashboard ?? false)
+      setCanAddIncome(perms.canAddIncome ?? false)
+      setCanEditIncome(perms.canEditIncome ?? false)
+      setCanDeleteIncome(perms.canDeleteIncome ?? false)
+      setCanCreateFundRequest(perms.canCreateFundRequest ?? false)
+      setCanApproveFundRequest(perms.canApproveFundRequest ?? false)
+      setCanRejectFundRequest(perms.canRejectFundRequest ?? false)
+      setCanReleaseFunds(perms.canReleaseFunds ?? false)
+      setCanSubmitLiquidation(perms.canSubmitLiquidation ?? false)
+      setCanReviewLiquidation(perms.canReviewLiquidation ?? false)
+      setCanViewFinanceReports(perms.canViewFinanceReports ?? false)
+      setCanExportFinanceReports(perms.canExportFinanceReports ?? false)
+      setCanManageFinanceCategories(perms.canManageFinanceCategories ?? false)
+      setCanCloseFinancePeriod(perms.canCloseFinancePeriod ?? false)
+      setCanReopenFinancePeriod(perms.canReopenFinancePeriod ?? false)
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
@@ -321,6 +374,21 @@ export const UsersPage: React.FC = () => {
       canManageSchedules,
       canViewReports,
       canExportReports,
+      canViewFinanceDashboard,
+      canAddIncome,
+      canEditIncome,
+      canDeleteIncome,
+      canCreateFundRequest,
+      canApproveFundRequest,
+      canRejectFundRequest,
+      canReleaseFunds,
+      canSubmitLiquidation,
+      canReviewLiquidation,
+      canViewFinanceReports,
+      canExportFinanceReports,
+      canManageFinanceCategories,
+      canCloseFinancePeriod,
+      canReopenFinancePeriod,
       ...(assignedOrder ? { assignedOrder } : {}),
       ...(activePresetName ? { presetName: activePresetName } : {})
     }
@@ -840,6 +908,148 @@ export const UsersPage: React.FC = () => {
                       ))}
                     </select>
                     <p className="mt-1 text-[10px] text-amber-700">If selected, member reports will be filtered exclusively for this Order.</p>
+                  </div>
+                </div>
+
+                {/* Finance Permissions */}
+                <div className="p-3.5 rounded-xl border border-emerald-200/80 bg-emerald-50/40 space-y-3 col-span-1 sm:col-span-2">
+                  <span className="text-xs font-bold text-emerald-950 block">Finance Permissions</span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canViewFinanceDashboard}
+                        onChange={(e) => setCanViewFinanceDashboard(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>View Finance Dashboard</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canAddIncome}
+                        onChange={(e) => setCanAddIncome(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Add Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canEditIncome}
+                        onChange={(e) => setCanEditIncome(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Edit Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canDeleteIncome}
+                        onChange={(e) => setCanDeleteIncome(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Delete Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canCreateFundRequest}
+                        onChange={(e) => setCanCreateFundRequest(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Create Fund Request</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canApproveFundRequest}
+                        onChange={(e) => setCanApproveFundRequest(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Approve Requests</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canRejectFundRequest}
+                        onChange={(e) => setCanRejectFundRequest(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Reject Requests</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canReleaseFunds}
+                        onChange={(e) => setCanReleaseFunds(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Release Funds</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canSubmitLiquidation}
+                        onChange={(e) => setCanSubmitLiquidation(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Submit Liquidation</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canReviewLiquidation}
+                        onChange={(e) => setCanReviewLiquidation(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Review Liquidations</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canViewFinanceReports}
+                        onChange={(e) => setCanViewFinanceReports(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>View Finance Reports</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canExportFinanceReports}
+                        onChange={(e) => setCanExportFinanceReports(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Export Reports</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canManageFinanceCategories}
+                        onChange={(e) => setCanManageFinanceCategories(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Manage Categories</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canCloseFinancePeriod}
+                        onChange={(e) => setCanCloseFinancePeriod(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Close Financial Period</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={canReopenFinancePeriod}
+                        onChange={(e) => setCanReopenFinancePeriod(e.target.checked)}
+                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
+                      />
+                      <span>Reopen Closed Period</span>
+                    </label>
                   </div>
                 </div>
               </div>
