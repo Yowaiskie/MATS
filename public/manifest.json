@@ -11,19 +11,19 @@
   "theme_color": "#2563eb",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "/favicon/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512.png",
+      "src": "/favicon/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon-512-maskable.png",
+      "src": "/favicon/icon-512-maskable.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
@@ -35,14 +35,14 @@
       "short_name": "Schedules",
       "description": "View Ministry Service Schedules",
       "url": "/schedules",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/favicon/icon-192.png", "sizes": "192x192" }]
     },
     {
       "name": "Take Attendance",
       "short_name": "Attendance",
       "description": "Take Ministry Attendance",
       "url": "/attendance",
-      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+      "icons": [{ "src": "/favicon/icon-192.png", "sizes": "192x192" }]
     }
   ]
 }
