@@ -53,88 +53,85 @@ service cloud.firestore {
     // ==========================================
     // Collection Rules & Validations
     // ==========================================
-
+    // users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isSuperAdmin();
-      allow update: if isSuperAdmin() || (
+      allow create: if isSuperAdmin() &&
+                    request.resource.data.role in ['admin', 'user', 'order_leader'] &&
+                    (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
+                    isValidString(request.resource.data.email, 3, 100);
+      allow delete: if isSuperAdmin();
+      allow update: if (isSuperAdmin() || (
         isAuthenticated() && 
         request.auth.uid == userId && 
         !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions', 'assignedOrder', 'presetName'])
+      )) && (
+        request.resource.data.role in ['admin', 'user', 'order_leader'] &&
+        (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
+        isValidString(request.resource.data.email, 3, 100)
       );
-
-      // Validate user structure on write
-      // Checks role enums and limits displayNames
-      match / {
-        allow write: if request.resource.data.role in ['admin', 'user', 'order_leader'] &&
-                     (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
-                     isValidString(request.resource.data.email, 3, 100);
-      }
     }
 
+    // members collection
     match /members/{memberId} {
       allow read: if true; // Public excuse form lists members
-      allow write: if isSuperAdmin();
-
-      match / {
-        allow write: if isValidString(request.resource.data.firstName, 1, 50) &&
-                     isValidString(request.resource.data.lastName, 1, 50) &&
-                     request.resource.data.status in ['active', 'inactive', 'archived'] &&
-                     isValidString(request.resource.data.rank, 1, 50);
-      }
+      allow write: if isSuperAdmin() &&
+                   isValidString(request.resource.data.firstName, 1, 50) &&
+                   isValidString(request.resource.data.lastName, 1, 50) &&
+                   request.resource.data.status in ['active', 'inactive', 'archived'] &&
+                   isValidString(request.resource.data.rank, 1, 50);
     }
     
+    // schedules collection
     match /schedules/{scheduleId} {
       allow read: if true;
-      allow write: if hasPermission('canManageSchedules');
-
-      match / {
-        allow write: if isValidString(request.resource.data.date, 10, 10) && // "YYYY-MM-DD"
-                     isValidString(request.resource.data.startTime, 5, 8);
-      }
+      allow write: if hasPermission('canManageSchedules') &&
+                   isValidString(request.resource.data.date, 10, 10) && // "YYYY-MM-DD"
+                   isValidString(request.resource.data.startTime, 5, 8);
     }
     
+    // attendanceSessions collection
     match /attendanceSessions/{sessionId} {
       allow read: if isAuthenticated();
       allow write: if hasPermission('canTakeAttendance');
     }
     
+    // attendance collection
     match /attendance/{attendanceId} {
       allow read: if isAuthenticated();
-      allow write: if hasPermission('canTakeAttendance');
-
-      match / {
-        allow write: if request.resource.data.status in ['present', 'late', 'absent', 'excused', 'observer', 'formation', 'alumni'] &&
-                     (!('remarks' in request.resource.data) || isValidString(request.resource.data.remarks, 0, 500));
-      }
+      allow write: if hasPermission('canTakeAttendance') &&
+                   request.resource.data.status in ['present', 'late', 'absent', 'excused', 'observer', 'formation', 'alumni'] &&
+                   (!('remarks' in request.resource.data) || isValidString(request.resource.data.remarks, 0, 500));
     }
 
+    // settings collection
     match /settings/{settingsId} {
       allow read: if isAuthenticated();
       allow write: if isSuperAdmin();
     }
 
+    // scheduleTemplates collection
     match /scheduleTemplates/{templateId} {
       allow read: if isAuthenticated();
       allow write: if hasPermission('canManageSchedules');
     }
 
+    // auditLogs collection (Append-only)
     match /auditLogs/{logId} {
       allow read: if hasPermission('canViewAuditTrail');
-      allow create: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+                    isValidString(request.resource.data.action, 1, 100) &&
+                    isValidString(request.resource.data.details, 1, 1000);
       allow update, delete: if false;
-
-      match / {
-        allow create: if isValidString(request.resource.data.action, 1, 100) &&
-                      isValidString(request.resource.data.details, 1, 1000);
-      }
     }
 
+    // schedulePublications collection
     match /schedulePublications/{pubId} {
       allow read: if true;
       allow write: if hasPermission('canManageSchedules');
     }
 
+    // counters collection
     match /counters/{counterId} {
       allow get: if true;
       allow update: if isAuthenticated() || (
@@ -146,30 +143,30 @@ service cloud.firestore {
       allow delete, list: if isSuperAdmin();
     }
 
+    // excuseRequests collection
     match /excuseRequests/{excuseId} {
-      allow create: if true;
+      allow create: if true &&
+                    isValidString(request.resource.data.reason, 1, 1000) &&
+                    isValidString(request.resource.data.memberId, 1, 100);
       allow read: if isAuthenticated();
       allow delete: if isSuperAdmin();
-
-      match / {
-        allow create: if isValidString(request.resource.data.reason, 1, 1000) &&
-                      isValidString(request.resource.data.memberId, 1, 100);
-      }
     }
 
+    // excuseStatus collection
     match /excuseStatus/{trackingNumber} {
       allow get: if true;
       allow list: if isAuthenticated();
-      allow create: if true;
-      allow update: if isAuthenticated();
+      allow create: if true &&
+                    request.resource.data.status in ['pending', 'approved', 'rejected'] &&
+                    isValidString(request.resource.data.reason, 1, 1000) &&
+                    (!('adminRemarks' in request.resource.data) || isValidString(request.resource.data.adminRemarks, 0, 1000)) &&
+                    (!('rejectionReason' in request.resource.data) || isValidString(request.resource.data.rejectionReason, 0, 1000));
+      allow update: if isAuthenticated() &&
+                    request.resource.data.status in ['pending', 'approved', 'rejected'] &&
+                    isValidString(request.resource.data.reason, 1, 1000) &&
+                    (!('adminRemarks' in request.resource.data) || isValidString(request.resource.data.adminRemarks, 0, 1000)) &&
+                    (!('rejectionReason' in request.resource.data) || isValidString(request.resource.data.rejectionReason, 0, 1000));
       allow delete: if isSuperAdmin();
-
-      match / {
-        allow write: if request.resource.data.status in ['pending', 'approved', 'rejected'] &&
-                     isValidString(request.resource.data.reason, 1, 1000) &&
-                     (!('adminRemarks' in request.resource.data) || isValidString(request.resource.data.adminRemarks, 0, 1000)) &&
-                     (!('rejectionReason' in request.resource.data) || isValidString(request.resource.data.rejectionReason, 0, 1000));
-      }
     }
 
     // ==========================================
