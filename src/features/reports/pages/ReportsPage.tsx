@@ -18,9 +18,21 @@ export const ReportsPage: React.FC = () => {
   const canExport = canAction('canExportReports')
   const [activeTab, setActiveTab] = useState<TabType>('summary')
 
-  // Date and filter states
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  // Helper to format Date local to user browser timezone instead of shifted UTC ISO strings
+  const getLocalYYYYMMDD = (d: Date = new Date()): string => {
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const r = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${r}`
+  }
+
+  // Date and filter states (Default to start and end of current month)
+  const [startDate, setStartDate] = useState(() =>
+    getLocalYYYYMMDD(new Date(new Date().getFullYear(), new Date().getMonth(), 1))
+  )
+  const [endDate, setEndDate] = useState(() =>
+    getLocalYYYYMMDD(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0))
+  )
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
