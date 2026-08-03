@@ -55,7 +55,13 @@ export const PublicSchedulePage: React.FC = () => {
         memberService.getMembers()
       ])
       
-      const activeMems = memList.filter(m => m.status === 'active')
+      const activeMems = memList.filter(m => {
+        if (m.status !== 'active') return false
+        const r = (m.rank || '').toLowerCase()
+        const o = (m.order || '').toLowerCase()
+        const p = (m.position || '').toLowerCase()
+        return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
+      })
       setMembers(activeMems)
       setSchedules(schedList)
     } catch (err) {

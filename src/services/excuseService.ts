@@ -3,7 +3,6 @@ import {
   doc,
   getDocs,
   getDoc,
-  addDoc,
   updateDoc,
   serverTimestamp,
   runTransaction,
@@ -34,7 +33,7 @@ export const excuseService = {
 
         let currentCount = 0
         if (counterDoc.exists()) {
-          currentCount = counterDoc.data().count || 0
+          currentCount = counterDoc.data().currentSeq || 0
         }
 
         const newCount = currentCount + 1
@@ -43,11 +42,11 @@ export const excuseService = {
         const paddedCount = newCount.toString().padStart(5, '0')
         const generatedTrackingNumber = `EX-${yearMonth}-${paddedCount}`
 
-        // Update or create counter
+        // Update or create counter using standard currentSeq
         if (counterDoc.exists()) {
-          transaction.update(counterRef, { count: newCount })
+          transaction.update(counterRef, { currentSeq: newCount })
         } else {
-          transaction.set(counterRef, { count: newCount })
+          transaction.set(counterRef, { currentSeq: newCount })
         }
 
         const excuseRef = doc(collection(db, EXCUSES_COLLECTION))
@@ -55,6 +54,16 @@ export const excuseService = {
           ...data,
           trackingNumber: generatedTrackingNumber,
           status: 'pending' as ExcuseStatus,
+          submittedAt: serverTimestamp()
+        })
+
+        // Create the public status mapping document (accessible via get)
+        const statusRef = doc(db, 'excuseStatus', generatedTrackingNumber)
+        transaction.set(statusRef, {
+          status: 'pending' as ExcuseStatus,
+          reason: data.reason,
+          rejectionReason: '',
+          adminRemarks: '',
           submittedAt: serverTimestamp()
         })
 
@@ -106,16 +115,12 @@ export const excuseService = {
    */
   async getExcuseRequestByTrackingNumber(trackingNumber: string): Promise<ExcuseRequest | null> {
     try {
-      const q = query(
-        collection(db, EXCUSES_COLLECTION),
-        where('trackingNumber', '==', trackingNumber)
-      )
-      const snapshot = await getDocs(q)
+      const docRef = doc(db, 'excuseStatus', trackingNumber)
+      const docSnap = await getDoc(docRef)
       
-      if (snapshot.empty) return null
+      if (!docSnap.exists()) return null
       
-      const docSnap = snapshot.docs[0]
-      return { id: docSnap.id, ...docSnap.data() } as ExcuseRequest
+      return { id: docSnap.id, ...docSnap.data() } as any
     } catch (error) {
       console.error('Error fetching request by tracking number:', error)
       throw new Error('Failed to fetch excuse request.')
@@ -140,6 +145,13 @@ export const excuseService = {
         reviewedAt: serverTimestamp(),
         reviewedByUid: adminUid,
         reviewedByName: adminName
+      })
+
+      // Also update the public tracking mapping status document
+      const statusRef = doc(db, 'excuseStatus', trackingNumber)
+      await updateDoc(statusRef, {
+        status: 'approved' as ExcuseStatus,
+        adminRemarks
       })
 
       await auditService.logAction(
@@ -173,6 +185,13 @@ export const excuseService = {
         reviewedAt: serverTimestamp(),
         reviewedByUid: adminUid,
         reviewedByName: adminName
+      })
+
+      // Also update the public tracking mapping status document
+      const statusRef = doc(db, 'excuseStatus', trackingNumber)
+      await updateDoc(statusRef, {
+        status: 'rejected' as ExcuseStatus,
+        rejectionReason
       })
 
       await auditService.logAction(

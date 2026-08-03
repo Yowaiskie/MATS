@@ -2,13 +2,22 @@ import React from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
 
+import type { ModuleKey, UserPermissions } from '@/types/auth'
+
 interface RouteProps {
   children: React.ReactNode
   adminOnly?: boolean
+  moduleKey?: ModuleKey
+  requiredPermission?: keyof UserPermissions
 }
 
-export const ProtectedRoute: React.FC<RouteProps> = ({ children, adminOnly = false }) => {
-  const { user, isAdmin, loading } = useAuth()
+export const ProtectedRoute: React.FC<RouteProps> = ({ 
+  children, 
+  adminOnly = false,
+  moduleKey,
+  requiredPermission
+}) => {
+  const { user, isAdmin, hasModuleAccess, canAction, loading } = useAuth()
   const location = useLocation()
 
   if (loading) {
@@ -29,6 +38,14 @@ export const ProtectedRoute: React.FC<RouteProps> = ({ children, adminOnly = fal
 
   if (adminOnly && !isAdmin) {
     return <Navigate to="/schedules" replace />
+  }
+
+  if (moduleKey && !hasModuleAccess(moduleKey)) {
+    return <Navigate to="/" replace />
+  }
+
+  if (requiredPermission && !canAction(requiredPermission)) {
+    return <Navigate to="/" replace />
   }
 
   return <>{children}</>

@@ -58,27 +58,47 @@ function App() {
               
               <Route 
                 path="/members" 
-                element={<MembersPage />} 
+                element={
+                  <ProtectedRoute moduleKey="members">
+                    <MembersPage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/schedules" 
-                element={<SchedulesPage />} 
+                element={
+                  <ProtectedRoute moduleKey="schedules">
+                    <SchedulesPage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/attendance" 
-                element={<AttendancePage />} 
+                element={
+                  <ProtectedRoute moduleKey="attendance">
+                    <AttendancePage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/reports" 
-                element={<ReportsPage />} 
+                element={
+                  <ProtectedRoute moduleKey="reports">
+                    <ReportsPage />
+                  </ProtectedRoute>
+                } 
               />
 
               <Route 
                 path="/finance" 
-                element={<FinancePage />} 
+                element={
+                  <ProtectedRoute moduleKey="finance" requiredPermission="canViewFinanceDashboard">
+                    <FinancePage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
