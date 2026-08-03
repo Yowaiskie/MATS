@@ -279,7 +279,7 @@ export const PublicSchedulePage: React.FC = () => {
       <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
         <div className="text-center bg-white p-10 rounded-2xl shadow-sm border border-slate-200">
           <div className="w-16 h-16 rounded-full overflow-hidden border border-slate-100 shadow-xs mb-4 flex items-center justify-center bg-white mx-auto">
-            <img src="/ministy_logo.jpg" alt="Ministry Logo" className="w-full h-full object-cover" />
+            <img src="/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover" />
           </div>
           <h2 className="text-xl font-bold text-slate-800">Publication Unavailable</h2>
           <p className="text-sm text-slate-500 mt-2 max-w-sm">{message?.text || 'This schedule publication is either invalid or currently closed.'}</p>
@@ -528,7 +528,7 @@ export const PublicSchedulePage: React.FC = () => {
           {/* Header Actions */}
           <div className="flex items-center mb-8">
             <div className="w-16 h-16 rounded-full overflow-hidden border border-indigo-100 shadow-xs flex items-center justify-center bg-white">
-              <img src="/ministy_logo.jpg" alt="Ministry Logo" className="w-full h-full object-cover" />
+              <img src="/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover" />
             </div>
           </div>
 

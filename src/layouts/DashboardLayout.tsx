@@ -193,7 +193,7 @@ export const DashboardLayout: React.FC = () => {
           {/* Logo Brand Header */}
           <div className="flex items-center space-x-3 px-2 pb-4 border-b border-gray-100 mb-4 overflow-hidden shrink-0">
             <img 
-              src="/ministy_logo.jpg" 
+              src="/favicon.png" 
               alt="Logo" 
               className="h-9 w-9 rounded-lg border border-gray-200/60 object-cover shrink-0" 
             />
@@ -253,7 +253,7 @@ export const DashboardLayout: React.FC = () => {
               {/* Drawer Header */}
               <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
                 <div className="flex items-center space-x-2.5 overflow-hidden">
-                  <img src="/ministy_logo.jpg" alt="Logo" className="h-8 w-8 rounded-lg border border-gray-200/60 object-cover shrink-0" />
+                  <img src="/favicon.png" alt="Logo" className="h-8 w-8 rounded-lg border border-gray-200/60 object-cover shrink-0" />
                   <span className="font-extrabold text-sm text-gray-900 tracking-tight truncate">MATS Portal</span>
                 </div>
 

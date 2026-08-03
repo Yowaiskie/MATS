@@ -132,7 +132,7 @@ export const PublicExcusePage: React.FC = () => {
     <div className="min-h-screen bg-[#f8fafc] flex flex-col items-center justify-center p-4 font-sans">
       <div className="bg-white max-w-md w-full rounded-3xl shadow-xl p-8 border border-slate-200">
         <div className="flex justify-center mb-6">
-          <img src="/ministy_logo.jpg" alt="Logo" className="w-16 h-16 rounded-full border shadow-sm object-cover" />
+          <img src="/favicon.png" alt="Logo" className="w-16 h-16 rounded-full border shadow-sm object-cover" />
         </div>
         <h1 className="text-2xl font-black text-center text-slate-900 mb-6">Excuse Requests</h1>
 
