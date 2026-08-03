@@ -1,4 +1,4 @@
-export type AuditCategory = 'member' | 'schedule' | 'attendance' | 'settings' | 'system' | 'excuse'
+export type AuditCategory = 'member' | 'schedule' | 'attendance' | 'settings' | 'system' | 'excuse' | 'finance'
 
 export type AuditAction =
   | 'MEMBER_CREATE'
@@ -20,6 +20,23 @@ export type AuditAction =
   | 'EXCUSE_APPROVED'
   | 'EXCUSE_REJECTED'
   | 'EXCUSE_CANCELLED'
+  | 'CATEGORY_CREATE'
+  | 'CATEGORY_ARCHIVE'
+  | 'INCOME_ADD'
+  | 'INCOME_UPDATE'
+  | 'INCOME_ARCHIVE'
+  | 'EXPENSE_RECORD'
+  | 'EXPENSE_UPDATE'
+  | 'EXPENSE_ARCHIVE'
+  | 'REQUEST_SUBMIT'
+  | 'REQUEST_APPROVE'
+  | 'REQUEST_REJECT'
+  | 'FUNDS_RELEASE'
+  | 'LIQUIDATION_SUBMIT'
+  | 'LIQUIDATION_APPROVE'
+  | 'REQUEST_ARCHIVE'
+  | 'PERIOD_CLOSE'
+  | 'PERIOD_REOPEN'
 
 export interface AuditLog {
   id: string

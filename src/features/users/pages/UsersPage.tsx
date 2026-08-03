@@ -74,7 +74,7 @@ export const UsersPage: React.FC = () => {
   const [presetEditing, setPresetEditing] = useState<PermissionPreset | null>(null)
   const [presetFormName, setPresetFormName] = useState('')
   const [presetFormDesc, setPresetFormDesc] = useState('')
-  const [presetFormIcon, setPresetFormIcon] = useState<'clipboard' | 'users' | 'shield' | 'calendar' | 'chart' | 'settings'>('clipboard')
+  const [presetFormIcon, setPresetFormIcon] = useState<'clipboard' | 'users' | 'shield' | 'calendar' | 'chart' | 'settings' | 'bank'>('clipboard')
   const [presetFormRole, setPresetFormRole] = useState<UserRole>('user')
   const [presetFormModules, setPresetFormModules] = useState<ModuleKey[]>(['dashboard', 'attendance'])
   const [presetFormTakeAttendance, setPresetFormTakeAttendance] = useState(true)

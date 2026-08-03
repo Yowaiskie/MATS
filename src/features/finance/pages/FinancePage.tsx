@@ -308,7 +308,9 @@ export const FinancePage: React.FC = () => {
           categoryId: incCategoryId,
           receivedFrom: incReceivedFrom.trim(),
           date: incDate,
-          description: incDesc.trim()
+          description: incDesc.trim(),
+          createdByUid: profile?.uid || 'System',
+          createdByName: profile?.displayName || 'Admin'
         },
         profile?.uid || 'System',
         profile?.displayName || 'Admin'
@@ -350,7 +352,9 @@ export const FinancePage: React.FC = () => {
           spentByUid: profile?.uid || 'Unknown',
           spentByName: expSpentByName.trim(),
           date: expDate,
-          description: expDesc.trim()
+          description: expDesc.trim(),
+          createdByUid: profile?.uid || 'System',
+          createdByName: profile?.displayName || 'Admin'
         },
         profile?.uid || 'System',
         profile?.displayName || 'Admin'
@@ -391,7 +395,9 @@ export const FinancePage: React.FC = () => {
           requestedByUid: profile?.uid || 'Unknown',
           requestedByName: profile?.displayName || 'User',
           dateNeeded: reqDateNeeded,
-          description: reqDesc.trim()
+          description: reqDesc.trim(),
+          createdByUid: profile?.uid || 'System',
+          createdByName: profile?.displayName || 'Admin'
         },
         profile?.uid || 'System',
         profile?.displayName || 'Admin',

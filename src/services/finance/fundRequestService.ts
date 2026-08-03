@@ -188,7 +188,7 @@ export const fundRequestService = {
         'attendance',
         `Submitted fund request '${data.title}' for approval (${data.referenceNumber})`,
         userName,
-        { requestId: id, referenceNumber: data.referenceNumber }
+        { requestId: id, referenceNumber: data.referenceNumber, userUid }
       )
     } catch (err) {
       console.error('Failed to submit fund request:', err)
