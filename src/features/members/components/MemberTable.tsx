@@ -295,11 +295,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         </div>
       )}
 
-      {/* Table */}
-      <div className="border border-gray-200/80 rounded-xl overflow-hidden bg-white shadow-xs">
+      {/* Table Container */}
+      <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead className="bg-gray-50 border-b border-gray-200/80 text-gray-400 uppercase tracking-wider text-[10px] select-none font-bold">
+          <table className="w-full text-left text-xs whitespace-nowrap">
+            <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 uppercase tracking-wider text-[11px] select-none font-black">
               <tr>
                 {/* Select-all checkbox header */}
                 <th className="p-4 w-10">
@@ -307,10 +307,10 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     onClick={handleHeaderCheckbox}
                     className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
                       allFiltered
-                        ? 'bg-blue-600 border-blue-600'
+                        ? 'bg-indigo-600 border-indigo-600'
                         : someSelected
-                        ? 'bg-blue-200 border-blue-400'
-                        : 'border-gray-300 hover:border-blue-400 bg-white'
+                        ? 'bg-indigo-200 border-indigo-400'
+                        : 'border-slate-300 hover:border-indigo-400 bg-white'
                     }`}
                     aria-label="Select all members"
                     title={allFiltered ? 'Deselect all' : 'Select all'}

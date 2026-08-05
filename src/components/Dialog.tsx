@@ -72,20 +72,20 @@ export const AlertModal: React.FC<AlertModalProps> = ({
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="alert-title">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl z-10 animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Icon + Close button row */}
         <div className="flex items-start justify-between gap-3">
-          <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${iconBg[variant]} shrink-0`}>
+          <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${iconBg[variant]} shrink-0`}>
             {icons[variant]}
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1 rounded-lg hover:bg-gray-100 -mr-1 -mt-1"
+            className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer p-1.5 rounded-xl hover:bg-slate-100 -mr-1 -mt-1"
             aria-label="Close dialog"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -96,19 +96,19 @@ export const AlertModal: React.FC<AlertModalProps> = ({
 
         {/* Content */}
         <div className="mt-4">
-          <h3 id="alert-title" className="text-sm font-bold text-gray-900">{title}</h3>
-          <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{message}</p>
+          <h3 id="alert-title" className="text-sm font-extrabold text-slate-900">{title}</h3>
+          <p className="mt-1.5 text-sm text-slate-600 leading-relaxed font-medium">{message}</p>
         </div>
 
         {/* Actions */}
         <div className="mt-5 flex justify-end">
           <button
             onClick={onClose}
-            className={`rounded-lg px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer shadow-sm ${
-              variant === 'success' ? 'bg-green-600 hover:bg-green-700'
-              : variant === 'error' ? 'bg-red-600 hover:bg-red-700'
-              : variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600'
-              : 'bg-blue-600 hover:bg-blue-700'
+            className={`rounded-xl px-4 py-2.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md active:scale-95 ${
+              variant === 'success' ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
+              : variant === 'error' ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
+              : variant === 'warning' ? 'bg-amber-500 hover:bg-amber-600 shadow-amber-500/20'
+              : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-500/20'
             }`}
             autoFocus
           >

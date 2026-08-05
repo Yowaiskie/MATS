@@ -5,6 +5,7 @@ import type { AuditLog, AuditCategory, AuditAction } from '@/types/audit'
 import type { Schedule } from '@/types/schedule'
 import { Card } from '@/components/Card'
 import { Pagination } from '@/components/Pagination'
+import { Loading } from '@/components/Loading'
 
 export const AuditPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([])
@@ -333,6 +334,14 @@ export const AuditPage: React.FC = () => {
     })
 
     return list
+  }
+
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading System Audit Trail..." />
+      </div>
+    )
   }
 
   return (

@@ -1,6 +1,6 @@
 import type { OrderGroup } from '@/types/member'
 
-export type UserRole = 'admin' | 'user' | 'order_leader'
+export type UserRole = 'admin' | 'user' | 'order_leader' | 'coordinator'
 
 export type ModuleKey = 
   | 'dashboard'

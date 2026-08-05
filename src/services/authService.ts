@@ -5,7 +5,7 @@ import {
   reauthenticateWithCredential,
   updatePassword
 } from 'firebase/auth'
-import { doc, getDoc, collection, query, where, getDocs } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
 import type { UserProfile } from '@/types/auth'
 import { auditService } from '@/services/auditService'
@@ -79,12 +79,25 @@ export const authService = {
         return userDoc.data() as UserProfile
       }
 
+      // Fallback: search by email if no doc found at auth UID
       if (email) {
         const usersRef = collection(db, 'users')
         const q = query(usersRef, where('email', '==', email.toLowerCase().trim()))
         const snap = await getDocs(q)
         if (!snap.empty) {
-          return snap.docs[0].data() as UserProfile
+          const profileData = snap.docs[0].data() as UserProfile
+          // Auto-fix: re-save profile under the correct Auth UID
+          // This fixes the Firestore rules isSuperAdmin() lookup mismatch
+          try {
+            await setDoc(doc(db, 'users', uid), {
+              ...profileData,
+              uid,
+              updatedAt: serverTimestamp()
+            }, { merge: true })
+          } catch (fixErr) {
+            console.warn('Could not auto-fix UID mismatch:', fixErr)
+          }
+          return { ...profileData, uid }
         }
       }
     } catch (err) {

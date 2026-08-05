@@ -3,15 +3,21 @@ import { Link } from 'react-router-dom'
 import { eventService } from '@/services/eventService'
 import type { Event } from '@/types/event'
 import { Card } from '@/components/Card'
+import { Pagination } from '@/components/Pagination'
+import { Loading } from '@/components/Loading'
 import { EventFormModal } from '../components/EventFormModal'
+
+const PAGE_SIZE = 10
 
 export const EventsPage: React.FC = () => {
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
   const [isModalOpen, setIsModalOpen] = useState(false)
 
   const fetchEvents = async () => {
     try {
+      setLoading(true)
       const data = await eventService.getEvents()
       setEvents(data)
     } catch (err) {
@@ -24,6 +30,16 @@ export const EventsPage: React.FC = () => {
   useEffect(() => {
     fetchEvents()
   }, [])
+
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading Ministry Events..." />
+      </div>
+    )
+  }
+
+  const paginatedEvents = events.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -41,54 +57,61 @@ export const EventsPage: React.FC = () => {
       </div>
 
       <Card className="p-0 border border-gray-200 shadow-xs overflow-hidden">
-        {loading ? (
-          <div className="p-8 text-center text-gray-500">Loading events...</div>
-        ) : events.length === 0 ? (
-          <div className="p-8 text-center text-gray-500">No events found. Create one to get started.</div>
+        {events.length === 0 ? (
+          <div className="p-8 text-center text-slate-500 font-semibold text-xs">No events found. Create one to get started.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse whitespace-nowrap">
-              <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
-                  <th className="px-6 py-3 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Event Title</th>
-                  <th className="px-6 py-3 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Stage</th>
-                  <th className="px-6 py-3 text-[10px] uppercase font-bold text-gray-500 tracking-wider">Head</th>
-                  <th className="px-6 py-3 text-[10px] uppercase font-bold text-gray-500 tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 bg-white">
-                {events.map(event => (
-                  <tr key={event.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4">
-                      <Link to={`/events/${event.id}`} className="font-bold text-blue-600 hover:underline">
-                        {event.title}
-                      </Link>
-                    </td>
-                    <td className="px-6 py-4 text-xs font-medium text-gray-600">
-                      {event.startDate}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-200">
-                        {event.stage}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-xs text-gray-600 font-medium">
-                      {event.headName}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <Link 
-                        to={`/events/${event.id}`}
-                        className="text-xs font-bold text-gray-600 hover:text-blue-600 border border-gray-200 rounded-md px-3 py-1.5 shadow-xs hover:border-blue-200 bg-white hover:bg-blue-50 transition-colors"
-                      >
-                        Open Workspace
-                      </Link>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse whitespace-nowrap text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-black uppercase text-slate-400 tracking-wider">
+                    <th className="px-6 py-4">Event Title</th>
+                    <th className="px-6 py-4">Date</th>
+                    <th className="px-6 py-4">Stage</th>
+                    <th className="px-6 py-4">Head</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white font-semibold text-slate-800">
+                  {paginatedEvents.map(event => (
+                    <tr key={event.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-6 py-4">
+                        <Link to={`/events/${event.id}`} className="font-extrabold text-indigo-600 hover:underline">
+                          {event.title}
+                        </Link>
+                      </td>
+                      <td className="px-6 py-4 text-xs font-semibold text-slate-600">
+                        📅 {event.startDate}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                          {event.stage}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-700 font-semibold">
+                        {event.headName}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <Link 
+                          to={`/events/${event.id}`}
+                          className="text-xs font-bold text-slate-700 hover:text-indigo-600 border border-slate-200/80 rounded-xl px-3.5 py-1.5 shadow-2xs hover:border-indigo-200 bg-white hover:bg-indigo-50/50 transition-all"
+                        >
+                          Open Workspace
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={events.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
       </Card>
       

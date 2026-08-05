@@ -3,10 +3,14 @@ import { excuseService } from '@/services/excuseService'
 import type { ExcuseRequest } from '@/types/excuse'
 import { ReviewExcuseModal } from './ReviewExcuseModal'
 import { AlertModal } from '@/components/Dialog'
+import { Pagination } from '@/components/Pagination'
+
+const PAGE_SIZE = 10
 
 export const AdminExcusePage: React.FC = () => {
   const [requests, setRequests] = useState<ExcuseRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [currentPage, setCurrentPage] = useState(1)
   const [selectedRequest, setSelectedRequest] = useState<ExcuseRequest | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant: 'error' | 'success' | 'info' } | null>(null)
 
@@ -20,6 +24,8 @@ export const AdminExcusePage: React.FC = () => {
   useEffect(() => {
     loadRequests()
   }, [])
+
+  const paginatedRequests = requests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
   return (
     <div className="space-y-6">
@@ -45,47 +51,60 @@ export const AdminExcusePage: React.FC = () => {
         </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xs border border-slate-200/80 overflow-hidden">
         {loading ? (
-          <div className="p-8 text-center text-slate-500">Loading...</div>
+          <div className="p-8 text-center text-slate-500 font-semibold text-xs">Loading requests...</div>
         ) : requests.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No excuse requests found.</div>
+          <div className="p-8 text-center text-slate-500 font-semibold text-xs">No excuse requests found.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm whitespace-nowrap">
-              <thead className="bg-slate-50 border-b border-slate-200 text-xs uppercase text-slate-500 font-extrabold">
-                <tr>
-                  <th className="px-6 py-4">Tracking #</th>
-                  <th className="px-6 py-4">Member ID</th>
-                  <th className="px-6 py-4">Reason</th>
-                  <th className="px-6 py-4">Status</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {requests.map(req => (
-                  <tr key={req.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-bold text-indigo-600">{req.trackingNumber}</td>
-                    <td className="px-6 py-4 font-medium">{req.memberId}</td>
-                    <td className="px-6 py-4 text-slate-600 truncate max-w-xs">{req.reason}</td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase ${req.status === 'pending' ? 'bg-amber-100 text-amber-700' : req.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {req.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <button 
-                        onClick={() => setSelectedRequest(req)}
-                        className="px-3 py-1 bg-indigo-50 text-indigo-700 rounded-lg text-xs font-bold hover:bg-indigo-100 transition"
-                      >
-                        Review
-                      </button>
-                    </td>
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs whitespace-nowrap">
+                <thead className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] uppercase text-slate-400 font-black tracking-wider">
+                  <tr>
+                    <th className="px-6 py-4">Tracking #</th>
+                    <th className="px-6 py-4">Member ID</th>
+                    <th className="px-6 py-4">Reason</th>
+                    <th className="px-6 py-4">Status</th>
+                    <th className="px-6 py-4 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
+                  {paginatedRequests.map(req => (
+                    <tr key={req.id} className="hover:bg-slate-50/60 transition-colors">
+                      <td className="px-6 py-4 font-black text-indigo-600">{req.trackingNumber}</td>
+                      <td className="px-6 py-4 font-bold">{req.memberId}</td>
+                      <td className="px-6 py-4 text-slate-600 truncate max-w-xs">{req.reason}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${
+                          req.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200/80' 
+                          : req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80' 
+                          : 'bg-rose-50 text-rose-700 border-rose-200/80'
+                        }`}>
+                          {req.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => setSelectedRequest(req)}
+                          className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 transition shadow-2xs cursor-pointer"
+                        >
+                          Review
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={requests.length}
+              pageSize={PAGE_SIZE}
+              onPageChange={setCurrentPage}
+            />
+          </>
         )}
       </div>
 

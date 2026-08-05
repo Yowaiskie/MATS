@@ -11,6 +11,8 @@ import { CSVImporterModal } from '../components/CSVImporterModal'
 import { PublicationsTab } from '../components/PublicationsTab'
 import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { Pagination } from '@/components/Pagination'
+import { Loading } from '@/components/Loading'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
@@ -283,6 +285,14 @@ export const SchedulesPage: React.FC = () => {
 
   const allFilteredSelected = filteredSchedules.length > 0 && selectedIds.size === filteredSchedules.length
   const someSelected = selectedIds.size > 0
+
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading Schedules..." />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6 pb-8">
@@ -581,71 +591,13 @@ export const SchedulesPage: React.FC = () => {
       </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-gray-500">
-                Showing{' '}
-                <span className="font-semibold text-gray-700">
-                  {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredSchedules.length)}
-                </span>{' '}
-                of{' '}
-                <span className="font-semibold text-gray-700">{filteredSchedules.length}</span>{' '}
-                schedules
-              </p>
-
-              <div className="flex items-center gap-1">
-                {/* Previous */}
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={safePage === 1}
-                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  ‹ Prev
-                </button>
-
-                {/* Page numbers */}
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                  // Show first, last, current ±1, with ellipsis
-                  const show =
-                    page === 1 ||
-                    page === totalPages ||
-                    Math.abs(page - safePage) <= 1
-                  const isEllipsisBefore = page === 2 && safePage > 3
-                  const isEllipsisAfter = page === totalPages - 1 && safePage < totalPages - 2
-
-                  if (isEllipsisBefore || isEllipsisAfter) {
-                    return (
-                      <span key={page} className="px-1 text-xs text-gray-400 select-none">…</span>
-                    )
-                  }
-                  if (!show) return null
-
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-                        page === safePage
-                          ? 'bg-blue-600 text-white border border-blue-600'
-                          : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  )
-                })}
-
-                {/* Next */}
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={safePage === totalPages}
-                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  Next ›
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={safePage}
+            totalItems={filteredSchedules.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            className="mt-4"
+          />
         </>
       ) : (
         <div className="py-16 text-center rounded-xl border border-gray-200 bg-white shadow-xs">

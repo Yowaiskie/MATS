@@ -91,23 +91,6 @@ export const DashboardLayout: React.FC = () => {
     }
   }
 
-  const allNavigation: { name: string; href: string; moduleKey: ModuleKey }[] = [
-    { name: 'Dashboard', href: '/', moduleKey: 'dashboard' },
-    { name: 'Schedules', href: '/schedules', moduleKey: 'schedules' },
-    { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
-    { name: 'Reports', href: '/reports', moduleKey: 'reports' },
-    { name: 'Members', href: '/members', moduleKey: 'members' },
-    { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
-    { name: 'Finance', href: '/finance', moduleKey: 'finance' },
-    { name: 'User Management', href: '/users', moduleKey: 'users' },
-    { name: 'Settings', href: '/settings', moduleKey: 'settings' },
-    { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
-    { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
-    { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
-  ]
-
-  const navigation = allNavigation.filter(item => hasModuleAccess(item.moduleKey))
-
   const isActive = (href: string) => {
     if (href === '/') {
       return location.pathname === '/'
@@ -193,54 +176,113 @@ export const DashboardLayout: React.FC = () => {
       <div className="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
         {/* Sidebar for Desktop */}
         <aside 
-          className={`hidden sm:flex flex-col border-r border-gray-200/80 bg-white p-4 space-y-1.5 transition-all duration-200 ease-in-out shrink-0 overflow-y-auto ${
+          className={`hidden sm:flex flex-col border-r border-slate-200/80 bg-white p-4 transition-all duration-200 ease-in-out shrink-0 overflow-y-auto ${
             collapsed ? 'w-20' : 'w-64'
           }`}
         >
           {/* Logo Brand Header */}
-          <div className="flex items-center space-x-3 px-2 pb-4 border-b border-gray-100 mb-4 overflow-hidden shrink-0">
-            <img 
-              src="/favicon/favicon.png" 
-              alt="Logo" 
-              className="h-9 w-9 rounded-lg border border-gray-200/60 object-cover shrink-0" 
-            />
+          <div className="flex items-center space-x-3 px-2 pb-4 border-b border-slate-100 mb-3 overflow-hidden shrink-0">
+            <div className="relative shrink-0">
+              <img 
+                src="/favicon/favicon.png" 
+                alt="MATS Logo" 
+                className="h-9 w-9 rounded-2xl border border-slate-200/80 object-cover shadow-2xs" 
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white"></span>
+            </div>
             {!collapsed && (
-              <span className="font-extrabold text-base tracking-tight text-gray-900 transition-opacity duration-150 truncate">
-                MATS Portal
-              </span>
+              <div className="flex items-center gap-2 truncate">
+                <span className="font-extrabold text-base tracking-tight text-slate-900 truncate">
+                  MATS Portal
+                </span>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                  v2.0
+                </span>
+              </div>
             )}
           </div>
 
-          <nav className="space-y-1.5 flex-1">
-            {navigation.map((item) => {
-              const active = isActive(item.href)
+          <nav className="space-y-4 flex-1">
+            {[
+              {
+                section: 'CORE MENU',
+                items: [
+                  { name: 'Dashboard', href: '/', moduleKey: 'dashboard' },
+                  { name: 'Schedules', href: '/schedules', moduleKey: 'schedules' },
+                  { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
+                  { name: 'Members', href: '/members', moduleKey: 'members' },
+                ]
+              },
+              {
+                section: 'OPERATIONS',
+                items: [
+                  { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
+                  { name: 'Finance', href: '/finance', moduleKey: 'finance' },
+                  { name: 'Reports', href: '/reports', moduleKey: 'reports' },
+                  { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
+                ]
+              },
+              {
+                section: 'ADMINISTRATIVE',
+                items: [
+                  { name: 'User Management', href: '/users', moduleKey: 'users' },
+                  { name: 'Settings', href: '/settings', moduleKey: 'settings' },
+                  { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
+                  { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
+                ]
+              }
+            ].map((group) => {
+              const allowedItems = group.items.filter(item => hasModuleAccess(item.moduleKey as ModuleKey))
+              if (allowedItems.length === 0) return null
+
               return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center space-x-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-150 ${
-                    active
-                      ? 'bg-blue-50 text-blue-600 font-bold border-l-4 border-blue-600'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                  title={collapsed ? item.name : undefined}
-                >
-                  <span className={`shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`}>
-                    {icons[item.name]}
-                  </span>
+                <div key={group.section} className="space-y-1">
                   {!collapsed && (
-                    <span className="truncate">{item.name}</span>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3.5 py-1">
+                      {group.section}
+                    </div>
                   )}
-                </Link>
+                  {allowedItems.map((item) => {
+                    const active = isActive(item.href)
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.href}
+                        className={`flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all duration-200 group ${
+                          active
+                            ? 'bg-indigo-50/90 text-indigo-700 font-extrabold border-r-4 border-indigo-600 shadow-2xs'
+                            : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900 hover:translate-x-1'
+                        }`}
+                        title={collapsed ? item.name : undefined}
+                      >
+                        <span className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                          {icons[item.name]}
+                        </span>
+                        {!collapsed && (
+                          <span className="truncate">{item.name}</span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
               )
             })}
           </nav>
 
           {!collapsed && (
-            <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 shrink-0">
-              <div className="truncate">
-                <div className="text-[10px] uppercase font-bold text-gray-400">Signed in as</div>
-                <div className="font-semibold text-gray-800 truncate text-[11px]">{profile?.email || 'Admin'}</div>
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+              <div className="flex items-center gap-2.5 truncate">
+                <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
+                  {profile?.displayName?.[0] || profile?.email?.[0]?.toUpperCase() || 'A'}
+                </div>
+                <div className="truncate">
+                  <div className="font-extrabold text-slate-900 truncate text-xs">
+                    {profile?.displayName && !profile.displayName.toLowerCase().startsWith('order of') 
+                      ? profile.displayName 
+                      : (profile?.assignedOrder ? `Order Leader of ${profile.assignedOrder.replace(/^Order of\s*/i, '')}` : profile?.email?.split('@')[0] || 'User')}
+                  </div>
+                  <div className="text-[10px] font-semibold text-slate-400 truncate">{profile?.email || 'Admin'}</div>
+                </div>
               </div>
             </div>
           )}
@@ -251,25 +293,23 @@ export const DashboardLayout: React.FC = () => {
           <div className="sm:hidden fixed inset-0 z-50 flex">
             {/* Overlay */}
             <div 
-              className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity" 
+              className="fixed inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity" 
               onClick={() => setMobileMenuOpen(false)}
             ></div>
 
             {/* Sidebar drawer */}
-            <aside className="relative w-64 max-w-xs bg-white border-r border-gray-200/90 p-4 space-y-4 flex flex-col z-50 shadow-2xl animate-in slide-in-from-left duration-200">
+            <aside className="relative w-64 max-w-xs bg-white border-r border-slate-200/90 p-4 space-y-4 flex flex-col z-50 shadow-2xl animate-in slide-in-from-left duration-200">
               {/* Drawer Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
                 <div className="flex items-center space-x-2.5 overflow-hidden">
-                  <img src="/favicon/favicon.png" alt="Logo" className="h-8 w-8 rounded-lg border border-gray-200/60 object-cover shrink-0" />
-                  <span className="font-extrabold text-sm text-gray-900 tracking-tight truncate">MATS Portal</span>
+                  <img src="/favicon/favicon.png" alt="Logo" className="h-8 w-8 rounded-xl border border-slate-200/60 object-cover shrink-0" />
+                  <span className="font-extrabold text-sm text-slate-900 tracking-tight truncate">MATS Portal</span>
                 </div>
 
-                {/* Clean Exit/Close Button */}
                 <button
                   onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 hover:text-gray-900 transition-all border border-gray-200/80 cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center"
+                  className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all border border-slate-200/80 cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center"
                   aria-label="Close navigation menu"
-                  title="Close Menu"
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -278,34 +318,73 @@ export const DashboardLayout: React.FC = () => {
               </div>
 
               {/* Navigation Items */}
-              <nav className="space-y-1.5 flex-1 overflow-y-auto">
-                {navigation.map((item) => {
-                  const active = isActive(item.href)
+              <nav className="space-y-4 flex-1 overflow-y-auto">
+                {[
+                  {
+                    section: 'CORE MENU',
+                    items: [
+                      { name: 'Dashboard', href: '/', moduleKey: 'dashboard' },
+                      { name: 'Schedules', href: '/schedules', moduleKey: 'schedules' },
+                      { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
+                      { name: 'Members', href: '/members', moduleKey: 'members' },
+                    ]
+                  },
+                  {
+                    section: 'OPERATIONS',
+                    items: [
+                      { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
+                      { name: 'Finance', href: '/finance', moduleKey: 'finance' },
+                      { name: 'Reports', href: '/reports', moduleKey: 'reports' },
+                      { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
+                    ]
+                  },
+                  {
+                    section: 'ADMINISTRATIVE',
+                    items: [
+                      { name: 'User Management', href: '/users', moduleKey: 'users' },
+                      { name: 'Settings', href: '/settings', moduleKey: 'settings' },
+                      { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
+                      { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
+                    ]
+                  }
+                ].map((group) => {
+                  const allowedItems = group.items.filter(item => hasModuleAccess(item.moduleKey as ModuleKey))
+                  if (allowedItems.length === 0) return null
+
                   return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center space-x-3 rounded-lg px-3.5 py-2.5 text-sm transition-all ${
-                        active
-                          ? 'bg-blue-50 text-blue-600 font-bold border-l-4 border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900 font-medium'
-                      }`}
-                    >
-                      <span className={`shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`}>
-                        {icons[item.name]}
-                      </span>
-                      <span className="truncate">{item.name}</span>
-                    </Link>
+                    <div key={group.section} className="space-y-1">
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3.5 py-1">
+                        {group.section}
+                      </div>
+                      {allowedItems.map((item) => {
+                        const active = isActive(item.href)
+                        return (
+                          <Link
+                            key={item.name}
+                            to={item.href}
+                            onClick={() => setMobileMenuOpen(false)}
+                            className={`flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all ${
+                              active
+                                ? 'bg-indigo-50/90 text-indigo-700 font-extrabold border-r-4 border-indigo-600 shadow-2xs'
+                                : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900'
+                            }`}
+                          >
+                            <span className={`shrink-0 ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
+                              {icons[item.name]}
+                            </span>
+                            <span className="truncate">{item.name}</span>
+                          </Link>
+                        )
+                      })}
+                    </div>
                   )
                 })}
               </nav>
 
-              {/* Mobile Drawer Footer User Profile */}
-              <div className="pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-gray-500 shrink-0">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
                 <div className="truncate">
-                  <div className="text-[10px] uppercase font-bold text-gray-400">Signed in as</div>
-                  <div className="font-semibold text-gray-800 truncate">{profile?.email || 'Admin'}</div>
+                  <div className="text-[10px] uppercase font-bold text-slate-400">Signed in as</div>
+                  <div className="font-semibold text-slate-800 truncate">{profile?.email || 'Admin'}</div>
                 </div>
               </div>
             </aside>

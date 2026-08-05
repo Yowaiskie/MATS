@@ -112,6 +112,32 @@ export const userService = {
 
     await setDoc(userDocRef, payload, { merge: true })
 
+    // Ensure any legacy or duplicate user documents with the same email are synchronized
+    try {
+      const normalizedEmail = (profileData.email || '').toLowerCase().trim()
+      const usersRef = collection(db, USERS_COLLECTION)
+      const q = query(usersRef, where('email', '==', normalizedEmail))
+      const snap = await getDocs(q)
+      if (!snap.empty) {
+        for (const otherDoc of snap.docs) {
+          if (otherDoc.id !== profileData.uid) {
+            // Update legacy/duplicate doc to match latest assignedOrder and permissions
+            try {
+              await updateDoc(doc(db, USERS_COLLECTION, otherDoc.id), {
+                assignedOrder: profileData.assignedOrder || '',
+                permissions: profileData.permissions || null,
+                updatedAt: serverTimestamp()
+              })
+            } catch (innerErr) {
+              console.warn('Failed to sync duplicate user doc:', otherDoc.id, innerErr)
+            }
+          }
+        }
+      }
+    } catch (syncErr) {
+      console.warn('Error while syncing duplicate user documents by email:', syncErr)
+    }
+
     await auditService.logAction(
       (existingSnap.exists() ? 'SYSTEM_USER_UPDATE' : 'SYSTEM_USER_CREATE') as any,
       'system',

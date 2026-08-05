@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
+import { Loading } from '@/components/Loading'
 
 // Import types
 import type { FinanceIncome, DirectExpense, FinanceCategory, FinanceFundRequest, FinancePeriod, LedgerEntry } from '@/types/finance'
@@ -713,6 +714,14 @@ export const FinancePage: React.FC = () => {
       message: 'PDF download triggered successfully. Report metadata compiled dynamically using landscape auto-tables.',
       onConfirm: () => {}
     })
+  }
+
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading Treasury & Ministry Finance..." />
+      </div>
+    )
   }
 
   return (

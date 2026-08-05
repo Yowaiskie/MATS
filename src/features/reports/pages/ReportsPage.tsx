@@ -6,6 +6,7 @@ import { FilterBar } from '../components/FilterBar'
 import { SummaryCards } from '../components/SummaryCards'
 import { AbsenceBreakdownModal } from '../components/AbsenceBreakdownModal'
 import { AlertModal } from '@/components/Dialog'
+import { Loading } from '@/components/Loading'
 import { useAuth } from '@/features/authentication/AuthContext'
 
 import { downloadMembersReportPdf } from '@/utils/memberPdfReport'
@@ -265,9 +266,8 @@ export const ReportsPage: React.FC = () => {
       {/* Content layout tables */}
       <Card className="p-0 overflow-hidden">
         {loading ? (
-          <div className="py-16 flex flex-col items-center justify-center space-y-3">
-            <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-            <span className="text-xs text-gray-500">Compiling report statistics...</span>
+          <div className="py-16">
+            <Loading variant="spinner" label="Compiling report statistics..." />
           </div>
         ) : (
           <div className="overflow-x-auto">

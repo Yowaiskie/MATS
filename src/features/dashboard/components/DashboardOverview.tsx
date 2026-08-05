@@ -40,10 +40,105 @@ const statIcons: { [key: string]: React.ReactNode } = {
 }
 
 import { useAuth } from '@/features/authentication/AuthContext'
+import { Loading } from '@/components/Loading'
+
+// Order Theme Palette Mapping
+const ORDER_THEMES: Record<string, {
+  bannerGradient: string
+  accentGlow: string
+  cardBg: string
+  cardBorder: string
+  iconBg: string
+  iconBorder: string
+  iconColor: string
+  labelColor: string
+  accentText: string
+}> = {
+  'Order of San Pedro': {
+    bannerGradient: 'from-rose-950 via-red-900 to-slate-950 border-rose-800/40',
+    accentGlow: 'bg-rose-500/20',
+    cardBg: 'bg-rose-500/15',
+    cardBorder: 'border-rose-400/30',
+    iconBg: 'bg-rose-500/25',
+    iconBorder: 'border-rose-400/40',
+    iconColor: 'text-rose-300',
+    labelColor: 'text-rose-200',
+    accentText: 'text-rose-200',
+  },
+  'Order of San Juan': {
+    bannerGradient: 'from-blue-950 via-indigo-900 to-slate-950 border-blue-800/40',
+    accentGlow: 'bg-blue-500/20',
+    cardBg: 'bg-blue-500/15',
+    cardBorder: 'border-blue-400/30',
+    iconBg: 'bg-blue-500/25',
+    iconBorder: 'border-blue-400/40',
+    iconColor: 'text-blue-300',
+    labelColor: 'text-blue-200',
+    accentText: 'text-blue-200',
+  },
+  'Order of San Tiago': {
+    bannerGradient: 'from-emerald-950 via-teal-900 to-slate-950 border-emerald-800/40',
+    accentGlow: 'bg-emerald-500/20',
+    cardBg: 'bg-emerald-500/15',
+    cardBorder: 'border-emerald-400/30',
+    iconBg: 'bg-emerald-500/25',
+    iconBorder: 'border-emerald-400/40',
+    iconColor: 'text-emerald-300',
+    labelColor: 'text-emerald-200',
+    accentText: 'text-emerald-200',
+  },
+  'Order of San Andres': {
+    bannerGradient: 'from-amber-950 via-yellow-900 to-slate-950 border-amber-800/40',
+    accentGlow: 'bg-amber-500/20',
+    cardBg: 'bg-amber-500/15',
+    cardBorder: 'border-amber-400/30',
+    iconBg: 'bg-amber-500/25',
+    iconBorder: 'border-amber-400/40',
+    iconColor: 'text-amber-300',
+    labelColor: 'text-amber-200',
+    accentText: 'text-amber-200',
+  },
+  'Officers': {
+    bannerGradient: 'from-purple-950 via-indigo-950 to-slate-950 border-purple-800/40',
+    accentGlow: 'bg-purple-500/20',
+    cardBg: 'bg-purple-500/15',
+    cardBorder: 'border-purple-400/30',
+    iconBg: 'bg-purple-500/25',
+    iconBorder: 'border-purple-400/40',
+    iconColor: 'text-purple-300',
+    labelColor: 'text-purple-200',
+    accentText: 'text-purple-200',
+  },
+  'Squires': {
+    bannerGradient: 'from-cyan-950 via-teal-950 to-slate-950 border-cyan-800/40',
+    accentGlow: 'bg-cyan-500/20',
+    cardBg: 'bg-cyan-500/15',
+    cardBorder: 'border-cyan-400/30',
+    iconBg: 'bg-cyan-500/25',
+    iconBorder: 'border-cyan-400/40',
+    iconColor: 'text-cyan-300',
+    labelColor: 'text-cyan-200',
+    accentText: 'text-cyan-200',
+  }
+}
+
+// Default fallback theme
+const DEFAULT_THEME = {
+  bannerGradient: 'from-indigo-900 via-indigo-800 to-slate-900 border-indigo-100',
+  accentGlow: 'bg-indigo-500/20',
+  cardBg: 'bg-white/10',
+  cardBorder: 'border-white/15',
+  iconBg: 'bg-indigo-500/20',
+  iconBorder: 'border-indigo-400/30',
+  iconColor: 'text-indigo-200',
+  labelColor: 'text-indigo-200',
+  accentText: 'text-indigo-200',
+}
 
 export const DashboardOverview: React.FC = () => {
   const { profile } = useAuth()
   const userOrder = profile?.assignedOrder
+  const orderTheme = (userOrder && ORDER_THEMES[userOrder]) ? ORDER_THEMES[userOrder] : DEFAULT_THEME
 
   const [data, setData] = useState<{
     stats: any
@@ -94,9 +189,8 @@ export const DashboardOverview: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="py-24 flex flex-col items-center justify-center space-y-3 bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-        <span className="text-xs text-gray-500">Loading dashboard overview...</span>
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading Dashboard Overview..." />
       </div>
     )
   }
@@ -124,14 +218,79 @@ export const DashboardOverview: React.FC = () => {
     { name: 'Upcoming Schedules', value: String(data.stats.upcomingSchedules), color: 'text-emerald-600', bg: 'bg-emerald-50/50', border: 'border-emerald-100', desc: 'Future services planned' },
   ]
 
+  // Helper for clean user greeting display
+  const getUserGreetingName = () => {
+    if (!profile) return 'Server'
+    const name = profile.displayName?.trim()
+    if (name && !name.toLowerCase().startsWith('order of')) {
+      return name
+    }
+    if (profile.role === 'order_leader') {
+      // Format: "Order Leader of San Andres"
+      const shortName = userOrder ? userOrder.replace(/^Order of\s*/i, '') : ''
+      return shortName ? `Order Leader of ${shortName}` : 'Order Leader'
+    }
+    if (profile.email) {
+      const prefix = profile.email.split('@')[0]
+      return prefix.charAt(0).toUpperCase() + prefix.slice(1)
+    }
+    return 'Server'
+  }
+
   return (
     <div className="space-y-6">
-      {/* Welcome header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Welcome back. Here is an overview of today's ministry services.
-        </p>
+      {/* Dynamic Role & User Welcome Banner */}
+      <div className={`relative overflow-hidden rounded-3xl border bg-gradient-to-r ${orderTheme.bannerGradient} p-6 text-white shadow-xl transition-all duration-300`}>
+        <div className={`absolute -top-12 -right-12 h-48 w-48 rounded-full ${orderTheme.accentGlow} blur-3xl pointer-events-none`}></div>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-xs font-bold uppercase tracking-wider ${orderTheme.labelColor}`}>
+                {new Date().getHours() < 12 ? 'Good Morning' : new Date().getHours() < 18 ? 'Good Afternoon' : 'Good Evening'}
+              </span>
+              <span className="h-1.5 w-1.5 rounded-full bg-white/40"></span>
+              {(profile?.role as string) === 'coordinator' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-200 border border-indigo-400/30">
+                  System Coordinator
+                </span>
+              )}
+              {profile?.role === 'admin' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-slate-700/60 text-slate-200 border border-slate-600/50">
+                  Administrator
+                </span>
+              )}
+              {profile?.role === 'user' && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase px-2.5 py-0.5 rounded-full bg-sky-500/30 text-sky-200 border border-sky-400/30">
+                  Altar Server
+                </span>
+              )}
+            </div>
+            
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+              Welcome back, <span className={orderTheme.accentText}>{getUserGreetingName()}</span>!
+            </h1>
+            
+            <p className="text-xs text-white/80 max-w-xl">
+              {userOrder 
+                ? `You are managing the ${userOrder} group. Here is your order's service overview and member activity.`
+                : "Here is your real-time overview of ministry schedules, server attendance, and active operations."}
+            </p>
+          </div>
+
+          {userOrder && (
+            <div className={`shrink-0 ${orderTheme.cardBg} backdrop-blur-md border ${orderTheme.cardBorder} p-3.5 rounded-2xl flex items-center gap-3 shadow-lg`}>
+              <div className={`h-10 w-10 rounded-xl ${orderTheme.iconBg} border ${orderTheme.iconBorder} flex items-center justify-center ${orderTheme.iconColor} font-black shrink-0`}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+              </div>
+              <div>
+                <div className={`text-[10px] font-extrabold uppercase tracking-wider ${orderTheme.labelColor}`}>Assigned Ministry Group</div>
+                <div className="text-sm font-extrabold text-white">{userOrder}</div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Real-time Summary Cards */}
@@ -167,97 +326,177 @@ export const DashboardOverview: React.FC = () => {
         <div className="lg:col-span-2 space-y-6">
           
           {/* Today's Schedule */}
-          <Card title="Today's Schedule" description="Active services scheduled for today.">
-            {data.todaySchedules.length > 0 ? (
-              <div className="divide-y divide-gray-100">
-                {data.todaySchedules.map((schedule) => {
-                  const status = getScheduleStatus(schedule)
-                  const badgeClass = {
-                    upcoming: 'bg-green-50 border border-green-100 text-green-600',
-                    ongoing: 'bg-blue-50 border border-blue-100 text-blue-600',
-                    completed: 'bg-gray-100 border border-gray-200 text-gray-600',
-                    cancelled: 'bg-red-50 border border-red-100 text-red-600',
-                  }[status]
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Today's Schedule</h3>
+                <p className="text-xs text-slate-500 mt-0.5 font-medium">Active services scheduled for today</p>
+              </div>
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-700">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                {data.todaySchedules.length} {data.todaySchedules.length === 1 ? 'Service' : 'Services'}
+              </span>
+            </div>
 
-                  return (
-                    <div key={schedule.id} className="py-4 first:pt-0 last:pb-0 flex items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center space-x-2">
-                          <h4 className="text-sm font-bold text-gray-900 leading-tight">{schedule.title}</h4>
-                          <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase ${badgeClass}`}>
-                            {status}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-500 mt-1">
-                          🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
-                        </p>
-                      </div>
-                      <Link
-                        to={`/attendance?scheduleId=${schedule.id}`}
-                        className="rounded-lg bg-blue-600 hover:bg-blue-500 px-3.5 py-1.5 text-xs font-semibold text-white transition-colors cursor-pointer select-none shadow-sm"
+            <div className="pt-4">
+              {data.todaySchedules.length > 0 ? (
+                <div className="space-y-3">
+                  {data.todaySchedules.map((schedule) => {
+                    const status = getScheduleStatus(schedule)
+                    const badgeClass = {
+                      upcoming: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
+                      ongoing: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
+                      completed: 'bg-slate-100 text-slate-600 border-slate-200/80',
+                      cancelled: 'bg-rose-50 text-rose-700 border-rose-200/80',
+                    }[status]
+
+                    const assignedCount = schedule.assignedMembers?.length || 0
+
+                    return (
+                      <div 
+                        key={schedule.id} 
+                        className="p-4 rounded-xl border border-slate-200/80 bg-slate-50/40 hover:bg-slate-50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4"
                       >
-                        Quick Attendance
-                      </Link>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-sm text-gray-400 italic">
-                No schedules today.
-              </div>
-            )}
-          </Card>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-extrabold text-slate-900">{schedule.title}</h4>
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${badgeClass}`}>
+                              {status}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
+                            <span className="flex items-center gap-1">
+                              <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
+                            </span>
+                            <span className="flex items-center gap-1 text-slate-400">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                              </svg>
+                              {assignedCount} Assigned
+                            </span>
+                          </div>
+                        </div>
+
+                        <Link
+                          to={`/attendance?scheduleId=${schedule.id}`}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-bold text-white shadow-xs hover:shadow-md active:scale-95 transition-all cursor-pointer select-none"
+                        >
+                          <span>Take Attendance</span>
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+                          </svg>
+                        </Link>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm font-semibold text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  No active schedules for today.
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Recent Activity Feed */}
-          <Card title="Recent Activity" description="Latest updates across members and schedules.">
-            {data.activities.length > 0 ? (
-              <div className="space-y-4">
-                {data.activities.map((activity) => (
-                  <div key={activity.id} className="flex items-start space-x-3 text-sm">
-                    <span className="text-blue-500 mt-1 font-bold h-1.5 w-1.5 rounded-full bg-blue-500 shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-gray-700 font-medium leading-tight">{activity.description}</p>
-                      <p className="text-[10px] text-gray-400 mt-0.5">{formatActivityTime(activity.timestamp)}</p>
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
+            <div className="pb-4 border-b border-slate-100">
+              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Recent Activity Stream</h3>
+              <p className="text-xs text-slate-500 mt-0.5 font-medium font-sans">Real-time audit log feed across all operations</p>
+            </div>
+
+            <div className="pt-5">
+              {data.activities.length > 0 ? (
+                <div className="relative border-l-2 border-slate-100 ml-3.5 space-y-6">
+                  {data.activities.map((activity) => (
+                    <div key={activity.id} className="relative pl-6">
+                      <span className="absolute -left-[9px] top-0.5 h-4 w-4 rounded-full border-2 border-white bg-indigo-600 shadow-2xs" />
+                      
+                      <div className="p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-white hover:border-slate-200 hover:shadow-2xs transition-all">
+                        <p className="text-xs font-bold text-slate-800 leading-snug">{activity.description}</p>
+                        <p className="text-[10px] font-semibold text-slate-400 mt-1">
+                          {formatActivityTime(activity.timestamp)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="py-8 text-center text-sm text-gray-400 italic">
-                No recent activity.
-              </div>
-            )}
-          </Card>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-10 text-center text-sm font-semibold text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  No recent activity recorded.
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Quick Actions Panel */}
         <div>
-          <Card title="Quick Tasks" description="Quick access shortcuts.">
-            <div className="space-y-2">
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+            <div>
+              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Quick Tasks & Actions</h3>
+              <p className="text-xs text-slate-500 mt-0.5 font-medium">Fast shortcuts for common ministry operations</p>
+            </div>
+
+            <div className="space-y-3 pt-2">
               <Link
                 to="/members"
-                className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200/60 hover:bg-gray-100/60 px-4 py-3 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                className="group flex items-start gap-3.5 p-3.5 rounded-xl border border-slate-200/80 bg-white hover:bg-indigo-50/40 hover:border-indigo-200 transition-all shadow-2xs hover:shadow-xs"
               >
-                <span className="font-medium">Add New Member</span>
-                <span className="text-gray-400">→</span>
+                <div className="p-2.5 rounded-xl border bg-indigo-50 text-indigo-600 border-indigo-100 shrink-0">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors">Add New Member</h4>
+                    <span className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all text-xs font-bold">→</span>
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5 line-clamp-1">Register a server to the ministry</p>
+                </div>
               </Link>
+
               <Link
                 to="/schedules"
-                className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200/60 hover:bg-gray-100/60 px-4 py-3 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                className="group flex items-start gap-3.5 p-3.5 rounded-xl border border-slate-200/80 bg-white hover:bg-indigo-50/40 hover:border-indigo-200 transition-all shadow-2xs hover:shadow-xs"
               >
-                <span className="font-medium">Create Schedule</span>
-                <span className="text-gray-400">→</span>
+                <div className="p-2.5 rounded-xl border bg-emerald-50 text-emerald-600 border-emerald-100 shrink-0">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors">Create Schedule</h4>
+                    <span className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all text-xs font-bold">→</span>
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5 line-clamp-1">Plan a service or mass schedule</p>
+                </div>
               </Link>
+
               <Link
                 to="/reports"
-                className="flex items-center justify-between rounded-lg bg-gray-50 border border-gray-200/60 hover:bg-gray-100/60 px-4 py-3 text-sm text-gray-600 hover:text-gray-900 transition-colors"
+                className="group flex items-start gap-3.5 p-3.5 rounded-xl border border-slate-200/80 bg-white hover:bg-indigo-50/40 hover:border-indigo-200 transition-all shadow-2xs hover:shadow-xs"
               >
-                <span className="font-medium">View Reports</span>
-                <span className="text-gray-400">→</span>
+                <div className="p-2.5 rounded-xl border bg-amber-50 text-amber-600 border-amber-100 shrink-0">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-extrabold text-slate-900 group-hover:text-indigo-600 transition-colors">View Reports</h4>
+                    <span className="text-slate-300 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all text-xs font-bold">→</span>
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-500 mt-0.5 line-clamp-1">Export summary analytics & PDF</p>
+                </div>
               </Link>
             </div>
-          </Card>
+          </div>
         </div>
       </div>
     </div>

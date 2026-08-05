@@ -56,18 +56,18 @@ export const Pagination: React.FC<PaginationProps> = ({
   }
 
   return (
-    <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-white border-t border-gray-200/80 text-xs text-gray-600 font-sans select-none rounded-b-xl ${className}`}>
+    <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 bg-slate-50/50 border-t border-slate-200/80 text-xs text-slate-500 font-sans select-none rounded-b-2xl ${className}`}>
       <div>
-        Showing <span className="font-bold text-gray-900">{startItem}</span> to{' '}
-        <span className="font-bold text-gray-900">{endItem}</span> of{' '}
-        <span className="font-bold text-gray-900">{totalItems}</span> entries
+        Showing <span className="font-extrabold text-slate-900">{startItem}</span> to{' '}
+        <span className="font-extrabold text-slate-900">{endItem}</span> of{' '}
+        <span className="font-extrabold text-slate-900">{totalItems}</span> entries
       </div>
 
-      <div className="flex items-center space-x-1">
+      <div className="flex items-center space-x-1.5">
         <button
           onClick={handlePrev}
           disabled={currentPage === 1}
-          className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs cursor-pointer"
         >
           Previous
         </button>
@@ -77,16 +77,16 @@ export const Pagination: React.FC<PaginationProps> = ({
             <button
               key={idx}
               onClick={() => onPageChange(p)}
-              className={`h-7 w-7 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+              className={`h-7 w-7 rounded-xl text-xs font-black transition-all cursor-pointer ${
                 currentPage === p
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-50'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'
               }`}
             >
               {p}
             </button>
           ) : (
-            <span key={idx} className="px-1 text-gray-400">
+            <span key={idx} className="px-1 text-slate-400">
               {p}
             </span>
           )
@@ -95,7 +95,7 @@ export const Pagination: React.FC<PaginationProps> = ({
         <button
           onClick={handleNext}
           disabled={currentPage >= totalPages}
-          className="px-2.5 py-1.5 rounded-lg border border-gray-200 bg-white font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+          className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs cursor-pointer"
         >
           Next
         </button>

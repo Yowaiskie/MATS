@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react'
 import { memberService } from '@/services/memberService'
 import { Card } from '@/components/Card'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { Loading } from '@/components/Loading'
 import { MemberTable } from '../components/MemberTable'
 import { MemberFormModal } from '../components/MemberFormModal'
 import { MemberImportModal } from '../components/MemberImportModal'
@@ -244,6 +245,14 @@ export const MembersPage: React.FC = () => {
     } finally {
       setBulkProcessing(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading Members Directory..." />
+      </div>
+    )
   }
 
   return (

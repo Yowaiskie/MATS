@@ -18,7 +18,8 @@ service cloud.firestore {
     }
 
     function isSuperAdmin() {
-      return isAuthenticated() && hasUserDocument() && getUserData().role == 'admin';
+      return isAuthenticated() && hasUserDocument() &&
+             getUserData().role in ['admin', 'coordinator'];
     }
 
     function hasPermission(permissionKey) {
@@ -52,17 +53,16 @@ service cloud.firestore {
     // users collection
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow create: if isSuperAdmin() &&
-                    request.resource.data.role in ['admin', 'user', 'order_leader'] &&
-                    (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
-                    isValidString(request.resource.data.email, 3, 100);
+      // Super admins can create freely. Also allow self-create to fix UID mismatch on login.
+      allow create: if isSuperAdmin() || 
+                    (isAuthenticated() && userId == request.auth.uid);
       allow delete: if isSuperAdmin();
-      allow update: if (isSuperAdmin() || (
+      // Super admins can update any field; regular users can only update non-privileged fields
+      allow update: if isSuperAdmin() || (
         isAuthenticated() && 
         request.auth.uid == userId && 
-        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions', 'assignedOrder', 'presetName'])
-      )) && (
-        request.resource.data.role in ['admin', 'user', 'order_leader'] &&
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions', 'assignedOrder', 'presetName']) &&
+        request.resource.data.role in ['admin', 'user', 'order_leader', 'coordinator'] &&
         (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
         isValidString(request.resource.data.email, 3, 100)
       );
@@ -71,11 +71,7 @@ service cloud.firestore {
     // members collection
     match /members/{memberId} {
       allow read: if true; // Public excuse form lists members
-      allow write: if isSuperAdmin() &&
-                   isValidString(request.resource.data.firstName, 1, 50) &&
-                   isValidString(request.resource.data.lastName, 1, 50) &&
-                   request.resource.data.status in ['active', 'inactive', 'archived'] &&
-                   isValidString(request.resource.data.rank, 1, 50);
+      allow write: if isSuperAdmin();
     }
     
     // schedules collection

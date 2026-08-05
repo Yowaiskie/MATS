@@ -8,6 +8,7 @@ import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
+import { Loading } from '@/components/Loading'
 
 const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'dashboard', label: 'Dashboard Overview', description: 'Access main metrics and overview dashboard' },
@@ -401,14 +402,14 @@ export const UsersPage: React.FC = () => {
         const isEditingCoordinator = editingUser.email.toLowerCase() === 'coordinator@mas.com'
         const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
 
-        if (editingUser.uid === currentAdmin?.uid && role !== 'admin') {
+        if (editingUser.uid === currentAdmin?.uid && role !== 'admin' && role !== 'coordinator') {
           setError('You cannot revoke your own admin access.')
           setSaving(false)
           return
         }
 
-        if (isEditingCoordinator && !isCurrentCoordinator && role !== 'admin') {
-          setError('Only the Coordinator account (coordinator@mas.com) can modify its own role.')
+        if (isEditingCoordinator && !isCurrentCoordinator) {
+          setError('The Coordinator account can only be modified by the Coordinator themselves.')
           setSaving(false)
           return
         }
@@ -462,17 +463,17 @@ export const UsersPage: React.FC = () => {
 
   const handleDeleteConfirmed = async () => {
     if (!deleteTarget) return
+    // Prevent self-deletion
     if (deleteTarget.uid === currentAdmin?.uid) {
       setError('You cannot delete your own account.')
       setDeleteTarget(null)
       return
     }
-
+    // Coordinator account is protected — only coordinator can delete themselves
     const isTargetCoordinator = deleteTarget.email.toLowerCase() === 'coordinator@mas.com'
     const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
-
     if (isTargetCoordinator && !isCurrentCoordinator) {
-      setError('Only the Coordinator account (coordinator@mas.com) can delete its own account.')
+      setError('The Coordinator account is protected and cannot be deleted by other admins.')
       setDeleteTarget(null)
       return
     }
@@ -485,7 +486,7 @@ export const UsersPage: React.FC = () => {
         deleteTarget.email,
         currentAdmin?.email || 'Admin'
       )
-      setSuccessMsg(`User '${deleteTarget.email}' removed from system.`)
+      setSuccessMsg(`User '${deleteTarget.email}' permanently removed from system.`)
       setDeleteTarget(null)
       await loadData(false)
     } catch (err: any) {
@@ -501,6 +502,14 @@ export const UsersPage: React.FC = () => {
       <div className="py-16 text-center bg-white rounded-xl border border-gray-200 p-8 shadow-xs max-w-md mx-auto font-sans">
         <h3 className="text-base font-bold text-gray-900">Access Restricted</h3>
         <p className="text-xs text-gray-500 mt-2">Only system administrators can access User Management.</p>
+      </div>
+    )
+  }
+
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs font-sans">
+        <Loading variant="spinner" label="Loading User Accounts & Permissions..." />
       </div>
     )
   }
@@ -620,15 +629,18 @@ export const UsersPage: React.FC = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-2">
-                        <button
-                          onClick={() => handleOpenEditModal(u)}
-                          className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors cursor-pointer border border-blue-100"
-                        >
-                          <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          <span>Edit Permissions</span>
-                        </button>
+                        {/* Hide Edit/Remove for coordinator account unless you ARE the coordinator */}
+                        {!(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
+                          <button
+                            onClick={() => handleOpenEditModal(u)}
+                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors cursor-pointer border border-blue-100"
+                          >
+                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span>Edit Permissions</span>
+                          </button>
+                        )}
                         {!isCurrent && !(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
                           <button
                             onClick={() => setDeleteTarget(u)}
@@ -908,148 +920,6 @@ export const UsersPage: React.FC = () => {
                       ))}
                     </select>
                     <p className="mt-1 text-[10px] text-amber-700">If selected, member reports will be filtered exclusively for this Order.</p>
-                  </div>
-                </div>
-
-                {/* Finance Permissions */}
-                <div className="p-3.5 rounded-xl border border-emerald-200/80 bg-emerald-50/40 space-y-3 col-span-1 sm:col-span-2">
-                  <span className="text-xs font-bold text-emerald-950 block">Finance Permissions</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canViewFinanceDashboard}
-                        onChange={(e) => setCanViewFinanceDashboard(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>View Finance Dashboard</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canAddIncome}
-                        onChange={(e) => setCanAddIncome(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Add Income</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canEditIncome}
-                        onChange={(e) => setCanEditIncome(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Edit Income</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canDeleteIncome}
-                        onChange={(e) => setCanDeleteIncome(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Delete Income</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canCreateFundRequest}
-                        onChange={(e) => setCanCreateFundRequest(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Create Fund Request</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canApproveFundRequest}
-                        onChange={(e) => setCanApproveFundRequest(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Approve Requests</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canRejectFundRequest}
-                        onChange={(e) => setCanRejectFundRequest(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Reject Requests</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canReleaseFunds}
-                        onChange={(e) => setCanReleaseFunds(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Release Funds</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canSubmitLiquidation}
-                        onChange={(e) => setCanSubmitLiquidation(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Submit Liquidation</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canReviewLiquidation}
-                        onChange={(e) => setCanReviewLiquidation(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Review Liquidations</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canViewFinanceReports}
-                        onChange={(e) => setCanViewFinanceReports(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>View Finance Reports</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canExportFinanceReports}
-                        onChange={(e) => setCanExportFinanceReports(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Export Reports</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canManageFinanceCategories}
-                        onChange={(e) => setCanManageFinanceCategories(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Manage Categories</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canCloseFinancePeriod}
-                        onChange={(e) => setCanCloseFinancePeriod(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Close Financial Period</span>
-                    </label>
-                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={canReopenFinancePeriod}
-                        onChange={(e) => setCanReopenFinancePeriod(e.target.checked)}
-                        className="rounded border-gray-300 text-blue-600 h-4 w-4"
-                      />
-                      <span>Reopen Closed Period</span>
-                    </label>
                   </div>
                 </div>
               </div>

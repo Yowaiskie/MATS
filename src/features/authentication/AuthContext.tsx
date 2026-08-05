@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { onAuthStateChanged, browserLocalPersistence, setPersistence } from 'firebase/auth'
+import { doc, onSnapshot } from 'firebase/firestore'
 import type { User } from 'firebase/auth'
-import { auth } from '@/firebase/config'
+import { auth, db } from '@/firebase/config'
 import { authService } from '@/services/authService'
 import { auditService } from '@/services/auditService'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
@@ -37,39 +38,75 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearError = () => setError(null)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+    let currentDocUnsub: (() => void) | null = null
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
       setLoading(true)
-      
+
+      // Clean up any previous doc listener before setting a new one
+      if (currentDocUnsub) {
+        currentDocUnsub()
+        currentDocUnsub = null
+      }
+
       if (currentUser) {
+        setUser(currentUser)
         try {
-          const userProfile = await authService.getUserProfile(currentUser.uid, currentUser.email)
-          
-          if (userProfile) {
-            setUser(currentUser)
-            setProfile(userProfile)
-            setError(null)
-          } else {
-            // Unprofiled user: display unauthorized error and log out immediately
-            setError('Unauthorized. This user is not registered in the system.')
-            setUser(null)
-            setProfile(null)
-            await authService.logout()
-          }
+          const userDocRef = doc(db, 'users', currentUser.uid)
+
+          // Subscribe to realtime updates on the user's profile document
+          currentDocUnsub = onSnapshot(
+            userDocRef,
+            async (snap) => {
+              if (snap.exists()) {
+                const userProfile = snap.data() as UserProfile
+                setProfile(userProfile)
+                setError(null)
+              } else {
+                // Fallback: attempt legacy lookup and auto-fix via authService
+                try {
+                  const userProfile = await authService.getUserProfile(currentUser.uid, currentUser.email)
+                  if (userProfile) {
+                    setProfile(userProfile)
+                    setError(null)
+                  } else {
+                    setError('Unauthorized. This user is not registered in the system.')
+                    setUser(null)
+                    setProfile(null)
+                    await authService.logout()
+                  }
+                } catch (err: any) {
+                  console.error('Error fetching user profile:', err)
+                  setError(err.message || 'Failed to load user profile.')
+                  setUser(null)
+                  setProfile(null)
+                }
+              }
+              setLoading(false)
+            },
+            (err) => {
+              console.warn('User doc onSnapshot error:', err)
+              setLoading(false)
+            }
+          )
         } catch (err: any) {
-          console.error('Error fetching user profile:', err)
-          setError(err.message || 'Failed to load user profile.')
+          console.error('Error setting up user subscription:', err)
+          setError(err.message || 'Failed to subscribe to user profile.')
           setUser(null)
           setProfile(null)
+          setLoading(false)
         }
       } else {
         setUser(null)
         setProfile(null)
+        setLoading(false)
       }
-      
-      setLoading(false)
     })
 
-    return () => unsubscribe()
+    return () => {
+      unsubscribeAuth()
+      if (currentDocUnsub) currentDocUnsub()
+    }
   }, [])
 
   const login = async (email: string, password: string) => {
@@ -106,13 +143,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }
 
   const role: UserRole = profile?.role || 'user'
-  const isAdmin = role === 'admin'
+  const isAdmin = role === 'admin' || role === 'coordinator'
   const isUser = role === 'user'
 
   const hasModuleAccess = (moduleKey: ModuleKey): boolean => {
     if (!profile) return false
     if (moduleKey === 'changePassword') return true
-    if (profile.role === 'admin') return true
+    if (profile.role === 'admin' || profile.role === 'coordinator') return true
     if (!profile.permissions || !profile.permissions.allowedModules) {
       // Legacy user role defaults
       if (moduleKey === 'dashboard' || moduleKey === 'schedules' || moduleKey === 'attendance' || moduleKey === 'reports') return true
@@ -123,7 +160,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const canAction = (actionKey: keyof UserPermissions): boolean => {
     if (!profile) return false
-    if (profile.role === 'admin') return true
+    if (profile.role === 'admin' || profile.role === 'coordinator') return true
     if (!profile.permissions) {
       // Legacy default
       if (actionKey === 'canTakeAttendance' || actionKey === 'canViewSchedules' || actionKey === 'canViewReports') return true
