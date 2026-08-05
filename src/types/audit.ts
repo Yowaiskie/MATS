@@ -1,4 +1,4 @@
-export type AuditCategory = 'member' | 'schedule' | 'attendance' | 'settings' | 'system' | 'excuse' | 'finance'
+export type AuditCategory = 'member' | 'schedule' | 'attendance' | 'settings' | 'system' | 'excuse' | 'finance' | 'events'
 
 export type AuditAction =
   | 'MEMBER_CREATE'
@@ -37,6 +37,18 @@ export type AuditAction =
   | 'REQUEST_ARCHIVE'
   | 'PERIOD_CLOSE'
   | 'PERIOD_REOPEN'
+  | 'EVENT_CREATE'
+  | 'EVENT_UPDATE'
+  | 'EVENT_ARCHIVE'
+  | 'EVENT_DELETE'
+  | 'EVENT_TASK_CREATE'
+  | 'EVENT_TASK_UPDATE'
+  | 'EVENT_CHECKLIST_CREATE'
+  | 'EVENT_CHECKLIST_UPDATE'
+  | 'EVENT_ASSIGN_MEMBER'
+  | 'EVENT_ASSIGNMENT_UPDATE'
+  | 'EVENT_ASSIGNMENT_REMOVE'
+  | 'EVENT_ROLE_CREATE'
 
 export interface AuditLog {
   id: string

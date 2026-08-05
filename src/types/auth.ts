@@ -14,6 +14,7 @@ export type ModuleKey =
   | 'changePassword'
   | 'excuses'
   | 'finance'
+  | 'events'
 
 export interface UserPermissions {
   allowedModules: ModuleKey[]
@@ -48,6 +49,20 @@ export interface UserPermissions {
   canManageFinanceCategories?: boolean
   canCloseFinancePeriod?: boolean
   canReopenFinancePeriod?: boolean
+
+  // Events actions
+  canViewProjects?: boolean
+  canCreateProjects?: boolean
+  canEditProjects?: boolean
+  canDeleteProjects?: boolean
+  canAssignTasks?: boolean
+  canManageAssignments?: boolean
+  canUpdateOwnTasks?: boolean
+  canUpdateAnyTask?: boolean
+  canCommentProjects?: boolean
+  canUploadProjectFiles?: boolean
+  canViewProjectReports?: boolean
+  canArchiveProjects?: boolean
 }
 
 export interface PermissionPreset {
@@ -81,6 +96,20 @@ export interface PermissionPreset {
   canManageFinanceCategories?: boolean
   canCloseFinancePeriod?: boolean
   canReopenFinancePeriod?: boolean
+
+  // Events actions
+  canViewProjects?: boolean
+  canCreateProjects?: boolean
+  canEditProjects?: boolean
+  canDeleteProjects?: boolean
+  canAssignTasks?: boolean
+  canManageAssignments?: boolean
+  canUpdateOwnTasks?: boolean
+  canUpdateAnyTask?: boolean
+  canCommentProjects?: boolean
+  canUploadProjectFiles?: boolean
+  canViewProjectReports?: boolean
+  canArchiveProjects?: boolean
 }
 
 export interface UserProfile {

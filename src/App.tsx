@@ -17,6 +17,8 @@ import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePag
 import { PublicExcusePage } from '@/features/excuse/PublicExcusePage'
 import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
 import { FinancePage } from '@/features/finance/pages/FinancePage'
+import { EventsPage } from '@/features/events/pages/EventsPage'
+import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
 
 function App() {
   return (
@@ -138,6 +140,24 @@ function App() {
                 element={
                   <ProtectedRoute adminOnly>
                     <AdminExcusePage />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/events" 
+                element={
+                  <ProtectedRoute moduleKey="events">
+                    <EventsPage />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/events/:id" 
+                element={
+                  <ProtectedRoute moduleKey="events">
+                    <EventDetailsPage />
                   </ProtectedRoute>
                 } 
               />
