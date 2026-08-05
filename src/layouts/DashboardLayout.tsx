@@ -110,7 +110,7 @@ export const DashboardLayout: React.FC = () => {
       const isLeftSwipe = distanceX > minSwipeDistance
       const isRightSwipe = distanceX < -minSwipeDistance
 
-      if (isRightSwipe && touchStartX < 50) {
+      if (isRightSwipe && !mobileMenuOpen) {
         setMobileMenuOpen(true)
       }
       if (isLeftSwipe && mobileMenuOpen) {
