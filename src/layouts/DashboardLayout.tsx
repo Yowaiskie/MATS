@@ -79,6 +79,46 @@ export const DashboardLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
 
+  // Swipe to open/close mobile menu
+  const [touchStartX, setTouchStartX] = useState<number | null>(null)
+  const [touchEndX, setTouchEndX] = useState<number | null>(null)
+  const [touchStartY, setTouchStartY] = useState<number | null>(null)
+  const [touchEndY, setTouchEndY] = useState<number | null>(null)
+
+  const minSwipeDistance = 50
+
+  const onTouchStart = (e: React.TouchEvent) => {
+    setTouchEndX(null)
+    setTouchEndY(null)
+    setTouchStartX(e.targetTouches[0].clientX)
+    setTouchStartY(e.targetTouches[0].clientY)
+  }
+
+  const onTouchMove = (e: React.TouchEvent) => {
+    setTouchEndX(e.targetTouches[0].clientX)
+    setTouchEndY(e.targetTouches[0].clientY)
+  }
+
+  const onTouchEndEvent = () => {
+    if (!touchStartX || !touchEndX || !touchStartY || !touchEndY) return
+    
+    const distanceX = touchStartX - touchEndX
+    const distanceY = touchStartY - touchEndY
+    
+    // Check if swipe is mostly horizontal
+    if (Math.abs(distanceX) > Math.abs(distanceY)) {
+      const isLeftSwipe = distanceX > minSwipeDistance
+      const isRightSwipe = distanceX < -minSwipeDistance
+
+      if (isRightSwipe && touchStartX < 50) {
+        setMobileMenuOpen(true)
+      }
+      if (isLeftSwipe && mobileMenuOpen) {
+        setMobileMenuOpen(false)
+      }
+    }
+  }
+
   const handleLogout = async () => {
     setLoggingOut(true)
     try {
@@ -116,7 +156,12 @@ export const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <div className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden">
+    <div 
+      className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEndEvent}
+    >
       {/* Offline Alert Banner */}
       <OfflineBanner />
 
@@ -248,10 +293,12 @@ export const DashboardLayout: React.FC = () => {
                       <Link
                         key={item.name}
                         to={item.href}
-                        className={`flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all duration-200 group ${
+                        className={`flex items-center rounded-xl py-2.5 text-xs transition-all duration-200 group ${
+                          collapsed ? 'justify-center px-0' : 'space-x-3 px-3.5'
+                        } ${
                           active
-                            ? 'bg-indigo-50/90 text-indigo-700 font-extrabold border-r-4 border-indigo-600 shadow-2xs'
-                            : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900 hover:translate-x-1'
+                            ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm'
+                            : `text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900 ${collapsed ? '' : 'hover:translate-x-1'}`
                         }`}
                         title={collapsed ? item.name : undefined}
                       >
@@ -365,7 +412,7 @@ export const DashboardLayout: React.FC = () => {
                             onClick={() => setMobileMenuOpen(false)}
                             className={`flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all ${
                               active
-                                ? 'bg-indigo-50/90 text-indigo-700 font-extrabold border-r-4 border-indigo-600 shadow-2xs'
+                                ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm'
                                 : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900'
                             }`}
                           >

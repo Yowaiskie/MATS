@@ -65,7 +65,7 @@ export const SchedulesPage: React.FC = () => {
 
   // Dialog state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string } | null>(null)
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true)
@@ -138,8 +138,35 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
-  const handleSaveAssignments = async (scheduleId: string, assignedIds: string[]) => {
-    await scheduleService.assignMembers(scheduleId, assignedIds, profile?.email || 'Admin')
+  const handleSaveAssignments = async (scheduleId: string, assignedIds: string[], applyToMonth: boolean) => {
+    const actor = profile?.email || 'Admin'
+    if (applyToMonth) {
+      const sourceSchedule = schedules.find(s => s.id === scheduleId)
+      if (sourceSchedule) {
+        // e.g. "2026-08-05" -> targetMonth is "2026-08"
+        const targetMonth = sourceSchedule.date.substring(0, 7)
+        // Find all schedules in the same month with the same title and start time
+        const matchingSchedules = schedules.filter(s => 
+          s.date.startsWith(targetMonth) && 
+          s.title === sourceSchedule.title && 
+          s.startTime === sourceSchedule.startTime
+        )
+        
+        // Update all matching schedules
+        for (const s of matchingSchedules) {
+          await scheduleService.assignMembers(s.id, assignedIds, actor)
+        }
+        
+        setAlertModal({
+          title: 'Bulk Assignment Successful',
+          message: `Successfully applied assignments to ${matchingSchedules.length} "${sourceSchedule.title}" schedules in this month.`,
+          variant: 'success'
+        })
+      }
+    } else {
+      await scheduleService.assignMembers(scheduleId, assignedIds, actor)
+    }
+    
     await loadData(false)
   }
 
@@ -673,14 +700,14 @@ export const SchedulesPage: React.FC = () => {
       <TemplateManagerModal
         isOpen={templatesOpen}
         onClose={() => setTemplatesOpen(false)}
-        onGenerateSuccess={loadData}
+        onGenerateSuccess={() => loadData(false)}
       />
 
       <CSVImporterModal
         isOpen={csvImportOpen}
         onClose={() => setCsvImportOpen(false)}
         activeMembers={allMembersProfiles}
-        onImportSuccess={loadData}
+        onImportSuccess={() => loadData(false)}
       />
 
       <BulkDeleteMonthModal
@@ -719,7 +746,7 @@ export const SchedulesPage: React.FC = () => {
           setAlertModal(null)
           setError(null)
         }}
-        variant="error"
+        variant={alertModal?.variant ?? (error ? 'error' : 'error')}
         title={alertModal?.title ?? 'Error'}
         message={alertModal?.message ?? error ?? ''}
       />

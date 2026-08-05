@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
@@ -38,12 +38,36 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
   const [csvText, setCsvText] = useState('')
   const [parsing, setParsing] = useState(false)
   const [importing, setImporting] = useState(false)
+  const [importProgress, setImportProgress] = useState(0)
+  const [loadingTextIndex, setLoadingTextIndex] = useState(0)
   const [extractedSlots, setExtractedSlots] = useState<any[]>([])
   const [selectedSlotKeys, setSelectedSlotKeys] = useState<string[]>([])
   const [unknownMembers, setUnknownMembers] = useState<string[]>([])
   const [manualMemberMap, setManualMemberMap] = useState<Record<string, string>>({})
   const [importReport, setImportReport] = useState<any | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  const loadingMessages = [
+    "Please do not close this window...",
+    "Updating schedule templates...",
+    "Assigning altar servers...",
+    "Syncing with the database...",
+    "Checking existing schedules...",
+    "Almost done...",
+    "Finalizing assignments..."
+  ]
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout
+    if (importing) {
+      interval = setInterval(() => {
+        setLoadingTextIndex(prev => (prev + 1) % loadingMessages.length)
+      }, 1500)
+    } else {
+      setLoadingTextIndex(0)
+    }
+    return () => clearInterval(interval)
+  }, [importing])
 
   if (!isOpen) return null
 
@@ -120,7 +144,11 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
 
       const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
-      for (const slot of slotsToImport) {
+      setImportProgress(0)
+
+      for (let i = 0; i < slotsToImport.length; i++) {
+        const slot = slotsToImport[i]
+
         // 1. Update/create Schedule Templates
         const existingTemp = templates.find(t => 
           t.title.toLowerCase().trim() === slot.title.toLowerCase().trim() &&
@@ -163,6 +191,8 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
           await scheduleService.assignMembers(targetSched.id, mergedAssigned, 'CSV Import')
           updatedCount++
         }
+
+        setImportProgress(Math.round(((i + 1) / slotsToImport.length) * 100))
       }
 
       setImportReport({
@@ -189,6 +219,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
     setManualMemberMap({})
     setImportReport(null)
     setError(null)
+    setImportProgress(0)
     onClose()
   }
 
@@ -280,7 +311,20 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
           {/* Extracted Slots Preview */}
           {extractedSlots.length > 0 && !importReport && (
             <div className="space-y-4">
-              {/* Unknown Member Resolution */}
+              {importing ? (
+                <div className="py-12 flex flex-col items-center justify-center space-y-4">
+                  <div className="text-center">
+                    <h4 className="text-sm font-bold text-gray-900">Importing server assignments...</h4>
+                    <p className="text-xs text-gray-500 mt-1 transition-opacity duration-300">{loadingMessages[loadingTextIndex]}</p>
+                  </div>
+                  <div className="w-full max-w-sm bg-gray-200 rounded-full h-3 overflow-hidden">
+                    <div className="bg-green-500 h-full rounded-full transition-all duration-300 ease-out" style={{ width: `${importProgress}%` }}></div>
+                  </div>
+                  <p className="text-xs font-bold text-green-700">{importProgress}% Complete</p>
+                </div>
+              ) : (
+                <>
+                  {/* Unknown Member Resolution */}
               {unknownMembers.length > 0 && (
                 <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-2">
                   <h5 className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
@@ -375,6 +419,8 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                   })}
                 </div>
               </div>
+                </>
+              )}
             </div>
           )}
 
