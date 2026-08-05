@@ -226,14 +226,13 @@ export const DashboardLayout: React.FC = () => {
           }`}
         >
           {/* Logo Brand Header */}
-          <div className="flex items-center space-x-3 px-2 pb-4 border-b border-slate-100 mb-3 overflow-hidden shrink-0">
+          <div className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-2'} pb-4 border-b border-slate-100 mb-3 overflow-hidden shrink-0`}>
             <div className="relative shrink-0">
               <img 
                 src="/favicon/favicon.png" 
                 alt="MATS Logo" 
                 className="h-9 w-9 rounded-2xl border border-slate-200/80 object-cover shadow-2xs" 
               />
-              <span className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full bg-emerald-500 border-2 border-white"></span>
             </div>
             {!collapsed && (
               <div className="flex items-center gap-2 truncate">
