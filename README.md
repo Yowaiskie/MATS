@@ -1,4 +1,4 @@
-# MATS - Ministry Attendance Tracking System
+# MATS - Ministry Administration & Tracking System
 
 A web-based attendance management system designed for church ministries. MATS replaces manual attendance tracking with a digital workflow that enables administrators to manage members, create schedules, record attendance, and generate shareable reports.
 
