@@ -58,7 +58,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
   ]
 
   useEffect(() => {
-    let interval: NodeJS.Timeout
+    let interval: ReturnType<typeof setInterval>
     if (importing) {
       interval = setInterval(() => {
         setLoadingTextIndex(prev => (prev + 1) % loadingMessages.length)
