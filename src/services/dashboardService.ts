@@ -9,9 +9,14 @@ import { memberService } from './memberService'
 import { scheduleService } from './scheduleService'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
+import { reportService } from './reportService'
+
 export interface DashboardStats {
   activeMembers: number
   archivedMembers: number
+  suspendedMembersCount: number
+  userOrderSuspendedCount: number
+  userOrder?: string
   upcomingSchedules: number
   ongoingSchedules: number
   completedSchedules: number
@@ -36,7 +41,7 @@ export const dashboardService = {
   /**
    * Retrieves all dashboard statistics and recent activities efficiently.
    */
-  async getDashboardData(): Promise<{
+  async getDashboardData(userOrder?: string): Promise<{
     stats: DashboardStats
     todaySchedules: Schedule[]
     activities: ActivityLog[]
@@ -57,6 +62,32 @@ export const dashboardService = {
       scheduleService.getSchedules()
     ])
 
+    // Calculate suspended members for current month
+    const today = new Date()
+    const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    const startDate = `${currentMonthStr}-01`
+    const endDate = `${currentMonthStr}-31`
+    let suspendedMembersCount = 0
+    let userOrderSuspendedCount = 0
+
+    try {
+      const reportData = await reportService.loadReportData(startDate, endDate)
+      const memberRows = reportService.generateMemberReport(reportData)
+      const allSuspended = memberRows.filter(r => r.warningStatus === 'suspended')
+      suspendedMembersCount = allSuspended.length
+
+      if (userOrder) {
+        userOrderSuspendedCount = allSuspended.filter(r => {
+          const m = allMembers.find(mem => mem.id === r.memberId)
+          return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
+        }).length
+      } else {
+        userOrderSuspendedCount = suspendedMembersCount
+      }
+    } catch (err) {
+      console.warn('Could not calculate suspended members count:', err)
+    }
+
     // 1. Calculate statistics
     const activeMembers = allMembers.filter(m => m.status === 'active').length
     const archivedMembers = allMembers.filter(m => m.status === 'archived').length
@@ -75,6 +106,9 @@ export const dashboardService = {
     const stats: DashboardStats = {
       activeMembers,
       archivedMembers,
+      suspendedMembersCount,
+      userOrderSuspendedCount,
+      userOrder,
       upcomingSchedules,
       ongoingSchedules,
       completedSchedules,
@@ -82,7 +116,6 @@ export const dashboardService = {
     }
 
     // 2. Filter today's schedules
-    const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     
     const todaySchedules = allSchedules

@@ -4,6 +4,7 @@ import { Card } from '@/components/Card'
 import { dashboardService, type ActivityLog } from '@/services/dashboardService'
 import type { Schedule } from '@/types/schedule'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { DashboardCharts } from './DashboardCharts'
 
 const statIcons: { [key: string]: React.ReactNode } = {
   'Active Members': (
@@ -11,9 +12,9 @@ const statIcons: { [key: string]: React.ReactNode } = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
   ),
-  'Archived Members': (
-    <svg className="h-5 w-5 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+  'Suspended (This Month)': (
+    <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
     </svg>
   ),
   'Upcoming Schedules': (
@@ -38,7 +39,12 @@ const statIcons: { [key: string]: React.ReactNode } = {
   )
 }
 
+import { useAuth } from '@/features/authentication/AuthContext'
+
 export const DashboardOverview: React.FC = () => {
+  const { profile } = useAuth()
+  const userOrder = profile?.assignedOrder
+
   const [data, setData] = useState<{
     stats: any
     todaySchedules: Schedule[]
@@ -52,7 +58,7 @@ export const DashboardOverview: React.FC = () => {
     const loadDashboard = async () => {
       try {
         setLoading(true)
-        const dashboardData = await dashboardService.getDashboardData()
+        const dashboardData = await dashboardService.getDashboardData(userOrder)
         setData(dashboardData)
       } catch (err: any) {
         console.error(err)
@@ -63,7 +69,7 @@ export const DashboardOverview: React.FC = () => {
     }
 
     loadDashboard()
-  }, [])
+  }, [userOrder])
 
   // Format 12-hour time format helper
   const formatTime12 = (timeStr: string) => {
@@ -105,19 +111,17 @@ export const DashboardOverview: React.FC = () => {
 
   const cardStats = [
     { name: 'Active Members', value: String(data.stats.activeMembers), color: 'text-green-600', bg: 'bg-green-50/50', border: 'border-green-100', desc: 'Registered and active servers' },
-    { name: 'Archived Members', value: String(data.stats.archivedMembers), color: 'text-gray-600', bg: 'bg-gray-50/50', border: 'border-gray-200', desc: 'Inactive or retired profiles' },
-    { name: 'Upcoming Schedules', value: String(data.stats.upcomingSchedules), color: 'text-emerald-600', bg: 'bg-emerald-50/50', border: 'border-emerald-100', desc: 'Future services planned' },
     { 
-      name: 'Ongoing Schedule', 
-      value: data.stats.ongoingSchedules > 0 ? String(data.stats.ongoingSchedules) : 'No ongoing schedule', 
-      color: 'text-blue-600', 
-      bg: 'bg-blue-50/50', 
-      border: 'border-blue-100',
-      isText: data.stats.ongoingSchedules === 0,
-      desc: 'Schedules currently active now'
+      name: userOrder ? `Suspended (${userOrder})` : 'Suspended (This Month)', 
+      value: String(userOrder ? data.stats.userOrderSuspendedCount : data.stats.suspendedMembersCount), 
+      color: 'text-red-600', 
+      bg: 'bg-red-50/50', 
+      border: 'border-red-100', 
+      desc: userOrder 
+        ? `${data.stats.userOrderSuspendedCount} suspended this month in ${userOrder}` 
+        : 'Total suspended profiles for current month' 
     },
-    { name: 'Completed Schedules', value: String(data.stats.completedSchedules), color: 'text-purple-600', bg: 'bg-purple-50/50', border: 'border-purple-100', desc: 'Schedules already served' },
-    { name: 'Attendance Sessions', value: String(data.stats.attendanceSessionsCount), color: 'text-amber-600', bg: 'bg-amber-50/50', border: 'border-amber-100', desc: 'Schedules attendance recorded' },
+    { name: 'Upcoming Schedules', value: String(data.stats.upcomingSchedules), color: 'text-emerald-600', bg: 'bg-emerald-50/50', border: 'border-emerald-100', desc: 'Future services planned' },
   ]
 
   return (
@@ -131,7 +135,7 @@ export const DashboardOverview: React.FC = () => {
       </div>
 
       {/* Real-time Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {cardStats.map((stat) => (
           <Card key={stat.name} className={`${stat.bg} ${stat.border} hover:shadow-md transition-shadow duration-250 flex flex-col justify-between`}>
             <div className="space-y-3">
@@ -139,9 +143,15 @@ export const DashboardOverview: React.FC = () => {
                 <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400 leading-tight">
                   {stat.name}
                 </span>
-                <span className="shrink-0">{statIcons[stat.name]}</span>
+                <span className="shrink-0">
+                  {stat.name.startsWith('Suspended') ? (
+                    <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  ) : statIcons[stat.name]}
+                </span>
               </div>
-              <span className={`font-extrabold leading-none ${stat.color} ${stat.isText ? 'text-xs font-semibold block leading-tight' : 'text-3xl block'}`}>
+              <span className={`font-extrabold leading-none ${stat.color} text-3xl block`}>
                 {stat.value}
               </span>
             </div>
@@ -149,6 +159,8 @@ export const DashboardOverview: React.FC = () => {
           </Card>
         ))}
       </div>
+
+      <DashboardCharts stats={data.stats} />
 
       {/* Main Grid: Today's Schedule & Recent Activity (col-span-2) + Quick Actions (col-span-1) */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
