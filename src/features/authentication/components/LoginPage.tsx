@@ -46,7 +46,7 @@ export const LoginPage: React.FC = () => {
         {/* Logo/Brand */}
         <div className="text-center">
           <img
-            src="/ministy_logo.jpg"
+            src="/favicon/favicon.png"
             alt="MATS Logo"
             className="mx-auto h-20 w-20 rounded-2xl border border-gray-200 object-cover shadow-md"
           />

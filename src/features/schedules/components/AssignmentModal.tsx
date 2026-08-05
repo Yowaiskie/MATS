@@ -3,7 +3,7 @@ import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { getFullName } from '@/utils/member'
-import { isTimeOverlapping } from '@/utils/scheduleUtils'
+import { isTimeOverlapping, formatTime12Hour } from '@/utils/scheduleUtils'
 
 interface AssignmentModalProps {
   isOpen: boolean
@@ -51,7 +51,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         s.assignedMembers.includes(memberId) && 
         isTimeOverlapping(schedule.startTime, schedule.endTime, s.startTime, s.endTime)
     )
-    return overlappingSchedule ? overlappingSchedule.title : null
+    return overlappingSchedule ? `${overlappingSchedule.title} (${formatTime12Hour(overlappingSchedule.startTime)} - ${formatTime12Hour(overlappingSchedule.endTime)})` : null
   }
 
   const handleToggle = (memberId: string) => {
@@ -147,7 +147,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
           <div>
             <h3 className="text-sm font-bold text-gray-900">Assign Servers</h3>
             <p className="text-xs text-gray-500 mt-0.5 font-medium">
-              Select members for "{schedule.title}" ({schedule.startTime} - {schedule.endTime})
+              Select members for "{schedule.title}" ({formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)})
             </p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none">

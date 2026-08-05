@@ -27,6 +27,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [order, setOrder] = useState('')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [phoneNumber, setPhoneNumber] = useState('')
+  const [dateOfBirth, setDateOfBirth] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
 
@@ -41,6 +42,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setOrder(member.order || '')
       setStatus(member.status === 'archived' ? 'active' : member.status)
       setPhoneNumber(member.phoneNumber || '')
+      setDateOfBirth(member.dateOfBirth || '')
     } else {
       setFirstName('')
       setMiddleName('')
@@ -51,6 +53,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setOrder('')
       setStatus('active')
       setPhoneNumber('')
+      setDateOfBirth('')
     }
     setErrors({})
   }, [member, isOpen])
@@ -62,6 +65,10 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     
     if (!firstName.trim()) {
       newErrors.firstName = 'First Name is required.'
+    }
+    
+    if (!dateOfBirth.trim()) {
+      newErrors.dateOfBirth = 'Date of Birth is required for excuse verification.'
     }
     
     if (!lastName.trim()) {
@@ -106,6 +113,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         order: order.trim() || undefined,
         status,
         phoneNumber: phoneNumber.trim() || undefined,
+        dateOfBirth: dateOfBirth.trim(),
       })
       onClose()
     } catch (err) {
@@ -301,6 +309,23 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 disabled={loading}
               />
             )}
+          </div>
+
+          {/* Date of Birth */}
+          <div>
+            <label htmlFor="modal-dob" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              Date of Birth *
+            </label>
+            <input
+              id="modal-dob"
+              type="date"
+              value={dateOfBirth}
+              onChange={(e) => setDateOfBirth(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
+              disabled={loading}
+              required
+            />
+            {errors.dateOfBirth && <p className="mt-1 text-xs text-red-600 font-medium">{errors.dateOfBirth}</p>}
           </div>
 
           {/* Phone Number */}

@@ -165,6 +165,81 @@ export const scheduleService = {
   },
 
   /**
+   * Bulk locks/unlocks schedules within a date range.
+   */
+  async bulkLockSchedules(startDate: string, endDate: string, isLocked: boolean, performedBy = 'System'): Promise<number> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const q = query(
+      schedulesRef,
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    )
+    const snapshot = await getDocs(q)
+    let updatedCount = 0
+
+    await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const scheduleRef = doc(db, SCHEDULES_COLLECTION, docSnap.id)
+        await updateDoc(scheduleRef, {
+          isLocked,
+          updatedAt: serverTimestamp()
+        })
+        updatedCount++
+      })
+    )
+
+    if (updatedCount > 0) {
+      await auditService.logAction(
+        'SCHEDULE_UPDATE',
+        'schedule',
+        `Bulk ${isLocked ? 'locked' : 'unlocked'} ${updatedCount} schedules between ${startDate} and ${endDate}`,
+        performedBy
+      )
+    }
+
+    return updatedCount
+  },
+
+  /**
+   * Removes specific members from all schedules within a date range.
+   * Useful for resetting submissions.
+   */
+  async removeMembersFromSchedules(startDate: string, endDate: string, memberIds: string[], performedBy = 'System'): Promise<void> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const q = query(
+      schedulesRef,
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    )
+    const snapshot = await getDocs(q)
+
+    await Promise.all(
+      snapshot.docs.map(async (docSnap) => {
+        const schedule = docSnap.data() as Schedule
+        if (!schedule.assignedMembers) return
+
+        const updatedMembers = schedule.assignedMembers.filter(id => !memberIds.includes(id))
+        
+        // Only update if something changed
+        if (updatedMembers.length !== schedule.assignedMembers.length) {
+          const scheduleRef = doc(db, SCHEDULES_COLLECTION, docSnap.id)
+          await updateDoc(scheduleRef, {
+            assignedMembers: updatedMembers,
+            updatedAt: serverTimestamp()
+          })
+        }
+      })
+    )
+
+    await auditService.logAction(
+      'SCHEDULE_UPDATE',
+      'schedule',
+      `Bulk removed ${memberIds.length} members from schedules between ${startDate} and ${endDate}`,
+      performedBy
+    )
+  },
+
+  /**
    * Assigns a list of members to a schedule.
    * Performs validation to prevent double-booking members to overlapping schedules on the same day.
    */
@@ -240,5 +315,51 @@ export const scheduleService = {
       performedBy,
       { scheduleId, memberIds }
     )
+  },
+
+  /**
+   * Public Self-Service: Allows an altar server to sign up or update their selections for active/upcoming schedules.
+   */
+  async submitPublicScheduleSelections(
+    memberId: string,
+    selections: { scheduleId: string; isSelected: boolean }[],
+    performedBy = 'Self-Service'
+  ): Promise<void> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const snapshot = await getDocs(schedulesRef)
+    const allSchedules = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Schedule)
+    const scheduleMap = new Map(allSchedules.map(s => [s.id, s]))
+
+    for (const item of selections) {
+      const target = scheduleMap.get(item.scheduleId)
+      if (!target) continue
+      if (target.isLocked || target.status === 'cancelled') continue
+
+      let currentMembers = [...(target.assignedMembers || [])]
+      const alreadyAssigned = currentMembers.includes(memberId)
+
+      if (item.isSelected && !alreadyAssigned) {
+        currentMembers.push(memberId)
+      } else if (!item.isSelected && alreadyAssigned) {
+        currentMembers = currentMembers.filter(id => id !== memberId)
+      } else {
+        continue // No change
+      }
+
+      const scheduleRef = doc(db, SCHEDULES_COLLECTION, item.scheduleId)
+      await updateDoc(scheduleRef, {
+        assignedMembers: currentMembers,
+        updatedAt: serverTimestamp()
+      })
+    }
+
+    await auditService.logAction(
+      'SCHEDULE_ASSIGN',
+      'schedule',
+      `Public self-service updated schedule selections for member ID '${memberId}'`,
+      performedBy,
+      { memberId, selectionsCount: selections.length }
+    )
   }
 }
+

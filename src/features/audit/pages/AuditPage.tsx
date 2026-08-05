@@ -162,13 +162,21 @@ export const AuditPage: React.FC = () => {
   }, [logs, categoryFilter, actionFilter, searchQuery, schedulesMap])
 
   // Get distinct categories & actions for filter selectors
-  const categories: AuditCategory[] = ['member', 'schedule', 'attendance', 'settings', 'system']
+  const categories: AuditCategory[] = ['member', 'schedule', 'attendance', 'settings', 'system', 'excuse', 'finance', 'events']
   
   const actions: AuditAction[] = [
     'MEMBER_CREATE', 'MEMBER_UPDATE', 'MEMBER_DELETE', 'MEMBER_ARCHIVE', 'MEMBER_IMPORT',
     'SCHEDULE_CREATE', 'SCHEDULE_UPDATE', 'SCHEDULE_DELETE', 'SCHEDULE_ASSIGN',
     'ATTENDANCE_SAVE', 'ATTENDANCE_LOCK', 'ATTENDANCE_UNLOCK', 'SETTINGS_UPDATE',
-    'USER_PASSWORD_CHANGE'
+    'USER_PASSWORD_CHANGE', 'USER_LOGIN', 'EXCUSE_SUBMITTED', 'EXCUSE_APPROVED',
+    'EXCUSE_REJECTED', 'EXCUSE_CANCELLED', 'CATEGORY_CREATE', 'CATEGORY_ARCHIVE',
+    'INCOME_ADD', 'INCOME_UPDATE', 'INCOME_ARCHIVE', 'EXPENSE_RECORD', 'EXPENSE_UPDATE',
+    'EXPENSE_ARCHIVE', 'REQUEST_SUBMIT', 'REQUEST_APPROVE', 'REQUEST_REJECT',
+    'FUNDS_RELEASE', 'LIQUIDATION_SUBMIT', 'LIQUIDATION_APPROVE', 'REQUEST_ARCHIVE',
+    'PERIOD_CLOSE', 'PERIOD_REOPEN', 'EVENT_CREATE', 'EVENT_UPDATE', 'EVENT_ARCHIVE',
+    'EVENT_DELETE', 'EVENT_TASK_CREATE', 'EVENT_TASK_UPDATE', 'EVENT_CHECKLIST_CREATE',
+    'EVENT_CHECKLIST_UPDATE', 'EVENT_ASSIGN_MEMBER', 'EVENT_ASSIGNMENT_UPDATE',
+    'EVENT_ASSIGNMENT_REMOVE', 'EVENT_ROLE_CREATE'
   ]
 
   // Badges color mapping
@@ -177,7 +185,10 @@ export const AuditPage: React.FC = () => {
     schedule: 'bg-blue-50 border-blue-200 text-blue-700',
     attendance: 'bg-emerald-50 border-emerald-200 text-emerald-700',
     settings: 'bg-amber-50 border-amber-200 text-amber-700',
-    system: 'bg-purple-50 border-purple-200 text-purple-700'
+    system: 'bg-purple-50 border-purple-200 text-purple-700',
+    excuse: 'bg-teal-50 border-teal-200 text-teal-700',
+    finance: 'bg-rose-50 border-rose-200 text-rose-700',
+    events: 'bg-blue-50 border-blue-200 text-blue-700'
   }
 
   const actionColors: Record<AuditAction, string> = {
@@ -195,7 +206,40 @@ export const AuditPage: React.FC = () => {
     ATTENDANCE_UNLOCK: 'bg-orange-100 text-orange-800 border-orange-200',
     SETTINGS_UPDATE: 'bg-pink-100 text-pink-800 border-pink-200',
     USER_PASSWORD_CHANGE: 'bg-cyan-100 text-cyan-800 border-cyan-200',
-    USER_LOGIN: 'bg-teal-100 text-teal-800 border-teal-200'
+    USER_LOGIN: 'bg-teal-100 text-teal-800 border-teal-200',
+    EXCUSE_SUBMITTED: 'bg-teal-100 text-teal-800 border-teal-200',
+    EXCUSE_APPROVED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EXCUSE_REJECTED: 'bg-rose-100 text-rose-800 border-rose-200',
+    EXCUSE_CANCELLED: 'bg-slate-100 text-slate-800 border-slate-200',
+    CATEGORY_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    CATEGORY_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    INCOME_ADD: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    INCOME_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    INCOME_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    EXPENSE_RECORD: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EXPENSE_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EXPENSE_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    REQUEST_SUBMIT: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    REQUEST_APPROVE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    REQUEST_REJECT: 'bg-rose-100 text-rose-800 border-rose-200',
+    FUNDS_RELEASE: 'bg-cyan-100 text-cyan-800 border-cyan-200',
+    LIQUIDATION_SUBMIT: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+    LIQUIDATION_APPROVE: 'bg-teal-100 text-teal-800 border-teal-200',
+    REQUEST_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    PERIOD_CLOSE: 'bg-purple-100 text-purple-800 border-purple-200',
+    PERIOD_REOPEN: 'bg-orange-100 text-orange-800 border-orange-200',
+    EVENT_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    EVENT_DELETE: 'bg-red-100 text-red-800 border-red-200',
+    EVENT_TASK_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_TASK_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_CHECKLIST_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_CHECKLIST_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_ASSIGN_MEMBER: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    EVENT_ASSIGNMENT_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_ASSIGNMENT_REMOVE: 'bg-red-100 text-red-800 border-red-200',
+    EVENT_ROLE_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200'
   }
 
   // Friendly human-readable property key dictionary

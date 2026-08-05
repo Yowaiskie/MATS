@@ -7,6 +7,7 @@ import { MemberFormModal } from '../components/MemberFormModal'
 import { MemberImportModal } from '../components/MemberImportModal'
 import { MemberPDFImportModal } from '../components/MemberPDFImportModal'
 import { BulkRankEditModal } from '../components/BulkRankEditModal'
+import { BulkOrderEditModal } from '../components/BulkOrderEditModal'
 import type { Member, MemberInput } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 
@@ -36,6 +37,7 @@ export const MembersPage: React.FC = () => {
   const [bulkRestoreOpen, setBulkRestoreOpen] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkRankEditOpen, setBulkRankEditOpen] = useState(false)
+  const [bulkOrderEditOpen, setBulkOrderEditOpen] = useState(false)
   const [bulkProcessing, setBulkProcessing] = useState(false)
 
   // Set default modals state correctly
@@ -226,6 +228,24 @@ export const MembersPage: React.FC = () => {
     }
   }
 
+  // Bulk order edit confirmed
+  const handleBulkOrderEditConfirmed = async (newOrder: string) => {
+    setBulkProcessing(true)
+    try {
+      const ids = Array.from(selectedIds)
+      await memberService.bulkUpdateOrder(ids, newOrder, profile?.email || 'Admin')
+      setBulkOrderEditOpen(false)
+      setSelectedIds(new Set())
+      await loadMembers(false)
+      setAlertModal({ variant: 'success', title: 'Bulk Order Update Complete', message: `Successfully updated order to '${newOrder || 'Unassigned'}' for ${ids.length} member(s).` })
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ variant: 'error', title: 'Bulk Order Update Failed', message: err.message || 'Failed to update order for selected members.' })
+    } finally {
+      setBulkProcessing(false)
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* Header section */}
@@ -313,6 +333,7 @@ export const MembersPage: React.FC = () => {
             onSelectAll={handleBulkActionButton}
             onBulkDelete={() => setBulkDeleteOpen(true)}
             onBulkEditRank={() => setBulkRankEditOpen(true)}
+            onBulkEditOrder={() => setBulkOrderEditOpen(true)}
             onClearSelection={handleClearSelection}
           />
         )}
@@ -407,6 +428,14 @@ export const MembersPage: React.FC = () => {
         isOpen={bulkRankEditOpen}
         onClose={() => setBulkRankEditOpen(false)}
         onConfirm={handleBulkRankEditConfirmed}
+        selectedCount={selectedIds.size}
+      />
+
+      {/* Bulk Order Edit Modal */}
+      <BulkOrderEditModal
+        isOpen={bulkOrderEditOpen}
+        onClose={() => setBulkOrderEditOpen(false)}
+        onConfirm={handleBulkOrderEditConfirmed}
         selectedCount={selectedIds.size}
       />
 

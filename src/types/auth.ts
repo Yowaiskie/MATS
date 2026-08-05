@@ -12,6 +12,9 @@ export type ModuleKey =
   | 'settings' 
   | 'audit'
   | 'changePassword'
+  | 'excuses'
+  | 'finance'
+  | 'events'
 
 export interface UserPermissions {
   allowedModules: ModuleKey[]
@@ -29,13 +32,44 @@ export interface UserPermissions {
   canExportReports: boolean
   assignedOrder?: OrderGroup
   presetName?: string
+
+  // Finance actions
+  canViewFinanceDashboard?: boolean
+  canAddIncome?: boolean
+  canEditIncome?: boolean
+  canDeleteIncome?: boolean
+  canCreateFundRequest?: boolean
+  canApproveFundRequest?: boolean
+  canRejectFundRequest?: boolean
+  canReleaseFunds?: boolean
+  canSubmitLiquidation?: boolean
+  canReviewLiquidation?: boolean
+  canViewFinanceReports?: boolean
+  canExportFinanceReports?: boolean
+  canManageFinanceCategories?: boolean
+  canCloseFinancePeriod?: boolean
+  canReopenFinancePeriod?: boolean
+
+  // Events actions
+  canViewProjects?: boolean
+  canCreateProjects?: boolean
+  canEditProjects?: boolean
+  canDeleteProjects?: boolean
+  canAssignTasks?: boolean
+  canManageAssignments?: boolean
+  canUpdateOwnTasks?: boolean
+  canUpdateAnyTask?: boolean
+  canCommentProjects?: boolean
+  canUploadProjectFiles?: boolean
+  canViewProjectReports?: boolean
+  canArchiveProjects?: boolean
 }
 
 export interface PermissionPreset {
   id: string
   name: string
   description: string
-  icon: 'clipboard' | 'users' | 'shield' | 'calendar' | 'chart' | 'settings'
+  icon: 'clipboard' | 'users' | 'shield' | 'calendar' | 'chart' | 'settings' | 'bank'
   role: UserRole
   allowedModules: ModuleKey[]
   canTakeAttendance: boolean
@@ -45,6 +79,37 @@ export interface PermissionPreset {
   canViewReports: boolean
   canExportReports: boolean
   assignedOrder?: OrderGroup
+
+  // Finance actions
+  canViewFinanceDashboard?: boolean
+  canAddIncome?: boolean
+  canEditIncome?: boolean
+  canDeleteIncome?: boolean
+  canCreateFundRequest?: boolean
+  canApproveFundRequest?: boolean
+  canRejectFundRequest?: boolean
+  canReleaseFunds?: boolean
+  canSubmitLiquidation?: boolean
+  canReviewLiquidation?: boolean
+  canViewFinanceReports?: boolean
+  canExportFinanceReports?: boolean
+  canManageFinanceCategories?: boolean
+  canCloseFinancePeriod?: boolean
+  canReopenFinancePeriod?: boolean
+
+  // Events actions
+  canViewProjects?: boolean
+  canCreateProjects?: boolean
+  canEditProjects?: boolean
+  canDeleteProjects?: boolean
+  canAssignTasks?: boolean
+  canManageAssignments?: boolean
+  canUpdateOwnTasks?: boolean
+  canUpdateAnyTask?: boolean
+  canCommentProjects?: boolean
+  canUploadProjectFiles?: boolean
+  canViewProjectReports?: boolean
+  canArchiveProjects?: boolean
 }
 
 export interface UserProfile {

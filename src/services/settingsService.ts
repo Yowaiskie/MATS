@@ -44,6 +44,18 @@ export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
 }
 
 const PRESETS_DOC = 'permissionPresets'
+const PUBLIC_SCHEDULE_DOC = 'publicSchedule'
+
+export interface PublicScheduleSettings {
+  enabledMonth: number
+  enabledYear: number
+}
+
+export const DEFAULT_PUBLIC_SCHEDULE_SETTINGS: PublicScheduleSettings = {
+  enabledMonth: new Date().getMonth() + 1,
+  enabledYear: new Date().getFullYear()
+}
+
 
 export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
   {
@@ -58,7 +70,22 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canViewSchedules: true,
     canManageSchedules: false,
     canViewReports: false,
-    canExportReports: false
+    canExportReports: false,
+    canViewFinanceDashboard: false,
+    canAddIncome: false,
+    canEditIncome: false,
+    canDeleteIncome: false,
+    canCreateFundRequest: false,
+    canApproveFundRequest: false,
+    canRejectFundRequest: false,
+    canReleaseFunds: false,
+    canSubmitLiquidation: false,
+    canReviewLiquidation: false,
+    canViewFinanceReports: false,
+    canExportFinanceReports: false,
+    canManageFinanceCategories: false,
+    canCloseFinancePeriod: false,
+    canReopenFinancePeriod: false
   },
   {
     id: 'preset_order_leader',
@@ -72,7 +99,22 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canViewSchedules: true,
     canManageSchedules: false,
     canViewReports: true,
-    canExportReports: true
+    canExportReports: true,
+    canViewFinanceDashboard: false,
+    canAddIncome: false,
+    canEditIncome: false,
+    canDeleteIncome: false,
+    canCreateFundRequest: false,
+    canApproveFundRequest: false,
+    canRejectFundRequest: false,
+    canReleaseFunds: false,
+    canSubmitLiquidation: false,
+    canReviewLiquidation: false,
+    canViewFinanceReports: false,
+    canExportFinanceReports: false,
+    canManageFinanceCategories: false,
+    canCloseFinancePeriod: false,
+    canReopenFinancePeriod: false
   },
   {
     id: 'preset_admin',
@@ -80,13 +122,28 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     description: 'Full system control and configuration',
     icon: 'shield',
     role: 'admin',
-    allowedModules: ['dashboard', 'schedules', 'attendance', 'reports', 'members', 'users', 'settings', 'audit'],
+    allowedModules: ['dashboard', 'schedules', 'attendance', 'reports', 'members', 'users', 'settings', 'audit', 'finance'],
     canTakeAttendance: true,
     canFinalizeAttendance: true,
     canViewSchedules: true,
     canManageSchedules: true,
     canViewReports: true,
-    canExportReports: true
+    canExportReports: true,
+    canViewFinanceDashboard: true,
+    canAddIncome: true,
+    canEditIncome: true,
+    canDeleteIncome: true,
+    canCreateFundRequest: true,
+    canApproveFundRequest: true,
+    canRejectFundRequest: true,
+    canReleaseFunds: true,
+    canSubmitLiquidation: true,
+    canReviewLiquidation: true,
+    canViewFinanceReports: true,
+    canExportFinanceReports: true,
+    canManageFinanceCategories: true,
+    canCloseFinancePeriod: true,
+    canReopenFinancePeriod: true
   }
 ]
 
@@ -219,5 +276,50 @@ export const settingsService = {
       performedBy,
       payload
     )
+  },
+
+  /**
+   * Fetches the public schedule configuration from Firestore.
+   */
+  async getPublicScheduleSettings(): Promise<PublicScheduleSettings> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, PUBLIC_SCHEDULE_DOC)
+      const docSnap = await getDoc(docRef)
+
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        return {
+          enabledMonth: data.enabledMonth ?? DEFAULT_PUBLIC_SCHEDULE_SETTINGS.enabledMonth,
+          enabledYear: data.enabledYear ?? DEFAULT_PUBLIC_SCHEDULE_SETTINGS.enabledYear
+        }
+      }
+      return DEFAULT_PUBLIC_SCHEDULE_SETTINGS
+    } catch (err) {
+      console.error('Failed to get public schedule settings:', err)
+      return DEFAULT_PUBLIC_SCHEDULE_SETTINGS
+    }
+  },
+
+  /**
+   * Saves the public schedule configuration to Firestore.
+   */
+  async savePublicScheduleSettings(settings: PublicScheduleSettings, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, PUBLIC_SCHEDULE_DOC)
+    const payload = {
+      enabledMonth: Number(settings.enabledMonth),
+      enabledYear: Number(settings.enabledYear),
+      updatedAt: serverTimestamp()
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated public schedule settings (Month: ${settings.enabledMonth}, Year: ${settings.enabledYear})`,
+      performedBy,
+      payload
+    )
   }
 }
+

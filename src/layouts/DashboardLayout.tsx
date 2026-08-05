@@ -53,6 +53,21 @@ const icons: { [key: string]: React.ReactNode } = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2v4a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2h6z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 7V5a2 2 0 114 0v2" />
     </svg>
+  ),
+  Excuses: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
+  Finance: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  Events: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
   )
 }
 
@@ -82,8 +97,11 @@ export const DashboardLayout: React.FC = () => {
     { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
     { name: 'Reports', href: '/reports', moduleKey: 'reports' },
     { name: 'Members', href: '/members', moduleKey: 'members' },
+    { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
+    { name: 'Finance', href: '/finance', moduleKey: 'finance' },
     { name: 'User Management', href: '/users', moduleKey: 'users' },
     { name: 'Settings', href: '/settings', moduleKey: 'settings' },
+    { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
     { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
     { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
   ]
@@ -105,6 +123,8 @@ export const DashboardLayout: React.FC = () => {
     if (path.startsWith('/schedules')) return 'Schedule Management'
     if (path.startsWith('/attendance')) return 'Attendance Tracking'
     if (path.startsWith('/reports')) return 'Reports & Analytics'
+    if (path.startsWith('/events')) return 'Event Workspace'
+    if (path.startsWith('/finance')) return 'Finance Management'
     if (path.startsWith('/users')) return 'User Management'
     if (path.startsWith('/settings')) return 'System Settings'
     if (path.startsWith('/audit')) return 'System Audit Trail'
@@ -180,7 +200,7 @@ export const DashboardLayout: React.FC = () => {
           {/* Logo Brand Header */}
           <div className="flex items-center space-x-3 px-2 pb-4 border-b border-gray-100 mb-4 overflow-hidden shrink-0">
             <img 
-              src="/ministy_logo.jpg" 
+              src="/favicon/favicon.png" 
               alt="Logo" 
               className="h-9 w-9 rounded-lg border border-gray-200/60 object-cover shrink-0" 
             />
@@ -240,7 +260,7 @@ export const DashboardLayout: React.FC = () => {
               {/* Drawer Header */}
               <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
                 <div className="flex items-center space-x-2.5 overflow-hidden">
-                  <img src="/ministy_logo.jpg" alt="Logo" className="h-8 w-8 rounded-lg border border-gray-200/60 object-cover shrink-0" />
+                  <img src="/favicon/favicon.png" alt="Logo" className="h-8 w-8 rounded-lg border border-gray-200/60 object-cover shrink-0" />
                   <span className="font-extrabold text-sm text-gray-900 tracking-tight truncate">MATS Portal</span>
                 </div>
 

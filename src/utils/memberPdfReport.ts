@@ -49,8 +49,8 @@ export const downloadMembersReportPdf = async (
 
   // Try loading logo
   try {
-    const logoImg = await loadImage('/ministy_logo.jpg')
-    doc.addImage(logoImg, 'JPEG', 14, 10, 14, 14)
+    const logoImg = await loadImage('/favicon/icon-192.png')
+    doc.addImage(logoImg, 'PNG', 14, 10, 14, 14)
   } catch (err) {
     console.warn('Logo image could not be loaded for PDF:', err)
   }

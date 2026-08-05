@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
+import { ORDER_GROUPS, getOrderBadgeStyle, MEMBER_RANKS } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import { Pagination } from '@/components/Pagination'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -18,6 +18,7 @@ interface MemberTableProps {
   onSelectAll: () => void
   onBulkDelete: () => void
   onBulkEditRank?: () => void
+  onBulkEditOrder?: () => void
   onClearSelection: () => void
 }
 
@@ -35,12 +36,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onSelectAll,
   onBulkDelete,
   onBulkEditRank,
+  onBulkEditOrder,
   onClearSelection,
 }) => {
   const { isAdmin } = useAuth()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [orderFilter, setOrderFilter] = useState<string>('all')
+  const [rankFilter, setRankFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<SortField>('name')
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc')
   const [currentPage, setCurrentPage] = useState(1)
@@ -48,8 +51,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-    onClearSelection()
-  }, [showArchived, searchTerm, statusFilter, orderFilter])
+    // Intentionally not clearing selection here so that users can search and select multiple items across different searches
+  }, [showArchived, searchTerm, statusFilter, orderFilter, rankFilter])
 
   const handleSort = (field: SortField) => {
     if (sortField === field) {
@@ -80,7 +83,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         orderFilter === 'all' ||
         (orderFilter === 'none' ? !member.order : member.order === orderFilter)
 
-      return matchesSearch && matchesStatus && matchesOrder
+      const matchesRank = 
+        rankFilter === 'all' ||
+        member.rank === rankFilter
+
+      return matchesSearch && matchesStatus && matchesOrder && matchesRank
     })
     .sort((a, b) => {
       let aVal = ''
@@ -170,6 +177,23 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             </div>
 
             <div className="flex items-center space-x-1.5">
+              <label htmlFor="filter-rank" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
+                Rank:
+              </label>
+              <select
+                id="filter-rank"
+                value={rankFilter}
+                onChange={(e) => setRankFilter(e.target.value)}
+                className="border border-gray-200 bg-white rounded-lg text-xs px-2.5 py-1.5 text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
+              >
+                <option value="all">All Ranks</option>
+                {MEMBER_RANKS.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center space-x-1.5">
               <label htmlFor="filter-status" className="text-xs font-semibold uppercase tracking-wider text-gray-400">
                 Status:
               </label>
@@ -244,6 +268,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
                   Change Rank ({selectedIds.size})
+                </button>
+              )}
+              {onBulkEditOrder && (
+                <button
+                  onClick={onBulkEditOrder}
+                  className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  Change Order ({selectedIds.size})
                 </button>
               )}
               <button

@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import type { Member } from '@/types/member'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
-import { getFullName } from '@/utils/member'
 import { ConfirmModal } from '@/components/Dialog'
 
 const formatTime12 = (timeStr: string) => {
@@ -20,16 +18,12 @@ const formatTime12 = (timeStr: string) => {
 interface TemplateManagerModalProps {
   isOpen: boolean
   onClose: () => void
-  activeMembers: Member[]
-  allMembers: Member[]
   onGenerateSuccess: () => Promise<void>
 }
 
 export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   isOpen,
   onClose,
-  activeMembers,
-  allMembers,
   onGenerateSuccess,
 }) => {
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
@@ -51,16 +45,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   const [timeSlots, setTimeSlots] = useState<Array<{ id: string; startTime: string; endTime: string }>>([
     { id: '1', startTime: '08:00', endTime: '09:00' }
   ])
-  const [defaultAssigned, setDefaultAssigned] = useState<string[]>([])
   const [active, setActive] = useState(true)
-
-  // CSV Import for Templates State
-  const [csvText, setCsvText] = useState('')
-  const [importedSlots, setImportedSlots] = useState<any[]>([])
-  const [selectedSlotKeys, setSelectedSlotKeys] = useState<string[]>([])
-  const [unknownMembers, setUnknownMembers] = useState<string[]>([])
-  const [manualMemberMap, setManualMemberMap] = useState<Record<string, string>>({})
-  const [importingCSV, setImportingCSV] = useState(false)
 
   // Schedule Generator State
   const [genStartDate, setGenStartDate] = useState('')
@@ -100,7 +85,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setDayOfWeek('Sunday')
     setSelectedDays(['Sunday'])
     setTimeSlots([{ id: Date.now().toString(), startTime: '08:00', endTime: '09:00' }])
-    setDefaultAssigned([])
     setActive(true)
     setEditingTemplate(null)
     setMode('create')
@@ -112,7 +96,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setDayOfWeek('Saturday')
     setSelectedDays(['Saturday'])
     setTimeSlots([{ id: Date.now().toString(), startTime: '18:00', endTime: '19:00' }])
-    setDefaultAssigned([])
     setActive(true)
     setEditingTemplate(null)
     setMode('create')
@@ -124,7 +107,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setDayOfWeek(t.dayOfWeek)
     setSelectedDays([t.dayOfWeek])
     setTimeSlots([{ id: t.id, startTime: t.startTime, endTime: t.endTime }])
-    setDefaultAssigned(t.assignedMembers || [])
     setActive(t.active)
     setEditingTemplate(t)
     setMode('edit')
@@ -191,7 +173,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
           dayOfWeek: selectedDay,
           startTime: slot.startTime,
           endTime: computedEnd,
-          assignedMembers: defaultAssigned,
+          assignedMembers: [],
           active
         })
         setSuccessMsg('Template updated successfully.')
@@ -213,7 +195,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               dayOfWeek: targetDay,
               startTime: slot.startTime,
               endTime: computedEnd,
-              assignedMembers: defaultAssigned,
+              assignedMembers: [],
               active
             }
             await recurringService.addTemplate(payload)
@@ -304,8 +286,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       const report = await recurringService.generateSchedules(
         genStartDate,
         genEndDate,
-        selectedTemplates,
-        allMembers
+        selectedTemplates
       )
       setGenerationReport(report)
       setMode('report')
@@ -318,135 +299,12 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     }
   }
 
-  const handleOpenCSVImport = () => {
-    setCsvText('')
-    setImportedSlots([])
-    setSelectedSlotKeys([])
-    setUnknownMembers([])
-    setManualMemberMap({})
-    setError(null)
-    setSuccessMsg(null)
-    setMode('import_csv')
-  }
-
-  const handleCSVFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    const reader = new FileReader()
-    reader.onload = async (event) => {
-      if (event.target?.result) {
-        const text = event.target.result as string
-        setCsvText(text)
-        await parseCSVForTemplates(text, manualMemberMap)
-      }
-    }
-    reader.readAsText(file)
-  }
-
-  const parseCSVForTemplates = async (text: string, currentManualMap: Record<string, string>) => {
-    if (!text.trim()) return
-    setLoading(true)
-    setError(null)
-    try {
-      const result = await recurringService.extractTemplateAssignmentsFromCSV(text, activeMembers, currentManualMap)
-      setImportedSlots(result.slots)
-      setUnknownMembers(result.unknownMembers)
-      // Pre-select all detected slots
-      setSelectedSlotKeys(result.slots.map(s => s.key))
-    } catch (err: any) {
-      console.error(err)
-      setError(err.message || 'Failed to parse CSV file.')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleManualMapChange = async (unknownName: string, memberId: string) => {
-    const updatedMap = { ...manualMemberMap, [unknownName]: memberId }
-    if (!memberId) {
-      delete updatedMap[unknownName]
-    }
-    setManualMemberMap(updatedMap)
-    if (csvText) {
-      await parseCSVForTemplates(csvText, updatedMap)
-    }
-  }
-
-  const toggleSlotSelection = (key: string) => {
-    setSelectedSlotKeys(prev => 
-      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
-    )
-  }
-
-  const handleApplyCSVToTemplates = async () => {
-    const slotsToApply = importedSlots.filter(s => selectedSlotKeys.includes(s.key))
-    if (slotsToApply.length === 0) {
-      setError('Please select at least one schedule slot to update or create templates.')
-      return
-    }
-
-    setImportingCSV(true)
-    setError(null)
-    setSuccessMsg(null)
-
-    try {
-      let createdCount = 0
-      let updatedCount = 0
-
-      for (const slot of slotsToApply) {
-        // Find existing template matching title, dayOfWeek, startTime, endTime
-        const existing = templates.find(t => 
-          t.title.toLowerCase() === slot.title.toLowerCase() &&
-          t.dayOfWeek.toLowerCase() === slot.dayOfWeek.toLowerCase() &&
-          t.startTime === slot.startTime &&
-          t.endTime === slot.endTime
-        )
-
-        if (existing) {
-          // Merge or update assigned members
-          const mergedAssigned = Array.from(new Set([...(existing.assignedMembers || []), ...slot.assignedMemberIds]))
-          await recurringService.updateTemplate(existing.id, {
-            assignedMembers: mergedAssigned
-          })
-          updatedCount++
-        } else {
-          // Create new template
-          await recurringService.addTemplate({
-            name: `${slot.title} (${slot.startTime})`,
-            title: slot.title,
-            dayOfWeek: slot.dayOfWeek,
-            startTime: slot.startTime,
-            endTime: slot.endTime,
-            assignedMembers: slot.assignedMemberIds,
-            active: true
-          })
-          createdCount++
-        }
-      }
-
-      setSuccessMsg(`Successfully processed ${slotsToApply.length} slots! Created: ${createdCount}, Updated: ${updatedCount}.`)
-      await loadTemplates()
-      setMode('list')
-    } catch (err: any) {
-      console.error(err)
-      setError(err.message || 'Failed to apply server assignments to templates.')
-    } finally {
-      setImportingCSV(false)
-    }
-  }
-
   const handleClose = () => {
     setMode('list')
     setEditingTemplate(null)
     setError(null)
     setSuccessMsg(null)
     setGenerationReport(null)
-    setCsvText('')
-    setImportedSlots([])
-    setSelectedSlotKeys([])
-    setUnknownMembers([])
-    setManualMemberMap({})
     onClose()
   }
 
@@ -515,16 +373,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   Generate Schedules
                 </button>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={handleOpenCSVImport}
-                    className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm flex items-center gap-1"
-                  >
-                    <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    Import CSV
-                  </button>
                   <button
                     type="button"
                     onClick={handleOpenCreate}
@@ -673,13 +521,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                                         </svg>
                                         <span className="whitespace-nowrap">{formatTime12(t.startTime)} - {formatTime12(t.endTime)}</span>
                                       </div>
-
-                                      <span className="text-[10px] text-blue-600 font-semibold flex items-center gap-1 bg-white px-2 py-0.5 rounded-md border border-gray-200/80 shrink-0">
-                                        <svg className="w-3 h-3 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                                        </svg>
-                                        {t.assignedMembers?.length || 0} servers assigned
-                                      </span>
                                     </div>
 
                                     {/* Right: Active Status + Edit / Delete Actions */}
@@ -906,38 +747,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 </div>
               </div>
 
-              {/* Default Assigned Members Checklist */}
-              <div className="border-t border-gray-100 pt-3">
-                <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Default Assigned Altar Servers</label>
-                <div className="mt-2 max-h-36 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-white grid grid-cols-1 sm:grid-cols-2 gap-2 shadow-xs">
-                  {activeMembers.length === 0 ? (
-                    <span className="text-xs text-gray-400 italic p-1">No active members found.</span>
-                  ) : (
-                    activeMembers.map((m) => {
-                      const isAssigned = defaultAssigned.includes(m.id)
-                      return (
-                        <label key={m.id} className="flex items-center space-x-2 text-xs p-1 hover:bg-gray-50/70 rounded-lg cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={isAssigned}
-                            onChange={() => {
-                              setDefaultAssigned(prev => 
-                                isAssigned 
-                                  ? prev.filter(id => id !== m.id)
-                                  : [...prev, m.id]
-                              )
-                            }}
-                            className="h-3.5 w-3.5 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 cursor-pointer"
-                          />
-                          <span className="text-gray-700 font-medium truncate">{getFullName(m)}</span>
-                          <span className="text-[9px] text-blue-600 font-bold uppercase tracking-wider">{m.rank}</span>
-                        </label>
-                      )
-                    })
-                  )}
-                </div>
-              </div>
-
               {/* Form Buttons */}
               <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100 bg-white">
                 <button
@@ -956,7 +765,9 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 </button>
               </div>
             </form>
-          )}          {/* Generate Mode */}
+          )}
+          
+          {/* Generate Mode */}
           {mode === 'generate' && (
             <div className="space-y-5">
               <div>
@@ -1134,153 +945,6 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   {loading ? 'Generating...' : 'Generate Schedules'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* CSV Import for Templates Mode */}
-          {mode === 'import_csv' && (
-            <div className="space-y-4">
-              <div className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 space-y-2">
-                <h4 className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
-                  <span>📄</span> Extract Server Assignments from CSV
-                </h4>
-                <p className="text-xs text-blue-700 leading-relaxed">
-                  Upload a schedule CSV file. The system will extract assigned servers for each mass schedule slot and assign them to your schedule templates.
-                </p>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={handleCSVFileChange}
-                  className="block w-full text-xs text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer pt-1"
-                />
-              </div>
-
-              {/* Unknown member manual mapping if needed */}
-              {unknownMembers.length > 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-3 space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-amber-800">
-                    <span>⚠️</span> Unrecognized Server Names ({unknownMembers.length})
-                  </div>
-                  <p className="text-[11px] text-amber-700">
-                    Match unrecognized names from CSV to active members in your roster:
-                  </p>
-                  <div className="max-h-36 overflow-y-auto space-y-2 pr-1">
-                    {unknownMembers.map(name => (
-                      <div key={name} className="flex items-center justify-between gap-2 text-xs bg-white p-2 rounded-lg border border-amber-200 shadow-2xs">
-                        <span className="font-semibold text-gray-800 truncate max-w-[200px]">{name}</span>
-                        <select
-                          value={manualMemberMap[name] || ''}
-                          onChange={(e) => handleManualMapChange(name, e.target.value)}
-                          className="text-xs border border-gray-300 rounded-md p-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 max-w-[220px]"
-                        >
-                          <option value="">-- Ignore / Skip --</option>
-                          {activeMembers.map(m => (
-                            <option key={m.id} value={m.id}>
-                              {getFullName(m)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Slot assignment preview list */}
-              {importedSlots.length > 0 && (
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-gray-700">Extracted Schedule Slots ({importedSlots.length})</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (selectedSlotKeys.length === importedSlots.length) {
-                          setSelectedSlotKeys([])
-                        } else {
-                          setSelectedSlotKeys(importedSlots.map(s => s.key))
-                        }
-                      }}
-                      className="text-blue-600 hover:text-blue-700 font-semibold cursor-pointer"
-                    >
-                      {selectedSlotKeys.length === importedSlots.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                  </div>
-
-                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1">
-                    {importedSlots.map(slot => {
-                      const isSelected = selectedSlotKeys.includes(slot.key)
-                      const existing = templates.find(t => 
-                        t.title.toLowerCase() === slot.title.toLowerCase() &&
-                        t.dayOfWeek.toLowerCase() === slot.dayOfWeek.toLowerCase() &&
-                        t.startTime === slot.startTime &&
-                        t.endTime === slot.endTime
-                      )
-
-                      return (
-                        <div
-                          key={slot.key}
-                          onClick={() => toggleSlotSelection(slot.key)}
-                          className={`p-3 rounded-xl border text-xs cursor-pointer transition-all ${
-                            isSelected 
-                              ? 'border-blue-300 bg-blue-50/30 shadow-2xs' 
-                              : 'border-gray-200 bg-white opacity-70'
-                          }`}
-                        >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={isSelected}
-                                onChange={() => {}} // Handled by container onClick
-                                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                              />
-                              <div>
-                                <span className="font-bold text-gray-900">{slot.title}</span>
-                                <span className="text-[11px] text-gray-500 ml-2">
-                                  ({slot.dayOfWeek} | {formatTime12(slot.startTime)} - {formatTime12(slot.endTime)})
-                                </span>
-                              </div>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                              existing ? 'bg-amber-100 text-amber-800' : 'bg-green-100 text-green-800'
-                            }`}>
-                              {existing ? 'Updates Existing Template' : 'New Template'}
-                            </span>
-                          </div>
-
-                          <div className="mt-2 text-[11px] text-gray-600 pl-6">
-                            <span className="font-semibold text-gray-700">Servers found ({slot.assignedMemberIds.length}): </span>
-                            {slot.assignedMemberNames.length > 0 ? (
-                              <span>{slot.assignedMemberNames.join(', ')}</span>
-                            ) : (
-                              <span className="italic text-gray-400">None detected</span>
-                            )}
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Action buttons */}
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100 bg-white">
-                <button
-                  type="button"
-                  onClick={() => setMode('list')}
-                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleApplyCSVToTemplates}
-                  disabled={importingCSV || importedSlots.length === 0 || selectedSlotKeys.length === 0}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
-                >
-                  {importingCSV ? 'Applying...' : 'Apply Assignments to Templates'}
                 </button>
               </div>
             </div>

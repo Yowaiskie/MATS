@@ -13,6 +13,12 @@ import { SettingsPage } from '@/features/settings/pages/SettingsPage'
 import { AuditPage } from '@/features/audit/pages/AuditPage'
 import { UsersPage } from '@/features/users/pages/UsersPage'
 import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswordPage'
+import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePage'
+import { PublicExcusePage } from '@/features/excuse/PublicExcusePage'
+import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
+import { FinancePage } from '@/features/finance/pages/FinancePage'
+import { EventsPage } from '@/features/events/pages/EventsPage'
+import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
 
 function App() {
   return (
@@ -30,6 +36,18 @@ function App() {
               } 
             />
 
+            {/* Public Self-Service Schedule Link */}
+            <Route 
+              path="/public/schedule/:id" 
+              element={<PublicSchedulePage />} 
+            />
+
+            {/* Public Excuse Link */}
+            <Route 
+              path="/public/excuse" 
+              element={<PublicExcusePage />} 
+            />
+
             {/* Protected Routes wrapped under a single layout parent */}
             <Route 
               element={
@@ -42,22 +60,47 @@ function App() {
               
               <Route 
                 path="/members" 
-                element={<MembersPage />} 
+                element={
+                  <ProtectedRoute moduleKey="members">
+                    <MembersPage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/schedules" 
-                element={<SchedulesPage />} 
+                element={
+                  <ProtectedRoute moduleKey="schedules">
+                    <SchedulesPage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/attendance" 
-                element={<AttendancePage />} 
+                element={
+                  <ProtectedRoute moduleKey="attendance">
+                    <AttendancePage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
                 path="/reports" 
-                element={<ReportsPage />} 
+                element={
+                  <ProtectedRoute moduleKey="reports">
+                    <ReportsPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              <Route 
+                path="/finance" 
+                element={
+                  <ProtectedRoute moduleKey="finance" requiredPermission="canViewFinanceDashboard">
+                    <FinancePage />
+                  </ProtectedRoute>
+                } 
               />
               
               <Route 
@@ -88,6 +131,33 @@ function App() {
                 element={
                   <ProtectedRoute adminOnly>
                     <AuditPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              <Route 
+                path="/excuses" 
+                element={
+                  <ProtectedRoute adminOnly>
+                    <AdminExcusePage />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/events" 
+                element={
+                  <ProtectedRoute moduleKey="events">
+                    <EventsPage />
+                  </ProtectedRoute>
+                } 
+              />
+              
+              <Route 
+                path="/events/:id" 
+                element={
+                  <ProtectedRoute moduleKey="events">
+                    <EventDetailsPage />
                   </ProtectedRoute>
                 } 
               />

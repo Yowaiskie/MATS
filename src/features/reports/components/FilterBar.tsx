@@ -29,6 +29,24 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i)
 
+  // Check if startDate and endDate represent a specific full month (YYYY-MM)
+  const monthValue = (() => {
+    if (!startDate || !endDate) return ''
+    const sParts = startDate.split('-')
+    const eParts = endDate.split('-')
+    if (sParts.length === 3 && eParts.length === 3) {
+      const [sY, sM, sD] = sParts
+      const [eY, eM, eD] = eParts
+      if (sY === eY && sM === eM && sD === '01') {
+        const lastDay = new Date(parseInt(sY, 10), parseInt(sM, 10), 0).getDate()
+        if (parseInt(eD, 10) === lastDay) {
+          return `${sY}-${sM}`
+        }
+      }
+    }
+    return ''
+  })()
+
   return (
     <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-sm select-none">
       {/* Date range & Month Picker filters (Used by Summary, Member, Schedule tabs) */}
@@ -41,6 +59,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <input
               id="filter-month-select"
               type="month"
+              value={monthValue}
               onChange={(e) => {
                 const val = e.target.value
                 if (!val) {

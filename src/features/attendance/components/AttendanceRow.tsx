@@ -36,7 +36,7 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
     { value: 'excused', label: 'Excused', activeColor: 'bg-gray-500 border-gray-500 text-white font-bold' },
     { value: 'observer', label: 'Observer', activeColor: 'bg-purple-600 border-purple-600 text-white font-bold' },
     { value: 'formation', label: 'Formation', activeColor: 'bg-indigo-600 border-indigo-600 text-white font-bold' },
-    { value: 'alumni', label: 'Alumni', activeColor: 'bg-teal-600 border-teal-600 text-white font-bold' },
+    { value: 'alumni', label: 'Hide', activeColor: 'bg-teal-600 border-teal-600 text-white font-bold' },
   ]
 
   const statusOptions = isMeetingSchedule
