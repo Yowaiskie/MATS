@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/features/authentication/AuthContext'
 import { PWAProvider } from '@/context/PWAContext'
+import { TutorialProvider } from '@/context/TutorialContext'
 import { ProtectedRoute, PublicRoute } from '@/features/authentication/components/ProtectedRoute'
 import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
@@ -24,9 +25,10 @@ function App() {
   return (
     <PWAProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            {/* Public Login Route */}
+        <TutorialProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public Login Route */}
             <Route 
               path="/login" 
               element={
@@ -167,6 +169,7 @@ function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </BrowserRouter>
+        </TutorialProvider>
       </AuthProvider>
     </PWAProvider>
   )

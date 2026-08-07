@@ -4,6 +4,10 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import type { ModuleKey } from '@/types/auth'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { InstallPWAButton } from '@/components/InstallPWAButton'
+import { Joyride } from 'react-joyride'
+import { useTutorial } from '@/context/TutorialContext'
+import { useTutorialSteps } from '@/hooks/useTutorialSteps'
+import { TutorialTooltip } from '@/components/TutorialTooltip'
 
 // Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
@@ -78,6 +82,23 @@ export const DashboardLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+
+  const { run, steps, startTutorial, handleJoyrideCallback } = useTutorial()
+  const { globalSteps } = useTutorialSteps()
+
+  React.useEffect(() => {
+    const hasSeenTutorial = localStorage.getItem('mats_tutorial_seen')
+    if (!hasSeenTutorial && globalSteps.length > 0) {
+      startTutorial(globalSteps)
+      localStorage.setItem('mats_tutorial_seen', 'true')
+    }
+  }, [globalSteps, startTutorial])
+
+  React.useEffect(() => {
+    if (run && window.innerWidth < 640) {
+      setMobileMenuOpen(true)
+    }
+  }, [run])
 
   // Swipe to open/close mobile menu
   const [touchStartX, setTouchStartX] = useState<number | null>(null)
@@ -162,6 +183,22 @@ export const DashboardLayout: React.FC = () => {
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEndEvent}
     >
+      <Joyride
+        steps={steps}
+        run={run}
+        continuous
+        // @ts-expect-error callback prop type mismatch in v3
+        callback={handleJoyrideCallback}
+        tooltipComponent={TutorialTooltip}
+        locale={{
+          back: 'Bumalik',
+          close: 'Isara',
+          last: 'Tapusin',
+          next: 'Susunod',
+          skip: 'I-skip',
+        }}
+      />
+
       {/* Offline Alert Banner */}
       <OfflineBanner />
 
@@ -203,6 +240,15 @@ export const DashboardLayout: React.FC = () => {
 
           {/* Top Nav Right Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            <button
+              onClick={() => startTutorial(globalSteps)}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs cursor-pointer focus:outline-none"
+              title="Start Tutorial"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </button>
             <InstallPWAButton />
             <span className="text-xs text-gray-500 hidden md:inline-block">
               User: <strong className="text-gray-700 font-semibold">{profile?.email || 'Admin'}</strong>
@@ -246,7 +292,7 @@ export const DashboardLayout: React.FC = () => {
             )}
           </div>
 
-          <nav className="space-y-4 flex-1">
+          <nav className="space-y-4 flex-1 tour-sidebar-menu">
             {[
               {
                 section: 'CORE MENU',
@@ -292,7 +338,7 @@ export const DashboardLayout: React.FC = () => {
                       <Link
                         key={item.name}
                         to={item.href}
-                        className={`flex items-center rounded-xl py-2.5 text-xs transition-all duration-200 group ${
+                        className={`tour-nav-${item.moduleKey} flex items-center rounded-xl py-2.5 text-xs transition-all duration-200 group ${
                           collapsed ? 'justify-center px-0' : 'space-x-3 px-3.5'
                         } ${
                           active
@@ -316,7 +362,7 @@ export const DashboardLayout: React.FC = () => {
           </nav>
 
           {!collapsed && (
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+            <div className="tour-user-menu pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
               <div className="flex items-center gap-2.5 truncate">
                 <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
                   {profile?.displayName?.[0] || profile?.email?.[0]?.toUpperCase() || 'A'}
@@ -364,7 +410,7 @@ export const DashboardLayout: React.FC = () => {
               </div>
 
               {/* Navigation Items */}
-              <nav className="space-y-4 flex-1 overflow-y-auto">
+              <nav className="space-y-4 flex-1 overflow-y-auto mobile-tour-sidebar-menu">
                 {[
                   {
                     section: 'CORE MENU',
@@ -409,7 +455,7 @@ export const DashboardLayout: React.FC = () => {
                             key={item.name}
                             to={item.href}
                             onClick={() => setMobileMenuOpen(false)}
-                            className={`flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all ${
+                            className={`mobile-tour-nav-${item.moduleKey} flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all ${
                               active
                                 ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm'
                                 : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900'
@@ -427,7 +473,7 @@ export const DashboardLayout: React.FC = () => {
                 })}
               </nav>
 
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
+              <div className="mobile-tour-user-menu pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500 shrink-0">
                 <div className="truncate">
                   <div className="text-[10px] uppercase font-bold text-slate-400">Signed in as</div>
                   <div className="font-semibold text-slate-800 truncate">{profile?.email || 'Admin'}</div>
