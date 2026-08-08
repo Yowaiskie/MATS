@@ -36,12 +36,12 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   const computedStatus = getScheduleStatus(schedule)
   const [menuOpen, setMenuOpen] = React.useState(false)
 
-  // Status mapping matching user guidelines
-  const statusColors = {
-    upcoming: 'bg-green-50 border border-green-100 text-green-600',
+  const statusColors: Record<string, string> = {
+    upcoming: 'bg-indigo-50 border border-indigo-200 text-indigo-700',
     ongoing: 'bg-blue-50 border border-blue-100 text-blue-600',
-    completed: 'bg-gray-100 border border-gray-200 text-gray-600',
+    completed: 'bg-purple-50 border border-purple-200 text-purple-700',
     cancelled: 'bg-red-50 border border-red-100 text-red-600',
+    pending: 'bg-rose-50 border border-rose-200 text-rose-700',
   }
 
   // Format timestamp helper
@@ -95,16 +95,31 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   }
 
   const isLocked = schedule.isLocked || attendanceState === 'finalized'
+  const isPendingAttendance = computedStatus === 'completed' && !isLocked && attendanceState !== 'finalized'
+  const displayStatus = isPendingAttendance ? 'pending' : computedStatus
 
   const getCardBorderStyle = () => {
-    if (isSelected) return 'ring-2 ring-blue-500 bg-blue-50/20 border-blue-400'
-    if (isLocked) return 'border-emerald-300 bg-emerald-50/15'
-    if (attendanceState === 'in_progress') return 'border-amber-400 bg-gradient-to-b from-amber-50/40 via-amber-50/10 to-white shadow-xs'
-    return 'border-gray-200/70 hover:border-gray-300'
+    if (isSelected) return 'ring-2 ring-blue-500 bg-blue-50/30 border-blue-400'
+    if (isLocked) return 'border-emerald-400 bg-emerald-50/40 hover:border-emerald-500'
+    if (attendanceState === 'in_progress') return 'border-amber-400 bg-gradient-to-b from-amber-50/40 via-amber-50/10 to-white shadow-xs hover:border-amber-500'
+    if (isPendingAttendance) return 'border-rose-400 bg-rose-50/30 hover:border-rose-500 ring-1 ring-rose-400/30'
+    
+    switch (computedStatus) {
+      case 'ongoing':
+        return 'border-blue-300 bg-blue-50/30 hover:border-blue-400'
+      case 'completed':
+        return 'border-purple-300 bg-purple-50/30 hover:border-purple-400'
+      case 'cancelled':
+        return 'border-red-300 bg-red-50/30 hover:border-red-400'
+      case 'upcoming':
+        return 'border-indigo-300 bg-indigo-50/40 hover:border-indigo-400'
+      default:
+        return 'border-slate-200/70 bg-white hover:border-slate-300'
+    }
   }
 
   return (
-    <div className={`group rounded-2xl border bg-white p-5 shadow-2xs hover:shadow-md hover:border-indigo-200 transition-all flex flex-col justify-between h-full ${getCardBorderStyle()}`}>
+    <div className={`group rounded-2xl border p-5 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between h-full ${getCardBorderStyle()}`}>
       <div className="space-y-3.5">
         {/* Top Bar: Date & Status */}
         <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -135,8 +150,8 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${statusColors[computedStatus]}`}>
-              {computedStatus}
+            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${statusColors[displayStatus]}`}>
+              {displayStatus === 'pending' ? 'Not Taken' : displayStatus}
             </span>
             {isLocked ? (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">

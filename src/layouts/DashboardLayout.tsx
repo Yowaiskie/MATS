@@ -8,6 +8,7 @@ import { Joyride } from 'react-joyride'
 import { useTutorial } from '@/context/TutorialContext'
 import { useTutorialSteps } from '@/hooks/useTutorialSteps'
 import { TutorialTooltip } from '@/components/TutorialTooltip'
+import { useInactivityRedirect } from '@/hooks/useInactivityRedirect'
 
 // Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
@@ -76,6 +77,7 @@ const icons: { [key: string]: React.ReactNode } = {
 }
 
 export const DashboardLayout: React.FC = () => {
+  useInactivityRedirect()
   const { profile, logout, hasModuleAccess } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
