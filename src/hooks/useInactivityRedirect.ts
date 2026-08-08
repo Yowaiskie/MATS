@@ -48,7 +48,7 @@ export const useInactivityRedirect = () => {
     const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
     
     // Throttle the localStorage update to avoid performance issues
-    let throttleTimer: NodeJS.Timeout | null = null;
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null;
     const handleActivity = () => {
       if (!throttleTimer) {
         throttleTimer = setTimeout(() => {

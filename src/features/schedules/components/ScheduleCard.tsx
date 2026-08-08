@@ -95,7 +95,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   }
 
   const isLocked = schedule.isLocked || attendanceState === 'finalized'
-  const isPendingAttendance = computedStatus === 'completed' && !isLocked && attendanceState !== 'finalized'
+  const isPendingAttendance = computedStatus === 'completed' && !isLocked
   const displayStatus = isPendingAttendance ? 'pending' : computedStatus
 
   const getCardBorderStyle = () => {
