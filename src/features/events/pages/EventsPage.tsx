@@ -59,12 +59,14 @@ export const EventsPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Ministry Events</h1>
           <p className="text-sm text-gray-500 mt-1">Manage event workspaces, assignments, and tasks.</p>
         </div>
-        <button 
-          onClick={() => setIsModalOpen(true)}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
-        >
-          + Create Event
-        </button>
+        {(canAction('canCreateProjects') || canAction('canManageEvents')) && (
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+          >
+            + Create Event
+          </button>
+        )}
       </div>
 
       <Card className="p-0 border border-gray-200 shadow-xs overflow-hidden">

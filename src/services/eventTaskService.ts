@@ -30,6 +30,34 @@ export const eventTaskService = {
   },
 
   /**
+   * Marks all unread tasks for a specific event assigned to a user as read
+   */
+  async markTasksAsReadForEvent(eventId: string, displayName: string): Promise<void> {
+    if (!eventId || !displayName) return
+    try {
+      const q = query(
+        collection(db, TASKS_COLLECTION),
+        where('eventId', '==', eventId),
+        where('assignedMemberName', '==', displayName),
+        where('unreadByAssignee', '==', true),
+        where('isArchived', '==', false)
+      )
+      const snapshot = await getDocs(q)
+      if (snapshot.empty) return
+
+      const batchPromises = snapshot.docs.map(docSnap => 
+        updateDoc(doc(db, TASKS_COLLECTION, docSnap.id), {
+          unreadByAssignee: false,
+          updatedAt: serverTimestamp()
+        })
+      )
+      await Promise.all(batchPromises)
+    } catch (err) {
+      console.error('Failed to mark tasks as read:', err)
+    }
+  },
+
+  /**
    * Creates a new task
    */
   async createTask(input: Omit<EventTask, 'id' | 'createdAt' | 'updatedAt' | 'isArchived'>, performedBy = 'System'): Promise<string> {

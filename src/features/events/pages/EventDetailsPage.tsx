@@ -10,6 +10,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { EventFinanceBoard } from '../components/EventFinanceBoard'
 import { EventFormModal } from '../components/EventFormModal'
 import { dashboardService } from '@/services/dashboardService'
+import { eventTaskService } from '@/services/eventTaskService'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
 
 type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance'
@@ -41,6 +42,11 @@ export const EventDetailsPage: React.FC = () => {
 
       const data = await eventService.getEventById(id)
       setEvent(data)
+
+      // Mark tasks as read for the user in this event
+      if (profile?.displayName) {
+        await eventTaskService.markTasksAsReadForEvent(id, profile.displayName)
+      }
     } catch (err) {
       console.error('Failed to load event details:', err)
     } finally {
@@ -96,12 +102,12 @@ export const EventDetailsPage: React.FC = () => {
         <span className="text-gray-900 font-bold">{event.title}</span>
       </div>
 
-      <div className="flex items-center justify-between border-b border-gray-200 pb-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-gray-200 pb-4">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-gray-900">{event.title}</h1>
+          <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-gray-900">{event.title}</h1>
           <p className="text-sm text-gray-500 mt-1">{event.description}</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex flex-wrap items-center gap-2">
           {canAction('canManageEvents') && (
             <button
               onClick={handleDeleteEvent}
