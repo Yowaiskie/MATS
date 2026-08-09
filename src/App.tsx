@@ -20,6 +20,7 @@ import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
 import { FinancePage } from '@/features/finance/pages/FinancePage'
 import { EventsPage } from '@/features/events/pages/EventsPage'
 import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
+import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 
 function App() {
   return (
@@ -168,6 +169,7 @@ function App() {
             {/* Fallback redirection */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
+          <PWAUpdatePrompt />
         </BrowserRouter>
         </TutorialProvider>
       </AuthProvider>

@@ -12,8 +12,8 @@ export function registerServiceWorker() {
             if (newWorker) {
               newWorker.addEventListener('statechange', () => {
                 if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                  console.log('New MATS PWA update available. Refreshing PWA cache...');
-                  window.location.reload();
+                  console.log('New MATS PWA update available. Prompting user...');
+                  window.dispatchEvent(new CustomEvent('pwaUpdateAvailable'));
                 }
               });
             }
