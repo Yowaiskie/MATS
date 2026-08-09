@@ -14,6 +14,7 @@ export const DashboardPreviewPage: React.FC = () => {
     stats: any
     todaySchedules: Schedule[]
     activities: ActivityLog[]
+    myEventAssignments: any[]
   } | null>(null)
   
   const [loading, setLoading] = useState(true)
@@ -23,8 +24,11 @@ export const DashboardPreviewPage: React.FC = () => {
     const loadDashboard = async () => {
       try {
         setLoading(true)
-        const dashboardData = await dashboardService.getDashboardData(userOrder)
-        setData(dashboardData)
+        const [dashboardData, myAssignments] = await Promise.all([
+          dashboardService.getDashboardData(userOrder),
+          dashboardService.getMyEventAssignments(profile?.displayName || '')
+        ])
+        setData({ ...dashboardData, myEventAssignments: myAssignments })
       } catch (err: any) {
         console.error(err)
         setError('Failed to fetch real-time dashboard data.')
@@ -320,8 +324,59 @@ export const DashboardPreviewPage: React.FC = () => {
 
         </div>
 
-        {/* Right Column (1 Col): ENHANCED Quick Tasks Panel */}
-        <div>
+        {/* Right Column (1 Col): My Event Roles & Quick Tasks */}
+        <div className="space-y-6">
+          
+          {/* My Event Roles Widget */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs">
+            <div className="pb-4 border-b border-slate-100 flex justify-between items-center">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900 tracking-tight">My Event Roles</h3>
+                <p className="text-xs text-slate-500 mt-0.5 font-medium">Your tasks & responsibilities in active events</p>
+              </div>
+              <span className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full text-xs font-bold">
+                {data.myEventAssignments.length}
+              </span>
+            </div>
+
+            <div className="pt-4 space-y-3">
+              {data.myEventAssignments.length > 0 ? (
+                data.myEventAssignments.map(assignment => (
+                  <Link 
+                    key={assignment.id}
+                    to={`/events?eventId=${assignment.eventId}`}
+                    className="block p-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-all shadow-2xs"
+                  >
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className="text-xs font-extrabold text-slate-900 line-clamp-1">{assignment.eventTitle}</h4>
+                      {assignment.isOverallHead ? (
+                        <span className="shrink-0 ml-2 px-2 py-0.5 bg-rose-100 text-rose-700 rounded text-[9px] font-bold uppercase tracking-wider">Overall Head</span>
+                      ) : assignment.isSubLeader ? (
+                        <span className="shrink-0 ml-2 px-2 py-0.5 bg-amber-100 text-amber-700 rounded text-[9px] font-bold uppercase tracking-wider">Sub Leader</span>
+                      ) : (
+                        <span className="shrink-0 ml-2 px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded text-[9px] font-bold uppercase tracking-wider">Member</span>
+                      )}
+                    </div>
+                    <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 mt-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-semibold text-slate-700">Role:</span> {assignment.eventRoleName}
+                      </div>
+                      {assignment.committeeName && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-700">Committee:</span> {assignment.committeeName}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <div className="py-6 text-center text-xs font-semibold text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200">
+                  You have no event assignments yet.
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
             <div>
               <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Quick Tasks & Actions</h3>

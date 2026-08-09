@@ -12,6 +12,19 @@ import type { AuditLog, AuditAction, AuditCategory } from '@/types/audit'
 
 const AUDIT_COLLECTION = 'auditLogs'
 
+const sanitizeData = (obj: any): any => {
+  if (obj === undefined) return null;
+  if (obj === null || typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeData);
+  const result: any = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) {
+      result[key] = sanitizeData(value);
+    }
+  }
+  return result;
+};
+
 export const auditService = {
   /**
    * Logs a user/system action into the audit trail.
@@ -25,13 +38,15 @@ export const auditService = {
   ): Promise<string> {
     try {
       const auditRef = collection(db, AUDIT_COLLECTION)
+      const sanitizedDetails = details ? sanitizeData(details) : null;
+      
       const docRef = await addDoc(auditRef, {
         action,
         category,
         description,
         performedBy: performedBy || 'System',
         timestamp: serverTimestamp(),
-        details: details || null
+        details: sanitizedDetails
       })
       return docRef.id
     } catch (err) {

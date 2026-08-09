@@ -228,3 +228,109 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     </div>
   )
 }
+
+// ─── PasswordConfirmModal ───────────────────────────────────────────────────
+// Use for: high security confirmations (requires password input).
+
+export interface PasswordConfirmModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onConfirm: (password: string) => Promise<void>
+  title: string
+  message: string
+  confirmLabel?: string
+}
+
+export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
+  isOpen,
+  onClose,
+  onConfirm,
+  title,
+  message,
+  confirmLabel = 'Confirm',
+}) => {
+  const [password, setPassword] = React.useState('')
+  const [loading, setLoading] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
+
+  // ESC key support
+  useEffect(() => {
+    if (!isOpen) {
+      setPassword('')
+      setError(null)
+      return
+    }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !loading) onClose()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [isOpen, onClose, loading])
+
+  if (!isOpen) return null
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!password) {
+      setError('Password is required.')
+      return
+    }
+    setError(null)
+    setLoading(true)
+    try {
+      await onConfirm(password)
+      setPassword('')
+    } catch (err: any) {
+      setError(err.message || 'Verification failed. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" />
+      <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl z-10 animate-in fade-in zoom-in-95 duration-150">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 border border-red-100`}>
+          <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8V7z" />
+          </svg>
+        </div>
+        <div className="mt-4">
+          <h3 id="password-confirm-title" className="text-sm font-bold text-gray-900">{title}</h3>
+          <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{message}</p>
+        </div>
+        <form onSubmit={handleSubmit} className="mt-4">
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Enter Password to Continue</label>
+          <input
+            type="password"
+            autoFocus
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            className="w-full border-gray-200 rounded-xl shadow-xs focus:ring-2 focus:ring-red-500/20 focus:border-red-500 px-4 py-2 bg-gray-50 text-sm font-medium"
+            placeholder="Your password..."
+          />
+          {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
+          <div className="mt-6 flex items-center justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={loading}
+              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors cursor-pointer disabled:opacity-40"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading || !password}
+              className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white`}
+            >
+              {loading ? 'Verifying...' : confirmLabel}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}

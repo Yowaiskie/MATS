@@ -1,15 +1,16 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { eventService } from '@/services/eventService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { EventStage, Priority } from '@/types/event'
+import type { EventStage, Priority, Event } from '@/types/event'
 
 interface EventFormModalProps {
   isOpen: boolean
   onClose: () => void
   onSaved: () => void
+  editItem?: Event
 }
 
-export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose, onSaved }) => {
+export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose, onSaved, editItem }) => {
   const { profile } = useAuth()
   
   const [title, setTitle] = useState('')
@@ -25,10 +26,37 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (isOpen) {
+      if (editItem) {
+        setTitle(editItem.title)
+        setDescription(editItem.description || '')
+        setLocation(editItem.location || '')
+        setStartDate(editItem.startDate)
+        setEndDate(editItem.endDate || '')
+        setStartTime(editItem.startTime || '')
+        setEndTime(editItem.endTime || '')
+        setPriority(editItem.priority)
+        setStage(editItem.stage)
+      } else {
+        setTitle('')
+        setDescription('')
+        setLocation('')
+        setStartDate('')
+        setEndDate('')
+        setStartTime('')
+        setEndTime('')
+        setPriority('Medium')
+        setStage('Planning')
+      }
+      setError(null)
+    }
+  }, [isOpen, editItem])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !startDate || !endDate || !startTime || !endTime) {
-      setError('Please fill in all required fields.')
+    if (!title.trim() || !startDate) {
+      setError('Please fill in Event Title and Start Date.')
       return
     }
 
@@ -36,39 +64,46 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
     setError(null)
 
     try {
-      await eventService.createEvent(
-        {
-          title: title.trim(),
-          description: description.trim(),
-          location: location.trim(),
-          startDate,
-          endDate,
-          startTime,
-          endTime,
-          priority,
-          stage,
-          headUid: profile?.uid || '',
-          headName: profile?.displayName || profile?.email || 'Unknown',
-          createdByUid: profile?.uid || '',
-          createdByName: profile?.displayName || profile?.email || 'Unknown'
-        },
-        profile?.email || 'System'
-      )
-      
-      setTitle('')
-      setDescription('')
-      setLocation('')
-      setStartDate('')
-      setEndDate('')
-      setStartTime('')
-      setEndTime('')
-      setPriority('Medium')
-      setStage('Planning')
-      
+      if (editItem) {
+        await eventService.updateEvent(
+          editItem.id!,
+          {
+            title: title.trim(),
+            description: description.trim(),
+            location: location.trim(),
+            startDate,
+            endDate,
+            startTime,
+            endTime,
+            priority,
+            stage,
+          },
+          profile?.email || 'System'
+        )
+      } else {
+        await eventService.createEvent(
+          {
+            title: title.trim(),
+            description: description.trim(),
+            location: location.trim(),
+            startDate,
+            endDate,
+            startTime,
+            endTime,
+            priority,
+            stage,
+            headUid: profile?.uid || '',
+            headName: profile?.displayName || profile?.email || 'Unknown',
+            createdByUid: profile?.uid || '',
+            createdByName: profile?.displayName || profile?.email || 'Unknown'
+          },
+          profile?.email || 'System'
+        )
+      }
       onSaved()
     } catch (err) {
       console.error(err)
-      setError('Failed to create event. Please try again.')
+      setError('Failed to save event. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -91,8 +126,8 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
               </svg>
             </div>
             <div>
-              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Create New Event</h3>
-              <p className="text-xs font-semibold text-slate-400">Set up event details and timeline</p>
+              <h3 className="text-base font-extrabold text-slate-900 tracking-tight">{editItem ? 'Edit Event' : 'Create New Event'}</h3>
+              <p className="text-xs font-semibold text-slate-400">{editItem ? 'Update event details' : 'Set up event details and timeline'}</p>
             </div>
           </div>
           <button onClick={onClose} disabled={submitting} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer disabled:opacity-50">
@@ -131,19 +166,19 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
                 <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
               </div>
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Date *</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Date</label>
+                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Start Time *</label>
-                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Start Time</label>
+                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" />
               </div>
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Time *</label>
-                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Time</label>
+                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" />
               </div>
             </div>
 
@@ -177,7 +212,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
           </button>
 
           <button type="submit" form="eventForm" disabled={submitting} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-extrabold text-white transition-all disabled:opacity-50 shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer">
-            {submitting ? 'Creating...' : 'Create Event'}
+            {submitting ? 'Saving...' : (editItem ? 'Save Changes' : 'Create Event')}
           </button>
         </div>
       </div>

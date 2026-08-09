@@ -59,10 +59,20 @@ export interface UserPermissions {
   canManageAssignments?: boolean
   canUpdateOwnTasks?: boolean
   canUpdateAnyTask?: boolean
+  canDeleteTasks?: boolean
   canCommentProjects?: boolean
   canUploadProjectFiles?: boolean
   canViewProjectReports?: boolean
   canArchiveProjects?: boolean
+
+  // Event Finance actions
+  canViewEventFinance?: boolean
+  canAddEventIncome?: boolean
+  canAddEventExpense?: boolean
+  canEditEventFinance?: boolean
+  canVoidEventFinance?: boolean
+  canTransferEventFunds?: boolean
+  canManageEventFinanceCategories?: boolean
 }
 
 export interface PermissionPreset {
@@ -106,10 +116,20 @@ export interface PermissionPreset {
   canManageAssignments?: boolean
   canUpdateOwnTasks?: boolean
   canUpdateAnyTask?: boolean
+  canDeleteTasks?: boolean
   canCommentProjects?: boolean
   canUploadProjectFiles?: boolean
   canViewProjectReports?: boolean
   canArchiveProjects?: boolean
+
+  // Event Finance actions
+  canViewEventFinance?: boolean
+  canAddEventIncome?: boolean
+  canAddEventExpense?: boolean
+  canEditEventFinance?: boolean
+  canVoidEventFinance?: boolean
+  canTransferEventFunds?: boolean
+  canManageEventFinanceCategories?: boolean
 }
 
 export interface UserProfile {

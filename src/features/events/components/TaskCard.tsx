@@ -5,14 +5,30 @@ interface TaskCardProps {
   task: EventTask
   onClick: (task: EventTask) => void
   onDragStart: (e: React.DragEvent, taskId: string) => void
+  canAssignToMe?: boolean
+  onAssignToMe?: (e: React.MouseEvent, taskId: string) => void
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart, canAssignToMe, onAssignToMe }) => {
   const priorityColors = {
-    Low: 'bg-gray-100 text-gray-800',
-    Medium: 'bg-blue-100 text-blue-800',
-    High: 'bg-orange-100 text-orange-800',
-    Critical: 'bg-red-100 text-red-800'
+    Low: 'bg-green-100 text-green-800 border border-green-200',
+    Medium: 'bg-blue-100 text-blue-800 border border-blue-200',
+    High: 'bg-orange-100 text-orange-800 border border-orange-200',
+    Critical: 'bg-red-100 text-red-800 border border-red-200'
+  }
+
+  const priorityBorders = {
+    Low: 'border-l-[4px] border-l-green-400',
+    Medium: 'border-l-[4px] border-l-blue-400',
+    High: 'border-l-[4px] border-l-orange-400',
+    Critical: 'border-l-[4px] border-l-red-500'
+  }
+
+  const statusColors = {
+    'Not Started': 'bg-white border-gray-200',
+    'In Progress': 'bg-blue-50 border-blue-200',
+    'Waiting': 'bg-orange-50 border-orange-200',
+    'Completed': 'bg-green-50 border-green-200'
   }
 
   return (
@@ -20,7 +36,7 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart }
       draggable
       onDragStart={(e) => onDragStart(e, task.id!)}
       onClick={() => onClick(task)}
-      className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow"
+      className={`${statusColors[task.status] || 'bg-white border-gray-200'} ${priorityBorders[task.priority] || ''} p-3 rounded-lg border shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow`}
     >
       <div className="flex justify-between items-start mb-2">
         <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${priorityColors[task.priority] || priorityColors.Medium}`}>
@@ -40,16 +56,21 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart }
       )}
 
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-50">
-        <div className="flex -space-x-1 overflow-hidden">
+        <div className="flex -space-x-1 overflow-hidden items-center gap-2">
           {task.assignedMemberName ? (
-            <div
-              className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-blue-100 flex items-center justify-center text-[10px] font-bold text-blue-800"
-              title={task.assignedMemberName}
-            >
-              {task.assignedMemberName.charAt(0).toUpperCase()}
-            </div>
+            <span className="text-[10px] text-gray-700 font-bold bg-gray-100 border border-gray-200 px-2 py-1 rounded-md">
+              {task.assignedMemberName}
+            </span>
           ) : (
             <span className="text-[10px] text-gray-400 font-medium italic">Unassigned</span>
+          )}
+          {canAssignToMe && onAssignToMe && (
+            <button
+              onClick={(e) => onAssignToMe(e, task.id!)}
+              className="text-[9px] font-bold text-blue-600 hover:text-blue-800 bg-blue-50 px-2 py-1 rounded-md border border-blue-200 hover:bg-blue-100 transition-colors"
+            >
+              + Take Over
+            </button>
           )}
         </div>
         

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
+import { Loading } from '@/components/Loading'
 import { eventTaskService } from '@/services/eventTaskService'
+import { useAuth } from '@/features/authentication/AuthContext'
 import type { EventTask, TaskStatus } from '@/types/event'
 import { TaskCard } from './TaskCard'
 import { TaskFormModal } from './TaskFormModal'
@@ -20,6 +22,8 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<EventTask | undefined>()
+  const { canAction, profile } = useAuth()
+  const canManageTasks = canAction('canAssignTasks')
 
   const fetchTasks = async () => {
     try {
@@ -36,7 +40,29 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
     fetchTasks()
   }, [eventId])
 
+  const handleAssignToMe = async (e: React.MouseEvent, taskId: string) => {
+    e.stopPropagation() // Prevent opening modal
+    if (!profile?.displayName) return
+    try {
+      await eventTaskService.updateTask(taskId, { 
+        assignedMemberName: profile.displayName,
+        unreadByAssignee: false 
+      }, profile?.email || 'System')
+      fetchTasks()
+    } catch (err) {
+      console.error('Failed to take over task:', err)
+    }
+  }
+
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
+    const task = tasks.find(t => t.id === taskId)
+    if (!task) return
+    const canUpdate = canAction('canUpdateAnyTask') || (canAction('canUpdateOwnTasks') && task.assignedMemberName === profile?.displayName)
+    if (!canUpdate) {
+      e.preventDefault()
+      return
+    }
+
     e.dataTransfer.setData('taskId', taskId)
     e.dataTransfer.effectAllowed = 'move'
   }
@@ -71,19 +97,25 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
   }
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-500 bg-white rounded-xl border border-gray-200">Loading tasks...</div>
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-gray-200 shadow-xs mt-6">
+        <Loading variant="spinner" label="Loading tasks..." />
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col h-full bg-gray-50 -mx-4 sm:-mx-6 px-4 sm:px-6 py-6 border-y border-gray-200">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg font-bold text-gray-900">Task Board</h2>
-        <button 
-          onClick={openNewTaskModal}
-          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
-        >
-          + Add Task
-        </button>
+        {canManageTasks && (
+          <button 
+            onClick={openNewTaskModal}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+          >
+            + Add Task
+          </button>
+        )}
       </div>
 
       <div className="flex gap-6 overflow-x-auto pb-4 items-start flex-1 min-h-[400px]">
@@ -114,6 +146,8 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
                     task={task} 
                     onClick={(t) => { setSelectedTask(t); setIsModalOpen(true) }}
                     onDragStart={handleDragStart}
+                    canAssignToMe={!canAction('canUpdateAnyTask') && canAction('canUpdateOwnTasks') && task.assignedMemberName !== profile?.displayName}
+                    onAssignToMe={handleAssignToMe}
                   />
                 ))}
               </div>

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { eventTaskService } from '@/services/eventTaskService'
 import type { EventTask } from '@/types/event'
 import { Card } from '@/components/Card'
+import { Loading } from '@/components/Loading'
 
 interface Props {
   eventId: string
@@ -38,7 +39,9 @@ export const TimelineView: React.FC<Props> = ({ eventId }) => {
   if (loading) {
     return (
       <Card className="p-8 text-center text-gray-500 border border-gray-200 shadow-xs">
-        Loading timeline...
+        <div className="py-16">
+          <Loading variant="spinner" label="Loading timeline..." />
+        </div>
       </Card>
     )
   }

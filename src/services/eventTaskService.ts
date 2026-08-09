@@ -3,6 +3,7 @@ import {
   doc, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   getDocs, 
   query,
   where,
@@ -34,6 +35,7 @@ export const eventTaskService = {
   async createTask(input: Omit<EventTask, 'id' | 'createdAt' | 'updatedAt' | 'isArchived'>, performedBy = 'System'): Promise<string> {
     const docRef = await addDoc(collection(db, TASKS_COLLECTION), {
       ...input,
+      unreadByAssignee: true,
       isArchived: false,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
@@ -54,7 +56,9 @@ export const eventTaskService = {
    */
   async updateTask(id: string, input: Partial<EventTask>, performedBy = 'System'): Promise<void> {
     const docRef = doc(db, TASKS_COLLECTION, id)
-    const updateData = { ...input, updatedAt: serverTimestamp() }
+    // Always mark as unread upon update, unless the update explicitly sets it to false (e.g. when reading)
+    const unreadByAssignee = input.unreadByAssignee !== undefined ? input.unreadByAssignee : true;
+    const updateData = { ...input, unreadByAssignee, updatedAt: serverTimestamp() }
     delete updateData.id
     
     await updateDoc(docRef, updateData)
@@ -65,6 +69,22 @@ export const eventTaskService = {
       `Updated task ID: ${id}`,
       performedBy,
       { taskId: id, updates: input }
+    )
+  },
+
+  /**
+   * Deletes a task
+   */
+  async deleteTask(id: string, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, TASKS_COLLECTION, id)
+    await deleteDoc(docRef)
+
+    await auditService.logAction(
+      'EVENT_TASK_DELETE',
+      'system',
+      `Deleted task ID: ${id}`,
+      performedBy,
+      { taskId: id }
     )
   },
 

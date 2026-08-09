@@ -6,10 +6,13 @@ import { Card } from '@/components/Card'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
 import { EventFormModal } from '../components/EventFormModal'
+import { useAuth } from '@/features/authentication/AuthContext'
+import { dashboardService } from '@/services/dashboardService'
 
 const PAGE_SIZE = 10
 
 export const EventsPage: React.FC = () => {
+  const { profile, canAction } = useAuth()
   const [events, setEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
@@ -19,7 +22,15 @@ export const EventsPage: React.FC = () => {
     try {
       setLoading(true)
       const data = await eventService.getEvents()
-      setEvents(data)
+      if (canAction('canManageEvents')) {
+        setEvents(data)
+      } else if (profile?.displayName) {
+        const myAssignments = await dashboardService.getMyEventAssignments(profile.displayName)
+        const myEventIds = new Set(myAssignments.map(a => a.eventId))
+        setEvents(data.filter(e => myEventIds.has(e.id)))
+      } else {
+        setEvents([])
+      }
     } catch (err) {
       console.error('Failed to load events:', err)
     } finally {

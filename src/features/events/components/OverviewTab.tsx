@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { eventTaskService } from '@/services/eventTaskService'
 import type { Event, EventTask } from '@/types/event'
 import { Card } from '@/components/Card'
+import { Loading } from '@/components/Loading'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import type { EventAssignment } from '@/types/event'
 
@@ -34,7 +35,11 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
   }, [event.id])
 
   if (loading) {
-    return <div className="p-8 text-center text-gray-500">Calculating project metrics...</div>
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-gray-200 shadow-xs">
+        <Loading variant="spinner" label="Calculating project metrics..." />
+      </div>
+    )
   }
 
   const completedTasks = tasks.filter(t => t.status === 'Completed').length
@@ -94,11 +99,15 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
             </div>
             <div className="flex justify-between border-b border-gray-50 pb-2">
               <dt className="font-semibold text-gray-500">Start</dt>
-              <dd className="font-medium text-gray-900 text-right">{event.startDate} @ {event.startTime}</dd>
+              <dd className="font-medium text-gray-900 text-right">
+                {event.startDate} {event.startTime ? `@ ${event.startTime}` : ''}
+              </dd>
             </div>
             <div className="flex justify-between border-b border-gray-50 pb-2">
               <dt className="font-semibold text-gray-500">End</dt>
-              <dd className="font-medium text-gray-900 text-right">{event.endDate} @ {event.endTime}</dd>
+              <dd className="font-medium text-gray-900 text-right">
+                {event.endDate ? `${event.endDate} ${event.endTime ? `@ ${event.endTime}` : ''}` : '-'}
+              </dd>
             </div>
             <div className="flex justify-between border-b border-gray-50 pb-2">
               <dt className="font-semibold text-gray-500">Priority</dt>

@@ -221,19 +221,17 @@ export const DashboardOverview: React.FC = () => {
   // Helper for clean user greeting display
   const getUserGreetingName = () => {
     if (!profile) return 'Server'
-    const name = profile.displayName?.trim()
-    if (name && !name.toLowerCase().startsWith('order of')) {
-      return name
-    }
+    
     if (profile.role === 'order_leader') {
-      // Format: "Order Leader of San Andres"
       const shortName = userOrder ? userOrder.replace(/^Order of\s*/i, '') : ''
-      return shortName ? `Order Leader of ${shortName}` : 'Order Leader'
+      return shortName ? `Leader of ${shortName}` : 'Order Leader'
     }
+
     if (profile.email) {
       const prefix = profile.email.split('@')[0]
       return prefix.charAt(0).toUpperCase() + prefix.slice(1)
     }
+
     return 'Server'
   }
 

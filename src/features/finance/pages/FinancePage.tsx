@@ -740,28 +740,78 @@ export const FinancePage: React.FC = () => {
         </div>
       )}
 
-      {/* Tabs list */}
-      <div className="flex border-b border-gray-200 overflow-x-auto whitespace-nowrap scrollbar-none gap-2 bg-white p-2 rounded-xl shadow-2xs">
+      {/* Mobile Tab Selector */}
+      <div className="sm:hidden mb-4">
+        <div className="relative">
+          <select
+            id="finance-tabs"
+            name="finance-tabs"
+            className="block w-full appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm font-bold text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
+            value={activeTab}
+            onChange={(e) => setActiveTab(e.target.value as any)}
+          >
+            <optgroup label="Overview & Reports">
+              <option value="dashboard">Dashboard</option>
+              <option value="reports">Financial Reports</option>
+            </optgroup>
+            <optgroup label="Transactions">
+              <option value="requests">Fund Requests</option>
+              <option value="income">Incomes</option>
+              <option value="expenses">Direct Expenses</option>
+              <option value="ledger">Ledger</option>
+            </optgroup>
+            <optgroup label="Settings">
+              <option value="categories">Categories</option>
+              <option value="closing">Lock Periods</option>
+            </optgroup>
+          </select>
+          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-blue-500">
+            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Desktop Tabs list */}
+      <div className="hidden sm:flex border border-gray-200 bg-white p-2 rounded-xl shadow-2xs flex-wrap gap-2">
         {[
-          { key: 'dashboard', label: 'Dashboard' },
-          { key: 'income', label: 'Incomes' },
-          { key: 'expenses', label: 'Direct Expenses' },
-          { key: 'requests', label: 'Fund Requests' },
-          { key: 'categories', label: 'Categories' },
-          { key: 'ledger', label: 'Ledger' },
-          { key: 'reports', label: 'Financial Reports' },
-          { key: 'closing', label: 'Lock Periods' }
+          { key: 'dashboard', label: 'Dashboard', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+          ) },
+          { key: 'requests', label: 'Fund Requests', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          ) },
+          { key: 'income', label: 'Incomes', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+          ) },
+          { key: 'expenses', label: 'Expenses', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
+          ) },
+          { key: 'ledger', label: 'Ledger', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+          ) },
+          { key: 'reports', label: 'Reports', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+          ) },
+          { key: 'categories', label: 'Categories', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
+          ) },
+          { key: 'closing', label: 'Lock Periods', icon: (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          ) }
         ].map((t) => (
           <button
             key={t.key}
             onClick={() => setActiveTab(t.key as any)}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+            className={`flex items-center space-x-2 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
               activeTab === t.key
-                ? 'bg-blue-600 text-white'
+                ? 'bg-blue-600 text-white shadow-md'
                 : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
             }`}
           >
-            {t.label}
+            <span className={activeTab === t.key ? 'text-blue-100' : 'text-gray-400'}>{t.icon}</span>
+            <span>{t.label}</span>
           </button>
         ))}
       </div>
@@ -916,7 +966,7 @@ export const FinancePage: React.FC = () => {
                 <div className="p-6 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-4">
                   <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Transaction Highlights</h3>
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {ledgerEntries.slice(0, 5).map((e) => (
+                    {[...ledgerEntries].reverse().slice(0, 5).map((e) => (
                       <div key={e.id} className="flex justify-between items-center text-xs p-2 hover:bg-gray-50 rounded-lg">
                         <div>
                           <div className="font-bold text-gray-800 line-clamp-1">{e.description}</div>
@@ -946,8 +996,8 @@ export const FinancePage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3">Reference No</th>
@@ -960,7 +1010,7 @@ export const FinancePage: React.FC = () => {
                   </thead>
                   <tbody>
                     {incomes.map((inc) => (
-                      <tr key={inc.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                      <tr key={inc.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
                         <td className="p-3 font-mono font-bold text-gray-950">{inc.referenceNumber}</td>
                         <td className="p-3">{inc.date}</td>
                         <td className="p-3">{inc.source}</td>
@@ -999,8 +1049,8 @@ export const FinancePage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3">Reference No</th>
@@ -1013,7 +1063,7 @@ export const FinancePage: React.FC = () => {
                   </thead>
                   <tbody>
                     {expenses.map((exp) => (
-                      <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                      <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
                         <td className="p-3 font-mono font-bold text-gray-950">{exp.referenceNumber}</td>
                         <td className="p-3">{exp.date}</td>
                         <td className="p-3">{exp.description}</td>
@@ -1080,8 +1130,8 @@ export const FinancePage: React.FC = () => {
                 </button>
               </div>
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3">Reference No</th>
@@ -1094,7 +1144,7 @@ export const FinancePage: React.FC = () => {
                   </thead>
                   <tbody>
                     {requests.map((req) => (
-                      <tr key={req.id} className="border-b border-gray-100 hover:bg-gray-50/50">
+                      <tr key={req.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
                         <td className="p-3 font-mono font-bold text-gray-950">{req.referenceNumber}</td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
@@ -1165,8 +1215,8 @@ export const FinancePage: React.FC = () => {
           {activeTab === 'ledger' && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-gray-900">Chronological Finance Ledger</h3>
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3">Date</th>
@@ -1262,8 +1312,8 @@ export const FinancePage: React.FC = () => {
           {activeTab === 'closing' && (
             <div className="space-y-4">
               <h3 className="text-sm font-bold text-gray-900">Financial Periods Closing</h3>
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
-                <table className="w-full text-left text-xs border-collapse">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3">Period</th>
@@ -1275,7 +1325,7 @@ export const FinancePage: React.FC = () => {
                   <tbody>
                     {/* Add current month option dynamically if not registered */}
                     {periods.map((p) => (
-                      <tr key={p.id} className="border-b border-gray-100">
+                      <tr key={p.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
                         <td className="p-3 font-bold">{p.id}</td>
                         <td className="p-3">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${

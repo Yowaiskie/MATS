@@ -1,6 +1,8 @@
 import { 
   collection, 
   getDocs,
+  query,
+  where
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Schedule } from '@/types/schedule'
@@ -204,6 +206,55 @@ export const dashboardService = {
       stats,
       todaySchedules,
       activities: activities.slice(0, 10) // show up to top 10 latest activities
+    }
+  },
+
+  async getMyEventAssignments(displayName: string): Promise<any[]> {
+    if (!displayName) return []
+    
+    // First, query all active events so we can map IDs to titles
+    const eventsQuery = query(collection(db, 'events'), where('isArchived', '==', false))
+    const eventsSnap = await getDocs(eventsQuery)
+    const eventTitles: Record<string, string> = {}
+    eventsSnap.forEach(doc => {
+      eventTitles[doc.id] = doc.data().title
+    })
+
+    // Now query assignments by matching memberName to displayName
+    const q = query(
+      collection(db, 'eventAssignments'),
+      where('memberName', '==', displayName)
+    )
+    const snapshot = await getDocs(q)
+    const assignments: any[] = []
+    
+    snapshot.forEach(doc => {
+      const data = doc.data()
+      if (eventTitles[data.eventId]) {
+        assignments.push({
+          id: doc.id,
+          ...data,
+          eventTitle: eventTitles[data.eventId]
+        })
+      }
+    })
+    return assignments
+  },
+
+  async getMyUnreadTasksCount(displayName: string): Promise<number> {
+    if (!displayName) return 0
+    try {
+      const q = query(
+        collection(db, 'eventTasks'),
+        where('assignedMemberName', '==', displayName),
+        where('unreadByAssignee', '==', true),
+        where('isArchived', '==', false)
+      )
+      const snapshot = await getDocs(q)
+      return snapshot.size
+    } catch (err) {
+      console.error(err)
+      return 0
     }
   }
 }

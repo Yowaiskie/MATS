@@ -9,6 +9,7 @@ import { useTutorial } from '@/context/TutorialContext'
 import { useTutorialSteps } from '@/hooks/useTutorialSteps'
 import { TutorialTooltip } from '@/components/TutorialTooltip'
 import { useInactivityRedirect } from '@/hooks/useInactivityRedirect'
+import { dashboardService } from '@/services/dashboardService'
 
 // Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
@@ -84,9 +85,24 @@ export const DashboardLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [activeTasksCount, setActiveTasksCount] = useState(0)
 
   const { run, steps, startTutorial, handleJoyrideCallback } = useTutorial()
   const { globalSteps } = useTutorialSteps()
+
+  React.useEffect(() => {
+    const fetchMyTasks = async () => {
+      if (profile?.displayName) {
+        try {
+          const count = await dashboardService.getMyUnreadTasksCount(profile.displayName)
+          setActiveTasksCount(count)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+    fetchMyTasks()
+  }, [profile?.displayName, location.pathname]) // Refresh on navigation
 
   React.useEffect(() => {
     const hasSeenTutorial = localStorage.getItem('mats_tutorial_seen')
@@ -207,13 +223,19 @@ export const DashboardLayout: React.FC = () => {
       {/* Top Navbar */}
       <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95">
         <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-3 sm:space-x-4">
+          <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 pr-2">
             {/* Hamburger Button for Mobile */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="sm:hidden text-gray-600 hover:text-gray-900 focus:outline-none p-2 rounded-xl hover:bg-gray-100 transition-all border border-gray-200/60 bg-gray-50/80 active:scale-95 cursor-pointer shadow-2xs"
+              className="relative sm:hidden text-gray-600 hover:text-gray-900 focus:outline-none p-2 rounded-xl hover:bg-gray-100 transition-all border border-gray-200/60 bg-gray-50/80 active:scale-95 cursor-pointer shadow-2xs shrink-0"
               aria-label="Toggle navigation menu"
             >
+              {activeTasksCount > 0 && (
+                <span className="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
+                </span>
+              )}
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileMenuOpen ? "M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} />
               </svg>
@@ -222,7 +244,7 @@ export const DashboardLayout: React.FC = () => {
             {/* Collapse Toggle Button for Desktop */}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="hidden sm:inline-flex text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-all focus:outline-none cursor-pointer border border-transparent hover:border-gray-200"
+              className="hidden sm:inline-flex text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-all focus:outline-none cursor-pointer border border-transparent hover:border-gray-200 shrink-0"
               aria-label="Toggle sidebar collapse"
               title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
@@ -232,12 +254,12 @@ export const DashboardLayout: React.FC = () => {
             </button>
 
             {/* Breadcrumb / Title display */}
-            <div className="hidden sm:flex items-center space-x-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="hidden sm:flex items-center space-x-2 text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">
               <span>MATS</span>
               <span>/</span>
               <span className="text-gray-700 font-bold tracking-normal text-sm capitalize">{getPageTitle()}</span>
             </div>
-            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize truncate max-w-[160px]">{getPageTitle()}</span>
+            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize truncate min-w-0">{getPageTitle()}</span>
           </div>
 
           {/* Top Nav Right Actions */}
@@ -340,7 +362,7 @@ export const DashboardLayout: React.FC = () => {
                       <Link
                         key={item.name}
                         to={item.href}
-                        className={`tour-nav-${item.moduleKey} flex items-center rounded-xl py-2.5 text-xs transition-all duration-200 group ${
+                        className={`tour-nav-${item.moduleKey} flex items-center rounded-xl py-2.5 text-xs transition-all duration-200 group relative ${
                           collapsed ? 'justify-center px-0' : 'space-x-3 px-3.5'
                         } ${
                           active
@@ -353,7 +375,17 @@ export const DashboardLayout: React.FC = () => {
                           {icons[item.name]}
                         </span>
                         {!collapsed && (
-                          <span className="truncate">{item.name}</span>
+                          <span className="truncate flex-1">{item.name}</span>
+                        )}
+                        {!collapsed && item.name === 'Events' && activeTasksCount > 0 && (
+                           <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-xs">
+                             {activeTasksCount}
+                           </span>
+                        )}
+                        {collapsed && item.name === 'Events' && activeTasksCount > 0 && (
+                           <span className="absolute top-2 right-2 flex h-2 w-2">
+                             <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                           </span>
                         )}
                       </Link>
                     )
@@ -466,7 +498,12 @@ export const DashboardLayout: React.FC = () => {
                             <span className={`shrink-0 ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
                               {icons[item.name]}
                             </span>
-                            <span className="truncate">{item.name}</span>
+                            <span className="truncate flex-1">{item.name}</span>
+                            {item.name === 'Events' && activeTasksCount > 0 && (
+                               <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-xs">
+                                 {activeTasksCount}
+                               </span>
+                            )}
                           </Link>
                         )
                       })}
@@ -486,7 +523,7 @@ export const DashboardLayout: React.FC = () => {
         )}
 
         {/* Main Content Pane */}
-        <main className="flex-1 p-4 sm:p-8 overflow-y-auto">
+        <main className="flex-1 min-w-0 p-4 sm:p-8 overflow-y-auto">
           <div className="max-w-7xl mx-auto">
             {/* Outlet renders the matched nested route child */}
             <Outlet />

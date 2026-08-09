@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { userService } from '@/services/userService'
 import { settingsService } from '@/services/settingsService'
+import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions, PermissionPreset } from '@/types/auth'
-import type { OrderGroup } from '@/types/member'
+import type { OrderGroup, Member } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
@@ -17,6 +18,7 @@ const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'reports', label: 'Reports & Analytics', description: 'View member metrics and export PDF reports' },
   { key: 'members', label: 'Member Directory', description: 'Manage altar server profiles and records' },
   { key: 'finance', label: 'Finance Management', description: 'Record income/expense, request funds and generate reports' },
+  { key: 'events', label: 'Events & Projects', description: 'Manage parish events, tasks, and event finances' },
   { key: 'users', label: 'User Management', description: 'Manage system accounts and access permissions' },
   { key: 'settings', label: 'Settings', description: 'Configure system policies and templates' },
   { key: 'audit', label: 'Audit Trail', description: 'View system security and activity logs' },
@@ -64,6 +66,7 @@ export const UsersPage: React.FC = () => {
   const { profile: currentAdmin, isAdmin } = useAuth()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [presets, setPresets] = useState<PermissionPreset[]>([])
+  const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -72,6 +75,7 @@ export const UsersPage: React.FC = () => {
 
   // Presets Management Modal State
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false)
+  const [presetSuccessMsg, setPresetSuccessMsg] = useState<string | null>(null)
   const [presetEditing, setPresetEditing] = useState<PermissionPreset | null>(null)
   const [presetFormName, setPresetFormName] = useState('')
   const [presetFormDesc, setPresetFormDesc] = useState('')
@@ -84,6 +88,30 @@ export const UsersPage: React.FC = () => {
   const [presetFormManageSchedules, setPresetFormManageSchedules] = useState(false)
   const [presetFormViewReports, setPresetFormViewReports] = useState(false)
   const [presetFormExportReports, setPresetFormExportReports] = useState(false)
+
+  // Events Preset state
+  const [presetFormViewProjects, setPresetFormViewProjects] = useState(false)
+  const [presetFormCreateProjects, setPresetFormCreateProjects] = useState(false)
+  const [presetFormEditProjects, setPresetFormEditProjects] = useState(false)
+  const [presetFormDeleteProjects, setPresetFormDeleteProjects] = useState(false)
+  const [presetFormAssignTasks, setPresetFormAssignTasks] = useState(false)
+  const [presetFormManageAssignments, setPresetFormManageAssignments] = useState(false)
+  const [presetFormUpdateOwnTasks, setPresetFormUpdateOwnTasks] = useState(false)
+  const [presetFormUpdateAnyTask, setPresetFormUpdateAnyTask] = useState(false)
+  const [presetFormDeleteTasks, setPresetFormDeleteTasks] = useState(false)
+  const [presetFormCommentProjects, setPresetFormCommentProjects] = useState(false)
+  const [presetFormUploadProjectFiles, setPresetFormUploadProjectFiles] = useState(false)
+  const [presetFormViewProjectReports, setPresetFormViewProjectReports] = useState(false)
+  const [presetFormArchiveProjects, setPresetFormArchiveProjects] = useState(false)
+
+  // Event Finance Preset state
+  const [presetFormViewEventFinance, setPresetFormViewEventFinance] = useState(false)
+  const [presetFormAddEventIncome, setPresetFormAddEventIncome] = useState(false)
+  const [presetFormAddEventExpense, setPresetFormAddEventExpense] = useState(false)
+  const [presetFormEditEventFinance, setPresetFormEditEventFinance] = useState(false)
+  const [presetFormVoidEventFinance, setPresetFormVoidEventFinance] = useState(false)
+  const [presetFormTransferEventFunds, setPresetFormTransferEventFunds] = useState(false)
+  const [presetFormManageEventFinanceCategories, setPresetFormManageEventFinanceCategories] = useState(false)
 
   // Register / Edit User Form state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -122,6 +150,30 @@ export const UsersPage: React.FC = () => {
   const [canCloseFinancePeriod, setCanCloseFinancePeriod] = useState(false)
   const [canReopenFinancePeriod, setCanReopenFinancePeriod] = useState(false)
 
+  // Events permissions state
+  const [canViewProjects, setCanViewProjects] = useState(false)
+  const [canCreateProjects, setCanCreateProjects] = useState(false)
+  const [canEditProjects, setCanEditProjects] = useState(false)
+  const [canDeleteProjects, setCanDeleteProjects] = useState(false)
+  const [canAssignTasks, setCanAssignTasks] = useState(false)
+  const [canManageAssignments, setCanManageAssignments] = useState(false)
+  const [canUpdateOwnTasks, setCanUpdateOwnTasks] = useState(false)
+  const [canUpdateAnyTask, setCanUpdateAnyTask] = useState(false)
+  const [canDeleteTasks, setCanDeleteTasks] = useState(false)
+  const [canCommentProjects, setCanCommentProjects] = useState(false)
+  const [canUploadProjectFiles, setCanUploadProjectFiles] = useState(false)
+  const [canViewProjectReports, setCanViewProjectReports] = useState(false)
+  const [canArchiveProjects, setCanArchiveProjects] = useState(false)
+
+  // Event Finance permissions state
+  const [canViewEventFinance, setCanViewEventFinance] = useState(false)
+  const [canAddEventIncome, setCanAddEventIncome] = useState(false)
+  const [canAddEventExpense, setCanAddEventExpense] = useState(false)
+  const [canEditEventFinance, setCanEditEventFinance] = useState(false)
+  const [canVoidEventFinance, setCanVoidEventFinance] = useState(false)
+  const [canTransferEventFunds, setCanTransferEventFunds] = useState(false)
+  const [canManageEventFinanceCategories, setCanManageEventFinanceCategories] = useState(false)
+
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
 
@@ -129,12 +181,14 @@ export const UsersPage: React.FC = () => {
     if (showSpinner) setLoading(true)
     setError(null)
     try {
-      const [usersData, presetsData] = await Promise.all([
+      const [usersData, presetsData, membersData] = await Promise.all([
         userService.getUsers(),
-        settingsService.getPermissionPresets()
+        settingsService.getPermissionPresets(),
+        memberService.getMembers()
       ])
       setUsers(usersData)
       setPresets(presetsData)
+      setMembers(membersData)
     } catch (err: any) {
       console.error(err)
       setError('Failed to load user accounts list and permission presets.')
@@ -176,6 +230,29 @@ export const UsersPage: React.FC = () => {
     setCanManageFinanceCategories(p.canManageFinanceCategories ?? false)
     setCanCloseFinancePeriod(p.canCloseFinancePeriod ?? false)
     setCanReopenFinancePeriod(p.canReopenFinancePeriod ?? false)
+
+    setCanViewProjects(p.canViewProjects ?? false)
+    setCanCreateProjects(p.canCreateProjects ?? false)
+    setCanEditProjects(p.canEditProjects ?? false)
+    setCanDeleteProjects(p.canDeleteProjects ?? false)
+    setCanAssignTasks(p.canAssignTasks ?? false)
+    setCanManageAssignments(p.canManageAssignments ?? false)
+    setCanUpdateOwnTasks(p.canUpdateOwnTasks ?? false)
+    setCanUpdateAnyTask(p.canUpdateAnyTask ?? false)
+    setCanDeleteTasks(p.canDeleteTasks ?? false)
+    setCanCommentProjects(p.canCommentProjects ?? false)
+    setCanUploadProjectFiles(p.canUploadProjectFiles ?? false)
+    setCanViewProjectReports(p.canViewProjectReports ?? false)
+    setCanArchiveProjects(p.canArchiveProjects ?? false)
+
+    setCanViewEventFinance(p.canViewEventFinance ?? false)
+    setCanAddEventIncome(p.canAddEventIncome ?? false)
+    setCanAddEventExpense(p.canAddEventExpense ?? false)
+    setCanEditEventFinance(p.canEditEventFinance ?? false)
+    setCanVoidEventFinance(p.canVoidEventFinance ?? false)
+    setCanTransferEventFunds(p.canTransferEventFunds ?? false)
+    setCanManageEventFinanceCategories(p.canManageEventFinanceCategories ?? false)
+
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
     } else {
@@ -196,6 +273,28 @@ export const UsersPage: React.FC = () => {
     setPresetFormManageSchedules(false)
     setPresetFormViewReports(false)
     setPresetFormExportReports(false)
+
+    setPresetFormViewProjects(false)
+    setPresetFormCreateProjects(false)
+    setPresetFormEditProjects(false)
+    setPresetFormDeleteProjects(false)
+    setPresetFormAssignTasks(false)
+    setPresetFormManageAssignments(false)
+    setPresetFormUpdateOwnTasks(false)
+    setPresetFormUpdateAnyTask(false)
+    setPresetFormDeleteTasks(false)
+    setPresetFormCommentProjects(false)
+    setPresetFormUploadProjectFiles(false)
+    setPresetFormViewProjectReports(false)
+    setPresetFormArchiveProjects(false)
+
+    setPresetFormViewEventFinance(false)
+    setPresetFormAddEventIncome(false)
+    setPresetFormAddEventExpense(false)
+    setPresetFormEditEventFinance(false)
+    setPresetFormVoidEventFinance(false)
+    setPresetFormTransferEventFunds(false)
+    setPresetFormManageEventFinanceCategories(false)
   }
 
   const handleOpenEditPreset = (p: PermissionPreset) => {
@@ -211,6 +310,28 @@ export const UsersPage: React.FC = () => {
     setPresetFormManageSchedules(p.canManageSchedules)
     setPresetFormViewReports(p.canViewReports)
     setPresetFormExportReports(p.canExportReports)
+
+    setPresetFormViewProjects(p.canViewProjects ?? false)
+    setPresetFormCreateProjects(p.canCreateProjects ?? false)
+    setPresetFormEditProjects(p.canEditProjects ?? false)
+    setPresetFormDeleteProjects(p.canDeleteProjects ?? false)
+    setPresetFormAssignTasks(p.canAssignTasks ?? false)
+    setPresetFormManageAssignments(p.canManageAssignments ?? false)
+    setPresetFormUpdateOwnTasks(p.canUpdateOwnTasks ?? false)
+    setPresetFormUpdateAnyTask(p.canUpdateAnyTask ?? false)
+    setPresetFormDeleteTasks(p.canDeleteTasks ?? false)
+    setPresetFormCommentProjects(p.canCommentProjects ?? false)
+    setPresetFormUploadProjectFiles(p.canUploadProjectFiles ?? false)
+    setPresetFormViewProjectReports(p.canViewProjectReports ?? false)
+    setPresetFormArchiveProjects(p.canArchiveProjects ?? false)
+
+    setPresetFormViewEventFinance(p.canViewEventFinance ?? false)
+    setPresetFormAddEventIncome(p.canAddEventIncome ?? false)
+    setPresetFormAddEventExpense(p.canAddEventExpense ?? false)
+    setPresetFormEditEventFinance(p.canEditEventFinance ?? false)
+    setPresetFormVoidEventFinance(p.canVoidEventFinance ?? false)
+    setPresetFormTransferEventFunds(p.canTransferEventFunds ?? false)
+    setPresetFormManageEventFinanceCategories(p.canManageEventFinanceCategories ?? false)
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -234,7 +355,29 @@ export const UsersPage: React.FC = () => {
         canViewSchedules: presetFormViewSchedules,
         canManageSchedules: presetFormManageSchedules,
         canViewReports: presetFormViewReports,
-        canExportReports: presetFormExportReports
+        canExportReports: presetFormExportReports,
+
+        canViewProjects: presetFormViewProjects,
+        canCreateProjects: presetFormCreateProjects,
+        canEditProjects: presetFormEditProjects,
+        canDeleteProjects: presetFormDeleteProjects,
+        canAssignTasks: presetFormAssignTasks,
+        canManageAssignments: presetFormManageAssignments,
+        canUpdateOwnTasks: presetFormUpdateOwnTasks,
+        canUpdateAnyTask: presetFormUpdateAnyTask,
+        canDeleteTasks: presetFormDeleteTasks,
+        canCommentProjects: presetFormCommentProjects,
+        canUploadProjectFiles: presetFormUploadProjectFiles,
+        canViewProjectReports: presetFormViewProjectReports,
+        canArchiveProjects: presetFormArchiveProjects,
+
+        canViewEventFinance: presetFormViewEventFinance,
+        canAddEventIncome: presetFormAddEventIncome,
+        canAddEventExpense: presetFormAddEventExpense,
+        canEditEventFinance: presetFormEditEventFinance,
+        canVoidEventFinance: presetFormVoidEventFinance,
+        canTransferEventFunds: presetFormTransferEventFunds,
+        canManageEventFinanceCategories: presetFormManageEventFinanceCategories
       }
 
       let updatedPresets: PermissionPreset[] = []
@@ -246,8 +389,8 @@ export const UsersPage: React.FC = () => {
 
       await settingsService.savePermissionPresets(updatedPresets, currentAdmin?.email || 'Admin')
       setPresets(updatedPresets)
-      setPresetEditing(null)
-      setSuccessMsg(`Preset '${newPreset.name}' successfully saved!`)
+      setPresetSuccessMsg(`Preset '${newPreset.name}' successfully saved!`)
+      handleOpenAddPreset()
     } catch (err: any) {
       console.error(err)
       setError('Failed to save permission preset.')
@@ -264,7 +407,7 @@ export const UsersPage: React.FC = () => {
       const updated = presets.filter(x => x.id !== presetId)
       await settingsService.savePermissionPresets(updated, currentAdmin?.email || 'Admin')
       setPresets(updated)
-      setSuccessMsg(`Preset '${p.name}' was removed.`)
+      setPresetSuccessMsg(`Preset '${p.name}' was removed.`)
     } catch (err: any) {
       console.error(err)
       setError('Failed to delete permission preset.')
@@ -322,6 +465,28 @@ export const UsersPage: React.FC = () => {
       setCanManageFinanceCategories(perms.canManageFinanceCategories ?? false)
       setCanCloseFinancePeriod(perms.canCloseFinancePeriod ?? false)
       setCanReopenFinancePeriod(perms.canReopenFinancePeriod ?? false)
+
+      setCanViewProjects(perms.canViewProjects ?? false)
+      setCanCreateProjects(perms.canCreateProjects ?? false)
+      setCanEditProjects(perms.canEditProjects ?? false)
+      setCanDeleteProjects(perms.canDeleteProjects ?? false)
+      setCanAssignTasks(perms.canAssignTasks ?? false)
+      setCanManageAssignments(perms.canManageAssignments ?? false)
+      setCanUpdateOwnTasks(perms.canUpdateOwnTasks ?? false)
+      setCanUpdateAnyTask(perms.canUpdateAnyTask ?? false)
+      setCanDeleteTasks(perms.canDeleteTasks ?? false)
+      setCanCommentProjects(perms.canCommentProjects ?? false)
+      setCanUploadProjectFiles(perms.canUploadProjectFiles ?? false)
+      setCanViewProjectReports(perms.canViewProjectReports ?? false)
+      setCanArchiveProjects(perms.canArchiveProjects ?? false)
+
+      setCanViewEventFinance(perms.canViewEventFinance ?? false)
+      setCanAddEventIncome(perms.canAddEventIncome ?? false)
+      setCanAddEventExpense(perms.canAddEventExpense ?? false)
+      setCanEditEventFinance(perms.canEditEventFinance ?? false)
+      setCanVoidEventFinance(perms.canVoidEventFinance ?? false)
+      setCanTransferEventFunds(perms.canTransferEventFunds ?? false)
+      setCanManageEventFinanceCategories(perms.canManageEventFinanceCategories ?? false)
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
@@ -390,6 +555,29 @@ export const UsersPage: React.FC = () => {
       canManageFinanceCategories,
       canCloseFinancePeriod,
       canReopenFinancePeriod,
+
+      canViewProjects,
+      canCreateProjects,
+      canEditProjects,
+      canDeleteProjects,
+      canAssignTasks,
+      canManageAssignments,
+      canUpdateOwnTasks,
+      canUpdateAnyTask,
+      canDeleteTasks,
+      canCommentProjects,
+      canUploadProjectFiles,
+      canViewProjectReports,
+      canArchiveProjects,
+
+      canViewEventFinance,
+      canAddEventIncome,
+      canAddEventExpense,
+      canEditEventFinance,
+      canVoidEventFinance,
+      canTransferEventFunds,
+      canManageEventFinanceCategories,
+
       ...(assignedOrder ? { assignedOrder } : {}),
       ...(activePresetName ? { presetName: activePresetName } : {})
     }
@@ -716,14 +904,22 @@ export const UsersPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Display Name (Optional)</label>
-                    <input
-                      type="text"
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Real Name (Officer's Name)</label>
+                    <select
                       value={displayName}
                       onChange={(e) => setDisplayName(e.target.value)}
-                      placeholder="e.g. San Pedro Leader"
                       className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
-                    />
+                    >
+                      <option value="">-- No Real Name Assigned --</option>
+                      {members.sort((a, b) => a.lastName.localeCompare(b.lastName)).map(member => {
+                        const fullName = `${member.firstName} ${member.lastName}`.trim()
+                        return (
+                          <option key={member.id} value={fullName}>
+                            {fullName} {member.position ? `(${member.position})` : ''}
+                          </option>
+                        )
+                      })}
+                    </select>
                   </div>
                 </div>
 
@@ -922,6 +1118,108 @@ export const UsersPage: React.FC = () => {
                     <p className="mt-1 text-[10px] text-amber-700">If selected, member reports will be filtered exclusively for this Order.</p>
                   </div>
                 </div>
+
+                {/* Events Permissions */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-900">Events Management</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canViewProjects && canCreateProjects && canEditProjects && canDeleteProjects && canAssignTasks && canManageAssignments && canUpdateOwnTasks && canUpdateAnyTask && canDeleteTasks)
+                        setCanViewProjects(val)
+                        setCanCreateProjects(val)
+                        setCanEditProjects(val)
+                        setCanDeleteProjects(val)
+                        setCanAssignTasks(val)
+                        setCanManageAssignments(val)
+                        setCanUpdateOwnTasks(val)
+                        setCanUpdateAnyTask(val)
+                        setCanDeleteTasks(val)
+                      }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewProjects} onChange={e => setCanViewProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can View Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canCreateProjects} onChange={e => setCanCreateProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Create Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canEditProjects} onChange={e => setCanEditProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Edit Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canDeleteProjects} onChange={e => setCanDeleteProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Delete Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canAssignTasks} onChange={e => setCanAssignTasks(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Assign Tasks</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canManageAssignments} onChange={e => setCanManageAssignments(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Manage Team Assignments</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canUpdateOwnTasks} onChange={e => setCanUpdateOwnTasks(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Update Own Tasks</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canUpdateAnyTask} onChange={e => setCanUpdateAnyTask(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Update Any Task</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canDeleteTasks} onChange={e => setCanDeleteTasks(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Delete Tasks</span>
+                    </label>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-900">Event Finance</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canViewEventFinance && canAddEventIncome && canAddEventExpense && canEditEventFinance && canVoidEventFinance && canTransferEventFunds && canManageEventFinanceCategories)
+                        setCanViewEventFinance(val)
+                        setCanAddEventIncome(val)
+                        setCanAddEventExpense(val)
+                        setCanEditEventFinance(val)
+                        setCanVoidEventFinance(val)
+                        setCanTransferEventFunds(val)
+                        setCanManageEventFinanceCategories(val)
+                      }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewEventFinance} onChange={e => setCanViewEventFinance(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can View Event Finance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canAddEventIncome} onChange={e => setCanAddEventIncome(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Add Event Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canAddEventExpense} onChange={e => setCanAddEventExpense(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Add Event Expense</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canEditEventFinance} onChange={e => setCanEditEventFinance(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Edit Event Finance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canVoidEventFinance} onChange={e => setCanVoidEventFinance(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Archive/Delete Event Finance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canTransferEventFunds} onChange={e => setCanTransferEventFunds(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Transfer Event Funds</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canManageEventFinanceCategories} onChange={e => setCanManageEventFinanceCategories(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Manage Event Finance Categories</span>
+                    </label>
+                  </div>
+                </div>
+
               </div>
             </form>
 
@@ -1019,10 +1317,23 @@ export const UsersPage: React.FC = () => {
                     </div>
                   ))}
                 </div>
-              </div>
+                </div>
 
-              {/* Add / Edit Preset Form */}
-              <form onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
+                {/* Preset Modal Success Message */}
+                {presetSuccessMsg && (
+                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-xs font-semibold text-green-700 flex items-center justify-between shadow-xs">
+                    <div className="flex items-center gap-2">
+                      <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>{presetSuccessMsg}</span>
+                    </div>
+                    <button onClick={() => setPresetSuccessMsg(null)} className="text-green-600 hover:text-green-800 font-bold ml-4 cursor-pointer">✕</button>
+                  </div>
+                )}
+
+                {/* Add / Edit Preset Form */}
+                <form onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
                   {presetEditing ? `Edit Preset: ${presetEditing.name}` : 'Create New Permission Preset'}
                 </h4>
@@ -1090,6 +1401,109 @@ export const UsersPage: React.FC = () => {
                         </label>
                       )
                     })}
+                  </div>
+                </div>
+
+                {/* Events Permissions in Preset */}
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">Events Management (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewProjects && presetFormCreateProjects && presetFormEditProjects && presetFormDeleteProjects && presetFormAssignTasks && presetFormManageAssignments && presetFormUpdateOwnTasks && presetFormUpdateAnyTask && presetFormDeleteTasks)
+                      setPresetFormViewProjects(val)
+                      setPresetFormCreateProjects(val)
+                      setPresetFormEditProjects(val)
+                      setPresetFormDeleteProjects(val)
+                      setPresetFormAssignTasks(val)
+                      setPresetFormManageAssignments(val)
+                      setPresetFormUpdateOwnTasks(val)
+                      setPresetFormUpdateAnyTask(val)
+                      setPresetFormDeleteTasks(val)
+                    }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewProjects} onChange={e => setPresetFormViewProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can View Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormCreateProjects} onChange={e => setPresetFormCreateProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Create Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormEditProjects} onChange={e => setPresetFormEditProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Edit Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormDeleteProjects} onChange={e => setPresetFormDeleteProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Delete Events</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormAssignTasks} onChange={e => setPresetFormAssignTasks(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Assign Tasks</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormManageAssignments} onChange={e => setPresetFormManageAssignments(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Manage Team Assignments</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormUpdateOwnTasks} onChange={e => setPresetFormUpdateOwnTasks(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Update Own Tasks</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormUpdateAnyTask} onChange={e => setPresetFormUpdateAnyTask(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Update Any Task</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormDeleteTasks} onChange={e => setPresetFormDeleteTasks(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Delete Tasks</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">Event Finance (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewEventFinance && presetFormAddEventIncome && presetFormAddEventExpense && presetFormEditEventFinance && presetFormVoidEventFinance && presetFormTransferEventFunds && presetFormManageEventFinanceCategories)
+                      setPresetFormViewEventFinance(val)
+                      setPresetFormAddEventIncome(val)
+                      setPresetFormAddEventExpense(val)
+                      setPresetFormEditEventFinance(val)
+                      setPresetFormVoidEventFinance(val)
+                      setPresetFormTransferEventFunds(val)
+                      setPresetFormManageEventFinanceCategories(val)
+                    }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewEventFinance} onChange={e => setPresetFormViewEventFinance(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can View Event Finance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormAddEventIncome} onChange={e => setPresetFormAddEventIncome(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Add Event Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormAddEventExpense} onChange={e => setPresetFormAddEventExpense(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Add Event Expense</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormEditEventFinance} onChange={e => setPresetFormEditEventFinance(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Edit Event Finance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormVoidEventFinance} onChange={e => setPresetFormVoidEventFinance(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Archive/Delete Event Finance</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormTransferEventFunds} onChange={e => setPresetFormTransferEventFunds(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Transfer Event Funds</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormManageEventFinanceCategories} onChange={e => setPresetFormManageEventFinanceCategories(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Manage Event Finance Categories</span>
+                    </label>
                   </div>
                 </div>
 

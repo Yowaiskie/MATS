@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import type { ExcuseRequest, ExcuseStatus } from '@/types/excuse'
 import { excuseService } from '@/services/excuseService'
+import { Modal } from '@/components/Modal'
+import { AlertModal } from '@/components/Dialog'
 
 interface ReviewExcuseModalProps {
   isOpen: boolean
@@ -12,6 +14,7 @@ interface ReviewExcuseModalProps {
 export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({ isOpen, onClose, request, onUpdated }) => {
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isAlertOpen, setIsAlertOpen] = useState(false)
 
   if (!isOpen || !request) return null
 
@@ -26,20 +29,16 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({ isOpen, on
       onUpdated()
       onClose()
     } catch (err) {
-      alert('Failed to update request.')
+      console.error(err)
+      setIsAlertOpen(true)
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" onClick={onClose} />
-
-      {/* Modal */}
-      <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-xl z-10">
-        <h3 className="text-lg font-bold text-gray-900 mb-4">Review Excuse Request</h3>
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} title="Review Excuse Request" maxWidth="md">
         <div className="space-y-4">
           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm">
             <p><span className="font-bold text-slate-500">Tracking:</span> {request.trackingNumber}</p>
@@ -62,7 +61,14 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({ isOpen, on
             <button disabled={loading} onClick={() => handleUpdate('approved')} className="px-4 py-2 bg-emerald-600 text-white font-bold hover:bg-emerald-700 rounded-lg cursor-pointer">Approve</button>
           </div>
         </div>
-      </div>
-    </div>
+      </Modal>
+
+      <AlertModal
+        isOpen={isAlertOpen}
+        onClose={() => setIsAlertOpen(false)}
+        title="Error"
+        message="Failed to update request."
+      />
+    </>
   )
 }

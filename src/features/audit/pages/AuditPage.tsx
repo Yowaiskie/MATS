@@ -240,7 +240,18 @@ export const AuditPage: React.FC = () => {
     EVENT_ASSIGN_MEMBER: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     EVENT_ASSIGNMENT_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
     EVENT_ASSIGNMENT_REMOVE: 'bg-red-100 text-red-800 border-red-200',
-    EVENT_ROLE_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200'
+    EVENT_ROLE_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_INCOME_ADD: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_INCOME_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_INCOME_DELETE: 'bg-red-100 text-red-800 border-red-200',
+    EVENT_EXPENSE_ADD: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_EXPENSE_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_EXPENSE_DELETE: 'bg-red-100 text-red-800 border-red-200',
+    EVENT_TRANSFER_CREATE: 'bg-purple-100 text-purple-800 border-purple-200',
+    EVENT_TRANSFER_REVERSE: 'bg-orange-100 text-orange-800 border-orange-200',
+    EVENT_FINANCE_CATEGORY_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_FINANCE_CATEGORY_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_FINANCE_CATEGORY_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200'
   }
 
   // Friendly human-readable property key dictionary

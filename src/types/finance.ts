@@ -15,6 +15,11 @@ export interface FinanceIncome {
   updatedByUid?: string
   updatedByName?: string
 
+  // Tracing for event transfers
+  sourceType?: 'event_transfer'
+  sourceEventId?: string
+  sourceTransferId?: string
+
   // Soft Delete Fields
   isArchived: boolean
   archivedAt?: any

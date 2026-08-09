@@ -8,9 +8,9 @@ export interface Event {
   description: string;
   location: string;
   startDate: string; // YYYY-MM-DD
-  endDate: string; // YYYY-MM-DD
-  startTime: string; // HH:MM
-  endTime: string; // HH:MM
+  endDate?: string; // YYYY-MM-DD
+  startTime?: string; // HH:MM
+  endTime?: string; // HH:MM
   stage: EventStage;
   priority: Priority;
   headUid: string;
@@ -39,7 +39,10 @@ export interface EventAssignment {
   memberName: string;
   eventRoleId: string;
   eventRoleName: string;
-  isHead: boolean;
+  committeeName?: string;
+  isHead: boolean; // Deprecated or mapped to isSubLeader
+  isOverallHead?: boolean;
+  isSubLeader?: boolean;
   assignedByUid: string;
   assignedByName: string;
   assignedAt: any;
@@ -67,6 +70,7 @@ export interface EventTask {
   createdAt: any;
   updatedAt: any;
   isArchived: boolean;
+  unreadByAssignee?: boolean;
 }
 
 export interface EventChecklistItem {

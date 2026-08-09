@@ -223,5 +223,52 @@ service cloud.firestore {
     match /eventChecklists/{checklistId} {
       allow read, create, update, delete: if isAuthenticated();
     }
+
+    // ==========================================
+    // Event Finance Module Collections
+    // ==========================================
+    match /eventIncome/{docId} {
+      allow read: if hasPermission("canViewEventFinance");
+      allow create: if hasPermission("canAddEventIncome") && 
+                    request.resource.data.amount > 0 && 
+                    request.resource.data.createdByUid == request.auth.uid;
+      allow update: if hasPermission("canEditEventFinance") && 
+                    request.resource.data.createdByUid == resource.data.createdByUid && 
+                    request.resource.data.eventId == resource.data.eventId;
+      allow delete: if hasPermission("canEditEventFinance"); 
+    }
+    
+    match /eventExpenses/{docId} {
+      allow read: if hasPermission("canViewEventFinance");
+      allow create: if hasPermission("canAddEventExpense") && 
+                    request.resource.data.amount > 0 && 
+                    request.resource.data.createdByUid == request.auth.uid;
+      allow update: if hasPermission("canEditEventFinance") && 
+                    request.resource.data.createdByUid == resource.data.createdByUid && 
+                    request.resource.data.eventId == resource.data.eventId;
+      allow delete: if hasPermission("canEditEventFinance"); 
+    }
+
+    match /eventFundTransfers/{docId} {
+      allow read: if hasPermission("canViewEventFinance");
+      allow create: if hasPermission("canTransferEventFunds") && 
+                    request.resource.data.amount > 0 && 
+                    request.resource.data.createdByUid == request.auth.uid;
+      allow update: if hasPermission("canTransferEventFunds") && 
+                    request.resource.data.createdByUid == resource.data.createdByUid && 
+                    request.resource.data.eventId == resource.data.eventId &&
+                    request.resource.data.amount == resource.data.amount;
+      allow delete: if false; 
+    }
+
+    match /eventFinanceCategories/{docId} {
+      allow read: if hasPermission("canViewEventFinance");
+      allow create: if hasPermission("canManageEventFinanceCategories") && 
+                    request.resource.data.createdByUid == request.auth.uid;
+      allow update: if hasPermission("canManageEventFinanceCategories") && 
+                    request.resource.data.createdByUid == resource.data.createdByUid && 
+                    request.resource.data.eventId == resource.data.eventId;
+      allow delete: if false; 
+    }
   }
 }
