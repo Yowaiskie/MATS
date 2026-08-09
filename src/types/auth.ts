@@ -51,6 +51,7 @@ export interface UserPermissions {
   canReopenFinancePeriod?: boolean
 
   // Events actions
+  canManageEvents?: boolean
   canViewProjects?: boolean
   canCreateProjects?: boolean
   canEditProjects?: boolean
@@ -108,6 +109,7 @@ export interface PermissionPreset {
   canReopenFinancePeriod?: boolean
 
   // Events actions
+  canManageEvents?: boolean
   canViewProjects?: boolean
   canCreateProjects?: boolean
   canEditProjects?: boolean

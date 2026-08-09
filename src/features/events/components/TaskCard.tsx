@@ -24,11 +24,12 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart, 
     Critical: 'border-l-[4px] border-l-red-500'
   }
 
-  const statusColors = {
+  const statusColors: Record<string, string> = {
     'Not Started': 'bg-white border-gray-200',
     'In Progress': 'bg-blue-50 border-blue-200',
     'Waiting': 'bg-orange-50 border-orange-200',
-    'Completed': 'bg-green-50 border-green-200'
+    'Completed': 'bg-green-50 border-green-200',
+    'Cancelled': 'bg-gray-50 border-gray-300'
   }
 
   return (

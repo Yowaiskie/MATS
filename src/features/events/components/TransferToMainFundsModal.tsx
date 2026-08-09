@@ -88,6 +88,7 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
   }
 
   const handleConfirmTransfer = async () => {
+    if (!user || !profile) return
     setIsConfirmOpen(false)
     const numAmount = Number(amount.replace(/,/g, ''))
 

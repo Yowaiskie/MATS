@@ -196,7 +196,7 @@ export const EventDetailsPage: React.FC = () => {
         title="Delete Workspace"
         message={`Are you sure you want to delete the event workspace "${event.title}"? This cannot be undone.`}
         confirmLabel="Delete Workspace"
-        isDestructive={true}
+        variant="danger"
       />
 
       <AlertModal
