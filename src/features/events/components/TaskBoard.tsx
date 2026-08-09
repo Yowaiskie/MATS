@@ -54,6 +54,20 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
     }
   }
 
+  const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>, taskId: string, newStatus: TaskStatus) => {
+    e.stopPropagation()
+    const taskToMove = tasks.find(t => t.id === taskId)
+    if (taskToMove && taskToMove.status !== newStatus) {
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
+      try {
+        await eventTaskService.updateTask(taskId, { status: newStatus }, profile?.email || 'System')
+      } catch (err) {
+        console.error('Failed to update task status:', err)
+        fetchTasks()
+      }
+    }
+  }
+
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
@@ -148,6 +162,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
                     onDragStart={handleDragStart}
                     canAssignToMe={!canAction('canUpdateAnyTask') && canAction('canUpdateOwnTasks') && task.assignedMemberName !== profile?.displayName}
                     onAssignToMe={handleAssignToMe}
+                    onStatusChange={handleStatusChange}
                   />
                 ))}
               </div>

@@ -1,5 +1,5 @@
 import React from 'react'
-import type { EventTask } from '@/types/event'
+import type { EventTask, TaskStatus } from '@/types/event'
 
 interface TaskCardProps {
   task: EventTask
@@ -7,9 +7,10 @@ interface TaskCardProps {
   onDragStart: (e: React.DragEvent, taskId: string) => void
   canAssignToMe?: boolean
   onAssignToMe?: (e: React.MouseEvent, taskId: string) => void
+  onStatusChange?: (e: React.ChangeEvent<HTMLSelectElement>, taskId: string, newStatus: TaskStatus) => void
 }
 
-export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart, canAssignToMe, onAssignToMe }) => {
+export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart, canAssignToMe, onAssignToMe, onStatusChange }) => {
   const priorityColors = {
     Low: 'bg-green-100 text-green-800 border border-green-200',
     Medium: 'bg-blue-100 text-blue-800 border border-blue-200',
@@ -39,15 +40,30 @@ export const TaskCard: React.FC<TaskCardProps> = ({ task, onClick, onDragStart, 
       onClick={() => onClick(task)}
       className={`${statusColors[task.status] || 'bg-white border-gray-200'} ${priorityBorders[task.priority] || ''} p-3 rounded-lg border shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing transition-shadow`}
     >
-      <div className="flex justify-between items-start mb-2">
-        <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded ${priorityColors[task.priority] || priorityColors.Medium}`}>
+      <div className="flex justify-between items-center mb-2 gap-2">
+        <span className={`text-[9px] font-bold uppercase px-2 py-0.5 rounded shrink-0 ${priorityColors[task.priority] || priorityColors.Medium}`}>
           {task.priority}
         </span>
-        {task.dueDate && (
-          <span className="text-[10px] text-gray-500 font-medium">
-            Due: {task.dueDate}
-          </span>
-        )}
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onStatusChange && (
+            <select
+              value={task.status}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => onStatusChange(e, task.id!, e.target.value as any)}
+              className="text-[10px] font-semibold text-slate-700 bg-white/80 border border-slate-200 rounded px-1.5 py-0.5 cursor-pointer hover:border-slate-300 focus:outline-none shadow-2xs"
+            >
+              <option value="Not Started">To Do</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Waiting">Waiting</option>
+              <option value="Completed">Completed</option>
+            </select>
+          )}
+          {task.dueDate && (
+            <span className="text-[10px] text-gray-500 font-medium hidden sm:inline">
+              Due: {task.dueDate}
+            </span>
+          )}
+        </div>
       </div>
       
       <h4 className="text-sm font-bold text-gray-900 leading-tight mb-1">{task.title}</h4>
