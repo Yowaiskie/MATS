@@ -11,14 +11,15 @@ interface TaskFormModalProps {
   onSaved: () => void
   eventId: string
   existingTask?: EventTask
+  isHeadOrCreator?: boolean
 }
 
-export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSaved, eventId, existingTask }) => {
+export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSaved, eventId, existingTask, isHeadOrCreator }) => {
   const { profile, canAction } = useAuth()
   
   const canEdit = !existingTask 
     ? true 
-    : canAction('canUpdateAnyTask')
+    : (isHeadOrCreator || canAction('canUpdateAnyTask'))
 
   const [title, setTitle] = useState(existingTask?.title || '')
   const [description, setDescription] = useState(existingTask?.description || '')
@@ -217,7 +218,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
         
         <div className="p-4 border-t border-gray-100 flex justify-between gap-2 bg-gray-50 rounded-b-2xl">
           <div>
-            {existingTask && canAction('canDeleteTasks') && (
+            {existingTask && (isHeadOrCreator || canAction('canDeleteTasks')) && (
               <button type="button" onClick={() => setShowDeleteConfirm(true)} disabled={submitting} className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 focus:outline-none disabled:opacity-50 shadow-sm transition-colors cursor-pointer">
                 Delete Task
               </button>

@@ -209,8 +209,8 @@ export const dashboardService = {
     }
   },
 
-  async getMyEventAssignments(displayName: string): Promise<any[]> {
-    if (!displayName) return []
+  async getMyEventAssignments(identifier: string, uid?: string): Promise<any[]> {
+    if (!identifier && !uid) return []
     
     // First, query all active events so we can map IDs to titles
     const eventsQuery = query(collection(db, 'events'), where('isArchived', '==', false))
@@ -220,25 +220,39 @@ export const dashboardService = {
       eventTitles[doc.id] = doc.data().title
     })
 
-    // Now query assignments by matching memberName to displayName
-    const q = query(
-      collection(db, 'eventAssignments'),
-      where('memberName', '==', displayName)
-    )
-    const snapshot = await getDocs(q)
-    const assignments: any[] = []
-    
-    snapshot.forEach(doc => {
-      const data = doc.data()
-      if (eventTitles[data.eventId]) {
-        assignments.push({
-          id: doc.id,
-          ...data,
-          eventTitle: eventTitles[data.eventId]
-        })
-      }
-    })
-    return assignments
+    const assignmentsMap = new Map<string, any>()
+
+    // Query by memberUid if provided
+    if (uid) {
+      const qUid = query(
+        collection(db, 'eventAssignments'),
+        where('memberUid', '==', uid)
+      )
+      const snapUid = await getDocs(qUid)
+      snapUid.forEach(doc => {
+        const data = doc.data()
+        if (eventTitles[data.eventId]) {
+          assignmentsMap.set(doc.id, { id: doc.id, ...data, eventTitle: eventTitles[data.eventId] })
+        }
+      })
+    }
+
+    // Query by memberName / displayName if provided
+    if (identifier) {
+      const qName = query(
+        collection(db, 'eventAssignments'),
+        where('memberName', '==', identifier)
+      )
+      const snapName = await getDocs(qName)
+      snapName.forEach(doc => {
+        const data = doc.data()
+        if (eventTitles[data.eventId]) {
+          assignmentsMap.set(doc.id, { id: doc.id, ...data, eventTitle: eventTitles[data.eventId] })
+        }
+      })
+    }
+
+    return Array.from(assignmentsMap.values())
   },
 
   async getMyUnreadTasksCount(displayName: string): Promise<number> {

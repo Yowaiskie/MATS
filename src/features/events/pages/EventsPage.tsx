@@ -24,10 +24,12 @@ export const EventsPage: React.FC = () => {
       const data = await eventService.getEvents()
       if (canAction('canManageEvents')) {
         setEvents(data)
-      } else if (profile?.displayName) {
-        const myAssignments = await dashboardService.getMyEventAssignments(profile.displayName)
+      } else if (profile) {
+        const userUid = profile.uid
+        const userName = profile.displayName || profile.email || ''
+        const myAssignments = await dashboardService.getMyEventAssignments(userName, userUid)
         const myEventIds = new Set(myAssignments.map(a => a.eventId))
-        setEvents(data.filter(e => myEventIds.has(e.id)))
+        setEvents(data.filter(e => e.createdByUid === userUid || e.headUid === userUid || myEventIds.has(e.id)))
       } else {
         setEvents([])
       }

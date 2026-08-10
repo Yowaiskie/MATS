@@ -8,6 +8,7 @@ import { TaskFormModal } from './TaskFormModal'
 
 interface TaskBoardProps {
   eventId: string
+  isHeadOrCreator?: boolean
 }
 
 const STATUS_COLUMNS: { id: TaskStatus; label: string }[] = [
@@ -17,13 +18,13 @@ const STATUS_COLUMNS: { id: TaskStatus; label: string }[] = [
   { id: 'Completed', label: 'Completed' }
 ]
 
-export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
+export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }) => {
   const [tasks, setTasks] = useState<EventTask[]>([])
   const [loading, setLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<EventTask | undefined>()
   const { canAction, profile } = useAuth()
-  const canManageTasks = canAction('canAssignTasks')
+  const canManageTasks = isHeadOrCreator || canAction('canAssignTasks')
 
   const fetchTasks = async () => {
     try {
@@ -41,7 +42,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
   }, [eventId])
 
   const handleAssignToMe = async (e: React.MouseEvent, taskId: string) => {
-    e.stopPropagation() // Prevent opening modal
+    e.stopPropagation()
     if (!profile?.displayName) return
     try {
       await eventTaskService.updateTask(taskId, { 
@@ -71,35 +72,34 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-    const canUpdate = canAction('canUpdateAnyTask') || (canAction('canUpdateOwnTasks') && task.assignedMemberName === profile?.displayName)
+    const canUpdate = isHeadOrCreator || canAction('canUpdateAnyTask') || (canAction('canUpdateOwnTasks') && task.assignedMemberName === profile?.displayName)
     if (!canUpdate) {
       e.preventDefault()
       return
     }
 
+    e.dataTransfer.setData('text/plain', taskId)
     e.dataTransfer.setData('taskId', taskId)
     e.dataTransfer.effectAllowed = 'move'
   }
 
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault() // necessary to allow dropping
+    e.preventDefault()
     e.dataTransfer.dropEffect = 'move'
   }
 
   const handleDrop = async (e: React.DragEvent, newStatus: TaskStatus) => {
     e.preventDefault()
-    const taskId = e.dataTransfer.getData('taskId')
+    const taskId = e.dataTransfer.getData('taskId') || e.dataTransfer.getData('text/plain')
     if (!taskId) return
 
     const taskToMove = tasks.find(t => t.id === taskId)
     if (taskToMove && taskToMove.status !== newStatus) {
-      // Optimistic update
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
       try {
-        await eventTaskService.updateTask(taskId, { status: newStatus })
+        await eventTaskService.updateTask(taskId, { status: newStatus }, profile?.displayName || 'User')
       } catch (err) {
         console.error('Failed to update task status:', err)
-        // Revert on failure
         fetchTasks()
       }
     }
@@ -160,7 +160,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
                     task={task} 
                     onClick={(t) => { setSelectedTask(t); setIsModalOpen(true) }}
                     onDragStart={handleDragStart}
-                    canAssignToMe={!canAction('canUpdateAnyTask') && canAction('canUpdateOwnTasks') && task.assignedMemberName !== profile?.displayName}
+                    canAssignToMe={!isHeadOrCreator && !canAction('canUpdateAnyTask') && canAction('canUpdateOwnTasks') && task.assignedMemberName !== profile?.displayName}
                     onAssignToMe={handleAssignToMe}
                     onStatusChange={handleStatusChange}
                   />
@@ -180,6 +180,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId }) => {
         }}
         eventId={eventId}
         existingTask={selectedTask}
+        isHeadOrCreator={isHeadOrCreator}
       />
     </div>
   )

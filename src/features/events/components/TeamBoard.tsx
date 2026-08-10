@@ -9,9 +9,10 @@ import { useAuth } from '@/features/authentication/AuthContext'
 
 interface Props {
   eventId: string
+  isHeadOrCreator?: boolean
 }
 
-export const TeamBoard: React.FC<Props> = ({ eventId }) => {
+export const TeamBoard: React.FC<Props> = ({ eventId, isHeadOrCreator }) => {
   const { canAction } = useAuth()
   const [assignments, setAssignments] = useState<EventAssignment[]>([])
   const [loading, setLoading] = useState(true)
@@ -19,7 +20,7 @@ export const TeamBoard: React.FC<Props> = ({ eventId }) => {
   const [editItem, setEditItem] = useState<EventAssignment | undefined>(undefined)
   const [deleteItemId, setDeleteItemId] = useState<string | null>(null)
 
-  const canManage = canAction('canManageAssignments') || canAction('canAssignTasks')
+  const canManage = isHeadOrCreator || canAction('canManageAssignments') || canAction('canAssignTasks')
 
   const fetchAssignments = async () => {
     try {

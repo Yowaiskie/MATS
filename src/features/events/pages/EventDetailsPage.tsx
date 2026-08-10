@@ -30,17 +30,27 @@ export const EventDetailsPage: React.FC = () => {
   const fetchEvent = async () => {
     if (!id) return
     try {
-      if (!canAction('canManageEvents') && profile?.displayName) {
-        const myAssignments = await dashboardService.getMyEventAssignments(profile.displayName)
-        const isMember = myAssignments.some(a => a.eventId === id)
-        if (!isMember) {
-          setAccessDenied(true)
-          setLoading(false)
-          return
+      const data = await eventService.getEventById(id)
+      if (!data) {
+        setAccessDenied(true)
+        setLoading(false)
+        return
+      }
+
+      if (!canAction('canManageEvents') && profile) {
+        const isCreatorOrHead = data.createdByUid === profile.uid || data.headUid === profile.uid
+        if (!isCreatorOrHead) {
+          const userName = profile.displayName || profile.email || ''
+          const myAssignments = await dashboardService.getMyEventAssignments(userName, profile.uid)
+          const isMember = myAssignments.some(a => a.eventId === id)
+          if (!isMember) {
+            setAccessDenied(true)
+            setLoading(false)
+            return
+          }
         }
       }
 
-      const data = await eventService.getEventById(id)
       setEvent(data)
 
       // Mark tasks as read for the user in this event
@@ -108,18 +118,18 @@ export const EventDetailsPage: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">{event.description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {canAction('canManageEvents') && (
+          {(canAction('canDeleteEvents') || canAction('canManageEvents') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
             <button
               onClick={handleDeleteEvent}
-              className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors"
+              className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors cursor-pointer"
             >
               Delete Workspace
             </button>
           )}
-          {canAction('canEditProjects') && (
+          {(canAction('canEditProjects') || canAction('canManageEvents') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
             <button
               onClick={() => setIsEditModalOpen(true)}
-              className="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors"
+              className="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer"
             >
               Edit Event
             </button>
@@ -156,7 +166,7 @@ export const EventDetailsPage: React.FC = () => {
         >
           Timeline
         </button>
-        {canAction('canViewEventFinance') && (
+        {(canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
           <button 
             onClick={() => setActiveTab('finance')}
             className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'finance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
@@ -170,13 +180,13 @@ export const EventDetailsPage: React.FC = () => {
       {activeTab === 'overview' ? (
         <OverviewTab event={event} />
       ) : activeTab === 'tasks' ? (
-        <TaskBoard eventId={event.id!} />
+        <TaskBoard eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : activeTab === 'team' ? (
-        <TeamBoard eventId={event.id!} />
+        <TeamBoard eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : activeTab === 'timeline' ? (
         <TimelineView eventId={event.id!} />
-      ) : activeTab === 'finance' && canAction('canViewEventFinance') ? (
-        <EventFinanceBoard eventId={event.id!} eventName={event.title} />
+      ) : activeTab === 'finance' && (canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? (
+        <EventFinanceBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : (
         <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-8 text-center text-gray-500">
           This tab content is not implemented yet.

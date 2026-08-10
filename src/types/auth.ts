@@ -56,6 +56,7 @@ export interface UserPermissions {
   canCreateProjects?: boolean
   canEditProjects?: boolean
   canDeleteProjects?: boolean
+  canDeleteEvents?: boolean
   canAssignTasks?: boolean
   canManageAssignments?: boolean
   canUpdateOwnTasks?: boolean
@@ -114,6 +115,7 @@ export interface PermissionPreset {
   canCreateProjects?: boolean
   canEditProjects?: boolean
   canDeleteProjects?: boolean
+  canDeleteEvents?: boolean
   canAssignTasks?: boolean
   canManageAssignments?: boolean
   canUpdateOwnTasks?: boolean

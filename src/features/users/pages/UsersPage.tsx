@@ -62,6 +62,19 @@ const PRESET_ICONS: { [key: string]: React.ReactNode } = {
   )
 }
 
+const MODULE_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  schedules: 'Schedules',
+  attendance: 'Attendance',
+  reports: 'Reports',
+  members: 'Members',
+  finance: 'Finance',
+  events: 'Events',
+  users: 'Users',
+  settings: 'Settings',
+  audit: 'Audit Trail',
+}
+
 export const UsersPage: React.FC = () => {
   const { profile: currentAdmin, isAdmin } = useAuth()
   const [users, setUsers] = useState<UserProfile[]>([])
@@ -94,6 +107,7 @@ export const UsersPage: React.FC = () => {
   const [presetFormCreateProjects, setPresetFormCreateProjects] = useState(false)
   const [presetFormEditProjects, setPresetFormEditProjects] = useState(false)
   const [presetFormDeleteProjects, setPresetFormDeleteProjects] = useState(false)
+  const [presetFormDeleteEvents, setPresetFormDeleteEvents] = useState(false)
   const [presetFormAssignTasks, setPresetFormAssignTasks] = useState(false)
   const [presetFormManageAssignments, setPresetFormManageAssignments] = useState(false)
   const [presetFormUpdateOwnTasks, setPresetFormUpdateOwnTasks] = useState(false)
@@ -155,6 +169,7 @@ export const UsersPage: React.FC = () => {
   const [canCreateProjects, setCanCreateProjects] = useState(false)
   const [canEditProjects, setCanEditProjects] = useState(false)
   const [canDeleteProjects, setCanDeleteProjects] = useState(false)
+  const [canDeleteEvents, setCanDeleteEvents] = useState(false)
   const [canAssignTasks, setCanAssignTasks] = useState(false)
   const [canManageAssignments, setCanManageAssignments] = useState(false)
   const [canUpdateOwnTasks, setCanUpdateOwnTasks] = useState(false)
@@ -235,6 +250,7 @@ export const UsersPage: React.FC = () => {
     setCanCreateProjects(p.canCreateProjects ?? false)
     setCanEditProjects(p.canEditProjects ?? false)
     setCanDeleteProjects(p.canDeleteProjects ?? false)
+    setCanDeleteEvents(p.canDeleteEvents ?? false)
     setCanAssignTasks(p.canAssignTasks ?? false)
     setCanManageAssignments(p.canManageAssignments ?? false)
     setCanUpdateOwnTasks(p.canUpdateOwnTasks ?? false)
@@ -278,6 +294,7 @@ export const UsersPage: React.FC = () => {
     setPresetFormCreateProjects(false)
     setPresetFormEditProjects(false)
     setPresetFormDeleteProjects(false)
+    setPresetFormDeleteEvents(false)
     setPresetFormAssignTasks(false)
     setPresetFormManageAssignments(false)
     setPresetFormUpdateOwnTasks(false)
@@ -315,6 +332,7 @@ export const UsersPage: React.FC = () => {
     setPresetFormCreateProjects(p.canCreateProjects ?? false)
     setPresetFormEditProjects(p.canEditProjects ?? false)
     setPresetFormDeleteProjects(p.canDeleteProjects ?? false)
+    setPresetFormDeleteEvents(p.canDeleteEvents ?? false)
     setPresetFormAssignTasks(p.canAssignTasks ?? false)
     setPresetFormManageAssignments(p.canManageAssignments ?? false)
     setPresetFormUpdateOwnTasks(p.canUpdateOwnTasks ?? false)
@@ -361,6 +379,7 @@ export const UsersPage: React.FC = () => {
         canCreateProjects: presetFormCreateProjects,
         canEditProjects: presetFormEditProjects,
         canDeleteProjects: presetFormDeleteProjects,
+        canDeleteEvents: presetFormDeleteEvents,
         canAssignTasks: presetFormAssignTasks,
         canManageAssignments: presetFormManageAssignments,
         canUpdateOwnTasks: presetFormUpdateOwnTasks,
@@ -470,6 +489,7 @@ export const UsersPage: React.FC = () => {
       setCanCreateProjects(perms.canCreateProjects ?? false)
       setCanEditProjects(perms.canEditProjects ?? false)
       setCanDeleteProjects(perms.canDeleteProjects ?? false)
+      setCanDeleteEvents(perms.canDeleteEvents ?? false)
       setCanAssignTasks(perms.canAssignTasks ?? false)
       setCanManageAssignments(perms.canManageAssignments ?? false)
       setCanUpdateOwnTasks(perms.canUpdateOwnTasks ?? false)
@@ -560,6 +580,7 @@ export const UsersPage: React.FC = () => {
       canCreateProjects,
       canEditProjects,
       canDeleteProjects,
+      canDeleteEvents,
       canAssignTasks,
       canManageAssignments,
       canUpdateOwnTasks,
@@ -742,8 +763,8 @@ export const UsersPage: React.FC = () => {
               <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
                 <th className="px-6 py-3.5">User Email</th>
                 <th className="px-6 py-3.5">Display Name</th>
-                <th className="px-6 py-3.5">Role / Scope</th>
-                <th className="px-6 py-3.5">Allowed Modules</th>
+                <th className="px-6 py-3.5">Role</th>
+                <th className="px-6 py-3.5">Assigned Preset</th>
                 <th className="px-6 py-3.5 text-right">Actions</th>
               </tr>
             </thead>
@@ -783,61 +804,96 @@ export const UsersPage: React.FC = () => {
                         {u.displayName || '--'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${
-                          u.role === 'admin'
-                            ? 'bg-purple-50 border-purple-200 text-purple-700'
-                            : u.role === 'order_leader'
-                            ? 'bg-amber-50 border-amber-200 text-amber-700'
-                            : 'bg-blue-50 border-blue-200 text-blue-700'
-                        }`}>
-                          {u.role === 'admin' ? (
-                            <span>Admin (Full System)</span>
-                          ) : u.permissions?.presetName ? (
-                            <span>{u.permissions.presetName}{u.role === 'order_leader' ? ` (${u.assignedOrder || 'All Orders'})` : ''}</span>
-                          ) : u.role === 'order_leader' ? (
-                            <span>Order Leader ({u.assignedOrder || 'All Orders'})</span>
-                          ) : (
-                            <span>Attendance Taker</span>
-                          )}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-xs text-gray-500">
                         {u.role === 'admin' ? (
-                          <span className="text-[11px] font-semibold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">All Modules</span>
-                        ) : u.permissions?.allowedModules ? (
-                          <div className="flex items-center gap-1 flex-wrap">
-                            {u.permissions.allowedModules.map(m => (
-                              <span key={m} className="capitalize text-[10px] font-medium bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded border border-gray-200">
-                                {m}
-                              </span>
-                            ))}
-                          </div>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 border border-purple-200 text-purple-700">
+                            Administrator
+                          </span>
+                        ) : u.role === 'order_leader' ? (
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700">
+                            Order Leader {u.assignedOrder ? `(${u.assignedOrder})` : ''}
+                          </span>
                         ) : (
-                          <span className="text-gray-400 italic text-[11px]">Default Access</span>
+                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700">
+                            User Account
+                          </span>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-2">
+                      <td className="px-6 py-4 text-xs whitespace-nowrap">
+                        {(() => {
+                          if (u.role === 'admin') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                ✨ Full System Access
+                              </span>
+                            )
+                          }
+
+                          const presetName = u.permissions?.presetName
+                          const mods = u.permissions?.allowedModules || []
+                          const modulesTooltip = mods.length > 0 ? `Allowed Modules: ${mods.map(m => MODULE_LABELS[m] || m).join(', ')}` : 'No custom module access'
+
+                          const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : undefined
+                          const presetIcon = matchedPreset ? PRESET_ICONS[matchedPreset.icon] : null
+
+                          if (presetName) {
+                            return (
+                              <span
+                                title={modulesTooltip}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs cursor-help"
+                              >
+                                {presetIcon && <span className="text-blue-600 shrink-0">{presetIcon}</span>}
+                                <span>{presetName}</span>
+                              </span>
+                            )
+                          }
+
+                          if (mods.length >= ALL_MODULES.length) {
+                            return (
+                              <span
+                                title={modulesTooltip}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 cursor-help"
+                              >
+                                ✨ Full Module Access
+                              </span>
+                            )
+                          }
+
+                          if (mods.length > 0) {
+                            return (
+                              <span
+                                title={modulesTooltip}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80 cursor-help"
+                              >
+                                Custom Access ({mods.length} Modules)
+                              </span>
+                            )
+                          }
+
+                          return <span className="text-gray-400 italic text-[11px]">Default Access</span>
+                        })()}
+                      </td>
+                      <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-1.5">
                         {/* Hide Edit/Remove for coordinator account unless you ARE the coordinator */}
                         {!(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
                           <button
                             onClick={() => handleOpenEditModal(u)}
-                            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 font-semibold px-2.5 py-1 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors cursor-pointer border border-blue-100"
+                            title="Edit Permissions"
+                            className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer border border-blue-100 inline-flex items-center justify-center"
                           >
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
-                            <span>Edit Permissions</span>
                           </button>
                         )}
                         {!isCurrent && !(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
                           <button
                             onClick={() => setDeleteTarget(u)}
-                            className="inline-flex items-center gap-1 text-red-600 hover:text-red-800 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100 rounded-md transition-colors cursor-pointer border border-red-100"
+                            title="Remove User"
+                            className="p-2 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer border border-red-100 inline-flex items-center justify-center"
                           >
-                            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
-                            <span>Remove</span>
                           </button>
                         )}
                       </td>
@@ -1125,11 +1181,12 @@ export const UsersPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-gray-900">Events Management</span>
                       <button type="button" onClick={() => {
-                        const val = !(canViewProjects && canCreateProjects && canEditProjects && canDeleteProjects && canAssignTasks && canManageAssignments && canUpdateOwnTasks && canUpdateAnyTask && canDeleteTasks)
+                        const val = !(canViewProjects && canCreateProjects && canEditProjects && canDeleteProjects && canDeleteEvents && canAssignTasks && canManageAssignments && canUpdateOwnTasks && canUpdateAnyTask && canDeleteTasks)
                         setCanViewProjects(val)
                         setCanCreateProjects(val)
                         setCanEditProjects(val)
                         setCanDeleteProjects(val)
+                        setCanDeleteEvents(val)
                         setCanAssignTasks(val)
                         setCanManageAssignments(val)
                         setCanUpdateOwnTasks(val)
@@ -1151,6 +1208,10 @@ export const UsersPage: React.FC = () => {
                     </label>
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={canDeleteProjects} onChange={e => setCanDeleteProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Delete Projects</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canDeleteEvents} onChange={e => setCanDeleteEvents(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
                       <span>Can Delete Events</span>
                     </label>
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
@@ -1409,11 +1470,12 @@ export const UsersPage: React.FC = () => {
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">Events Management (Preset)</h4>
                     <button type="button" onClick={() => {
-                      const val = !(presetFormViewProjects && presetFormCreateProjects && presetFormEditProjects && presetFormDeleteProjects && presetFormAssignTasks && presetFormManageAssignments && presetFormUpdateOwnTasks && presetFormUpdateAnyTask && presetFormDeleteTasks)
+                      const val = !(presetFormViewProjects && presetFormCreateProjects && presetFormEditProjects && presetFormDeleteProjects && presetFormDeleteEvents && presetFormAssignTasks && presetFormManageAssignments && presetFormUpdateOwnTasks && presetFormUpdateAnyTask && presetFormDeleteTasks)
                       setPresetFormViewProjects(val)
                       setPresetFormCreateProjects(val)
                       setPresetFormEditProjects(val)
                       setPresetFormDeleteProjects(val)
+                      setPresetFormDeleteEvents(val)
                       setPresetFormAssignTasks(val)
                       setPresetFormManageAssignments(val)
                       setPresetFormUpdateOwnTasks(val)
@@ -1436,6 +1498,10 @@ export const UsersPage: React.FC = () => {
                     </label>
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={presetFormDeleteProjects} onChange={e => setPresetFormDeleteProjects(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Delete Projects</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormDeleteEvents} onChange={e => setPresetFormDeleteEvents(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
                       <span>Can Delete Events</span>
                     </label>
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">

@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { eventService } from '@/services/eventService'
+import { eventAssignmentService } from '@/services/eventAssignmentService'
+import { userService } from '@/services/userService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import type { EventStage, Priority, Event } from '@/types/event'
+import type { UserProfile } from '@/types/auth'
 
 interface EventFormModalProps {
   isOpen: boolean
@@ -23,11 +26,14 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
   const [priority, setPriority] = useState<Priority>('Medium')
   const [stage, setStage] = useState<EventStage>('Planning')
   
+  const [headUid, setHeadUid] = useState('')
+  const [users, setUsers] = useState<UserProfile[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
+      userService.getUsers().then(data => setUsers(data)).catch(console.error)
       if (editItem) {
         setTitle(editItem.title)
         setDescription(editItem.description || '')
@@ -38,6 +44,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setEndTime(editItem.endTime || '')
         setPriority(editItem.priority)
         setStage(editItem.stage)
+        setHeadUid(editItem.headUid || profile?.uid || '')
       } else {
         setTitle('')
         setDescription('')
@@ -48,10 +55,11 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setEndTime('')
         setPriority('Medium')
         setStage('Planning')
+        setHeadUid(profile?.uid || '')
       }
       setError(null)
     }
-  }, [isOpen, editItem])
+  }, [isOpen, editItem, profile])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -64,6 +72,10 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
     setError(null)
 
     try {
+      const selectedHead = users.find(u => u.uid === headUid)
+      const selectedHeadName = selectedHead?.displayName || selectedHead?.email || profile?.displayName || profile?.email || 'Unknown'
+      const selectedHeadUid = headUid || profile?.uid || ''
+
       if (editItem) {
         await eventService.updateEvent(
           editItem.id!,
@@ -77,11 +89,13 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             endTime,
             priority,
             stage,
+            headUid: selectedHeadUid,
+            headName: selectedHeadName,
           },
           profile?.email || 'System'
         )
       } else {
-        await eventService.createEvent(
+        const newEventId = await eventService.createEvent(
           {
             title: title.trim(),
             description: description.trim(),
@@ -92,13 +106,37 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             endTime,
             priority,
             stage,
-            headUid: profile?.uid || '',
-            headName: profile?.displayName || profile?.email || 'Unknown',
+            headUid: selectedHeadUid,
+            headName: selectedHeadName,
             createdByUid: profile?.uid || '',
             createdByName: profile?.displayName || profile?.email || 'Unknown'
           },
           profile?.email || 'System'
         )
+
+        // Automatically assign selected head as an assignment member
+        if (newEventId) {
+          try {
+            await eventAssignmentService.createAssignment(
+              {
+                eventId: newEventId,
+                memberUid: selectedHeadUid,
+                memberName: selectedHeadName,
+                eventRoleId: 'head',
+                eventRoleName: 'Overall Event Head',
+                committeeName: 'Executive',
+                isHead: true,
+                isOverallHead: true,
+                isSubLeader: false,
+                assignedByUid: profile?.uid || 'system',
+                assignedByName: profile?.displayName || profile?.email || 'System'
+              },
+              profile?.displayName || profile?.email || 'System'
+            )
+          } catch (assignErr) {
+            console.error('Failed to auto-create head assignment:', assignErr)
+          }
+        }
       }
       onSaved()
     } catch (err) {
@@ -148,6 +186,25 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             <div>
               <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Event Title *</label>
               <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" placeholder="e.g. Grand Feast Mass 2026" required />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Event Head (Leader)</label>
+              <select 
+                value={headUid} 
+                onChange={(e) => setHeadUid(e.target.value)} 
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all cursor-pointer"
+              >
+                {users.length === 0 ? (
+                  <option value={profile?.uid || ''}>{profile?.displayName || profile?.email || 'Current User'}</option>
+                ) : (
+                  users.map(u => (
+                    <option key={u.uid} value={u.uid}>
+                      {u.displayName ? `${u.displayName} (${u.email})` : u.email}
+                    </option>
+                  ))
+                )}
+              </select>
             </div>
 
             <div>

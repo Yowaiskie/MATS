@@ -14,11 +14,12 @@ import { authService } from '@/services/authService'
 interface Props {
   eventId: string
   eventName: string
+  isHeadOrCreator?: boolean
 }
 
 type TabType = 'income' | 'expenses' | 'transfers'
 
-export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName }) => {
+export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadOrCreator }) => {
   const { user, profile, canAction } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>('income')
   const [showArchived, setShowArchived] = useState(false)
@@ -197,7 +198,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName }) => {
             Generate Report
           </button>
 
-          {activeTab === 'income' && canAction('canAddEventIncome') && (
+          {(activeTab === 'income' && (isHeadOrCreator || canAction('canAddEventIncome'))) && (
             <button
               onClick={() => handleOpenIncomeModal()}
               className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition"
@@ -205,7 +206,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName }) => {
               + Add Income
             </button>
           )}
-          {activeTab === 'expenses' && canAction('canAddEventExpense') && (
+          {(activeTab === 'expenses' && (isHeadOrCreator || canAction('canAddEventExpense'))) && (
             <button
               onClick={() => handleOpenExpenseModal()}
               className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition"
@@ -213,7 +214,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName }) => {
               + Add Expense
             </button>
           )}
-          {activeTab === 'transfers' && canAction('canTransferEventFunds') && (
+          {(activeTab === 'transfers' && (isHeadOrCreator || canAction('canTransferEventFunds'))) && (
             <button
               onClick={() => setIsTransferModalOpen(true)}
               disabled={balance <= 0}
@@ -297,13 +298,13 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName }) => {
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {canAction('canEditEventFinance') && !inc.isArchived && (
+                    {(isHeadOrCreator || canAction('canEditEventFinance')) && !inc.isArchived && (
                       <button onClick={() => handleOpenIncomeModal(inc)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded">Edit</button>
                     )}
-                    {canAction('canVoidEventFinance') && !inc.isArchived && (
+                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && !inc.isArchived && (
                       <button onClick={() => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded">Archive</button>
                     )}
-                    {canAction('canVoidEventFinance') && inc.isArchived && (
+                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && inc.isArchived && (
                       <button onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded">Delete</button>
                     )}
                   </td>
@@ -340,13 +341,13 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName }) => {
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {canAction('canEditEventFinance') && !exp.isArchived && (
+                    {(isHeadOrCreator || canAction('canEditEventFinance')) && !exp.isArchived && (
                       <button onClick={() => handleOpenExpenseModal(exp)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded">Edit</button>
                     )}
-                    {canAction('canVoidEventFinance') && !exp.isArchived && (
+                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && !exp.isArchived && (
                       <button onClick={() => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded">Archive</button>
                     )}
-                    {canAction('canVoidEventFinance') && exp.isArchived && (
+                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && exp.isArchived && (
                       <button onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded">Delete</button>
                     )}
                   </td>
