@@ -16,6 +16,7 @@ import { UsersPage } from '@/features/users/pages/UsersPage'
 import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswordPage'
 import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePage'
 import { PublicExcusePage } from '@/features/excuse/PublicExcusePage'
+import { PublicEventFormPage } from '@/features/events/pages/PublicEventFormPage'
 import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
 import { FinancePage } from '@/features/finance/pages/FinancePage'
 import { EventsPage } from '@/features/events/pages/EventsPage'
@@ -49,6 +50,12 @@ function App() {
             <Route 
               path="/public/excuse" 
               element={<PublicExcusePage />} 
+            />
+
+            {/* Public Event Registration Form Link */}
+            <Route 
+              path="/public/events/:eventId/forms/:formId" 
+              element={<PublicEventFormPage />} 
             />
 
             {/* Protected Routes wrapped under a single layout parent */}

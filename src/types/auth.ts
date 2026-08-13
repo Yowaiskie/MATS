@@ -75,6 +75,15 @@ export interface UserPermissions {
   canVoidEventFinance?: boolean
   canTransferEventFunds?: boolean
   canManageEventFinanceCategories?: boolean
+
+  // Event Forms actions
+  canViewEventForms?: boolean
+  canCreateEventForms?: boolean
+  canEditEventForms?: boolean
+  canPublishEventForms?: boolean
+  canViewEventFormResponses?: boolean
+  canExportEventFormResponses?: boolean
+  canArchiveEventForms?: boolean
 }
 
 export interface PermissionPreset {
@@ -134,6 +143,15 @@ export interface PermissionPreset {
   canVoidEventFinance?: boolean
   canTransferEventFunds?: boolean
   canManageEventFinanceCategories?: boolean
+
+  // Event Forms actions
+  canViewEventForms?: boolean
+  canCreateEventForms?: boolean
+  canEditEventForms?: boolean
+  canPublishEventForms?: boolean
+  canViewEventFormResponses?: boolean
+  canExportEventFormResponses?: boolean
+  canArchiveEventForms?: boolean
 }
 
 export interface UserProfile {

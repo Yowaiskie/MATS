@@ -1,0 +1,76 @@
+import type { Timestamp, FieldValue } from 'firebase/firestore'
+
+export type FormStatus = 'draft' | 'published' | 'closed' | 'archived'
+
+export interface EventForm {
+  id?: string
+  eventId: string
+  title: string
+  description?: string
+  status: FormStatus
+  isPublic: boolean
+  startAt?: string
+  closeAt?: string
+  confirmationMessage?: string
+  allowEditResponse: boolean
+  allowMultipleResponses: boolean
+  createdByUid: string
+  createdByName?: string
+  createdAt?: Timestamp | FieldValue | string
+  updatedAt?: Timestamp | FieldValue | string
+}
+
+export type QuestionType =
+  | 'short_text'
+  | 'long_text'
+  | 'multiple_choice'
+  | 'dropdown'
+  | 'checkbox'
+  | 'yes_no'
+  | 'number'
+  | 'date'
+  | 'time'
+  | 'name_selector'
+  | 'member_selector'
+  | 'relationship_selector'
+
+export type ConditionOperator = 'equals' | 'not_equals' | 'is_filled' | 'is_empty' | 'contains'
+
+export interface VisibilityCondition {
+  questionId: string
+  operator: ConditionOperator
+  value: string
+}
+
+export interface EventFormQuestion {
+  id: string
+  formId: string
+  eventId: string
+  type: QuestionType
+  question: string
+  description?: string
+  required: boolean
+  order: number
+  options?: string[]
+  visibilityCondition?: VisibilityCondition
+  memberFilterType?: 'all' | 'order' | 'rank'
+  memberFilterValue?: string | string[]
+  createdAt?: Timestamp | FieldValue | string
+  updatedAt?: Timestamp | FieldValue | string
+}
+
+export type ResponseStatus = 'submitted' | 'draft'
+
+export interface EventFormResponse {
+  id?: string
+  formId: string
+  eventId: string
+  trackingNumber: string
+  respondentMemberUid?: string
+  respondentMemberName?: string
+  respondentEmail?: string
+  answers: Record<string, string | string[] | number | boolean>
+  status: ResponseStatus
+  submittedAt?: Timestamp | FieldValue | string
+  updatedAt?: Timestamp | FieldValue | string
+}

@@ -270,5 +270,25 @@ service cloud.firestore {
                     request.resource.data.eventId == resource.data.eventId;
       allow delete: if false; 
     }
+
+    // ==========================================
+    // Event Form Builder Module Collections
+    // ==========================================
+    match /eventForms/{formId} {
+      allow get: if true;
+      allow list: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /eventFormQuestions/{questionId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /eventFormResponses/{responseId} {
+      allow read: if isAuthenticated();
+      allow create: if true;
+      allow update, delete: if isAuthenticated();
+    }
   }
 }

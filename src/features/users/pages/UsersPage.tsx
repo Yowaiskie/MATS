@@ -127,6 +127,15 @@ export const UsersPage: React.FC = () => {
   const [presetFormTransferEventFunds, setPresetFormTransferEventFunds] = useState(false)
   const [presetFormManageEventFinanceCategories, setPresetFormManageEventFinanceCategories] = useState(false)
 
+  // Event Forms Preset state
+  const [presetFormViewEventForms, setPresetFormViewEventForms] = useState(false)
+  const [presetFormCreateEventForms, setPresetFormCreateEventForms] = useState(false)
+  const [presetFormEditEventForms, setPresetFormEditEventForms] = useState(false)
+  const [presetFormPublishEventForms, setPresetFormPublishEventForms] = useState(false)
+  const [presetFormViewEventFormResponses, setPresetFormViewEventFormResponses] = useState(false)
+  const [presetFormExportEventFormResponses, setPresetFormExportEventFormResponses] = useState(false)
+  const [presetFormArchiveEventForms, setPresetFormArchiveEventForms] = useState(false)
+
   // Register / Edit User Form state
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
@@ -188,6 +197,15 @@ export const UsersPage: React.FC = () => {
   const [canVoidEventFinance, setCanVoidEventFinance] = useState(false)
   const [canTransferEventFunds, setCanTransferEventFunds] = useState(false)
   const [canManageEventFinanceCategories, setCanManageEventFinanceCategories] = useState(false)
+
+  // Event Forms permissions state
+  const [_canViewEventForms, setCanViewEventForms] = useState(false)
+  const [_canCreateEventForms, setCanCreateEventForms] = useState(false)
+  const [_canEditEventForms, setCanEditEventForms] = useState(false)
+  const [_canPublishEventForms, setCanPublishEventForms] = useState(false)
+  const [_canViewEventFormResponses, setCanViewEventFormResponses] = useState(false)
+  const [_canExportEventFormResponses, setCanExportEventFormResponses] = useState(false)
+  const [_canArchiveEventForms, setCanArchiveEventForms] = useState(false)
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -269,6 +287,14 @@ export const UsersPage: React.FC = () => {
     setCanTransferEventFunds(p.canTransferEventFunds ?? false)
     setCanManageEventFinanceCategories(p.canManageEventFinanceCategories ?? false)
 
+    setCanViewEventForms(p.canViewEventForms ?? false)
+    setCanCreateEventForms(p.canCreateEventForms ?? false)
+    setCanEditEventForms(p.canEditEventForms ?? false)
+    setCanPublishEventForms(p.canPublishEventForms ?? false)
+    setCanViewEventFormResponses(p.canViewEventFormResponses ?? false)
+    setCanExportEventFormResponses(p.canExportEventFormResponses ?? false)
+    setCanArchiveEventForms(p.canArchiveEventForms ?? false)
+
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
     } else {
@@ -306,12 +332,21 @@ export const UsersPage: React.FC = () => {
     setPresetFormArchiveProjects(false)
 
     setPresetFormViewEventFinance(false)
+    setPresetFormViewEventFinance(false)
     setPresetFormAddEventIncome(false)
     setPresetFormAddEventExpense(false)
     setPresetFormEditEventFinance(false)
     setPresetFormVoidEventFinance(false)
     setPresetFormTransferEventFunds(false)
     setPresetFormManageEventFinanceCategories(false)
+
+    setPresetFormViewEventForms(false)
+    setPresetFormCreateEventForms(false)
+    setPresetFormEditEventForms(false)
+    setPresetFormPublishEventForms(false)
+    setPresetFormViewEventFormResponses(false)
+    setPresetFormExportEventFormResponses(false)
+    setPresetFormArchiveEventForms(false)
   }
 
   const handleOpenEditPreset = (p: PermissionPreset) => {
@@ -350,6 +385,14 @@ export const UsersPage: React.FC = () => {
     setPresetFormVoidEventFinance(p.canVoidEventFinance ?? false)
     setPresetFormTransferEventFunds(p.canTransferEventFunds ?? false)
     setPresetFormManageEventFinanceCategories(p.canManageEventFinanceCategories ?? false)
+
+    setPresetFormViewEventForms(p.canViewEventForms ?? false)
+    setPresetFormCreateEventForms(p.canCreateEventForms ?? false)
+    setPresetFormEditEventForms(p.canEditEventForms ?? false)
+    setPresetFormPublishEventForms(p.canPublishEventForms ?? false)
+    setPresetFormViewEventFormResponses(p.canViewEventFormResponses ?? false)
+    setPresetFormExportEventFormResponses(p.canExportEventFormResponses ?? false)
+    setPresetFormArchiveEventForms(p.canArchiveEventForms ?? false)
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -396,7 +439,15 @@ export const UsersPage: React.FC = () => {
         canEditEventFinance: presetFormEditEventFinance,
         canVoidEventFinance: presetFormVoidEventFinance,
         canTransferEventFunds: presetFormTransferEventFunds,
-        canManageEventFinanceCategories: presetFormManageEventFinanceCategories
+        canManageEventFinanceCategories: presetFormManageEventFinanceCategories,
+
+        canViewEventForms: presetFormViewEventForms,
+        canCreateEventForms: presetFormCreateEventForms,
+        canEditEventForms: presetFormEditEventForms,
+        canPublishEventForms: presetFormPublishEventForms,
+        canViewEventFormResponses: presetFormViewEventFormResponses,
+        canExportEventFormResponses: presetFormExportEventFormResponses,
+        canArchiveEventForms: presetFormArchiveEventForms
       }
 
       let updatedPresets: PermissionPreset[] = []

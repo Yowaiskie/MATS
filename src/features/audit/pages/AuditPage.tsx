@@ -252,7 +252,18 @@ export const AuditPage: React.FC = () => {
     EVENT_TRANSFER_REVERSE: 'bg-orange-100 text-orange-800 border-orange-200',
     EVENT_FINANCE_CATEGORY_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     EVENT_FINANCE_CATEGORY_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
-    EVENT_FINANCE_CATEGORY_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200'
+    EVENT_FINANCE_CATEGORY_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    FORM_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    FORM_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    FORM_PUBLISH: 'bg-purple-100 text-purple-800 border-purple-200',
+    FORM_UNPUBLISH: 'bg-amber-100 text-amber-800 border-amber-200',
+    FORM_CLOSE: 'bg-slate-100 text-slate-800 border-slate-200',
+    FORM_ARCHIVE: 'bg-rose-100 text-rose-800 border-rose-200',
+    FORM_DUPLICATE: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    FORM_RESPONSE_VIEW: 'bg-blue-100 text-blue-800 border-blue-200',
+    FORM_RESPONSE_EXPORT: 'bg-teal-100 text-teal-800 border-teal-200',
+    FORM_RESPONSE_SUBMIT: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    FORM_RESPONSE_DELETE: 'bg-red-100 text-red-800 border-red-200'
   }
 
   // Friendly human-readable property key dictionary
