@@ -19,6 +19,7 @@ const CATEGORY_LABELS: Record<TokenCategory, string> = {
 }
 
 export const TOKENS: TokenItem[] = [
+  { key: '{{dayOfWeek}}', label: 'Day of Week', category: 'datetime', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
   { key: '{{scheduleDate}}', label: 'Schedule Date', category: 'datetime', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
   { key: '{{scheduleTitle}}', label: 'Schedule Title', category: 'datetime', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
   { key: '{{startTime}}', label: 'Start Time', category: 'datetime', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
@@ -43,17 +44,17 @@ export const PRESETS = [
   {
     name: 'Standard',
     description: 'Basic schedule info with member list and squires',
-    template: `{{scheduleDate}} ({{scheduleTitle}}, {{startTime}})\n\n{{assignedMembers}}\n\nSquires:\n{{squires}}\n\nOther Servers:\n{{otherServers}}`
+    template: `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})\n\n{{assignedMembers}}\n\nSquires:\n{{squires}}\n\nOther Servers:\n{{otherServers}}`
   },
   {
     name: 'Detailed',
     description: 'Full attendance summary with stats',
-    template: `{{scheduleDate}} - {{scheduleTitle}}\nTime: {{startTime}} to {{endTime}}\n\nAttendance Summary:\nPresent: {{presentCount}} | Late: {{lateCount}} | Absent: {{absentCount}} | Excused: {{excusedCount}}\n\nAssigned Members:\n{{assignedMembers}}\n\nSquires:\n{{squires}}\n\nOther Servers:\n{{otherServers}}`
+    template: `{{dayOfWeek}}, {{scheduleDate}} - {{scheduleTitle}}\nTime: {{startTime}} to {{endTime}}\n\nAttendance Summary:\nPresent: {{presentCount}} | Late: {{lateCount}} | Absent: {{absentCount}} | Excused: {{excusedCount}}\n\nAssigned Members:\n{{assignedMembers}}\n\nSquires:\n{{squires}}\n\nOther Servers:\n{{otherServers}}`
   },
   {
     name: 'Simple',
     description: 'Minimal date-title-members format',
-    template: `{{scheduleDate}} - {{scheduleTitle}} ({{startTime}})\n\n{{assignedMembers}}\n\nSquires:\n{{squires}}`
+    template: `{{dayOfWeek}}, {{scheduleDate}} - {{scheduleTitle}} ({{startTime}})\n\n{{assignedMembers}}\n\nSquires:\n{{squires}}`
   }
 ]
 

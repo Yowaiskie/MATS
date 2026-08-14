@@ -12,9 +12,9 @@ import { PolicySettingsCard } from '../components/PolicySettingsCard'
 const mockSchedule: Schedule = {
   id: 'mock-123',
   title: 'Sunday Mass',
-  date: 'June 28, 2026',
-  startTime: '6:00 AM',
-  endTime: '7:30 AM',
+  date: '2026-06-28',
+  startTime: '06:00',
+  endTime: '07:30',
   status: 'completed',
   assignedMembers: ['m-1', 'm-2', 'm-3'],
   createdAt: '',

@@ -35,6 +35,24 @@ export const formatReadableDate = (dateStr: string): string => {
 }
 
 /**
+ * Derives the day of the week name from an ISO date string (YYYY-MM-DD).
+ * Parses date parts manually to avoid UTC timezone offset issues.
+ * Returns e.g. "Friday", "Sunday", etc. Returns '' if dateStr is invalid.
+ */
+export const getDayOfWeek = (dateStr: string): string => {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return ''
+  const year = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10) - 1
+  const day = parseInt(parts[2], 10)
+  if (isNaN(year) || isNaN(month) || isNaN(day)) return ''
+  const date = new Date(year, month, day) // local time — no UTC offset
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  return days[date.getDay()] || ''
+}
+
+/**
  * Formats a 24-hour time string (HH:MM) to 12-hour AM/PM format (e.g. "6:00 AM").
  */
 export const formatReadableTime = (timeStr: string): string => {
@@ -134,7 +152,8 @@ export const generateCommunityReport = (
     addSection('Absent', statusBuckets.absent)
     addSection('Excused', statusBuckets.excused)
 
-    const meetingHeader = `${formatReadableDate(schedule.date || '')} ${toTitleCase(schedule.title || '')} ${formatReadableTime(schedule.startTime || '')}${schedule.endTime ? ` - ${formatReadableTime(schedule.endTime)}` : ''}`
+    const dayLabel = getDayOfWeek(schedule.date || '')
+    const meetingHeader = `${dayLabel ? dayLabel + ', ' : ''}${formatReadableDate(schedule.date || '')} ${toTitleCase(schedule.title || '')} ${formatReadableTime(schedule.startTime || '')}${schedule.endTime ? ` - ${formatReadableTime(schedule.endTime)}` : ''}`
     return [meetingHeader, ...sections].join('\n\n').trim()
   }
 
@@ -229,6 +248,7 @@ export const generateCommunityReport = (
   
   result = result.replace(/\{\{scheduleDate\}\}/g, formatReadableDate(schedule.date || ''))
   result = result.replace(/\{\{scheduleTitle\}\}/g, toTitleCase(schedule.title || ''))
+  result = result.replace(/\{\{dayOfWeek\}\}/g, getDayOfWeek(schedule.date || ''))
   result = result.replace(/\{\{startTime\}\}/g, formatReadableTime(schedule.startTime || ''))
   result = result.replace(/\{\{endTime\}\}/g, formatReadableTime(schedule.endTime || ''))
   result = result.replace(/\{\{assignedMembers\}\}/g, assignedList)

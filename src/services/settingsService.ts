@@ -7,7 +7,7 @@ const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
 const POLICY_DOC = 'suspensionPolicy'
 
-export const DEFAULT_REPORT_TEMPLATE = `{{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
+export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
 
 {{assignedMembers}}
 
@@ -187,6 +187,8 @@ export const settingsService = {
   /**
    * Fetches the custom report template from Firestore.
    * If it doesn't exist, returns the default template.
+   * Auto-migrates old templates that use {{scheduleDate}} without {{dayOfWeek}}
+   * by prepending {{dayOfWeek}}, before each {{scheduleDate}} occurrence.
    */
   async getReportTemplate(): Promise<string> {
     try {
@@ -196,7 +198,16 @@ export const settingsService = {
       if (docSnap.exists()) {
         const data = docSnap.data() as ReportSettings
         if (data.template !== undefined) {
-          return data.template
+          let template = data.template
+
+          // Auto-migration: prepend {{dayOfWeek}}, before {{scheduleDate}} if not already present
+          if (template.includes('{{scheduleDate}}') && !template.includes('{{dayOfWeek}}')) {
+            template = template.replace(/\{\{scheduleDate\}\}/g, '{{dayOfWeek}}, {{scheduleDate}}')
+            // Save the migrated template back to Firestore silently
+            await setDoc(docRef, { template, updatedAt: serverTimestamp() }, { merge: true })
+          }
+
+          return template
         }
       }
       return DEFAULT_REPORT_TEMPLATE;
