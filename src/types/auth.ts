@@ -84,6 +84,14 @@ export interface UserPermissions {
   canViewEventFormResponses?: boolean
   canExportEventFormResponses?: boolean
   canArchiveEventForms?: boolean
+
+  // Event Contributions actions
+  canViewEventContributions?: boolean
+  canAddEventContributions?: boolean
+  canEditEventContributions?: boolean
+  canVoidEventContributions?: boolean
+  canManageEventContributionPurposes?: boolean
+  canExportEventContributions?: boolean
 }
 
 export interface PermissionPreset {
@@ -152,6 +160,14 @@ export interface PermissionPreset {
   canViewEventFormResponses?: boolean
   canExportEventFormResponses?: boolean
   canArchiveEventForms?: boolean
+
+  // Event Contributions actions
+  canViewEventContributions?: boolean
+  canAddEventContributions?: boolean
+  canEditEventContributions?: boolean
+  canVoidEventContributions?: boolean
+  canManageEventContributionPurposes?: boolean
+  canExportEventContributions?: boolean
 }
 
 export interface UserProfile {

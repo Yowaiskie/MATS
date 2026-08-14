@@ -9,12 +9,13 @@ import { OverviewTab } from '../components/OverviewTab'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { EventFinanceBoard } from '../components/EventFinanceBoard'
 import { EventFormsTab } from '../components/EventFormsTab'
+import { EventContributionsBoard } from '../components/EventContributionsBoard'
 import { EventFormModal } from '../components/EventFormModal'
 import { dashboardService } from '@/services/dashboardService'
 import { eventTaskService } from '@/services/eventTaskService'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
 
-type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms'
+type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms' | 'contributions'
 
 export const EventDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
@@ -181,6 +182,14 @@ export const EventDetailsPage: React.FC = () => {
         >
           Forms
         </button>
+        {(canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
+          <button 
+            onClick={() => setActiveTab('contributions')}
+            className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'contributions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+          >
+            Contributions
+          </button>
+        )}
       </div>
 
       {/* Content Area */}
@@ -196,6 +205,8 @@ export const EventDetailsPage: React.FC = () => {
         <EventFinanceBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : activeTab === 'forms' ? (
         <EventFormsTab eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
+      ) : activeTab === 'contributions' && (canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? (
+        <EventContributionsBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : (
         <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-8 text-center text-gray-500">
           This tab content is not implemented yet.

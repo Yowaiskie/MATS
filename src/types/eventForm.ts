@@ -6,6 +6,7 @@ export interface EventForm {
   id?: string
   eventId: string
   title: string
+  slug?: string
   description?: string
   status: FormStatus
   isPublic: boolean

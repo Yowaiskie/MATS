@@ -57,6 +57,10 @@ function App() {
               path="/public/events/:eventId/forms/:formId" 
               element={<PublicEventFormPage />} 
             />
+            <Route 
+              path="/public/forms/:formId" 
+              element={<PublicEventFormPage />} 
+            />
 
             {/* Protected Routes wrapped under a single layout parent */}
             <Route 

@@ -263,7 +263,18 @@ export const AuditPage: React.FC = () => {
     FORM_RESPONSE_VIEW: 'bg-blue-100 text-blue-800 border-blue-200',
     FORM_RESPONSE_EXPORT: 'bg-teal-100 text-teal-800 border-teal-200',
     FORM_RESPONSE_SUBMIT: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-    FORM_RESPONSE_DELETE: 'bg-red-100 text-red-800 border-red-200'
+    FORM_RESPONSE_DELETE: 'bg-red-100 text-red-800 border-red-200',
+    CONTRIBUTION_PURPOSE_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    CONTRIBUTION_PURPOSE_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    CONTRIBUTION_PURPOSE_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    EVENT_CONTRIBUTION_ADD: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    EVENT_CONTRIBUTION_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    EVENT_CONTRIBUTION_VOID: 'bg-amber-100 text-amber-800 border-amber-200',
+    EVENT_CONTRIBUTION_ARCHIVE: 'bg-orange-100 text-orange-800 border-orange-200',
+    EVENT_CONTRIBUTION_RESTORE: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    EVENT_CONTRIBUTION_DELETE: 'bg-red-100 text-red-800 border-red-200',
+    EVENT_CONTRIBUTION_LINK_FINANCE: 'bg-teal-100 text-teal-800 border-teal-200',
+    EVENT_CONTRIBUTION_EXPORT: 'bg-purple-100 text-purple-800 border-purple-200'
   }
 
   // Friendly human-readable property key dictionary

@@ -864,7 +864,6 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
             : `Create the form "${title}"? It will be saved as a draft.`
         }
         confirmLabel={formToEdit ? 'Save Changes' : 'Create Form'}
-        variant="default"
       />
 
       {/* Confirm Cancel / Close */}

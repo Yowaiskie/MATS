@@ -61,7 +61,10 @@ export const eventFormQuestionService = {
       // Save/Update questions
       for (let index = 0; index < questions.length; index++) {
         const q = questions[index]
-        const qId = q.id || doc(collection(db, QUESTIONS_COLLECTION)).id
+        let qId = q.id
+        if (!qId || qId === 'q_init_1') {
+          qId = doc(collection(db, QUESTIONS_COLLECTION)).id
+        }
         const docRef = doc(db, QUESTIONS_COLLECTION, qId)
 
         const fullQuestionData: Record<string, any> = {

@@ -12,7 +12,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
-import type { EventForm, FormStatus } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, FormStatus } from '@/types/eventForm'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 
 const FORMS_COLLECTION = 'eventForms'
@@ -46,17 +46,29 @@ export const eventFormService = {
   },
 
   /**
-   * Get a single form by ID.
+   * Get a single form by ID or custom URL slug.
    */
-  async getFormById(formId: string): Promise<EventForm | null> {
+  async getFormById(formIdOrSlug: string): Promise<EventForm | null> {
     try {
-      const docRef = doc(db, FORMS_COLLECTION, formId)
+      // 1. Try querying by custom URL slug
+      const q = query(
+        collection(db, FORMS_COLLECTION),
+        where('slug', '==', formIdOrSlug.toLowerCase().trim())
+      )
+      const snapshot = await getDocs(q)
+      if (!snapshot.empty) {
+        const d = snapshot.docs[0]
+        return { id: d.id, ...d.data() } as EventForm
+      }
+
+      // 2. Fallback to document ID
+      const docRef = doc(db, FORMS_COLLECTION, formIdOrSlug)
       const docSnap = await getDoc(docRef)
       if (!docSnap.exists()) return null
       return { id: docSnap.id, ...docSnap.data() } as EventForm
     } catch (error) {
-      console.error('Error fetching form by ID:', error)
-      throw new Error('Failed to fetch event form.')
+      console.error('Error fetching form by ID or slug:', error)
+      return null
     }
   },
 
@@ -186,7 +198,28 @@ export const eventFormService = {
 
       // Duplicate questions mapping old question IDs to new ones
       if (originalQuestions.length > 0) {
-        await eventFormQuestionService.saveQuestions(newFormId, originalForm.eventId, originalQuestions, performedBy)
+        const idMap: Record<string, string> = {}
+        const clonedQuestions: EventFormQuestion[] = originalQuestions.map(q => {
+          const newQId = `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+          if (q.id) idMap[q.id] = newQId
+          return {
+            ...q,
+            id: newQId,
+            formId: newFormId
+          }
+        })
+
+        // Remap visibilityCondition questionId if referenced
+        clonedQuestions.forEach(cq => {
+          if (cq.visibilityCondition && cq.visibilityCondition.questionId && idMap[cq.visibilityCondition.questionId]) {
+            cq.visibilityCondition = {
+              ...cq.visibilityCondition,
+              questionId: idMap[cq.visibilityCondition.questionId]
+            }
+          }
+        })
+
+        await eventFormQuestionService.saveQuestions(newFormId, originalForm.eventId, clonedQuestions, performedBy)
       }
 
       await auditService.logAction(

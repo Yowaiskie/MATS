@@ -85,7 +85,13 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canExportFinanceReports: false,
     canManageFinanceCategories: false,
     canCloseFinancePeriod: false,
-    canReopenFinancePeriod: false
+    canReopenFinancePeriod: false,
+    canViewEventContributions: false,
+    canAddEventContributions: false,
+    canEditEventContributions: false,
+    canVoidEventContributions: false,
+    canManageEventContributionPurposes: false,
+    canExportEventContributions: false
   },
   {
     id: 'preset_order_leader',
@@ -114,7 +120,13 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canExportFinanceReports: false,
     canManageFinanceCategories: false,
     canCloseFinancePeriod: false,
-    canReopenFinancePeriod: false
+    canReopenFinancePeriod: false,
+    canViewEventContributions: false,
+    canAddEventContributions: false,
+    canEditEventContributions: false,
+    canVoidEventContributions: false,
+    canManageEventContributionPurposes: false,
+    canExportEventContributions: false
   },
   {
     id: 'preset_admin',
@@ -143,7 +155,13 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canExportFinanceReports: true,
     canManageFinanceCategories: true,
     canCloseFinancePeriod: true,
-    canReopenFinancePeriod: true
+    canReopenFinancePeriod: true,
+    canViewEventContributions: true,
+    canAddEventContributions: true,
+    canEditEventContributions: true,
+    canVoidEventContributions: true,
+    canManageEventContributionPurposes: true,
+    canExportEventContributions: true
   }
 ]
 

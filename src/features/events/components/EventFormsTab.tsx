@@ -129,7 +129,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
           <button
             type="button"
             onClick={() => {
-              setEditingForm(null)
+              setFormToEdit(null)
               setIsBuilderOpen(true)
             }}
             className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer self-start sm:self-auto"
@@ -153,7 +153,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
             <button
               type="button"
               onClick={() => {
-                setEditingForm(null)
+                setFormToEdit(null)
                 setIsBuilderOpen(true)
               }}
               className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition cursor-pointer"
@@ -337,7 +337,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
             ? (formStatusPending.form.status === 'draft' ? 'Publish' : 'Reopen')
             : 'Close Form'
         }
-        variant={formStatusPending?.target === 'closed' ? 'danger' : 'default'}
+        variant={formStatusPending?.target === 'closed' ? 'danger' : undefined}
       />
 
       {/* Confirm Duplicate */}
@@ -348,7 +348,6 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         title="Duplicate Form"
         message={`Duplicate "${formToDuplicate?.title}"? A copy will be created as a draft.`}
         confirmLabel="Duplicate"
-        variant="default"
       />
 
       <AlertModal
