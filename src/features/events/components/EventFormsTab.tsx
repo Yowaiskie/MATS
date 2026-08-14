@@ -21,11 +21,13 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
   const [forms, setForms] = useState<FormWithCount[]>([])
   const [loading, setLoading] = useState(true)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
-  const [editingForm, setEditingForm] = useState<EventForm | null>(null)
   const [responsesForm, setResponsesForm] = useState<EventForm | null>(null)
 
   // Dialog State
   const [formToDelete, setFormToDelete] = useState<EventForm | null>(null)
+  const [formToEdit, setFormToEdit] = useState<EventForm | null>(null)
+  const [formStatusPending, setFormStatusPending] = useState<{ form: EventForm; target: FormStatus } | null>(null)
+  const [formToDuplicate, setFormToDuplicate] = useState<EventForm | null>(null)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [copiedFormId, setCopiedFormId] = useState<string | null>(null)
 
@@ -67,16 +69,20 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
 
   const handleCopyPublicLink = (form: EventForm) => {
     if (!form.id) return
-    const publicUrl = `${window.location.origin}/public/events/${form.eventId}/forms/${form.id}`
+    const targetSlug = form.slug || form.id
+    const publicUrl = `${window.location.origin}/public/forms/${targetSlug}`
     navigator.clipboard.writeText(publicUrl)
     setCopiedFormId(form.id)
     setTimeout(() => setCopiedFormId(null), 2500)
   }
 
-  const handleToggleStatus = async (form: EventForm, targetStatus: FormStatus) => {
+  const handleToggleStatus = async () => {
+    if (!formStatusPending) return
+    const { form, target } = formStatusPending
     if (!form.id) return
     try {
-      await eventFormService.updateFormStatus(form.id, targetStatus, profile?.email || 'User')
+      await eventFormService.updateFormStatus(form.id, target, profile?.email || 'User')
+      setFormStatusPending(null)
       fetchForms()
     } catch (err) {
       console.error('Failed to update form status:', err)
@@ -84,10 +90,11 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     }
   }
 
-  const handleDuplicate = async (form: EventForm) => {
-    if (!form.id) return
+  const handleDuplicate = async () => {
+    if (!formToDuplicate?.id) return
     try {
-      await eventFormService.duplicateForm(form.id, profile?.email || 'User')
+      await eventFormService.duplicateForm(formToDuplicate.id, profile?.email || 'User')
+      setFormToDuplicate(null)
       fetchForms()
     } catch (err) {
       console.error('Failed to duplicate form:', err)
@@ -214,7 +221,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       {f.status === 'draft' ? (
                         <button
                           type="button"
-                          onClick={() => handleToggleStatus(f, 'published')}
+                          onClick={() => setFormStatusPending({ form: f, target: 'published' })}
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         >
                           Publish
@@ -222,7 +229,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       ) : f.status === 'published' ? (
                         <button
                           type="button"
-                          onClick={() => handleToggleStatus(f, 'closed')}
+                          onClick={() => setFormStatusPending({ form: f, target: 'closed' })}
                           className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         >
                           Close
@@ -230,7 +237,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       ) : (
                         <button
                           type="button"
-                          onClick={() => handleToggleStatus(f, 'published')}
+                          onClick={() => setFormStatusPending({ form: f, target: 'published' })}
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         >
                           Reopen
@@ -240,7 +247,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       <button
                         type="button"
                         onClick={() => {
-                          setEditingForm(f)
+                          setFormToEdit(f)
                           setIsBuilderOpen(true)
                         }}
                         className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
@@ -250,7 +257,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
 
                       <button
                         type="button"
-                        onClick={() => handleDuplicate(f)}
+                        onClick={() => setFormToDuplicate(f)}
                         className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         title="Duplicate Form"
                       >
@@ -280,11 +287,11 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
           isOpen={isBuilderOpen}
           onClose={() => {
             setIsBuilderOpen(false)
-            setEditingForm(null)
+            setFormToEdit(null)
           }}
           onSaved={fetchForms}
           eventId={eventId}
-          formToEdit={editingForm}
+          formToEdit={formToEdit}
         />
       )}
 
@@ -306,6 +313,42 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         message={`Are you sure you want to delete "${formToDelete?.title}"? All questions will be permanently removed.`}
         confirmLabel="Delete Form"
         variant="danger"
+      />
+
+      {/* Confirm Status Change */}
+      <ConfirmModal
+        isOpen={!!formStatusPending}
+        onClose={() => setFormStatusPending(null)}
+        onConfirm={handleToggleStatus}
+        title={
+          formStatusPending?.target === 'published'
+            ? (formStatusPending.form.status === 'draft' ? 'Publish Form' : 'Reopen Form')
+            : 'Close Form'
+        }
+        message={
+          formStatusPending?.target === 'published'
+            ? formStatusPending?.form.status === 'draft'
+              ? `Publish "${formStatusPending?.form.title}"? It will become accessible to respondents via its public link.`
+              : `Reopen "${formStatusPending?.form.title}"? It will accept new submissions again.`
+            : `Close "${formStatusPending?.form.title}"? Respondents will no longer be able to submit responses.`
+        }
+        confirmLabel={
+          formStatusPending?.target === 'published'
+            ? (formStatusPending.form.status === 'draft' ? 'Publish' : 'Reopen')
+            : 'Close Form'
+        }
+        variant={formStatusPending?.target === 'closed' ? 'danger' : 'default'}
+      />
+
+      {/* Confirm Duplicate */}
+      <ConfirmModal
+        isOpen={!!formToDuplicate}
+        onClose={() => setFormToDuplicate(null)}
+        onConfirm={handleDuplicate}
+        title="Duplicate Form"
+        message={`Duplicate "${formToDuplicate?.title}"? A copy will be created as a draft.`}
+        confirmLabel="Duplicate"
+        variant="default"
       />
 
       <AlertModal

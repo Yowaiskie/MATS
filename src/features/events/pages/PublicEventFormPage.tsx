@@ -5,7 +5,7 @@ import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { EventForm, EventFormQuestion } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
 import type { Member } from '@/types/member'
 import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
@@ -25,13 +25,12 @@ export const PublicEventFormPage: React.FC = () => {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [submittedTrackingNumber, setSubmittedTrackingNumber] = useState<string | null>(null)
+  const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
 
   // Answers State: maps questionId -> value
   const [answers, setAnswers] = useState<Record<string, any>>({})
 
-  // Respondent info if manual
-  const [respondentName, setRespondentName] = useState('')
-  const [respondentEmail, setRespondentEmail] = useState('')
+
 
   useEffect(() => {
     async function loadFormAndQuestions() {
@@ -65,10 +64,15 @@ export const PublicEventFormPage: React.FC = () => {
         // If form contains a member selector, load active members list and exclude already submitted members
         if (qs.some(q => q.type === 'member_selector')) {
           try {
-            const [allMembers, existingResponses] = await Promise.all([
-              memberService.getMembers(),
-              eventFormResponseService.getResponsesByFormId(formId)
-            ])
+            const allMembers = await memberService.getMembers()
+            const activeMembers = allMembers.filter(m => m.status === 'active')
+
+            let existingResponses: EventFormResponse[] = []
+            try {
+              existingResponses = await eventFormResponseService.getResponsesByFormId(formId)
+            } catch {
+              // Ignore if unauthenticated or read permissions fail
+            }
 
             // Build set of member IDs who already submitted a response for this form
             const submittedSet = new Set<string>()
@@ -83,7 +87,7 @@ export const PublicEventFormPage: React.FC = () => {
             })
 
             // Store active members who have NOT submitted yet
-            setMembers(allMembers.filter(m => m.status === 'active' && !submittedSet.has(m.id)))
+            setMembers(activeMembers.filter(m => !submittedSet.has(m.id)))
           } catch (err) {
             console.error('Failed to load members for selector:', err)
           }
@@ -98,6 +102,13 @@ export const PublicEventFormPage: React.FC = () => {
 
     loadFormAndQuestions()
   }, [formId, user])
+
+  // On mount, check localStorage for a previous anonymous tracking number for this form
+  useEffect(() => {
+    if (!formId) return
+    const storedTracking = localStorage.getItem(`mats_form_response_${formId}`)
+    if (storedTracking) setExistingTrackingNumber(storedTracking)
+  }, [formId])
 
   if (loading) {
     return (
@@ -278,8 +289,8 @@ export const PublicEventFormPage: React.FC = () => {
     try {
       // Determine respondent info
       let respMemberUid = user?.uid || profile?.uid || ''
-      let respMemberName = profile?.displayName || profile?.email || respondentName.trim()
-      let respEmail = profile?.email || respondentEmail.trim()
+      let respMemberName = profile?.displayName || profile?.email || ''
+      let respEmail = profile?.email || ''
 
       // If there is a member_selector question answered, record that member name as well
       const memberSelQ = questions.find(q => q.type === 'member_selector')
@@ -298,8 +309,16 @@ export const PublicEventFormPage: React.FC = () => {
           memberUid: respMemberUid,
           memberName: respMemberName,
           email: respEmail
-        }
+        },
+        existingTrackingNumber || undefined
       )
+
+      // For anonymous submissions (no logged-in user, no member_selector chosen),
+      // store the tracking number in localStorage so re-submits overwrite instead of duplicate
+      if (!user && !respMemberUid && formId) {
+        localStorage.setItem(`mats_form_response_${formId}`, trackingNumber)
+        setExistingTrackingNumber(trackingNumber)
+      }
 
       setSubmittedTrackingNumber(trackingNumber)
     } catch (err) {
@@ -370,34 +389,7 @@ export const PublicEventFormPage: React.FC = () => {
         {/* Public Form Form Element */}
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           
-          {/* Respondent identity fields if not authenticated */}
-          {!user && (
-            <div className="bg-white rounded-2xl sm:rounded-3xl shadow-md sm:shadow-lg p-4 sm:p-6 border border-slate-200 space-y-3 sm:space-y-4">
-              <h3 className="text-[11px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Respondent Information</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Full Name (Optional)</label>
-                  <input
-                    type="text"
-                    value={respondentName}
-                    onChange={e => setRespondentName(e.target.value)}
-                    placeholder="e.g. Juan Cruz"
-                    className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden min-h-[44px]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Email (Optional)</label>
-                  <input
-                    type="email"
-                    value={respondentEmail}
-                    onChange={e => setRespondentEmail(e.target.value)}
-                    placeholder="e.g. name@example.com"
-                    className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden min-h-[44px]"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
+
 
           {/* Dynamic Questions Rendering */}
           {visibleQuestions.map((q, idx) => {

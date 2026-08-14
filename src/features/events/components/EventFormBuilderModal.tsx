@@ -3,7 +3,7 @@ import type { EventForm, EventFormQuestion, QuestionType, ConditionOperator } fr
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { AlertModal } from '@/components/Dialog'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface EventFormBuilderModalProps {
   isOpen: boolean
@@ -39,9 +39,12 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
   const [activeTab, setActiveTab] = useState<'builder' | 'settings'>('builder')
   const [saving, setSaving] = useState(false)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
+  const [showSaveConfirm, setShowSaveConfirm] = useState(false)
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
   // Form Metadata State
   const [title, setTitle] = useState(formToEdit?.title || 'New Event Registration Form')
+  const [slug, setSlug] = useState(formToEdit?.slug || '')
   const [description, setDescription] = useState(formToEdit?.description || '')
   const [status, setStatus] = useState<EventForm['status']>(formToEdit?.status || 'draft')
   const [isPublic, setIsPublic] = useState(formToEdit?.isPublic ?? true)
@@ -62,9 +65,10 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         if (qs.length > 0) setSelectedQuestionId(qs[0].id)
       })
     } else {
-      // Default questions setup
+      // Default questions setup with unique ID
+      const initQId = `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
       const defaultQ: EventFormQuestion = {
-        id: 'q_init_1',
+        id: initQId,
         formId: '',
         eventId,
         type: 'member_selector',
@@ -74,7 +78,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         order: 0
       }
       setQuestions([defaultQ])
-      setSelectedQuestionId('q_init_1')
+      setSelectedQuestionId(initQId)
     }
   }, [formToEdit, eventId])
 
@@ -154,9 +158,15 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
     setSaving(true)
     try {
       let formId = formToEdit?.id
+      const cleanSlug = (slug.trim() || title.trim())
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/(^-|-$)/g, '')
+
       const formPayload: Omit<EventForm, 'id' | 'createdAt' | 'updatedAt'> = {
         eventId,
         title: title.trim(),
+        slug: cleanSlug,
         description: description.trim(),
         status,
         isPublic,
@@ -223,7 +233,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
             <div className="flex items-center space-x-1.5">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={() => setShowCancelConfirm(true)}
                 className="px-2.5 sm:px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-200 rounded-lg transition-colors cursor-pointer"
               >
                 Cancel
@@ -231,7 +241,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
               <button
                 type="button"
-                onClick={handleSave}
+                onClick={() => setShowSaveConfirm(true)}
                 disabled={saving}
                 className="px-3.5 sm:px-5 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-xs"
               >
@@ -285,7 +295,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                 </div>
               </div>
 
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs mb-3 sm:mb-4">
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs mb-3 sm:mb-4 space-y-2">
                 <input
                   type="text"
                   value={title}
@@ -293,11 +303,27 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                   placeholder="Form Title"
                   className="w-full text-lg sm:text-xl font-black text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden pb-1 transition-colors"
                 />
+
+                {/* Custom URL Slug Input */}
+                <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Public Link URL</label>
+                  <div className="flex items-center text-xs font-mono text-slate-500 overflow-x-auto">
+                    <span className="shrink-0 text-slate-400 font-semibold select-none">.../public/forms/</span>
+                    <input
+                      type="text"
+                      value={slug}
+                      onChange={e => setSlug(e.target.value)}
+                      placeholder={(title || 'form-title').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}
+                      className="flex-1 p-1 bg-white border border-slate-300 rounded-md text-xs font-bold text-blue-600 focus:ring-2 focus:ring-blue-500 focus:outline-hidden min-w-[140px]"
+                    />
+                  </div>
+                </div>
+
                 <textarea
                   value={description}
                   onChange={e => setDescription(e.target.value)}
                   placeholder="Form description / instructions..."
-                  className="w-full mt-2 text-xs sm:text-sm text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden resize-none h-14 sm:h-16 transition-colors"
+                  className="w-full text-xs sm:text-sm text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden resize-none h-14 sm:h-16 transition-colors"
                 />
               </div>
 
@@ -821,6 +847,38 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         onClose={() => setAlertMessage(null)}
         title="Form Builder"
         message={alertMessage || ''}
+      />
+
+      {/* Confirm Save */}
+      <ConfirmModal
+        isOpen={showSaveConfirm}
+        onClose={() => setShowSaveConfirm(false)}
+        onConfirm={() => {
+          setShowSaveConfirm(false)
+          handleSave()
+        }}
+        title={formToEdit ? 'Save Changes' : 'Create Form'}
+        message={
+          formToEdit
+            ? `Save changes to "${title}"? This will update the form and all its questions.`
+            : `Create the form "${title}"? It will be saved as a draft.`
+        }
+        confirmLabel={formToEdit ? 'Save Changes' : 'Create Form'}
+        variant="default"
+      />
+
+      {/* Confirm Cancel / Close */}
+      <ConfirmModal
+        isOpen={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={() => {
+          setShowCancelConfirm(false)
+          onClose()
+        }}
+        title="Discard Changes"
+        message="Are you sure you want to close the form builder? Any unsaved changes will be lost."
+        confirmLabel="Discard & Close"
+        variant="danger"
       />
     </div>
   )

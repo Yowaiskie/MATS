@@ -5,6 +5,7 @@ import {
   deleteDoc,
   serverTimestamp,
   runTransaction,
+  updateDoc,
   query,
   where
 } from 'firebase/firestore'
@@ -24,7 +25,8 @@ export const eventFormResponseService = {
   async submitResponse(
     form: EventForm,
     answers: Record<string, string | string[] | number | boolean>,
-    respondentInfo?: { memberUid?: string; memberName?: string; email?: string }
+    respondentInfo?: { memberUid?: string; memberName?: string; email?: string },
+    existingTrackingNumber?: string
   ): Promise<string> {
     try {
       if (!form.id) throw new Error('Invalid form ID.')
@@ -39,6 +41,64 @@ export const eventFormResponseService = {
         throw new Error('Form submission window has closed.')
       }
 
+      // --- Overwrite path 1: anonymous re-submit via stored tracking number ---
+      if (existingTrackingNumber) {
+        const existingByTracking = query(
+          collection(db, RESPONSES_COLLECTION),
+          where('trackingNumber', '==', existingTrackingNumber),
+          where('formId', '==', form.id)
+        )
+        const existingSnap = await getDocs(existingByTracking)
+        if (!existingSnap.empty) {
+          const existingDoc = existingSnap.docs[0]
+          await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
+            answers,
+            respondentMemberName: respondentInfo?.memberName || '',
+            respondentEmail: respondentInfo?.email || '',
+            status: 'submitted',
+            updatedAt: serverTimestamp()
+          })
+          await auditService.logAction(
+            'FORM_RESPONSE_SUBMIT',
+            'events',
+            `Updated existing response ${existingTrackingNumber} for form "${form.title}"`,
+            respondentInfo?.memberName || respondentInfo?.email || 'Public User',
+            { formId: form.id, eventId: form.eventId, trackingNumber: existingTrackingNumber }
+          )
+          return existingTrackingNumber
+        }
+      }
+
+      // --- Overwrite path 2: authenticated member re-submit via memberUid ---
+      if (respondentInfo?.memberUid) {
+        const existingQ = query(
+          collection(db, RESPONSES_COLLECTION),
+          where('formId', '==', form.id),
+          where('respondentMemberUid', '==', respondentInfo.memberUid)
+        )
+        const existingSnap = await getDocs(existingQ)
+        if (!existingSnap.empty) {
+          const existingDoc = existingSnap.docs[0]
+          const existingTrackingNumber = existingDoc.data().trackingNumber as string
+          await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
+            answers,
+            respondentMemberName: respondentInfo?.memberName || '',
+            respondentEmail: respondentInfo?.email || '',
+            status: 'submitted',
+            updatedAt: serverTimestamp()
+          })
+          await auditService.logAction(
+            'FORM_RESPONSE_SUBMIT',
+            'events',
+            `Updated existing response ${existingTrackingNumber} for form "${form.title}"`,
+            respondentInfo?.memberName || respondentInfo?.email || 'Public User',
+            { formId: form.id, eventId: form.eventId, trackingNumber: existingTrackingNumber }
+          )
+          return existingTrackingNumber
+        }
+      }
+
+      // No existing response found — create a new one
       const trackingNumber = await runTransaction(db, async (transaction) => {
         const counterRef = doc(db, COUNTERS_COLLECTION, COUNTER_DOC)
         const counterDoc = await transaction.get(counterRef)

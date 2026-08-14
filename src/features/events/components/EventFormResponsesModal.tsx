@@ -211,7 +211,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                       </th>
                     ))}
                     <th className="p-3.5">Submitted At</th>
-                    <th className="p-3.5 text-right sticky right-0 bg-slate-100/95 backdrop-blur-xs z-10 shadow-2xs">Actions</th>
+                    <th className="p-3.5 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
@@ -246,7 +246,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           )
                         })}
                         <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
-                        <td className="p-3.5 text-right sticky right-0 bg-white group-hover:bg-slate-50 z-10">
+                        <td className="p-3.5 text-right">
                           <div className="flex items-center justify-end space-x-2">
                             <button
                               type="button"
