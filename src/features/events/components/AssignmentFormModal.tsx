@@ -23,6 +23,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
   const [error, setError] = useState('')
 
   const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
+  const [memberSearchTerm, setMemberSearchTerm] = useState('')
   const [roleInput, setRoleInput] = useState('')
   const [committeeInput, setCommitteeInput] = useState('')
   const [isOverallHead, setIsOverallHead] = useState(false)
@@ -39,6 +40,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
         setIsSubLeader(!!editItem.isSubLeader || (editItem.isHead && editItem.eventRoleName.toLowerCase() !== 'head'))
       } else {
         setSelectedMemberIds([])
+        setMemberSearchTerm('')
         setRoleInput('')
         setCommitteeInput('')
         setIsOverallHead(false)
@@ -197,30 +199,61 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                   <button type="button" onClick={() => setSelectedMemberIds([])} className="text-xs text-blue-600 hover:underline">Clear</button>
                 )}
               </label>
+
+              {/* Quick Search Input */}
+              <div className="mb-2">
+                <input
+                  type="text"
+                  placeholder="Search member name or order..."
+                  value={memberSearchTerm}
+                  onChange={e => setMemberSearchTerm(e.target.value)}
+                  className="w-full p-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                />
+              </div>
+
               <div className="border border-gray-300 rounded-md h-40 overflow-y-auto p-2 bg-gray-50 space-y-1">
-                {members.map(m => {
-                  const isAssigned = existingAssignments.some(a => a.memberUid === m.id && (!editItem || a.id !== editItem.id))
-                  return (
-                    <label key={m.id} className={`flex items-center space-x-2 p-1.5 rounded cursor-pointer transition-colors ${isAssigned ? 'opacity-50 grayscale' : 'hover:bg-gray-100'}`}>
-                      <input 
-                        type="checkbox"
-                        disabled={isAssigned || !!editItem}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                        checked={selectedMemberIds.includes(m.id)}
-                        onChange={(e) => {
-                          if (e.target.checked) {
-                            setSelectedMemberIds(prev => [...prev, m.id])
-                          } else {
-                            setSelectedMemberIds(prev => prev.filter(id => id !== m.id))
-                          }
-                        }}
-                      />
-                      <span className="text-sm font-bold text-gray-700">{m.lastName}, {m.firstName}</span>
-                      {isAssigned && <span className="text-[10px] text-red-500 italic ml-auto">Already assigned</span>}
-                    </label>
-                  )
-                })}
-                {members.length === 0 && <div className="text-xs text-gray-500 text-center py-4">No active members found.</div>}
+                {(() => {
+                  const filteredMembers = members.filter(m => {
+                    if (!memberSearchTerm.trim()) return true
+                    const query = memberSearchTerm.toLowerCase().trim()
+                    const fullName = `${m.lastName}, ${m.firstName}`.toLowerCase()
+                    const orderName = (m.order || '').toLowerCase()
+                    const rankName = (m.rank || '').toLowerCase()
+                    return fullName.includes(query) || orderName.includes(query) || rankName.includes(query)
+                  })
+
+                  if (filteredMembers.length === 0) {
+                    return (
+                      <div className="text-xs text-gray-500 text-center py-4">
+                        {memberSearchTerm.trim() ? 'No members matching search.' : 'No active members found.'}
+                      </div>
+                    )
+                  }
+
+                  return filteredMembers.map(m => {
+                    const isAssigned = existingAssignments.some(a => a.memberUid === m.id && (!editItem || a.id !== editItem.id))
+                    return (
+                      <label key={m.id} className={`flex items-center space-x-2 p-1.5 rounded cursor-pointer transition-colors ${isAssigned ? 'opacity-50 grayscale' : 'hover:bg-gray-100'}`}>
+                        <input 
+                          type="checkbox"
+                          disabled={isAssigned || !!editItem}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
+                          checked={selectedMemberIds.includes(m.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedMemberIds(prev => [...prev, m.id])
+                            } else {
+                              setSelectedMemberIds(prev => prev.filter(id => id !== m.id))
+                            }
+                          }}
+                        />
+                        <span className="text-sm font-bold text-gray-700">{m.lastName}, {m.firstName}</span>
+                        {m.order && <span className="text-[10px] text-gray-400 font-medium">({m.order})</span>}
+                        {isAssigned && <span className="text-[10px] text-red-500 italic ml-auto">Already assigned</span>}
+                      </label>
+                    )
+                  })
+                })()}
               </div>
             </div>
 
