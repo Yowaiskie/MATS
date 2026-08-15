@@ -17,7 +17,7 @@ export const TutorialProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [steps, setSteps] = useState<Step[]>([]);
 
   const startTutorial = (moduleSteps: Step[]) => {
-    setSteps(moduleSteps);
+    setSteps(moduleSteps);  
     setRun(true);
   };
 
@@ -32,7 +32,7 @@ export const TutorialProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     if (finishedStatuses.includes(status)) {
       setRun(false);
     }
-  };
+  };  
 
   return (
     <TutorialContext.Provider value={{ run, steps, startTutorial, stopTutorial, handleJoyrideCallback }}>
@@ -48,3 +48,5 @@ export const useTutorial = () => {
   }
   return context;
 };
+
+

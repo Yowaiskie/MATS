@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -189,7 +189,11 @@ export const downloadEventFormPdf = async (
         const val = r.answers[key]
         let displayVal = '-'
         if (val !== undefined && val !== null && val !== '') {
-          if (q && q.type === 'member_selector' && typeof val === 'string') {
+          if (q && q.type === 'companion_repeater' && Array.isArray(val)) {
+            displayVal = (val as unknown as CompanionEntry[])
+              .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+              .join('; ')
+          } else if (q && q.type === 'member_selector' && typeof val === 'string') {
             const rawName = membersMap[val] || val
             displayVal = rawName.replace(/\s*\([^)]*\)/g, '').trim()
           } else if (typeof val === 'string' && membersMap[val]) {

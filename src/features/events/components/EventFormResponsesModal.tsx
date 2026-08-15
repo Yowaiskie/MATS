@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
@@ -114,6 +114,9 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     }
   }
 
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false)
+  const [deletingAll, setDeletingAll] = useState(false)
+
   const handleDeleteResponse = async () => {
     if (!responseToDelete?.id) return
     setDeleting(true)
@@ -125,6 +128,20 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
       console.error('Failed to delete response:', err)
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleDeleteAllResponses = async () => {
+    if (!form.id) return
+    setDeletingAll(true)
+    try {
+      await eventFormResponseService.deleteAllResponsesByFormId(form.id)
+      setShowDeleteAllConfirm(false)
+      await fetchData()
+    } catch (err) {
+      console.error('Failed to delete all responses:', err)
+    } finally {
+      setDeletingAll(false)
     }
   }
 
@@ -165,6 +182,14 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
             >
               <span>Export CSV</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowDeleteAllConfirm(true)}
+              disabled={responses.length === 0}
+              className="px-3.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-xs font-bold rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+            >
+              <span>Delete All Responses</span>
             </button>
             <button
               type="button"
@@ -231,7 +256,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           const val = r.answers[q.id]
                           let displayVal = '-'
                           if (val !== undefined && val !== null && val !== '') {
-                            if (q.type === 'member_selector' && typeof val === 'string') {
+                            if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                              displayVal = (val as unknown as CompanionEntry[])
+                                .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                .join('; ')
+                            } else if (q.type === 'member_selector' && typeof val === 'string') {
                               displayVal = membersMap[val] || val
                             } else if (typeof val === 'string' && membersMap[val]) {
                               displayVal = membersMap[val]
@@ -306,7 +335,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                   const val = selectedResponse.answers[q.id]
                   let displayVal = '-'
                   if (val !== undefined && val !== null && val !== '') {
-                    if (q.type === 'member_selector' && typeof val === 'string') {
+                    if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                      displayVal = (val as unknown as CompanionEntry[])
+                        .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                        .join('; ')
+                    } else if (q.type === 'member_selector' && typeof val === 'string') {
                       displayVal = membersMap[val] || val
                     } else if (typeof val === 'string' && membersMap[val]) {
                       displayVal = membersMap[val]
@@ -349,6 +382,18 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
           responseToDelete?.respondentMemberName || (responseToDelete?.respondentMemberUid ? membersMap[responseToDelete.respondentMemberUid] : '') || 'this user'
         }"? This action cannot be undone.`}
         confirmLabel="Delete Response"
+        variant="danger"
+      />
+
+      {/* Delete All Responses Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteAllConfirm}
+        onClose={() => setShowDeleteAllConfirm(false)}
+        onConfirm={handleDeleteAllResponses}
+        loading={deletingAll}
+        title="Delete All Form Responses"
+        message={`Are you sure you want to PERMANENTLY DELETE ALL ${responses.length} responses submitted for "${form.title}"? This action cannot be undone.`}
+        confirmLabel="Delete All Responses"
         variant="danger"
       />
 

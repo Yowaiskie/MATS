@@ -34,6 +34,15 @@ export type QuestionType =
   | 'name_selector'
   | 'member_selector'
   | 'relationship_selector'
+  | 'companion_repeater'
+
+export interface CompanionEntry {
+  id: string
+  name: string
+  memberId?: string
+  relationship?: string
+  notes?: string
+}
 
 export type ConditionOperator = 'equals' | 'not_equals' | 'is_filled' | 'is_empty' | 'contains'
 

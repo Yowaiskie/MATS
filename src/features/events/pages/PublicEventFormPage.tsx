@@ -5,7 +5,7 @@ import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
 import type { Member } from '@/types/member'
 import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
@@ -38,7 +38,7 @@ export const PublicEventFormPage: React.FC = () => {
       setLoading(true)
       try {
         const formData = await eventFormService.getFormById(formId)
-        if (!formData) {
+        if (!formData || !formData.id) {
           setPageLoadError('Event form not found.')
           setLoading(false)
           return
@@ -58,7 +58,8 @@ export const PublicEventFormPage: React.FC = () => {
 
         setForm(formData)
 
-        const qs = await eventFormQuestionService.getQuestionsByFormId(formId)
+        const realFormId: string = formData.id
+        const qs = await eventFormQuestionService.getQuestionsByFormId(realFormId)
         setQuestions(qs)
 
         // If form contains a member selector, load active members list and exclude already submitted members
@@ -69,7 +70,7 @@ export const PublicEventFormPage: React.FC = () => {
 
             let existingResponses: EventFormResponse[] = []
             try {
-              existingResponses = await eventFormResponseService.getResponsesByFormId(formId)
+              existingResponses = await eventFormResponseService.getResponsesByFormId(realFormId)
             } catch {
               // Ignore if unauthenticated or read permissions fail
             }
@@ -105,10 +106,10 @@ export const PublicEventFormPage: React.FC = () => {
 
   // On mount, check localStorage for a previous anonymous tracking number for this form
   useEffect(() => {
-    if (!formId) return
-    const storedTracking = localStorage.getItem(`mats_form_response_${formId}`)
+    if (!form?.id) return
+    const storedTracking = localStorage.getItem(`mats_form_response_${form.id}`)
     if (storedTracking) setExistingTrackingNumber(storedTracking)
-  }, [formId])
+  }, [form?.id])
 
   if (loading) {
     return (
@@ -315,8 +316,8 @@ export const PublicEventFormPage: React.FC = () => {
 
       // For anonymous submissions (no logged-in user, no member_selector chosen),
       // store the tracking number in localStorage so re-submits overwrite instead of duplicate
-      if (!user && !respMemberUid && formId) {
-        localStorage.setItem(`mats_form_response_${formId}`, trackingNumber)
+      if (!user && !respMemberUid && form?.id) {
+        localStorage.setItem(`mats_form_response_${form.id}`, trackingNumber)
         setExistingTrackingNumber(trackingNumber)
       }
 
@@ -368,6 +369,21 @@ export const PublicEventFormPage: React.FC = () => {
   }
 
   const visibleQuestions = questions.filter(isQuestionVisible)
+
+  const checkQuestionFilled = (q: EventFormQuestion): boolean => {
+    const val = answers[q.id]
+    if (q.type === 'companion_repeater' && Array.isArray(val) && val.length > 0) {
+      const allNamed = val.every((c: any) => c && typeof c.name === 'string' && c.name.trim().length > 0)
+      if (!allNamed) return false
+    }
+    if (!q.required) return true
+    if (val === undefined || val === null || val === '') return false
+    if (Array.isArray(val) && val.length === 0) return false
+    return true
+  }
+
+  const missingRequiredQuestions = visibleQuestions.filter(q => !checkQuestionFilled(q))
+  const isFormComplete = missingRequiredQuestions.length === 0
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center py-4 px-3 sm:py-8 sm:px-4 font-sans">
@@ -705,17 +721,138 @@ export const PublicEventFormPage: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                   />
                 )}
+
+                {q.type === 'companion_repeater' && (() => {
+                  const companionsList: CompanionEntry[] = Array.isArray(answers[q.id]) ? answers[q.id] : []
+
+                  const handleAddCompanion = () => {
+                    const newComp: CompanionEntry = {
+                      id: `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                      name: '',
+                      relationship: 'Parent',
+                      notes: ''
+                    }
+                    handleInputChange(q.id, [...companionsList, newComp])
+                  }
+
+                  const handleUpdateCompanion = (cId: string, updates: Partial<CompanionEntry>) => {
+                    const updated = companionsList.map(c => (c.id === cId ? { ...c, ...updates } : c))
+                    handleInputChange(q.id, updated)
+                  }
+
+                  const handleRemoveCompanion = (cId: string) => {
+                    const updated = companionsList.filter(c => c.id !== cId)
+                    handleInputChange(q.id, updated)
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {companionsList.length === 0 ? (
+                        <div className="p-4 bg-slate-50 border border-dashed border-slate-300 rounded-2xl text-center space-y-2">
+                          <p className="text-xs font-semibold text-slate-500">No companions added yet.</p>
+                          <p className="text-[11px] text-slate-400">If you are bringing family members, companions, or guests, add them here.</p>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {companionsList.map((comp, cIdx) => (
+                            <div key={comp.id} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3 shadow-2xs relative">
+                              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                                <div className="flex items-center space-x-2">
+                                  <span className="w-5 h-5 bg-blue-100 text-blue-700 font-black rounded-full flex items-center justify-center text-[10px]">
+                                    {cIdx + 1}
+                                  </span>
+                                  <span className="text-xs font-bold text-slate-800">Companion / Kasama #{cIdx + 1}</span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveCompanion(comp.id)}
+                                  className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition cursor-pointer"
+                                >
+                                  Remove ✕
+                                </button>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Companion Full Name</label>
+                                  <input
+                                    type="text"
+                                    value={comp.name}
+                                    onChange={e => handleUpdateCompanion(comp.id, { name: e.target.value })}
+                                    placeholder="Full Name (e.g. Maria Dela Cruz)"
+                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-semibold"
+                                  />
+                                </div>
+
+                                <div>
+                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Relationship</label>
+                                  <select
+                                    value={comp.relationship || 'Parent'}
+                                    onChange={e => handleUpdateCompanion(comp.id, { relationship: e.target.value })}
+                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                                  >
+                                    <option value="Guardian">Guardian</option>
+                                    <option value="Parent">Parent</option>
+                                    <option value="Sibling">Sibling</option>
+                                  </select>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleAddCompanion}
+                        className="w-full py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold text-xs rounded-xl border border-blue-200 transition cursor-pointer flex items-center justify-center space-x-1.5 shadow-2xs"
+                      >
+                        <span>+ Add Companion / Dagdag Kasama</span>
+                      </button>
+                    </div>
+                  )
+                })()}
               </div>
             </div>
           )})}
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full py-4 bg-blue-600 hover:bg-blue-700 text-white font-black text-sm rounded-3xl shadow-xl transition-all disabled:opacity-50 cursor-pointer"
-          >
-            {submitting ? 'Submitting Response...' : 'Submit Form'}
-          </button>
+          {/* Live Completion Alert & Submit Button */}
+          <div className="pt-2 space-y-3">
+            {!isFormComplete ? (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-center justify-between text-xs text-amber-800 shadow-2xs">
+                <div className="flex items-center space-x-2 font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping shrink-0" />
+                  <span>Please complete all required fields (*) before submitting.</span>
+                </div>
+                <span className="font-bold bg-amber-100/80 px-2.5 py-1 rounded-xl text-amber-900 shrink-0 text-[11px]">
+                  {missingRequiredQuestions.length} required left
+                </span>
+              </div>
+            ) : (
+              <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center space-x-2 text-xs text-emerald-800 font-semibold shadow-2xs">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0" />
+                <span>All required fields completed! You can now submit your response.</span>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={!isFormComplete || submitting}
+              className={`w-full py-4 font-black text-sm rounded-3xl transition-all shadow-xl flex items-center justify-center space-x-2 ${
+                isFormComplete && !submitting
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white cursor-pointer shadow-blue-500/25'
+                  : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300 shadow-none'
+              }`}
+            >
+              <span>
+                {submitting
+                  ? 'Submitting Response...'
+                  : isFormComplete
+                  ? 'Submit Form'
+                  : `Fill all required fields to submit (${missingRequiredQuestions.length} remaining)`}
+              </span>
+            </button>
+          </div>
         </form>
       </div>
 

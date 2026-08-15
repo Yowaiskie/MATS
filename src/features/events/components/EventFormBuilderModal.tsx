@@ -25,7 +25,8 @@ const QUESTION_TYPES: { type: QuestionType; label: string; description: string }
   { type: 'time', label: 'Time', description: 'Time selection input' },
   { type: 'name_selector', label: 'Name Selector', description: 'Input for participant full name' },
   { type: 'member_selector', label: 'Member Selector', description: 'Select active member from MATS database' },
-  { type: 'relationship_selector', label: 'Relationship Selector', description: 'Select relationship to participant' }
+  { type: 'relationship_selector', label: 'Relationship Selector', description: 'Select relationship to participant' },
+  { type: 'companion_repeater', label: 'Companions / Group List', description: 'Register multiple family members or companions in 1 form' }
 ]
 
 export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
@@ -88,7 +89,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
     const newId = `q_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`
     const defaultOptions =
       type === 'relationship_selector'
-        ? ['Parent', 'Sibling', 'Relative', 'Friend', 'Guardian', 'Other']
+        ? ['Guardian', 'Parent', 'Sibling']
         : type === 'multiple_choice' || type === 'dropdown' || type === 'checkbox'
         ? ['Option 1', 'Option 2']
         : undefined
@@ -162,6 +163,15 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/(^-|-$)/g, '')
+
+      if (cleanSlug) {
+        const existingFormWithSlug = await eventFormService.getFormById(cleanSlug)
+        if (existingFormWithSlug && existingFormWithSlug.id !== formId) {
+          setAlertMessage(`The custom link URL slug "${cleanSlug}" is already in use by another form. Please choose a different link or title.`)
+          setSaving(false)
+          return
+        }
+      }
 
       const formPayload: Omit<EventForm, 'id' | 'createdAt' | 'updatedAt'> = {
         eventId,
@@ -447,6 +457,18 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                       {q.type === 'time' && <input type="time" className="p-2 border rounded-xl text-xs bg-slate-50" disabled />}
                       {q.type === 'number' && <input type="number" placeholder="0" className="p-2 border rounded-xl text-xs bg-slate-50" disabled />}
                       {q.type === 'name_selector' && <input type="text" placeholder="Participant Full Name" className="w-full p-2 border rounded-xl text-xs bg-slate-50" disabled />}
+                      {q.type === 'companion_repeater' && (
+                        <div className="p-3 border rounded-xl bg-slate-50 space-y-2">
+                          <div className="flex items-center justify-between border-b pb-1.5">
+                            <span className="text-[11px] font-bold text-slate-600">Dynamic Companions List</span>
+                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-md">+ Add Companion Button</span>
+                          </div>
+                          <div className="p-2 bg-white border border-slate-200 rounded-lg text-xs space-y-1 text-slate-500">
+                            <p className="font-semibold text-slate-700">Sample Companion Entry (#1)</p>
+                            <p className="text-[11px]">Full Name / Member • Relationship • Age / Notes</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {q.visibilityCondition?.questionId && (
@@ -864,6 +886,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
             : `Create the form "${title}"? It will be saved as a draft.`
         }
         confirmLabel={formToEdit ? 'Save Changes' : 'Create Form'}
+        variant="info"
       />
 
       {/* Confirm Cancel / Close */}

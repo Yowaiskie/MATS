@@ -218,6 +218,32 @@ export const eventFormResponseService = {
   },
 
   /**
+   * Delete all response documents for a form.
+   */
+  async deleteAllResponsesByFormId(formId: string, performedBy: string = 'Admin'): Promise<void> {
+    try {
+      const q = query(
+        collection(db, RESPONSES_COLLECTION),
+        where('formId', '==', formId)
+      )
+      const snapshot = await getDocs(q)
+      const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, RESPONSES_COLLECTION, d.id)))
+      await Promise.all(deletePromises)
+
+      await auditService.logAction(
+        'FORM_RESPONSE_DELETE',
+        'events',
+        `Deleted all ${snapshot.docs.length} responses for form ID ${formId}`,
+        performedBy,
+        { formId, count: snapshot.docs.length }
+      )
+    } catch (error) {
+      console.error('Error deleting all responses:', error)
+      throw new Error('Failed to delete all form responses.')
+    }
+  },
+
+  /**
    * Export responses to a dynamically generated CSV file.
    */
   exportResponsesToCSV(
@@ -245,6 +271,12 @@ export const eventFormResponseService = {
         const val = r.answers[q.id]
         if (val === undefined || val === null) return '""'
         if (Array.isArray(val)) {
+          if (q.type === 'companion_repeater') {
+            const formattedCompanions = (val as any[])
+              .map(c => typeof c === 'object' && c && c.name ? `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}` : String(c))
+              .join('; ')
+            return `"${formattedCompanions.replace(/"/g, '""')}"`
+          }
           return `"${val.join(', ').replace(/"/g, '""')}"`
         }
         return `"${String(val).replace(/"/g, '""')}"`
