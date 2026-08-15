@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type { Member } from '@/types/member'
+import { ORDER_GROUPS } from '@/types/member'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
@@ -20,8 +22,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const [loading, setLoading] = useState(true)
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [responses, setResponses] = useState<EventFormResponse[]>([])
+  const [membersList, setMembersList] = useState<Member[]>([])
   const [membersMap, setMembersMap] = useState<Record<string, string>>({})
   const [searchTerm, setSearchTerm] = useState('')
+  const [activeTab, setActiveTab] = useState<'responded' | 'pending' | 'all'>('all')
+  const [orderFilter, setOrderFilter] = useState<string>('all')
   const [selectedResponse, setSelectedResponse] = useState<EventFormResponse | null>(null)
   const [responseToDelete, setResponseToDelete] = useState<EventFormResponse | null>(null)
   const [deleting, setDeleting] = useState(false)
@@ -55,6 +60,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
       setQuestions(qs)
       setResponses(rs)
+      setMembersList(mems)
       setMembersMap(map)
 
       // Initialize default PDF export settings
@@ -78,7 +84,92 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
   if (!isOpen) return null
 
-  const filteredResponses = responses.filter(r => {
+  // Find form target member filter from member_selector question if present
+  const memberSelectorQ = questions.find(q => q.type === 'member_selector' && q.memberFilterType && q.memberFilterType !== 'all')
+
+  // Determine eligible members list matching the form's target audience
+  const eligibleMembersList = membersList.filter(member => {
+    if (!memberSelectorQ) return true
+    const filterType = memberSelectorQ.memberFilterType
+    const filterValue = memberSelectorQ.memberFilterValue
+    if (!filterValue) return true
+
+    const allowed = Array.isArray(filterValue) ? filterValue : [filterValue]
+
+    if (filterType === 'order') {
+      return !!member.order && allowed.includes(member.order)
+    }
+    if (filterType === 'rank') {
+      return !!member.rank && allowed.includes(member.rank)
+    }
+    return true
+  })
+
+  // Map of memberId to response (if member submitted)
+  const respondedMemberIds = new Set<string>()
+  responses.forEach(r => {
+    if (r.respondentMemberUid) {
+      respondedMemberIds.add(r.respondentMemberUid)
+    }
+  })
+
+  // Determine member list with response status
+  const memberRows = eligibleMembersList.map(member => {
+    const memberName = `${member.lastName}, ${member.firstName}`
+    const response = responses.find(r => r.respondentMemberUid === member.id)
+    const hasResponded = !!response
+    return {
+      member,
+      memberName,
+      hasResponded,
+      response
+    }
+  })
+
+  // Filter members based on order filter, tab filter, and search term
+  const filteredMemberRows = memberRows.filter(row => {
+    // 1. Order / Group Filter
+    if (orderFilter !== 'all') {
+      const memOrder = row.member.order || ''
+      const memPosition = row.member.position || ''
+      if (orderFilter === 'Officers') {
+        const isOfficer = memOrder.toLowerCase().includes('officer') || 
+                          memPosition.toLowerCase().includes('officer') ||
+                          (memPosition && !memPosition.toLowerCase().includes('member'))
+        if (!isOfficer) return false
+      } else {
+        if (!memOrder.toLowerCase().includes(orderFilter.toLowerCase())) return false
+      }
+    }
+
+    // 2. Tab Filter (responded vs pending vs all)
+    if (activeTab === 'responded' && !row.hasResponded) return false
+    if (activeTab === 'pending' && row.hasResponded) return false
+
+    // 3. Search term
+    const term = searchTerm.toLowerCase()
+    if (!term) return true
+
+    const nameMatch = row.memberName.toLowerCase().includes(term) ||
+                      (row.member.firstName || '').toLowerCase().includes(term) ||
+                      (row.member.lastName || '').toLowerCase().includes(term)
+    const orderMatch = (row.member.order || '').toLowerCase().includes(term)
+    const posMatch = (row.member.position || '').toLowerCase().includes(term)
+
+    let answerMatch = false
+    if (row.response) {
+      answerMatch = Object.values(row.response.answers).some(val =>
+        String(val).toLowerCase().includes(term)
+      ) || (row.response.trackingNumber || '').toLowerCase().includes(term)
+    }
+
+    return nameMatch || orderMatch || posMatch || answerMatch
+  })
+
+  // Also handle non-member / guest responses in 'responded' or 'all' tab if applicable
+  const guestResponses = responses.filter(r => !r.respondentMemberUid || !membersMap[r.respondentMemberUid])
+  const filteredGuestResponses = guestResponses.filter(r => {
+    if (activeTab === 'pending') return false
     const term = searchTerm.toLowerCase()
     if (!term) return true
     const trackingMatch = (r.trackingNumber || '').toLowerCase().includes(term)
@@ -90,8 +181,16 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     return trackingMatch || nameMatch || emailMatch || answerMatch
   })
 
+  const totalRespondedCount = responses.length
+  const totalPendingCount = eligibleMembersList.length - respondedMemberIds.size
+
+  const activeFilteredResponses = [
+    ...filteredMemberRows.map(r => r.response).filter((r): r is EventFormResponse => !!r),
+    ...filteredGuestResponses
+  ]
+
   const handleExportCSV = () => {
-    eventFormResponseService.exportResponsesToCSV(form, questions, filteredResponses)
+    eventFormResponseService.exportResponsesToCSV(form, questions, activeFilteredResponses)
   }
 
   const handleGeneratePdf = async () => {
@@ -201,35 +300,92 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
           </div>
         </div>
 
-        {/* Toolbar */}
-        <div className="px-6 py-3 bg-white border-b border-slate-200 flex items-center justify-between">
-          <input
-            type="text"
-            placeholder="Search responses by name or answer..."
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            className="w-80 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-          />
-          <span className="text-xs text-slate-500 font-medium">
-            Showing {filteredResponses.length} of {responses.length} responses
-          </span>
+        {/* Sub-Header / Status & Filter Bar */}
+        <div className="px-6 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+          {/* Status Tabs */}
+          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => setActiveTab('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'all'
+                  ? 'bg-white text-blue-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              All Target Members ({eligibleMembersList.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('responded')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'responded'
+                  ? 'bg-white text-emerald-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Responded ({totalRespondedCount})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('pending')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeTab === 'pending'
+                  ? 'bg-white text-amber-700 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Not Yet Answered ({totalPendingCount})
+            </button>
+          </div>
+
+          {/* Search & Order Filter Controls */}
+          <div className="flex items-center space-x-3">
+            {/* Order Filter Dropdown */}
+            <div className="flex items-center space-x-1.5">
+              <span className="text-xs font-bold text-slate-500">Order / Group:</span>
+              <select
+                value={orderFilter}
+                onChange={e => setOrderFilter(e.target.value)}
+                className="p-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-slate-50"
+              >
+                <option value="all">All Groups</option>
+                {ORDER_GROUPS.map(og => (
+                  <option key={og} value={og}>
+                    {og}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Search Input */}
+            <input
+              type="text"
+              placeholder="Search member, order, or answer..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="w-64 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+            />
+          </div>
         </div>
 
         {/* Content Table */}
         <div className="flex-1 overflow-auto p-6 bg-slate-50">
           {loading ? (
-            <div className="p-12 text-center text-xs font-semibold text-slate-500">Loading form responses...</div>
-          ) : filteredResponses.length === 0 ? (
+            <div className="p-12 text-center text-xs font-semibold text-slate-500">Loading form responses and members roster...</div>
+          ) : (filteredMemberRows.length === 0 && filteredGuestResponses.length === 0) ? (
             <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
-              <p className="text-sm font-bold">No responses found</p>
-              <p className="text-xs mt-1 text-slate-400">Submissions will appear here once users respond to the published form.</p>
+              <p className="text-sm font-bold">No records found</p>
+              <p className="text-xs mt-1 text-slate-400">Try adjusting your status tab, order filter, or search keywords.</p>
             </div>
           ) : (
             <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
               <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
                 <thead>
                   <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
-                    <th className="p-3.5">Respondent</th>
+                    <th className="p-3.5">Member / Respondent</th>
+                    <th className="p-3.5">Order / Group</th>
+                    <th className="p-3.5">Status</th>
                     {questions.map(q => (
                       <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
                         {q.question}
@@ -240,19 +396,40 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredResponses.map(r => {
-                    const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                  {/* Render Member Rows */}
+                  {filteredMemberRows.map(row => {
+                    const r = row.response
+                    const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
                       ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                      : String(r.submittedAt || '-')
-
-                    const respName = r.respondentMemberName || (r.respondentMemberUid ? membersMap[r.respondentMemberUid] : '') || 'Anonymous / Guest'
+                      : String(r?.submittedAt || '-')
 
                     return (
-                      <tr key={r.id} className="hover:bg-slate-50 transition-colors group">
-                        <td className="p-3.5 font-semibold text-slate-900">
-                          {respName}
+                      <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
+                        <td className="p-3.5 font-bold text-slate-900">
+                          {row.memberName}
                         </td>
+                        <td className="p-3.5 font-medium text-slate-600">
+                          {row.member.order || row.member.position || '-'}
+                        </td>
+                        <td className="p-3.5">
+                          {row.hasResponded ? (
+                            <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              Responded
+                            </span>
+                          ) : (
+                            <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              Not Yet Answered
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Question Answers */}
                         {questions.map(q => {
+                          if (!r) {
+                            return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
+                          }
                           const val = r.answers[q.id]
                           let displayVal = '-'
                           if (val !== undefined && val !== null && val !== '') {
@@ -264,6 +441,69 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                               displayVal = membersMap[val] || val
                             } else if (typeof val === 'string' && membersMap[val]) {
                               displayVal = membersMap[val]
+                            } else {
+                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                            }
+                          }
+                          return (
+                            <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                              {displayVal}
+                            </td>
+                          )
+                        })}
+
+                        <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
+                        <td className="p-3.5 text-right">
+                          {r ? (
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedResponse(r)}
+                                className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                              >
+                                View Detail
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setResponseToDelete(r)}
+                                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="text-slate-400 text-[11px] italic">No submission</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+
+                  {/* Guest Responses if any */}
+                  {filteredGuestResponses.map(r => {
+                    const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                      : String(r.submittedAt || '-')
+
+                    return (
+                      <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
+                        <td className="p-3.5 font-bold text-slate-900">
+                          {r.respondentMemberName || 'Guest / Non-Member'}
+                        </td>
+                        <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
+                        <td className="p-3.5">
+                          <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
+                            Responded
+                          </span>
+                        </td>
+                        {questions.map(q => {
+                          const val = r.answers[q.id]
+                          let displayVal = '-'
+                          if (val !== undefined && val !== null && val !== '') {
+                            if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                              displayVal = (val as unknown as CompanionEntry[])
+                                .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                .join('; ')
                             } else {
                               displayVal = Array.isArray(val) ? val.join(', ') : String(val)
                             }
