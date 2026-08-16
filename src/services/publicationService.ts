@@ -55,6 +55,8 @@ export const publicationService = {
       description: input.description?.trim() || '',
       maxSundaysPerServer: input.maxSundaysPerServer ?? 4,
       maxWeekdaysPerServer: input.maxWeekdaysPerServer ?? 8,
+      maxServersPerSundaySlot: input.maxServersPerSundaySlot ?? 5,
+      maxServersPerWeekdaySlot: input.maxServersPerWeekdaySlot ?? 5,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
@@ -86,6 +88,8 @@ export const publicationService = {
     if (input.description !== undefined) updateData.description = input.description.trim()
     if (input.maxSundaysPerServer !== undefined) updateData.maxSundaysPerServer = input.maxSundaysPerServer
     if (input.maxWeekdaysPerServer !== undefined) updateData.maxWeekdaysPerServer = input.maxWeekdaysPerServer
+    if (input.maxServersPerSundaySlot !== undefined) updateData.maxServersPerSundaySlot = input.maxServersPerSundaySlot
+    if (input.maxServersPerWeekdaySlot !== undefined) updateData.maxServersPerWeekdaySlot = input.maxServersPerWeekdaySlot
 
     await updateDoc(docRef, updateData)
 

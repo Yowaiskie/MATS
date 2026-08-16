@@ -11,6 +11,8 @@ export interface SchedulePublication {
   description?: string
   maxSundaysPerServer?: number
   maxWeekdaysPerServer?: number
+  maxServersPerSundaySlot?: number
+  maxServersPerWeekdaySlot?: number
   submittedMembers?: string[]
   createdAt: Timestamp
   updatedAt: Timestamp
@@ -24,4 +26,6 @@ export interface SchedulePublicationInput {
   description?: string
   maxSundaysPerServer?: number
   maxWeekdaysPerServer?: number
+  maxServersPerSundaySlot?: number
+  maxServersPerWeekdaySlot?: number
 }

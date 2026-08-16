@@ -8,6 +8,7 @@ import type { Member } from '@/types/member'
 import type { SchedulePublication } from '@/types/publication'
 import { getFullName } from '@/utils/member'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface SchedulePattern {
   id: string
@@ -29,8 +30,14 @@ export const PublicSchedulePage: React.FC = () => {
 
   // User Selection State
   const [selectedMemberId, setSelectedMemberId] = useState('')
+  const [nameSearchQuery, setNameSearchQuery] = useState('')
+  const [isMemberPickerOpen, setIsMemberPickerOpen] = useState(false)
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [limitModal, setLimitModal] = useState<{ title: string; message: string } | null>(null)
+  const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false)
+
+
 
   const loadData = async () => {
     if (!publicationId) {
@@ -160,14 +167,22 @@ export const PublicSchedulePage: React.FC = () => {
   }, [members])
 
   const maxRowsSunday = useMemo(() => {
-    let max = 5
+    const configuredLimit = publication?.maxServersPerSundaySlot ?? 5
+    let currentMaxAssigned = configuredLimit
     sundayPatterns.forEach(p => {
-      if (p.assignedMembers.length > max) max = p.assignedMembers.length
+      if (p.assignedMembers.length > currentMaxAssigned) currentMaxAssigned = p.assignedMembers.length
     })
-    return max
-  }, [sundayPatterns])
+    return currentMaxAssigned
+  }, [sundayPatterns, publication])
 
-
+  const maxRowsWeekday = useMemo(() => {
+    const configuredLimit = publication?.maxServersPerWeekdaySlot ?? 5
+    let currentMaxAssigned = configuredLimit
+    weekdayPatterns.forEach(p => {
+      if (p.assignedMembers.length > currentMaxAssigned) currentMaxAssigned = p.assignedMembers.length
+    })
+    return currentMaxAssigned
+  }, [weekdayPatterns, publication])
 
   const hasSubmitted = useMemo(() => {
     if (!publication || !selectedMemberId) return false
@@ -178,15 +193,28 @@ export const PublicSchedulePage: React.FC = () => {
 
   const availableMembers = useMemo(() => {
     if (!publication) return members
+    // Member remains available unless they have submitted their schedule
     return members.filter(m => !publication.submittedMembers?.includes(m.id))
   }, [members, publication])
+
+  const filteredAvailableMembers = useMemo(() => {
+    const sorted = availableMembers.slice().sort((a, b) => a.lastName.localeCompare(b.lastName))
+    if (!nameSearchQuery.trim()) return sorted
+    const q = nameSearchQuery.toLowerCase().trim()
+    return sorted.filter(m => 
+      `${m.lastName}, ${m.firstName}`.toLowerCase().includes(q) ||
+      `${m.firstName} ${m.lastName}`.toLowerCase().includes(q)
+    )
+  }, [availableMembers, nameSearchQuery])
 
   const handleCellClick = (patternId: string, isSunday: boolean) => {
     if (isFinalized) return
     if (hasSubmitted) return
 
     if (!selectedMemberId) {
-      setMessage({ type: 'error', text: 'Please select your name first from the dropdown on the left!' })
+      const errText = 'Please select your name first from the selection panel!'
+      setMessage({ type: 'error', text: errText })
+      setLimitModal({ title: 'Select Name First', message: errText })
       return
     }
 
@@ -194,23 +222,50 @@ export const PublicSchedulePage: React.FC = () => {
     const pattern = patterns.find(p => p.id === patternId)
     if (!pattern) return
 
-    // Determine if pattern is already selected for this user
+    // Check if member is ALREADY saved in DB for this pattern/schedule slot
+    const isAlreadySavedInDb = pattern.assignedMembers.includes(selectedMemberId)
+    if (isAlreadySavedInDb) {
+      const lockMsg = 'This schedule slot is already saved for you and cannot be un-selected.'
+      setMessage({ type: 'error', text: lockMsg })
+      setLimitModal({ title: 'Slot Locked', message: lockMsg })
+      return
+    }
+
+    // Determine if pattern is selected in current draft selection
     const isSelected = pattern.scheduleIds.some(id => selectedScheduleIds.has(id))
 
     // Enforce limits when trying to add a new selection
     if (!isSelected && publication) {
+      // 1. Per-Mass Slot Server Capacity Check
+      const maxServersForSlot = isSunday 
+        ? (publication.maxServersPerSundaySlot ?? 5) 
+        : (publication.maxServersPerWeekdaySlot ?? 5)
+      
+      const currentAssignedCount = pattern.assignedMembers.length
+      if (currentAssignedCount >= maxServersForSlot) {
+        const capacityMsg = `Mass Slot Full: This ${isSunday ? 'Sunday' : 'Weekday'} Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
+        setMessage({ type: 'error', text: capacityMsg })
+        setLimitModal({ title: 'Mass Slot Full', message: capacityMsg })
+        return
+      }
+
+      // 2. Individual Per-Person Limits Check
       if (isSunday) {
         const currentSelectedCount = sundayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
         const max = publication.maxSundaysPerServer ?? 4
         if (currentSelectedCount >= max) {
-          setMessage({ type: 'error', text: `Maximum limit reached: You can only select up to ${max} Sunday schedule(s).` })
+          const limitMsg = `Personal Limit Reached: You can only select up to ${max} Sunday schedule(s) for yourself.`
+          setMessage({ type: 'error', text: limitMsg })
+          setLimitModal({ title: 'Sunday Personal Limit Reached', message: limitMsg })
           return
         }
       } else {
         const currentSelectedCount = weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
         const max = publication.maxWeekdaysPerServer ?? 8
         if (currentSelectedCount >= max) {
-          setMessage({ type: 'error', text: `Maximum limit reached: You can only select up to ${max} Weekday schedule(s).` })
+          const limitMsg = `Personal Limit Reached: You can only select up to ${max} Weekday schedule(s) for yourself.`
+          setMessage({ type: 'error', text: limitMsg })
+          setLimitModal({ title: 'Weekday Personal Limit Reached', message: limitMsg })
           return
         }
       }
@@ -228,12 +283,27 @@ export const PublicSchedulePage: React.FC = () => {
     setMessage(null)
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedMemberId) {
-      setMessage({ type: 'error', text: 'Please select your name from the dropdown.' })
+      setMessage({ type: 'error', text: 'Please select your name first from the selection panel.' })
+      setLimitModal({ title: 'Select Name First', message: 'Please select your name from the selection panel before saving.' })
       return
     }
+
+    if (selectedScheduleIds.size === 0) {
+      const noSelectionMsg = 'Please select at least one Mass schedule slot from the table before saving.'
+      setMessage({ type: 'error', text: noSelectionMsg })
+      setLimitModal({ title: 'No Schedule Selected', message: noSelectionMsg })
+      return
+    }
+
+    setConfirmSubmitOpen(true)
+  }
+
+  const handleConfirmedSave = async () => {
+    setConfirmSubmitOpen(false)
+    if (!selectedMemberId) return
 
     setSubmitting(true)
     setMessage(null)
@@ -288,13 +358,13 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
-  const renderTable = (patterns: SchedulePattern[], maxRows: number, isSunday: boolean, title: string, subtitle: string, icon: string) => {
+  const renderTable = (patterns: SchedulePattern[], maxRows: number, isSunday: boolean, title: string, subtitle: string, icon: React.ReactNode) => {
     if (patterns.length === 0) return null
 
     return (
       <div className="mb-10">
         <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center text-xl shadow-xs">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center shadow-xs">
             {icon}
           </div>
           <div>
@@ -408,117 +478,7 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
-  const renderMatrixTable = (patterns: SchedulePattern[], title: string, subtitle: string, icon: string) => {
-    if (patterns.length === 0) return null
 
-    // Extract unique times and days
-    const uniqueTimes = Array.from(new Set(patterns.map(p => p.startTime))).sort()
-    
-    // Sort days correctly (1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat)
-    const uniqueDays = Array.from(new Set(patterns.map(p => p.dayOfWeek))).sort((a, b) => a - b)
-
-    const getDayNameFromIndex = (index: number) => {
-      const days = ['SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY']
-      return days[index]
-    }
-
-    return (
-      <div className="mb-10">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center text-xl shadow-xs border border-teal-100">
-            {icon}
-          </div>
-          <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">{title}</h2>
-            <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse text-left min-w-max">
-              <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-6 py-5 font-extrabold text-[10px] text-slate-500 uppercase tracking-widest w-24 sticky left-0 bg-slate-50/90 z-10 border-r border-slate-100">
-                    Time \ Day
-                  </th>
-                  {uniqueDays.map(d => (
-                    <th key={d} className="px-6 py-5 text-center min-w-[170px]">
-                      <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{getDayNameFromIndex(d)}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {uniqueTimes.map(time => (
-                  <tr key={time} className="transition-colors">
-                    <td className="px-6 py-4 font-black text-xs text-slate-900 uppercase sticky left-0 bg-white/90 z-10 border-r border-slate-100 whitespace-nowrap">
-                      {formatTime12Hour(time)}
-                    </td>
-                    {uniqueDays.map(day => {
-                      const pattern = patterns.find(p => p.dayOfWeek === day && p.startTime === time)
-                      
-                      if (!pattern) {
-                        return (
-                          <td key={`${day}-${time}`} className="px-4 py-4 text-center align-middle bg-slate-50/30">
-                            <span className="text-slate-300 font-bold tracking-widest text-xs">----</span>
-                          </td>
-                        )
-                      }
-
-                      const isSelectedByCurrentMember = pattern.scheduleIds.some(id => selectedScheduleIds.has(id))
-                      const savedMemberIds = pattern.assignedMembers
-
-                      const displayMembers: Array<{ id: string, name: string, isDraft: boolean }> = []
-                      
-                      savedMemberIds.forEach(id => {
-                         displayMembers.push({ id, name: memberMap.get(id) || 'Unknown', isDraft: false })
-                      })
-
-                      if (selectedMemberId && isSelectedByCurrentMember && !savedMemberIds.includes(selectedMemberId)) {
-                         displayMembers.push({ id: selectedMemberId, name: memberMap.get(selectedMemberId) || 'Unknown', isDraft: true })
-                      }
-
-                      return (
-                        <td 
-                          key={`${day}-${time}`} 
-                          className={`px-4 py-4 text-center align-top transition-colors ${!isFinalized && !hasSubmitted ? 'cursor-pointer hover:bg-slate-50/80' : ''}`}
-                          onClick={() => !isFinalized && !hasSubmitted && handleCellClick(pattern.id, false)}
-                        >
-                           <div className="flex flex-col gap-2 min-h-[100px] h-full rounded-xl border border-transparent hover:border-slate-200 p-1 transition-colors">
-                              {displayMembers.length > 0 ? (
-                                displayMembers.map(m => {
-                                  return (
-                                    <div key={m.id} className="px-3 py-2.5 rounded-xl border border-slate-200 text-[11px] font-bold flex flex-col items-start shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] bg-white text-slate-700 relative overflow-hidden group">
-                                       {m.isDraft && <div className="absolute inset-0 bg-indigo-50 opacity-50 pointer-events-none" />}
-                                       <div className="flex items-start gap-2 relative z-10">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mt-1" />
-                                          <span className="text-left leading-snug break-words">
-                                            {m.name} 
-                                            {m.isDraft && <span className="ml-1 text-indigo-600 font-extrabold text-[9px] uppercase tracking-wider">(Draft)</span>}
-                                          </span>
-                                       </div>
-                                    </div>
-                                  )
-                                })
-                              ) : (
-                                <div className="flex-1 flex items-center justify-center">
-                                  <span className="text-slate-300 font-bold tracking-widest text-xs">----</span>
-                                </div>
-                              )}
-                           </div>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800">
@@ -552,30 +512,118 @@ export const PublicSchedulePage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Single Name Select Dropdown */}
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-2">
+            <form onSubmit={handleOpenConfirmModal} className="space-y-6">
+              {/* Member Picker Component matched from PublicEventFormPage */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                   1. SELECT YOUR NAME
                 </label>
-                <div className="relative">
-                  <select
-                    value={selectedMemberId}
-                    onChange={(e) => setSelectedMemberId(e.target.value)}
-                    className="w-full px-4 py-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-900 focus:ring-2 focus:ring-indigo-500 focus:bg-white focus:outline-none transition-all cursor-pointer"
-                    required
-                  >
-                    <option value="">-- Select Your Name --</option>
-                    {availableMembers
-                      .slice()
-                      .sort((a, b) => a.lastName.localeCompare(b.lastName))
-                      .map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.lastName}, {m.firstName}
-                        </option>
-                      ))}
-                  </select>
-                </div>
+
+                {availableMembers.length === 0 ? (
+                  <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xs font-semibold text-slate-500">
+                    All eligible active servers have already submitted their responses for this publication.
+                  </div>
+                ) : (
+                  <div>
+                    {!isMemberPickerOpen ? (
+                      /* Trigger Button / Selected Box */
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsMemberPickerOpen(true)
+                          setNameSearchQuery('')
+                        }}
+                        className={`w-full p-4 border rounded-2xl flex items-center justify-between text-left transition-all cursor-pointer ${
+                          selectedMemberId
+                            ? 'bg-indigo-50/80 border-indigo-400 text-indigo-900 shadow-xs'
+                            : 'bg-slate-50 border-slate-200 hover:border-indigo-400 text-slate-600'
+                        }`}
+                      >
+                        {selectedMemberId ? (
+                          <div className="flex items-center justify-between w-full">
+                            <div>
+                              <span className="block text-xs font-black text-slate-900">
+                                {members.find(m => m.id === selectedMemberId)?.lastName}, {members.find(m => m.id === selectedMemberId)?.firstName}
+                              </span>
+                              {members.find(m => m.id === selectedMemberId)?.order && (
+                                <span className="text-[10px] text-indigo-700 font-bold">
+                                  {members.find(m => m.id === selectedMemberId)?.order}
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-extrabold text-indigo-600 bg-white px-3 py-1.5 rounded-xl border border-indigo-200 shadow-xs">
+                              Change Name
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-between w-full">
+                            <span className="text-xs font-bold text-slate-500">
+                              Click to search / select your name...
+                            </span>
+                            <span className="text-xs text-slate-400 font-bold">▼</span>
+                          </div>
+                        )}
+                      </button>
+                    ) : (
+                      /* Expanded Picker Card with Search Input */
+                      <div className="p-4 bg-white border-2 border-indigo-600 rounded-2xl shadow-xl space-y-3">
+                        <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                          <span className="text-xs font-black text-slate-900">Select Your Name</span>
+                          <button
+                            type="button"
+                            onClick={() => setIsMemberPickerOpen(false)}
+                            className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md"
+                          >
+                            Close ✕
+                          </button>
+                        </div>
+
+                        <input
+                          type="text"
+                          autoFocus
+                          value={nameSearchQuery}
+                          onChange={e => setNameSearchQuery(e.target.value)}
+                          placeholder="Type to search name or order..."
+                          className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
+                        />
+
+                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                          {filteredAvailableMembers.length === 0 ? (
+                            <div className="p-3 text-center text-xs text-slate-400 italic">
+                              No matching active members found.
+                            </div>
+                          ) : (
+                            filteredAvailableMembers.map(m => {
+                              const isSelected = selectedMemberId === m.id
+                              return (
+                                <div
+                                  key={m.id}
+                                  onClick={() => {
+                                    setSelectedMemberId(m.id)
+                                    setIsMemberPickerOpen(false)
+                                  }}
+                                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all ${
+                                    isSelected
+                                      ? 'bg-indigo-50 border-indigo-500 text-indigo-950 font-bold shadow-xs'
+                                      : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800'
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="text-xs font-bold">{m.lastName}, {m.firstName}</div>
+                                    {m.order && <div className="text-[10px] text-slate-500 font-medium">{m.order}</div>}
+                                  </div>
+                                  {isSelected && (
+                                    <span className="w-2 h-2 rounded-full bg-indigo-600" />
+                                  )}
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {hasSubmitted ? (
@@ -634,11 +682,74 @@ export const PublicSchedulePage: React.FC = () => {
           </div>
         ) : (
           <>
-            {renderTable(sundayPatterns, maxRowsSunday, true, 'Sunday Masses', `Recurring Sunday Schedules`, '📅')}
-            {renderMatrixTable(weekdayPatterns, 'Weekday Masses', `Weekday Masses Schedule for ${publication?.name || ''}`, '📆')}
+            {/* SCHEDULE MONTH BANNER ABOVE SUNDAY MASSES */}
+            <div className="mb-6 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 text-white p-6 rounded-3xl shadow-lg border border-indigo-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 shadow-xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <span className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-widest block mb-0.5">
+                    SCHEDULE MONTH / PERIOD
+                  </span>
+                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                    {publication?.name || 'Schedule Period'}
+                  </h2>
+                </div>
+              </div>
+              <div className="bg-white/10 px-4 py-2 rounded-2xl text-xs font-bold text-indigo-200 border border-white/10 backdrop-blur-xs self-stretch sm:self-auto text-center">
+                Public Schedule
+              </div>
+            </div>
+
+            {renderTable(
+              sundayPatterns, 
+              maxRowsSunday, 
+              true, 
+              'Sunday Masses', 
+              `Recurring Sunday Schedules`, 
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            )}
+            {renderTable(
+              weekdayPatterns, 
+              maxRowsWeekday, 
+              false, 
+              'Weekday Masses', 
+              `Recurring Weekday Schedules`, 
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            )}
           </>
         )}
       </div>
+
+      {/* Save Confirmation Modal Popup */}
+      <ConfirmModal
+        isOpen={confirmSubmitOpen}
+        onClose={() => setConfirmSubmitOpen(false)}
+        onConfirm={handleConfirmedSave}
+        variant="info"
+        title="Confirm Schedule Submission"
+        message={`Are you sure you want to save your selected serving schedules for ${members.find(m => m.id === selectedMemberId)?.firstName || 'this server'}?`}
+        confirmLabel={submitting ? 'Saving...' : 'Yes, Save Schedule'}
+        cancelLabel="Review Selections"
+        loading={submitting}
+      />
+
+      {/* Limit / Validation Error Modal Popup */}
+      <AlertModal
+        isOpen={!!limitModal}
+        onClose={() => setLimitModal(null)}
+        variant="warning"
+        title={limitModal?.title || 'Notice'}
+        message={limitModal?.message || ''}
+        closeLabel="Got it"
+      />
     </div>
   )
 }

@@ -77,9 +77,8 @@ service cloud.firestore {
     // schedules collection
     match /schedules/{scheduleId} {
       allow read: if true;
-      allow write: if hasPermission('canManageSchedules') &&
-                   isValidString(request.resource.data.date, 10, 10) && // "YYYY-MM-DD"
-                   isValidString(request.resource.data.startTime, 5, 8);
+      allow create, delete: if hasPermission('canManageSchedules');
+      allow update: if true; // Allows unauthenticated public self-service schedule response
     }
     
     // attendanceSessions collection
@@ -111,7 +110,7 @@ service cloud.firestore {
     // auditLogs collection (Append-only)
     match /auditLogs/{logId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() &&
+      allow create: if true &&
                     isValidString(request.resource.data.action, 1, 100);
       allow update, delete: if false;
     }
@@ -119,7 +118,8 @@ service cloud.firestore {
     // schedulePublications collection
     match /schedulePublications/{pubId} {
       allow read: if true;
-      allow write: if hasPermission('canManageSchedules');
+      allow create, delete: if hasPermission('canManageSchedules');
+      allow update: if true; // Allows unauthenticated public submission tracking
     }
 
     // counters collection

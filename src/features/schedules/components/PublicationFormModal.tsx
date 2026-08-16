@@ -23,6 +23,8 @@ export const PublicationFormModal: React.FC<Props> = ({
   const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
   const [maxSundaysPerServer, setMaxSundaysPerServer] = useState<number>(4)
   const [maxWeekdaysPerServer, setMaxWeekdaysPerServer] = useState<number>(8)
+  const [maxServersPerSundaySlot, setMaxServersPerSundaySlot] = useState<number>(5)
+  const [maxServersPerWeekdaySlot, setMaxServersPerWeekdaySlot] = useState<number>(5)
   const [generateSchedules, setGenerateSchedules] = useState<boolean>(true)
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
@@ -39,6 +41,8 @@ export const PublicationFormModal: React.FC<Props> = ({
         setStatus(publication.status)
         setMaxSundaysPerServer(publication.maxSundaysPerServer ?? 4)
         setMaxWeekdaysPerServer(publication.maxWeekdaysPerServer ?? 8)
+        setMaxServersPerSundaySlot(publication.maxServersPerSundaySlot ?? 5)
+        setMaxServersPerWeekdaySlot(publication.maxServersPerWeekdaySlot ?? 5)
         setGenerateSchedules(false) // Default to false when editing
       } else {
         setName('')
@@ -48,6 +52,8 @@ export const PublicationFormModal: React.FC<Props> = ({
         setStatus('draft')
         setMaxSundaysPerServer(4)
         setMaxWeekdaysPerServer(8)
+        setMaxServersPerSundaySlot(5)
+        setMaxServersPerWeekdaySlot(5)
         setGenerateSchedules(true) // Default to true when creating
       }
       const loadTemplates = async () => {
@@ -85,7 +91,8 @@ export const PublicationFormModal: React.FC<Props> = ({
     try {
       await onSubmit({ 
         name, startDate, endDate, description, status,
-        maxSundaysPerServer, maxWeekdaysPerServer
+        maxSundaysPerServer, maxWeekdaysPerServer,
+        maxServersPerSundaySlot, maxServersPerWeekdaySlot
       }, generateSchedules, selectedTemplateIds)
       onClose()
     } catch (err: any) {
@@ -176,30 +183,78 @@ export const PublicationFormModal: React.FC<Props> = ({
               </select>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
-                  Max Sundays / Server
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={maxSundaysPerServer}
-                  onChange={(e) => setMaxSundaysPerServer(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
+            {/* Limit Rules Section */}
+            <div className="space-y-4 pt-2 border-t border-gray-100">
+              {/* Section 1: Server Selection Limits */}
+              <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 space-y-3">
+                <div>
+                  <span className="block text-xs font-black text-slate-800">1. Individual Server Limits (per Person)</span>
+                  <span className="text-[10px] text-slate-500 font-medium leading-tight block mt-0.5">
+                    Maximum number of schedule slots each member is allowed to select per month.
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-1">
+                      Max Sundays / Person
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={maxSundaysPerServer}
+                      onChange={(e) => setMaxSundaysPerServer(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-bold text-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-1">
+                      Max Weekdays / Person
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={maxWeekdaysPerServer}
+                      onChange={(e) => setMaxWeekdaysPerServer(parseInt(e.target.value) || 0)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-bold text-slate-800"
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
-                  Max Weekdays / Server
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={maxWeekdaysPerServer}
-                  onChange={(e) => setMaxWeekdaysPerServer(parseInt(e.target.value) || 0)}
-                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
-                />
+
+              {/* Section 2: Per Mass Slot Server Capacity */}
+              <div className="bg-indigo-50/50 p-3.5 rounded-xl border border-indigo-100 space-y-3">
+                <div>
+                  <span className="block text-xs font-black text-indigo-950">2. Mass Capacity Limits (per Time Slot)</span>
+                  <span className="text-[10px] text-indigo-700 font-medium leading-tight block mt-0.5">
+                    Maximum number of altar servers allowed to serve in a single Mass time slot.
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-indigo-800 mb-1">
+                      Max Servers / Sunday Mass
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={maxServersPerSundaySlot}
+                      onChange={(e) => setMaxServersPerSundaySlot(parseInt(e.target.value) || 1)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-indigo-200 text-xs bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-bold text-indigo-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-indigo-800 mb-1">
+                      Max Servers / Weekday Mass
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={maxServersPerWeekdaySlot}
+                      onChange={(e) => setMaxServersPerWeekdaySlot(parseInt(e.target.value) || 1)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-indigo-200 text-xs bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-bold text-indigo-900"
+                    />
+                  </div>
+                </div>
               </div>
             </div>
 
