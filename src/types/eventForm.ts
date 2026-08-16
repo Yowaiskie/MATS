@@ -1,6 +1,6 @@
 import type { Timestamp, FieldValue } from 'firebase/firestore'
 
-export type FormStatus = 'draft' | 'published' | 'closed' | 'archived'
+export type FormStatus = 'draft' | 'published' | 'temporary_closed' | 'closed' | 'archived'
 
 export interface EventForm {
   id?: string

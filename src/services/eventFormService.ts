@@ -147,6 +147,7 @@ export const eventFormService = {
       const actionMap: Record<FormStatus, any> = {
         published: 'FORM_PUBLISH',
         draft: 'FORM_UNPUBLISH',
+        temporary_closed: 'FORM_CLOSE',
         closed: 'FORM_CLOSE',
         archived: 'FORM_ARCHIVE'
       }

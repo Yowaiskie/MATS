@@ -776,10 +776,11 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                   onChange={e => setStatus(e.target.value as EventForm['status'])}
                   className="w-full p-2.5 border border-slate-300 rounded-xl text-sm bg-white"
                 >
-                  <option value="draft">Draft (Private, not accepting responses)</option>
+                  <option value="draft">Draft (Private / In Preparation)</option>
                   <option value="published">Published (Live & accepting responses)</option>
-                  <option value="closed">Closed (Submissions locked)</option>
-                  <option value="archived">Archived</option>
+                  <option value="temporary_closed">Temporary Closed (Pansamantalang Sarado)</option>
+                  <option value="closed">Closed (Totally Closed - Submissions locked)</option>
+                  <option value="archived">Archived (Totally Closed & Stored)</option>
                 </select>
               </div>
 

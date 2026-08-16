@@ -168,6 +168,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
             const statusColors: Record<FormStatus, string> = {
               published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
               draft: 'bg-amber-50 text-amber-700 border-amber-200',
+              temporary_closed: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold',
               closed: 'bg-slate-100 text-slate-600 border-slate-200',
               archived: 'bg-red-50 text-red-700 border-red-200'
             }
@@ -218,29 +219,32 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
 
                   {canManageForms && (
                     <div className="flex items-center space-x-1">
-                      {f.status === 'draft' ? (
-                        <button
-                          type="button"
-                          onClick={() => setFormStatusPending({ form: f, target: 'published' })}
-                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                        >
-                          Publish
-                        </button>
-                      ) : f.status === 'published' ? (
-                        <button
-                          type="button"
-                          onClick={() => setFormStatusPending({ form: f, target: 'closed' })}
-                          className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                        >
-                          Close
-                        </button>
+                      {f.status === 'published' ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => setFormStatusPending({ form: f, target: 'temporary_closed' })}
+                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                            title="Pansamantalang Isara (Temporary Closed)"
+                          >
+                            Temp Close
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setFormStatusPending({ form: f, target: 'closed' })}
+                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                            title="Lubusang Isara (Totally Closed)"
+                          >
+                            Close
+                          </button>
+                        </>
                       ) : (
                         <button
                           type="button"
                           onClick={() => setFormStatusPending({ form: f, target: 'published' })}
                           className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         >
-                          Reopen
+                          {f.status === 'draft' ? 'Publish' : 'Reopen'}
                         </button>
                       )}
 
@@ -323,19 +327,25 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         title={
           formStatusPending?.target === 'published'
             ? (formStatusPending.form.status === 'draft' ? 'Publish Form' : 'Reopen Form')
-            : 'Close Form'
+            : formStatusPending?.target === 'temporary_closed'
+            ? 'Pansamantalang Isara ang Form'
+            : 'Lubusang Isara ang Form (Totally Closed)'
         }
         message={
           formStatusPending?.target === 'published'
             ? formStatusPending?.form.status === 'draft'
               ? `Publish "${formStatusPending?.form.title}"? It will become accessible to respondents via its public link.`
               : `Reopen "${formStatusPending?.form.title}"? It will accept new submissions again.`
-            : `Close "${formStatusPending?.form.title}"? Respondents will no longer be able to submit responses.`
+            : formStatusPending?.target === 'temporary_closed'
+            ? `Pansamantalang isasara ang "${formStatusPending?.form.title}". Magpapakita ito ng Temporary Closed badge at notice sa mga magbubukas ng link.`
+            : `Lubusang isasara ang "${formStatusPending?.form.title}". Hindi na makakapag-submit ang sinuman sa form na ito.`
         }
         confirmLabel={
           formStatusPending?.target === 'published'
             ? (formStatusPending.form.status === 'draft' ? 'Publish' : 'Reopen')
-            : 'Close Form'
+            : formStatusPending?.target === 'temporary_closed'
+            ? 'Temp Close'
+            : 'Totally Close'
         }
         variant={formStatusPending?.target === 'closed' ? 'danger' : undefined}
       />

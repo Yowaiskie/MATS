@@ -170,16 +170,16 @@ export const PublicationFormModal: React.FC<Props> = ({
 
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
-                Status
+                Publication Status & Link Access
               </label>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as any)}
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-bold text-gray-800"
               >
-                <option value="draft">Draft</option>
-                <option value="published">Published</option>
-                <option value="archived">Archived</option>
+                <option value="draft">Draft (Temporary Closed)</option>
+                <option value="published">Published (Open for Scheduling)</option>
+                <option value="archived">Archived (Totally Closed & Locked)</option>
               </select>
             </div>
 

@@ -49,13 +49,19 @@ export const PublicSchedulePage: React.FC = () => {
     setLoading(true)
     try {
       const pub = await publicationService.getPublication(publicationId)
-      if (!pub || pub.status === 'draft') {
-        setMessage({ type: 'error', text: 'Publication not found or is still a draft.' })
+      if (!pub) {
+        setMessage({ type: 'error', text: 'Publication link not found or invalid.' })
         setLoading(false)
         return
       }
 
       setPublication(pub)
+
+      if (pub.status === 'draft') {
+        setMessage({ type: 'error', text: 'Draft' })
+        setLoading(false)
+        return
+      }
 
       const [schedList, memList] = await Promise.all([
         scheduleService.getSchedules(),
@@ -344,15 +350,74 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
-  if (!publication && !loading) {
+  if ((!publication || publication.status === 'draft') && !loading) {
+    const isDraft = publication?.status === 'draft'
+
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
-        <div className="text-center bg-white p-10 rounded-2xl shadow-sm border border-slate-200">
-          <div className="w-16 h-16 rounded-full overflow-hidden border border-slate-100 shadow-xs mb-4 flex items-center justify-center bg-white mx-auto">
-            <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover" />
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
+        {/* Background glow accents */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="bg-white max-w-lg w-full rounded-3xl shadow-xl p-8 sm:p-10 border border-slate-200/80 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
+          {/* Logo Header */}
+          <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-indigo-100 shadow-md flex items-center justify-center bg-white mx-auto mb-6 p-1">
+            <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover rounded-2xl" />
           </div>
-          <h2 className="text-xl font-bold text-slate-800">Publication Unavailable</h2>
-          <p className="text-sm text-slate-500 mt-2 max-w-sm">{message?.text || 'This schedule publication is either invalid or currently closed.'}</p>
+
+          {/* Status Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider mb-4 border shadow-xs">
+            {isDraft ? (
+              <span className="bg-amber-50 text-amber-800 border-amber-200 flex items-center gap-1.5 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Temporary Closed (Draft Stage)
+              </span>
+            ) : (
+              <span className="bg-rose-50 text-rose-800 border-rose-200 flex items-center gap-1.5 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                Totally Closed / Link Invalid
+              </span>
+            )}
+          </div>
+
+          {/* Title */}
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-3">
+            {isDraft ? 'Schedule Link Temporarily Closed' : 'Schedule Link Closed'}
+          </h2>
+
+          {/* Description & Explanation */}
+          <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl text-left space-y-2 mb-6">
+            {publication?.name && (
+              <div className="text-xs font-black text-indigo-600 mb-1 uppercase tracking-wide">
+                {publication.name}
+              </div>
+            )}
+            <p className="text-xs font-medium text-slate-600 leading-relaxed">
+              {isDraft ? (
+                <>
+                  Ang link na ito ay <strong>pansamantalang sarado (Temporary Closed)</strong> dahil kasalukuyan pa itong inihahanda at nasa <strong>Draft stage</strong> ng Ministry Administrator. 
+                  <br /><br />
+                  Mangyaring maghintay hanggang sa opisyal itong i-publish ng inyong coordinator.
+                </>
+              ) : (
+                <>
+                  Ang link na ito ay <strong>lubusan nang sarado (Totally Closed)</strong> o hindi na available. Maaring nag-expire na ang schedule period na ito o inalis na ng administrator.
+                </>
+              )}
+            </p>
+          </div>
+
+          {/* Actions / Info footer */}
+          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 font-bold">
+            <span>Ministry of Altar Servers</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl transition cursor-pointer"
+            >
+              Refresh Page
+            </button>
+          </div>
         </div>
       </div>
     )

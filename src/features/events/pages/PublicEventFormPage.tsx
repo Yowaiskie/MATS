@@ -44,19 +44,19 @@ export const PublicEventFormPage: React.FC = () => {
           return
         }
 
+        setForm(formData)
+
         if (formData.status !== 'published') {
-          setPageLoadError('This form is currently closed or unpublished.')
+          setPageLoadError(formData.status === 'draft' ? 'draft' : 'closed')
           setLoading(false)
           return
         }
 
         if (!formData.isPublic && !user) {
-          setPageLoadError('This form requires authentication to view.')
+          setPageLoadError('auth_required')
           setLoading(false)
           return
         }
-
-        setForm(formData)
 
         const realFormId: string = formData.id
         const qs = await eventFormQuestionService.getQuestionsByFormId(realFormId)
@@ -119,28 +119,88 @@ export const PublicEventFormPage: React.FC = () => {
     )
   }
 
-  if (pageLoadError || !form) {
+  if (!form || pageLoadError || form.status !== 'published') {
+    const isTempClosed = form?.status === 'temporary_closed' || form?.status === 'draft' || pageLoadError === 'draft'
+    const isAuthRequired = pageLoadError === 'auth_required'
+
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white max-w-md w-full rounded-3xl shadow-xl p-8 border border-slate-200 text-center">
-          <div className="w-12 h-12 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-xs font-bold uppercase tracking-wider">
-            Notice
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
+        {/* Background glow accents */}
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="bg-white max-w-lg w-full rounded-3xl shadow-xl p-8 sm:p-10 border border-slate-200/80 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
+          {/* Logo Header */}
+          <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-indigo-100 shadow-md flex items-center justify-center bg-white mx-auto mb-6 p-1">
+            <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover rounded-2xl" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">Form Unavailable</h2>
-          <p className="text-slate-500 text-xs mb-6">{pageLoadError || 'Form is not accessible.'}</p>
-          <button
-            type="button"
-            onClick={() => {
-              try {
-                window.close()
-              } catch {
-                window.location.href = 'about:blank'
-              }
-            }}
-            className="px-6 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl transition cursor-pointer"
-          >
-            Close Window
-          </button>
+
+          {/* Status Badge */}
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-black uppercase tracking-wider mb-4 border shadow-xs">
+            {isTempClosed ? (
+              <span className="bg-amber-50 text-amber-800 border-amber-200 flex items-center gap-1.5 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                Temporary Closed
+              </span>
+            ) : isAuthRequired ? (
+              <span className="bg-indigo-50 text-indigo-800 border-indigo-200 flex items-center gap-1.5 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-indigo-500" />
+                Authentication Required
+              </span>
+            ) : (
+              <span className="bg-rose-50 text-rose-800 border-rose-200 flex items-center gap-1.5 px-3 py-1 rounded-full">
+                <span className="w-2 h-2 rounded-full bg-rose-500" />
+                Totally Closed / Link Unavailable
+              </span>
+            )}
+          </div>
+
+          {/* Title */}
+          <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight mb-3">
+            {isTempClosed
+              ? 'Event Form Temporarily Closed'
+              : isAuthRequired
+              ? 'Login Required to Access Form'
+              : 'Event Form Closed'}
+          </h2>
+
+          {/* Description & Explanation */}
+          <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl text-left space-y-2 mb-6">
+            {form?.title && (
+              <div className="text-xs font-black text-blue-600 mb-1 uppercase tracking-wide">
+                {form.title}
+              </div>
+            )}
+            <p className="text-xs font-medium text-slate-600 leading-relaxed">
+              {isTempClosed ? (
+                <>
+                  Ang form na ito ay <strong>pansamantalang sarado (Temporary Closed)</strong> dahil kasalukuyan pa itong inihahanda at nasa <strong>Draft stage</strong> ng administrator.
+                  <br /><br />
+                  Mangyaring maghintay hanggang sa opisyal itong i-publish.
+                </>
+              ) : isAuthRequired ? (
+                <>
+                  Ang form na ito ay eksklusibo lamang para sa mga rehistradong miyembro. Mangyaring mag-login muna sa iyong account upang mabuksan ang form.
+                </>
+              ) : (
+                <>
+                  Ang form na ito ay <strong>lubusan nang sarado (Totally Closed)</strong> o hindi na tumatanggap ng mga bagong tugon. Maaaring tapos na ang registration period o in-archive na ito.
+                </>
+              )}
+            </p>
+          </div>
+
+          {/* Actions / Info footer */}
+          <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400 font-bold">
+            <span>Ministry of Altar Servers</span>
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl transition cursor-pointer"
+            >
+              Refresh Page
+            </button>
+          </div>
         </div>
       </div>
     )
