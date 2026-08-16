@@ -92,7 +92,7 @@ export const downloadEventFormPdf = async (
   doc.line(14, 27, pageWidth - 14, 27)
 
   // 2. Document Title (Centered & Bold Underline Style)
-  const titleText = options.documentTitle.trim() || form.title.toUpperCase()
+  const titleText = (options.documentTitle.trim() || form.title).toUpperCase()
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(13)
   doc.setTextColor(15, 23, 42)
@@ -126,7 +126,7 @@ export const downloadEventFormPdf = async (
   const getCleanMemberName = (r: EventFormResponse): string => {
     let name = r.respondentMemberName || (r.respondentMemberUid ? membersMap[r.respondentMemberUid] : '') || 'Anonymous'
     // Remove order parenthesis e.g. " (St. Jude)"
-    return name.replace(/\s*\([^)]*\)/g, '').trim()
+    return name.replace(/\s*\([^)]*\)/g, '').trim().toUpperCase()
   }
 
   // 3. Alphabetical Sort A-Z by Respondent Name
@@ -147,24 +147,24 @@ export const downloadEventFormPdf = async (
     orderedColIds = ['respondent_name', ...orderedColIds.filter(id => id !== 'respondent_name')]
   }
 
-  // Build Headers: starts with '#' numbering column
+  // Build Headers: starts with '#' numbering column, uppercase all headers
   const tableHeaders: string[] = ['#']
   const columnKeys: string[] = []
 
   orderedColIds.forEach(colId => {
     if (colId === 'respondent_name') {
-      tableHeaders.push(options.columnCustomLabels?.[colId] || 'Member / Respondent')
+      tableHeaders.push((options.columnCustomLabels?.[colId] || 'Member / Respondent').toUpperCase())
       columnKeys.push(colId)
     } else if (colId === 'respondent_email') {
-      tableHeaders.push(options.columnCustomLabels?.[colId] || 'Email')
+      tableHeaders.push((options.columnCustomLabels?.[colId] || 'Email').toUpperCase())
       columnKeys.push(colId)
     } else if (colId === 'submitted_at') {
-      tableHeaders.push(options.columnCustomLabels?.[colId] || 'Submitted Date')
+      tableHeaders.push((options.columnCustomLabels?.[colId] || 'Submitted Date').toUpperCase())
       columnKeys.push(colId)
     } else {
       const q = sortedQuestions.find(item => item.id === colId)
       if (q) {
-        tableHeaders.push(options.columnCustomLabels?.[colId] || q.question)
+        tableHeaders.push((options.columnCustomLabels?.[colId] || q.question).toUpperCase())
         columnKeys.push(colId)
       }
     }
@@ -178,21 +178,27 @@ export const downloadEventFormPdf = async (
       if (key === 'respondent_name') {
         rowCells.push(getCleanMemberName(r))
       } else if (key === 'respondent_email') {
-        rowCells.push(r.respondentEmail || '-')
+        rowCells.push((r.respondentEmail || '-').toUpperCase())
       } else if (key === 'submitted_at') {
         const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
           ? new Date((r.submittedAt as any).seconds * 1000).toLocaleDateString()
           : String(r.submittedAt || '-')
-        rowCells.push(submittedDateStr)
+        rowCells.push(submittedDateStr.toUpperCase())
       } else {
         const q = sortedQuestions.find(item => item.id === key)
         const val = r.answers[key]
         let displayVal = '-'
         if (val !== undefined && val !== null && val !== '') {
           if (q && q.type === 'companion_repeater' && Array.isArray(val)) {
-            displayVal = (val as unknown as CompanionEntry[])
-              .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-              .join('; ')
+            const companionEntries = (val as unknown as CompanionEntry[])
+            if (companionEntries.length === 1) {
+              const c = companionEntries[0]
+              displayVal = `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`
+            } else {
+              displayVal = companionEntries
+                .map((c, idx) => `${idx + 1}. ${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                .join('\n')
+            }
           } else if (q && q.type === 'member_selector' && typeof val === 'string') {
             const rawName = membersMap[val] || val
             displayVal = rawName.replace(/\s*\([^)]*\)/g, '').trim()
@@ -202,7 +208,7 @@ export const downloadEventFormPdf = async (
             displayVal = Array.isArray(val) ? val.join(', ') : String(val)
           }
         }
-        rowCells.push(displayVal)
+        rowCells.push(displayVal.toUpperCase())
       }
     })
 

@@ -7,6 +7,7 @@ import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
 import { ConfirmModal } from '@/components/Dialog'
 import { downloadEventFormPdf } from '@/utils/eventFormPdfReport'
+import { EditFormResponseModal } from './EditFormResponseModal'
 
 interface EventFormResponsesModalProps {
   isOpen: boolean
@@ -28,6 +29,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const [activeTab, setActiveTab] = useState<'responded' | 'pending' | 'all'>('all')
   const [orderFilter, setOrderFilter] = useState<string>('all')
   const [selectedResponse, setSelectedResponse] = useState<EventFormResponse | null>(null)
+  const [responseToEdit, setResponseToEdit] = useState<EventFormResponse | null>(null)
   const [responseToDelete, setResponseToDelete] = useState<EventFormResponse | null>(null)
   const [deleting, setDeleting] = useState(false)
 
@@ -465,6 +467,13 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                               </button>
                               <button
                                 type="button"
+                                onClick={() => setResponseToEdit(r)}
+                                className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => setResponseToDelete(r)}
                                 className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
                               >
@@ -523,6 +532,13 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                               className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
                             >
                               View Detail
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setResponseToEdit(r)}
+                              className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                            >
+                              Edit
                             </button>
                             <button
                               type="button"
@@ -598,7 +614,18 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               </div>
             </div>
 
-            <div className="pt-2 text-right">
+            <div className="pt-2 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => {
+                  const resp = selectedResponse
+                  setSelectedResponse(null)
+                  setResponseToEdit(resp)
+                }}
+                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 font-bold text-xs rounded-xl text-amber-700 cursor-pointer"
+              >
+                Edit Response
+              </button>
               <button
                 type="button"
                 onClick={() => setSelectedResponse(null)}
@@ -609,6 +636,20 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Response Sub-Modal */}
+      {responseToEdit && (
+        <EditFormResponseModal
+          isOpen={!!responseToEdit}
+          onClose={() => setResponseToEdit(null)}
+          onSaved={fetchData}
+          form={form}
+          questions={questions}
+          response={responseToEdit}
+          membersList={membersList}
+          membersMap={membersMap}
+        />
       )}
 
       {/* Delete Response Confirmation Modal */}

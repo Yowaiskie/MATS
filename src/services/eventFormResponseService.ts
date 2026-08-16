@@ -198,6 +198,45 @@ export const eventFormResponseService = {
   },
 
   /**
+   * Update an existing response document in Firestore.
+   */
+  async updateResponse(
+    responseId: string,
+    answers: Record<string, string | string[] | number | boolean>,
+    respondentInfo?: { memberUid?: string; memberName?: string; email?: string },
+    performedBy: string = 'Admin'
+  ): Promise<void> {
+    try {
+      const ref = doc(db, RESPONSES_COLLECTION, responseId)
+      const updateData: Record<string, any> = {
+        answers,
+        updatedAt: serverTimestamp()
+      }
+      if (respondentInfo?.memberName !== undefined) {
+        updateData.respondentMemberName = respondentInfo.memberName
+      }
+      if (respondentInfo?.email !== undefined) {
+        updateData.respondentEmail = respondentInfo.email
+      }
+      if (respondentInfo?.memberUid !== undefined) {
+        updateData.respondentMemberUid = respondentInfo.memberUid
+      }
+
+      await updateDoc(ref, updateData)
+      await auditService.logAction(
+        'FORM_RESPONSE_UPDATE',
+        'events',
+        `Updated response ID ${responseId}`,
+        performedBy,
+        { responseId }
+      )
+    } catch (error) {
+      console.error('Error updating response:', error)
+      throw new Error('Failed to update form response.')
+    }
+  },
+
+  /**
    * Delete a response document from Firestore.
    */
   async deleteResponse(responseId: string): Promise<void> {
