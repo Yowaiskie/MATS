@@ -37,12 +37,15 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
 
   const formattedEndTime = formatExpectedEnd(maintenanceSettings.expectedEndAt)
 
+  const [showErrorModal, setShowErrorModal] = useState(false)
+
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoginError(null)
 
     if (!email || !password) {
       setLoginError('Please enter both email and password.')
+      setShowErrorModal(true)
       return
     }
 
@@ -50,11 +53,30 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
     try {
       await login(email, password)
     } catch (err: any) {
-      let msg = err.message || 'Login failed.'
-      if (err.code === 'auth/invalid-credential') {
-        msg = 'Invalid credentials. Please verify your email and password.'
+      const code = err?.code || ''
+      const message = err?.message || ''
+
+      if (
+        code === 'auth/invalid-email' ||
+        code === 'auth/invalid-credential' ||
+        code === 'auth/user-not-found' ||
+        code === 'auth/wrong-password' ||
+        message.includes('auth/invalid-email') ||
+        message.includes('auth/invalid-credential') ||
+        message.includes('auth/user-not-found') ||
+        message.includes('auth/wrong-password')
+      ) {
+        setLoginError('Invalid email or password.')
+      } else if (code === 'auth/user-disabled' || message.includes('auth/user-disabled')) {
+        setLoginError('This account has been deactivated. Please contact your coordinator.')
+      } else if (code === 'auth/too-many-requests' || message.includes('auth/too-many-requests')) {
+        setLoginError('Too many unsuccessful attempts. Please try again later.')
+      } else if (message.includes('under maintenance')) {
+        setLoginError(message)
+      } else {
+        setLoginError('Invalid email or password.')
       }
-      setLoginError(msg)
+      setShowErrorModal(true)
     } finally {
       setLoggingIn(false)
     }
@@ -262,6 +284,79 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
         </p>
 
       </div>
+
+      {/* Invalid Credentials & Officer Support Popup Modal */}
+      {showErrorModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setShowErrorModal(false)}
+          />
+
+          {/* Modal Content */}
+          <div className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl z-10 flex flex-col overflow-hidden border border-slate-200 animate-in fade-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center text-red-600 shrink-0">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <h2 className="text-base font-bold text-gray-900">Invalid Email or Password</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowErrorModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors p-1.5 rounded-full hover:bg-gray-100 cursor-pointer"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 space-y-4 text-left">
+              {/* Error Notice */}
+              <div className="p-3.5 bg-red-50 border border-red-200 rounded-xl text-red-900">
+                <p className="text-sm font-semibold">
+                  {loginError || 'Invalid email or password.'}
+                </p>
+                <p className="text-xs text-red-700 mt-1">
+                  The email address or password you entered is incorrect. Please check your credentials and try again.
+                </p>
+              </div>
+
+              {/* Officer Assistance Notice */}
+              <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl text-blue-950 space-y-1.5">
+                <div className="flex items-center gap-2 font-bold text-xs sm:text-sm text-blue-900">
+                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Officer Account Assistance</span>
+                </div>
+                <p className="text-xs sm:text-sm text-blue-800 leading-relaxed">
+                  If you are an officer and forgot your password or account details, please contact the <strong>Coordinator</strong> to assist you with recovering or resetting your account.
+                </p>
+              </div>
+
+              {/* Close / Action button */}
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowErrorModal(false)}
+                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                >
+                  Okay
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
