@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { Loading } from '@/components/Loading'
+import { AlertModal } from '@/components/Dialog'
 
 // Import types
 import type { FinanceIncome, DirectExpense, FinanceCategory, FinanceFundRequest, FinancePeriod, LedgerEntry } from '@/types/finance'
@@ -726,20 +727,6 @@ export const FinancePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Alert Notices */}
-      {errorMsg && (
-        <div className="p-4 rounded-xl border border-red-200 bg-red-50 text-xs font-semibold text-red-800 flex items-center justify-between">
-          <span>{errorMsg}</span>
-          <button onClick={() => setErrorMsg(null)} className="text-red-950 font-bold hover:scale-115">Dismiss</button>
-        </div>
-      )}
-      {successMsg && (
-        <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50 text-xs font-semibold text-emerald-800 flex items-center justify-between">
-          <span>{successMsg}</span>
-          <button onClick={() => setSuccessMsg(null)} className="text-emerald-950 font-bold hover:scale-115">Dismiss</button>
-        </div>
-      )}
-
       {/* Mobile Tab Selector */}
       <div className="sm:hidden mb-4">
         <div className="relative">
@@ -1754,6 +1741,23 @@ export const FinancePage: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Alert Dialogs */}
+      <AlertModal
+        isOpen={!!errorMsg}
+        onClose={() => setErrorMsg(null)}
+        variant="error"
+        title="Finance Error"
+        message={errorMsg ?? ''}
+      />
+
+      <AlertModal
+        isOpen={!!successMsg}
+        onClose={() => setSuccessMsg(null)}
+        variant="success"
+        title="Success"
+        message={successMsg ?? ''}
+      />
     </div>
   )
 }

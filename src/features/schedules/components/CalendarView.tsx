@@ -8,6 +8,8 @@ interface CalendarViewProps {
   onSelectSchedule: (schedule: Schedule) => void
   onDateClick?: (dateStr: string) => void
   getAttendanceState?: (scheduleId: string, status: string) => ScheduleAttendanceState
+  currentDate?: Date
+  onMonthChange?: (date: Date) => void
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
@@ -15,8 +17,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   onSelectSchedule,
   onDateClick,
   getAttendanceState,
+  currentDate: controlledDate,
+  onMonthChange,
 }) => {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [internalDate, setInternalDate] = useState(new Date())
+  const currentDate = controlledDate || internalDate
   const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
 
   const toggleExpand = (e: React.MouseEvent, dateStr: string) => {
@@ -29,15 +34,30 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
   // Navigation handlers
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+    const next = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
+    if (onMonthChange) {
+      onMonthChange(next)
+    } else {
+      setInternalDate(next)
+    }
   }
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+    const next = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+    if (onMonthChange) {
+      onMonthChange(next)
+    } else {
+      setInternalDate(next)
+    }
   }
 
   const handleToday = () => {
-    setCurrentDate(new Date())
+    const today = new Date()
+    if (onMonthChange) {
+      onMonthChange(today)
+    } else {
+      setInternalDate(today)
+    }
   }
 
   // Month information

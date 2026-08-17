@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { ScheduleCard } from '../components/ScheduleCard'
@@ -28,6 +29,7 @@ const getTodayString = () => {
 }
 
 export const SchedulesPage: React.FC = () => {
+  const queryClient = useQueryClient()
   const { profile, isAdmin } = useAuth()
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
@@ -35,6 +37,9 @@ export const SchedulesPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
 
   const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>('schedules')
+
+  // Selected Month State for Scoped Firestore Reads
+  const [selectedMonthDate, setSelectedMonthDate] = useState<Date>(() => new Date())
 
   // Filter states
   const [dateFilter, setDateFilter] = useState(getTodayString())
@@ -67,19 +72,29 @@ export const SchedulesPage: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
-  const loadData = async (showSpinner = true) => {
+  const loadData = async (showSpinner = true, targetMonthDate?: Date) => {
     if (showSpinner) setLoading(true)
     setError(null)
     try {
-      const scheduleData = await scheduleService.getSchedules()
-      setSchedules(scheduleData)
+      const monthDate = targetMonthDate || selectedMonthDate
+      const y = monthDate.getFullYear()
+      const m = String(monthDate.getMonth() + 1).padStart(2, '0')
+      const startDate = `${y}-${m}-01`
+      const endDate = `${y}-${m}-31`
 
-      // Fetch all member profiles (including archived to warn during imports)
-      const memberData = await memberService.getMembers(true)
+      const [scheduleData, memberData, sessionsData] = await Promise.all([
+        scheduleService.getSchedulesByDateRange(startDate, endDate),
+        queryClient.fetchQuery({
+          queryKey: ['members', 'all-with-archived'],
+          queryFn: () => memberService.getMembers(true),
+          staleTime: 1000 * 60 * 5 // 5-minute memory cache
+        }),
+        attendanceService.getAllSessions()
+      ])
+
+      setSchedules(scheduleData)
       setAllMembersProfiles(memberData)
       setActiveMembers(memberData.filter(m => m.status === 'active'))
-
-      const sessionsData = await attendanceService.getAllSessions()
       setAttendanceSessions(sessionsData)
     } catch (err: any) {
       console.error(err)
@@ -89,9 +104,24 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
+  // Load data whenever selectedMonthDate changes
   useEffect(() => {
-    loadData()
-  }, [])
+    loadData(true, selectedMonthDate)
+  }, [selectedMonthDate])
+
+  const handleDateFilterChange = (newDateStr: string) => {
+    setDateFilter(newDateStr)
+    if (newDateStr) {
+      const [yStr, mStr] = newDateStr.split('-')
+      const y = parseInt(yStr, 10)
+      const m = parseInt(mStr, 10)
+      if (!isNaN(y) && !isNaN(m)) {
+        if (selectedMonthDate.getFullYear() !== y || selectedMonthDate.getMonth() !== (m - 1)) {
+          setSelectedMonthDate(new Date(y, m - 1, 1))
+        }
+      }
+    }
+  }
 
   // Reset page when filters change
   useEffect(() => {
@@ -445,12 +475,16 @@ export const SchedulesPage: React.FC = () => {
               id="filter-date"
               type="date"
               value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
+              onChange={(e) => handleDateFilterChange(e.target.value)}
               className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
             />
             <button
               type="button"
-              onClick={() => setDateFilter(getTodayString())}
+              onClick={() => {
+                const today = new Date()
+                setSelectedMonthDate(today)
+                setDateFilter(getTodayString())
+              }}
               className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer min-h-[36px]"
             >
               Today
@@ -502,6 +536,8 @@ export const SchedulesPage: React.FC = () => {
           <div className="flex items-end justify-start">
             <button
               onClick={() => {
+                const today = new Date()
+                setSelectedMonthDate(today)
                 setDateFilter(getTodayString())
                 setTimeFilter('')
                 setSearchQuery('')
@@ -524,6 +560,8 @@ export const SchedulesPage: React.FC = () => {
       ) : viewMode === 'calendar' ? (
         <CalendarView
           schedules={filteredSchedules}
+          currentDate={selectedMonthDate}
+          onMonthChange={(newMonthDate) => setSelectedMonthDate(newMonthDate)}
           onSelectSchedule={(s) => {
             setSelectedSchedule(s)
             setDetailsOpen(true)

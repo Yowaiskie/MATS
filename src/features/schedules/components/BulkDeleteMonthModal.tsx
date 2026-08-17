@@ -32,22 +32,11 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
     setResult(null)
 
     try {
-      // selectedMonth is YYYY-MM
-      const [yearStr, monthStr] = selectedMonth.split('-')
-      const targetYear = parseInt(yearStr, 10)
-      const targetMonth = parseInt(monthStr, 10)
-
-      // Fetch all schedules
-      const allSchedules = await scheduleService.getSchedules()
-
-      // Filter schedules matching the year and month
-      const idsToDelete = allSchedules
-        .filter(s => {
-          if (!s.date) return false
-          const [sYear, sMonth] = s.date.split('-')
-          return parseInt(sYear, 10) === targetYear && parseInt(sMonth, 10) === targetMonth
-        })
-        .map(s => s.id)
+      // Fetch schedules strictly for the selected month using server-side query
+      const startDate = `${selectedMonth}-01`
+      const endDate = `${selectedMonth}-31`
+      const monthSchedules = await scheduleService.getSchedulesByDateRange(startDate, endDate)
+      const idsToDelete = monthSchedules.map(s => s.id)
 
       if (idsToDelete.length === 0) {
         setError('No schedules found for this month.')

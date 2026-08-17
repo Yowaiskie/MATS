@@ -793,19 +793,6 @@ export const UsersPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Success Notification */}
-      {successMsg && (
-        <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-xs font-semibold text-green-700 flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            <span>{successMsg}</span>
-          </div>
-          <button onClick={() => setSuccessMsg(null)} className="text-green-600 hover:text-green-800 font-bold ml-4 cursor-pointer">✕</button>
-        </div>
-      )}
-
       {/* Main Users Table */}
       <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
         <div className="overflow-x-auto">
@@ -1431,19 +1418,6 @@ export const UsersPage: React.FC = () => {
                 </div>
                 </div>
 
-                {/* Preset Modal Success Message */}
-                {presetSuccessMsg && (
-                  <div className="rounded-lg border border-green-200 bg-green-50 p-4 text-xs font-semibold text-green-700 flex items-center justify-between shadow-xs">
-                    <div className="flex items-center gap-2">
-                      <svg className="h-4 w-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>{presetSuccessMsg}</span>
-                    </div>
-                    <button onClick={() => setPresetSuccessMsg(null)} className="text-green-600 hover:text-green-800 font-bold ml-4 cursor-pointer">✕</button>
-                  </div>
-                )}
-
                 {/* Add / Edit Preset Form */}
                 <form onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
@@ -1670,13 +1644,29 @@ export const UsersPage: React.FC = () => {
         loading={saving}
       />
 
-      {/* Alert Dialog */}
+      {/* Alert Dialogs */}
       <AlertModal
         isOpen={!!error}
         onClose={() => setError(null)}
         variant="error"
         title="User Management Error"
         message={error || ''}
+      />
+
+      <AlertModal
+        isOpen={!!successMsg}
+        onClose={() => setSuccessMsg(null)}
+        variant="success"
+        title="Success"
+        message={successMsg || ''}
+      />
+
+      <AlertModal
+        isOpen={!!presetSuccessMsg}
+        onClose={() => setPresetSuccessMsg(null)}
+        variant="success"
+        title="Preset Saved"
+        message={presetSuccessMsg || ''}
       />
     </div>
   )

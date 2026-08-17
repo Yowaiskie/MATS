@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Card } from '@/components/Card'
+import { AlertModal } from '@/components/Dialog'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { authService } from '@/services/authService'
 
@@ -73,25 +74,6 @@ export const ChangePasswordPage: React.FC = () => {
           Update your login password securely to protect your account access.
         </p>
       </div>
-
-      {/* Notifications */}
-      {successMsg && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs sm:text-sm font-semibold flex items-center space-x-3 shadow-2xs animate-in fade-in duration-200">
-          <svg className="h-5 w-5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>{successMsg}</span>
-        </div>
-      )}
-
-      {errorMsg && (
-        <div className="p-4 rounded-xl bg-red-50 border border-red-200 text-red-800 text-xs sm:text-sm font-semibold flex items-center space-x-3 shadow-2xs animate-in fade-in duration-200">
-          <svg className="h-5 w-5 text-red-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <span>{errorMsg}</span>
-        </div>
-      )}
 
       {/* Main Card Form */}
       <Card className="p-5 sm:p-6 shadow-sm border border-gray-200/80 bg-white">
@@ -238,6 +220,23 @@ export const ChangePasswordPage: React.FC = () => {
           </div>
         </form>
       </Card>
+
+      {/* Alert Dialogs */}
+      <AlertModal
+        isOpen={!!errorMsg}
+        onClose={() => setErrorMsg(null)}
+        variant="error"
+        title="Password Update Failed"
+        message={errorMsg ?? ''}
+      />
+
+      <AlertModal
+        isOpen={!!successMsg}
+        onClose={() => setSuccessMsg(null)}
+        variant="success"
+        title="Password Changed"
+        message={successMsg ?? ''}
+      />
     </div>
   )
 }
