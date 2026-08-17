@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
@@ -20,6 +21,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   onClose,
   form
 }) => {
+  const queryClient = useQueryClient()
   const [loading, setLoading] = useState(true)
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [responses, setResponses] = useState<EventFormResponse[]>([])
@@ -48,9 +50,21 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     setLoading(true)
     try {
       const [qs, rs, mems] = await Promise.all([
-        eventFormQuestionService.getQuestionsByFormId(form.id),
-        eventFormResponseService.getResponsesByFormId(form.id),
-        memberService.getMembers(true)
+        queryClient.fetchQuery({
+          queryKey: ['event-form-questions', form.id],
+          queryFn: () => eventFormQuestionService.getQuestionsByFormId(form.id!),
+          staleTime: 1000 * 60 * 3
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['event-form-responses', form.id],
+          queryFn: () => eventFormResponseService.getResponsesByFormId(form.id!),
+          staleTime: 1000 * 30
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['members', 'all'],
+          queryFn: () => memberService.getMembers(true),
+          staleTime: 1000 * 60 * 5
+        })
       ])
 
       const map: Record<string, string> = {}
@@ -82,7 +96,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
   useEffect(() => {
     if (isOpen) fetchData()
-  }, [isOpen, form.id])
+  }, [isOpen, form.id, queryClient])
 
   if (!isOpen) return null
 
@@ -223,6 +237,10 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     setDeleting(true)
     try {
       await eventFormResponseService.deleteResponse(responseToDelete.id)
+      if (form.id) {
+        await queryClient.invalidateQueries({ queryKey: ['event-form-responses', form.id] })
+        await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts'] })
+      }
       setResponseToDelete(null)
       await fetchData()
     } catch (err) {
@@ -237,6 +255,8 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     setDeletingAll(true)
     try {
       await eventFormResponseService.deleteAllResponsesByFormId(form.id)
+      await queryClient.invalidateQueries({ queryKey: ['event-form-responses', form.id] })
+      await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts'] })
       setShowDeleteAllConfirm(false)
       await fetchData()
     } catch (err) {

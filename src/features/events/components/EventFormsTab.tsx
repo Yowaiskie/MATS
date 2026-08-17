@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { EventForm, FormStatus } from '@/types/eventForm'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
@@ -18,6 +19,7 @@ interface FormWithCount extends EventForm {
 
 export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrCreator }) => {
   const { profile, canAction } = useAuth()
+  const queryClient = useQueryClient()
   const [forms, setForms] = useState<FormWithCount[]>([])
   const [loading, setLoading] = useState(true)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
@@ -40,20 +42,22 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
   const fetchForms = async () => {
     setLoading(true)
     try {
-      const data = await eventFormService.getFormsByEventId(eventId)
-      
-      // Fetch responses count for each form
-      const formsWithCounts = await Promise.all(
-        data.map(async f => {
-          if (!f.id) return { ...f, responsesCount: 0 }
-          try {
-            const rs = await eventFormResponseService.getResponsesByFormId(f.id)
-            return { ...f, responsesCount: rs.length }
-          } catch {
-            return { ...f, responsesCount: 0 }
-          }
-        })
-      )
+      const data = await queryClient.fetchQuery({
+        queryKey: ['event-forms', eventId],
+        queryFn: () => eventFormService.getFormsByEventId(eventId),
+        staleTime: 1000 * 60 * 2
+      })
+      const formIds = data.map(f => f.id).filter((id): id is string => !!id)
+      const responseCounts = await queryClient.fetchQuery({
+        queryKey: ['event-form-response-counts', eventId, formIds.join(',')],
+        queryFn: () => eventFormResponseService.getResponseCountsByFormIds(formIds),
+        staleTime: 1000 * 30
+      })
+
+      const formsWithCounts = data.map(f => ({
+        ...f,
+        responsesCount: f.id ? (responseCounts[f.id] || 0) : 0
+      }))
 
       setForms(formsWithCounts)
     } catch (err) {
@@ -65,7 +69,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
 
   useEffect(() => {
     fetchForms()
-  }, [eventId])
+  }, [eventId, queryClient])
 
   const handleCopyPublicLink = (form: EventForm) => {
     if (!form.id) return
@@ -82,6 +86,8 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     if (!form.id) return
     try {
       await eventFormService.updateFormStatus(form.id, target, profile?.email || 'User')
+      await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
+      await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
       setFormStatusPending(null)
       fetchForms()
     } catch (err) {
@@ -94,6 +100,8 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     if (!formToDuplicate?.id) return
     try {
       await eventFormService.duplicateForm(formToDuplicate.id, profile?.email || 'User')
+      await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
+      await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
       setFormToDuplicate(null)
       fetchForms()
     } catch (err) {
@@ -106,6 +114,8 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     if (!formToDelete?.id) return
     try {
       await eventFormService.deleteForm(formToDelete.id, profile?.email || 'User')
+      await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
+      await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
       setFormToDelete(null)
       fetchForms()
     } catch (err) {
@@ -293,7 +303,11 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
             setIsBuilderOpen(false)
             setFormToEdit(null)
           }}
-          onSaved={fetchForms}
+          onSaved={async () => {
+            await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
+            await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
+            fetchForms()
+          }}
           eventId={eventId}
           formToEdit={formToEdit}
         />

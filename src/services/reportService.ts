@@ -97,11 +97,32 @@ export const reportService = {
   /**
    * Loads members, schedules, attendance records, and system policy settings from Firestore once.
    * Performs date filtering at query level if range is provided.
+   * Allows reusing already-fetched members to prevent duplicate reads.
    */
-  async loadReportData(startDate?: string, endDate?: string): Promise<ReportRawData> {
+  async loadReportData(startDate?: string, endDate?: string, preloadedMembers?: Member[]): Promise<ReportRawData> {
     const membersRef = collection(db, MEMBERS_COLLECTION)
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
     const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
+
+    // Build schedules query with server-side date range filtering
+    let schedulesQuery = query(schedulesRef)
+    if (startDate && endDate) {
+      schedulesQuery = query(
+        schedulesRef,
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      )
+    } else if (startDate) {
+      schedulesQuery = query(
+        schedulesRef,
+        where('date', '>=', startDate)
+      )
+    } else if (endDate) {
+      schedulesQuery = query(
+        schedulesRef,
+        where('date', '<=', endDate)
+      )
+    }
 
     // Build attendance query
     let attendanceQuery = query(attendanceRef)
@@ -130,17 +151,19 @@ export const reportService = {
       console.warn('Could not load policy settings for report:', err)
     }
 
-    const [membersSnap, schedulesSnap, attendanceSnap] = await Promise.all([
-      getDocs(membersRef),
-      getDocs(schedulesRef),
+    const promises: [Promise<any>, Promise<any>, Promise<any>] = [
+      preloadedMembers ? Promise.resolve(null) : getDocs(membersRef),
+      getDocs(schedulesQuery),
       getDocs(attendanceQuery)
-    ])
+    ]
 
-    const members = membersSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Member[]
-    let schedules = schedulesSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as Schedule[]
-    const attendance = attendanceSnap.docs.map(doc => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[]
+    const [membersSnap, schedulesSnap, attendanceSnap] = await Promise.all(promises)
 
-    // Filter schedules client-side
+    const members = preloadedMembers || (membersSnap ? membersSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() })) as Member[] : [])
+    let schedules = schedulesSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() })) as Schedule[]
+    const attendance = attendanceSnap.docs.map((doc: any) => ({ id: doc.id, ...doc.data() })) as AttendanceRecord[]
+
+    // Safeguard filter schedules client-side if needed
     if (startDate || endDate) {
       schedules = schedules.filter(s => {
         if (!s.date) return false

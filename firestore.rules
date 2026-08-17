@@ -97,7 +97,7 @@ service cloud.firestore {
 
     // settings collection
     match /settings/{settingsId} {
-      allow read: if isAuthenticated();
+      allow read: if isAuthenticated() || settingsId == 'maintenanceMode';
       allow write: if isSuperAdmin();
     }
 

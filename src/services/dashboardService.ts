@@ -8,7 +8,6 @@ import { db } from '@/firebase/config'
 import type { Schedule } from '@/types/schedule'
 import type { AttendanceSession } from '@/types/attendance'
 import { memberService } from './memberService'
-import { scheduleService } from './scheduleService'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
 import { reportService } from './reportService'
@@ -59,21 +58,20 @@ export const dashboardService = {
       console.warn('Could not load attendanceSessions for dashboard:', err)
     }
 
-    const [allMembers, allSchedules] = await Promise.all([
-      memberService.getMembers(true),
-      scheduleService.getSchedules()
-    ])
+    const allMembers = await memberService.getMembers(true)
 
-    // Calculate suspended members for current month
+    // Calculate dates for current month
     const today = new Date()
     const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
     const startDate = `${currentMonthStr}-01`
     const endDate = `${currentMonthStr}-31`
     let suspendedMembersCount = 0
     let userOrderSuspendedCount = 0
+    let monthSchedules: Schedule[] = []
 
     try {
-      const reportData = await reportService.loadReportData(startDate, endDate)
+      const reportData = await reportService.loadReportData(startDate, endDate, allMembers)
+      monthSchedules = reportData.schedules
       const memberRows = reportService.generateMemberReport(reportData)
       const allSuspended = memberRows.filter(r => r.warningStatus === 'suspended')
       suspendedMembersCount = allSuspended.length
@@ -98,7 +96,7 @@ export const dashboardService = {
     let ongoingSchedules = 0
     let completedSchedules = 0
 
-    allSchedules.forEach((s) => {
+    monthSchedules.forEach((s) => {
       const status = getScheduleStatus(s)
       if (status === 'upcoming') upcomingSchedules++
       else if (status === 'ongoing') ongoingSchedules++
@@ -120,7 +118,7 @@ export const dashboardService = {
     // 2. Filter today's schedules
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
     
-    const todaySchedules = allSchedules
+    const todaySchedules = monthSchedules
       .filter(s => s.date === todayStr)
       // Sorted by startTime chronologically
       .sort((a, b) => a.startTime.localeCompare(b.startTime))
@@ -149,7 +147,7 @@ export const dashboardService = {
     })
 
     // Map schedule activities (up to 5 latest)
-    const sortedSchedules = [...allSchedules].sort((a, b) => {
+    const sortedSchedules = [...monthSchedules].sort((a, b) => {
       const dateA = toDate(a.updatedAt || a.createdAt).getTime()
       const dateB = toDate(b.updatedAt || b.createdAt).getTime()
       return dateB - dateA
@@ -176,7 +174,7 @@ export const dashboardService = {
     }).slice(0, 5)
 
     sortedSessions.forEach((session) => {
-      const schedule = allSchedules.find(s => s.id === session.scheduleId)
+      const schedule = monthSchedules.find(s => s.id === session.scheduleId)
       const scheduleTitle = schedule ? schedule.title : 'Service'
       const dateStr = schedule ? schedule.date : ''
       const createdTime = toDate(session.createdAt).getTime()

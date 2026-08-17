@@ -1,8 +1,10 @@
 import React, { useState } from 'react'
 import { useAuth } from '../AuthContext'
+import { useMaintenance } from '@/context/MaintenanceContext'
 
 export const LoginPage: React.FC = () => {
-  const { login, error, clearError } = useAuth()
+  const { login, logout, error, clearError } = useAuth()
+  const { isMaintenanceActive, isUserAllowed, maintenanceSettings } = useMaintenance()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,6 +25,17 @@ export const LoginPage: React.FC = () => {
     setLoading(true)
     try {
       await login(email, password)
+
+      // Strict Maintenance Mode Check during login
+      if (isMaintenanceActive) {
+        const normalizedEmail = email.toLowerCase().trim()
+        const isAllowed = isUserAllowed(null, normalizedEmail, null)
+        if (!isAllowed) {
+          await logout()
+          setLocalError('MATS is currently under maintenance. Only the Coordinator and explicitly authorized users can log in at this time.')
+          return
+        }
+      }
     } catch (err: any) {
       let msg = err.message || 'An error occurred during login.'
       if (err.code === 'auth/invalid-credential') {
@@ -57,6 +70,27 @@ export const LoginPage: React.FC = () => {
             Ministry Attendance Tracking System
           </p>
         </div>
+
+        {/* Maintenance Mode Banner */}
+        {isMaintenanceActive && (
+          <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 shadow-xs text-amber-900 space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-sm text-amber-800">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500"></span>
+              </span>
+              <span>System Maintenance Active</span>
+            </div>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              {maintenanceSettings.message || 'MATS is currently under maintenance. Only authorized users can sign in.'}
+            </p>
+            {maintenanceSettings.expectedEndAt && (
+              <p className="text-[11px] font-semibold text-amber-800 pt-1">
+                Expected End: {maintenanceSettings.expectedEndAt}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Card */}
         <div className="rounded-2xl border border-gray-200 bg-white p-8 shadow-sm">

@@ -84,6 +84,8 @@ const LoginSkeleton = () => (
   </div>
 )
 import { useAuth } from '../AuthContext'
+import { useMaintenance } from '@/context/MaintenanceContext'
+import { MaintenanceScreen } from '@/features/maintenance/components/MaintenanceScreen'
 
 import type { ModuleKey, UserPermissions } from '@/types/auth'
 
@@ -100,16 +102,23 @@ export const ProtectedRoute: React.FC<RouteProps> = ({
   moduleKey,
   requiredPermission
 }) => {
-  const { user, isAdmin, hasModuleAccess, canAction, loading } = useAuth()
+  const { user, profile, isAdmin, hasModuleAccess, canAction, loading: authLoading, logout } = useAuth()
+  const { isMaintenanceActive, isUserAllowed, loading: maintenanceLoading } = useMaintenance()
   const location = useLocation()
 
-  if (loading) {
+  if (authLoading || maintenanceLoading) {
     return <DashboardSkeleton />
   }
 
   if (!user) {
     // Redirect to login but save the current location they tried to access
     return <Navigate to="/login" state={{ from: location }} replace />
+  }
+
+  // Intercept if Maintenance Mode is active and user is NOT allowed
+  if (isMaintenanceActive && !isUserAllowed(user.uid, user.email, profile?.role)) {
+    logout().catch(console.error)
+    return <MaintenanceScreen />
   }
 
   if (adminOnly && !isAdmin) {
@@ -128,20 +137,32 @@ export const ProtectedRoute: React.FC<RouteProps> = ({
 }
 
 export const PublicRoute: React.FC<RouteProps> = ({ children }) => {
-  const { user, loading } = useAuth()
+  const { user, profile, loading: authLoading, logout } = useAuth()
+  const { isMaintenanceActive, isUserAllowed, loading: maintenanceLoading } = useMaintenance()
   const location = useLocation()
   
   // Retrieve target location from state or default to dashboard ("/")
   const from = (location.state as any)?.from?.pathname || '/'
 
-  if (loading) {
+  if (authLoading || maintenanceLoading) {
     return <LoginSkeleton />
   }
 
   if (user) {
-    // If already logged in, redirect away from public login page
+    // If user is logged in but NOT allowed during maintenance, auto logout & render MaintenanceScreen
+    if (isMaintenanceActive && !isUserAllowed(user.uid, user.email, profile?.role)) {
+      logout().catch(console.error)
+      return <MaintenanceScreen />
+    }
+    // If allowed, redirect away from public login page to dashboard or target location
     return <Navigate to={from} replace />
+  }
+
+  // If Maintenance Mode is active, show MaintenanceScreen directly (with Continue to Admin Login option)
+  if (isMaintenanceActive) {
+    return <MaintenanceScreen />
   }
 
   return <>{children}</>
 }
+

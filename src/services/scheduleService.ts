@@ -7,6 +7,7 @@ import {
   getDoc,
   getDocs, 
   query, 
+  documentId,
   where, 
   serverTimestamp
 } from 'firebase/firestore'
@@ -21,6 +22,20 @@ const SCHEDULES_COLLECTION = 'schedules'
 const ATTENDANCE_COLLECTION = 'attendance'
 const MEMBERS_COLLECTION = 'members'
 
+const sortSchedulesChronologically = (schedules: Schedule[]): Schedule[] => {
+  schedules.sort((a, b) => {
+    const dateA = a.date || ''
+    const dateB = b.date || ''
+    const dateCompare = dateA.localeCompare(dateB)
+    if (dateCompare !== 0) return dateCompare
+
+    const timeA = a.startTime || ''
+    const timeB = b.startTime || ''
+    return timeA.localeCompare(timeB)
+  })
+  return schedules
+}
+
 export const scheduleService = {
   /**
    * Retrieves all schedules sorted chronologically by date and startTime.
@@ -32,19 +47,85 @@ export const scheduleService = {
       id: doc.id,
       ...doc.data()
     })) as Schedule[]
-    
-    schedules.sort((a, b) => {
-      const dateA = a.date || ''
-      const dateB = b.date || ''
-      const dateCompare = dateA.localeCompare(dateB)
-      if (dateCompare !== 0) return dateCompare
-      
-      const timeA = a.startTime || ''
-      const timeB = b.startTime || ''
-      return timeA.localeCompare(timeB)
-    })
-    
-    return schedules
+
+    return sortSchedulesChronologically(schedules)
+  },
+
+  /**
+   * Retrieves a single schedule by ID.
+   */
+  async getScheduleById(id: string): Promise<Schedule | null> {
+    const docRef = doc(db, SCHEDULES_COLLECTION, id)
+    const snap = await getDoc(docRef)
+    if (!snap.exists()) return null
+    return { id: snap.id, ...snap.data() } as Schedule
+  },
+
+  /**
+   * Retrieves all schedules on a specific date.
+   */
+  async getSchedulesByDate(date: string): Promise<Schedule[]> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const q = query(schedulesRef, where('date', '==', date))
+    const snapshot = await getDocs(q)
+    const schedules = snapshot.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    })) as Schedule[]
+
+    return sortSchedulesChronologically(schedules)
+  },
+
+  /**
+   * Retrieves schedules within a date range, sorted chronologically.
+   */
+  async getSchedulesByDateRange(startDate: string, endDate: string): Promise<Schedule[]> {
+    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
+    const q = query(
+      schedulesRef,
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
+    )
+    const snapshot = await getDocs(q)
+    const schedules = snapshot.docs.map(docSnap => ({
+      id: docSnap.id,
+      ...docSnap.data()
+    })) as Schedule[]
+
+    return sortSchedulesChronologically(schedules)
+  },
+
+  /**
+   * Retrieves schedules by explicit IDs.
+   */
+  async getSchedulesByIds(ids: string[]): Promise<Schedule[]> {
+    if (ids.length === 0) return []
+    const uniqueIds = Array.from(new Set(ids))
+    const CHUNK_SIZE = 30
+    const chunks: string[][] = []
+    for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+      chunks.push(uniqueIds.slice(i, i + CHUNK_SIZE))
+    }
+
+    const snapshots = await Promise.all(
+      chunks.map(chunk =>
+        getDocs(
+          query(
+            collection(db, SCHEDULES_COLLECTION),
+            where(documentId(), 'in', chunk)
+          )
+        )
+      )
+    )
+
+    const schedules: Schedule[] = snapshots.flatMap(snap =>
+      snap.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      }) as Schedule)
+    )
+
+    return sortSchedulesChronologically(schedules)
   },
 
   /**
@@ -325,10 +406,9 @@ export const scheduleService = {
     selections: { scheduleId: string; isSelected: boolean }[],
     performedBy = 'Self-Service'
   ): Promise<void> {
-    const schedulesRef = collection(db, SCHEDULES_COLLECTION)
-    const snapshot = await getDocs(schedulesRef)
-    const allSchedules = snapshot.docs.map(d => ({ id: d.id, ...d.data() }) as Schedule)
-    const scheduleMap = new Map(allSchedules.map(s => [s.id, s]))
+    const targetScheduleIds = selections.map(s => s.scheduleId)
+    const targetSchedules = await this.getSchedulesByIds(targetScheduleIds)
+    const scheduleMap = new Map(targetSchedules.map(s => [s.id, s]))
 
     for (const item of selections) {
       const target = scheduleMap.get(item.scheduleId)
@@ -362,4 +442,3 @@ export const scheduleService = {
     )
   }
 }
-

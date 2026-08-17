@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { publicationService } from '@/services/publicationService'
@@ -21,6 +22,7 @@ interface SchedulePattern {
 
 export const PublicSchedulePage: React.FC = () => {
   const { id: publicationId } = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
   
   const [publication, setPublication] = useState<SchedulePublication | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -48,7 +50,11 @@ export const PublicSchedulePage: React.FC = () => {
 
     setLoading(true)
     try {
-      const pub = await publicationService.getPublication(publicationId)
+      const pub = await queryClient.fetchQuery({
+        queryKey: ['publication', publicationId],
+        queryFn: () => publicationService.getPublication(publicationId),
+        staleTime: 0
+      })
       if (!pub) {
         setMessage({ type: 'error', text: 'Publication link not found or invalid.' })
         setLoading(false)
@@ -64,18 +70,28 @@ export const PublicSchedulePage: React.FC = () => {
       }
 
       const [schedList, memList] = await Promise.all([
-        scheduleService.getSchedules(),
-        memberService.getMembers()
+        queryClient.fetchQuery({
+          queryKey: ['public-schedules', pub.id, pub.startDate, pub.endDate],
+          queryFn: () => scheduleService.getSchedulesByDateRange(pub.startDate, pub.endDate),
+          staleTime: 0
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['public-active-members-non-squire'],
+          queryFn: async () => {
+            const allMembers = await memberService.getMembers()
+            return allMembers.filter(m => {
+              if (m.status !== 'active') return false
+              const r = (m.rank || '').toLowerCase()
+              const o = (m.order || '').toLowerCase()
+              const p = (m.position || '').toLowerCase()
+              return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
+            })
+          },
+          staleTime: 1000 * 60 * 10 // 10 minutes cache
+        })
       ])
-      
-      const activeMems = memList.filter(m => {
-        if (m.status !== 'active') return false
-        const r = (m.rank || '').toLowerCase()
-        const o = (m.order || '').toLowerCase()
-        const p = (m.position || '').toLowerCase()
-        return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
-      })
-      setMembers(activeMems)
+
+      setMembers(memList)
       setSchedules(schedList)
     } catch (err) {
       console.error(err)
@@ -87,7 +103,7 @@ export const PublicSchedulePage: React.FC = () => {
 
   useEffect(() => {
     loadData()
-  }, [publicationId])
+  }, [publicationId, queryClient])
 
   // Sync selected schedules when selected member changes
   useEffect(() => {
@@ -328,12 +344,24 @@ export const PublicSchedulePage: React.FC = () => {
       setMessage({ type: 'success', text: 'Your schedule response has been saved successfully!' })
 
       // Refresh schedules and publication from backend
-      const [updatedSchedules, updatedPub] = await Promise.all([
-        scheduleService.getSchedules(),
-        publicationService.getPublication(publicationId!)
-      ])
+      await queryClient.invalidateQueries({ queryKey: ['publication', publicationId] })
+      const updatedPub = await queryClient.fetchQuery({
+        queryKey: ['publication', publicationId],
+        queryFn: () => publicationService.getPublication(publicationId!),
+        staleTime: 0
+      })
+      if (!updatedPub) throw new Error('Publication not found.')
+
+      await queryClient.invalidateQueries({
+        queryKey: ['public-schedules', updatedPub.id, updatedPub.startDate, updatedPub.endDate]
+      })
+      const updatedSchedules = await queryClient.fetchQuery({
+        queryKey: ['public-schedules', updatedPub.id, updatedPub.startDate, updatedPub.endDate],
+        queryFn: () => scheduleService.getSchedulesByDateRange(updatedPub.startDate, updatedPub.endDate),
+        staleTime: 0
+      })
       setSchedules(updatedSchedules)
-      if (updatedPub) setPublication(updatedPub)
+      setPublication(updatedPub)
     } catch (err) {
       console.error(err)
       setMessage({ type: 'error', text: 'Failed to save schedule. Please try again.' })

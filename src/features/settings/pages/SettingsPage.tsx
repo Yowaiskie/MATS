@@ -8,6 +8,7 @@ import type { Member } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
+import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 
 const mockSchedule: Schedule = {
   id: 'mock-123',
@@ -40,7 +41,7 @@ const mockUnassignedMembers: Member[] = [
   { id: 'm-5', firstName: 'Marcial', lastName: 'Rimando', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
-type TabId = 'policy' | 'template'
+type TabId = 'policy' | 'template' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -58,6 +59,12 @@ const FileTextIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 )
 
+const WrenchIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83M11.42 15.17l2.496-3.03c.317-.384.74-.664 1.208-.766M11.42 15.17l-4.655 5.653a2.548 2.548 0 11-3.586-3.586l5.654-4.654m0 0l-3.03 2.496c-.102.468-.382.891-.766 1.208m0 0L3.75 10.5" />
+  </svg>
+)
+
 const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -66,7 +73,8 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
-  { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> }
+  { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
+  { id: 'maintenance', label: 'Maintenance Mode', icon: <WrenchIcon className="w-4 h-4" /> }
 ]
 
 export const SettingsPage: React.FC = () => {
@@ -171,12 +179,19 @@ export const SettingsPage: React.FC = () => {
         </Card>
       ) : (
         <div>
-          {activeTab === 'policy' ? (
+          {activeTab === 'policy' && (
             <PolicySettingsCard
               onNotifySuccess={(msg) => setSuccessMsg(msg)}
               onNotifyError={(msg) => setError(msg)}
             />
-          ) : (
+          )}
+          {activeTab === 'maintenance' && (
+            <MaintenanceSettingsCard
+              onNotifySuccess={(msg) => setSuccessMsg(msg)}
+              onNotifyError={(msg) => setError(msg)}
+            />
+          )}
+          {activeTab === 'template' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-7 flex flex-col min-h-0">
                 <ReportTemplateEditor

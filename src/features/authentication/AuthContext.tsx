@@ -5,6 +5,7 @@ import type { User } from 'firebase/auth'
 import { auth, db } from '@/firebase/config'
 import { authService } from '@/services/authService'
 import { auditService } from '@/services/auditService'
+import { maintenanceService } from '@/services/maintenanceService'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
 
 interface AuthContextType {
@@ -114,6 +115,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setError(null)
     try {
       await authService.login(email, password)
+
+      // Strict Maintenance Mode Check: Verify immediately after authenticating
+      try {
+        const currentMaintenance = await maintenanceService.getMaintenanceSettings()
+        if (currentMaintenance.enabled) {
+          const normalizedEmail = email.trim().toLowerCase()
+          const isCoord = normalizedEmail === 'coordinator@mas.com'
+          const allowedListLower = (currentMaintenance.allowedUserUids || []).map((u) => u.toLowerCase().trim())
+          const isAllowed = isCoord || allowedListLower.includes(normalizedEmail)
+
+          if (!isAllowed) {
+            await authService.logout()
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+            throw new Error('MATS is currently under maintenance. Only the Coordinator and explicitly authorized users are allowed to sign in.')
+          }
+        }
+      } catch (maintErr: any) {
+        if (maintErr.message?.includes('under maintenance')) {
+          throw maintErr
+        }
+        console.warn('Maintenance check warning during login:', maintErr)
+      }
       
       // Log login event in audit logs asynchronously
       auditService.logAction(

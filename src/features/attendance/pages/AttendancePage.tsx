@@ -147,10 +147,8 @@ export const AttendancePage: React.FC = () => {
     setSuccessMsg(null)
 
     try {
-      // 1. Load schedules & verify match
-      const schedulesList = await scheduleService.getSchedules()
-      setAllSchedules(schedulesList)
-      const matchedSchedule = schedulesList.find(s => s.id === scheduleId)
+      // 1. Load target schedule & same-day schedules for conflict validation
+      const matchedSchedule = await scheduleService.getScheduleById(scheduleId)
       
       if (!matchedSchedule) {
         setError('Schedule service record not found.')
@@ -158,6 +156,9 @@ export const AttendancePage: React.FC = () => {
         return
       }
       setSchedule(matchedSchedule)
+
+      const sameDaySchedules = await scheduleService.getSchedulesByDate(matchedSchedule.date)
+      setAllSchedules(sameDaySchedules)
 
       // 2. Fetch or create Session lifecycle document
       const sessionDoc = await attendanceService.getOrCreateSession(scheduleId)

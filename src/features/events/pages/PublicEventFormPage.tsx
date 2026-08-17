@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
@@ -13,6 +14,7 @@ import { Loading } from '@/components/Loading'
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
   const { profile, user } = useAuth()
+  const queryClient = useQueryClient()
 
   const [form, setForm] = useState<EventForm | null>(null)
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
@@ -37,7 +39,11 @@ export const PublicEventFormPage: React.FC = () => {
       if (!formId) return
       setLoading(true)
       try {
-        const formData = await eventFormService.getFormById(formId)
+        const formData = await queryClient.fetchQuery({
+          queryKey: ['public-event-form', formId],
+          queryFn: () => eventFormService.getFormById(formId),
+          staleTime: 0
+        })
         if (!formData || !formData.id) {
           setPageLoadError('Event form not found.')
           setLoading(false)
@@ -59,18 +65,30 @@ export const PublicEventFormPage: React.FC = () => {
         }
 
         const realFormId: string = formData.id
-        const qs = await eventFormQuestionService.getQuestionsByFormId(realFormId)
+        const qs = await queryClient.fetchQuery({
+          queryKey: ['event-form-questions', realFormId],
+          queryFn: () => eventFormQuestionService.getQuestionsByFormId(realFormId),
+          staleTime: 0
+        })
         setQuestions(qs)
 
         // If form contains a member selector, load active members list and exclude already submitted members
         if (qs.some(q => q.type === 'member_selector')) {
           try {
-            const allMembers = await memberService.getMembers()
+            const allMembers = await queryClient.fetchQuery({
+              queryKey: ['members', 'active-for-public-form'],
+              queryFn: () => memberService.getMembers(),
+              staleTime: 1000 * 60 * 10 // 10 minutes cache
+            })
             const activeMembers = allMembers.filter(m => m.status === 'active')
 
             let existingResponses: EventFormResponse[] = []
             try {
-              existingResponses = await eventFormResponseService.getResponsesByFormId(realFormId)
+              existingResponses = await queryClient.fetchQuery({
+                queryKey: ['public-form-member-submissions', realFormId],
+                queryFn: () => eventFormResponseService.getResponsesByFormId(realFormId),
+                staleTime: 0
+              })
             } catch {
               // Ignore if unauthenticated or read permissions fail
             }
@@ -102,7 +120,7 @@ export const PublicEventFormPage: React.FC = () => {
     }
 
     loadFormAndQuestions()
-  }, [formId, user])
+  }, [formId, user, queryClient])
 
   // On mount, check localStorage for a previous anonymous tracking number for this form
   useEffect(() => {

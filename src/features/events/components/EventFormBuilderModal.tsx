@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import type { EventForm, EventFormQuestion, QuestionType, ConditionOperator } from '@/types/eventForm'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
@@ -37,6 +38,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
   formToEdit
 }) => {
   const { profile } = useAuth()
+  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'builder' | 'settings'>('builder')
   const [saving, setSaving] = useState(false)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
@@ -61,7 +63,11 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
   useEffect(() => {
     if (formToEdit?.id) {
-      eventFormQuestionService.getQuestionsByFormId(formToEdit.id).then(qs => {
+      queryClient.fetchQuery({
+        queryKey: ['event-form-questions', formToEdit.id],
+        queryFn: () => eventFormQuestionService.getQuestionsByFormId(formToEdit.id!),
+        staleTime: 1000 * 60 * 3
+      }).then(qs => {
         setQuestions(qs)
         if (qs.length > 0) setSelectedQuestionId(qs[0].id)
       })
@@ -81,7 +87,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
       setQuestions([defaultQ])
       setSelectedQuestionId(initQId)
     }
-  }, [formToEdit, eventId])
+  }, [formToEdit, eventId, queryClient])
 
   if (!isOpen) return null
 
@@ -197,6 +203,9 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
       // Save questions
       await eventFormQuestionService.saveQuestions(formId, eventId, questions, profile?.email || 'Organizer')
+      await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
+      await queryClient.invalidateQueries({ queryKey: ['event-form-questions', formId] })
+      await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
 
       onSaved()
       onClose()

@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDocs,
+  getCountFromServer,
   deleteDoc,
   serverTimestamp,
   runTransaction,
@@ -176,6 +177,40 @@ export const eventFormResponseService = {
       console.error('Error fetching responses:', error)
       throw new Error('Failed to fetch form responses.')
     }
+  },
+
+  /**
+   * Fetch response count for a single form using Firestore aggregate count.
+   */
+  async getResponseCountByFormId(formId: string): Promise<number> {
+    try {
+      const q = query(
+        collection(db, RESPONSES_COLLECTION),
+        where('formId', '==', formId)
+      )
+      const aggregate = await getCountFromServer(q)
+      return aggregate.data().count
+    } catch (error) {
+      console.error('Error fetching response count:', error)
+      throw new Error('Failed to fetch response count.')
+    }
+  },
+
+  /**
+   * Fetch response counts for multiple forms.
+   */
+  async getResponseCountsByFormIds(formIds: string[]): Promise<Record<string, number>> {
+    const ids = Array.from(new Set(formIds.filter(Boolean)))
+    if (ids.length === 0) return {}
+
+    const counts = await Promise.all(
+      ids.map(async formId => {
+        const count = await this.getResponseCountByFormId(formId)
+        return [formId, count] as const
+      })
+    )
+
+    return Object.fromEntries(counts)
   },
 
   /**

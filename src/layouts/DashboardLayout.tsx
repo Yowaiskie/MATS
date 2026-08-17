@@ -10,6 +10,8 @@ import { useTutorialSteps } from '@/hooks/useTutorialSteps'
 import { TutorialTooltip } from '@/components/TutorialTooltip'
 import { useInactivityRedirect } from '@/hooks/useInactivityRedirect'
 import { dashboardService } from '@/services/dashboardService'
+import { useMaintenance } from '@/context/MaintenanceContext'
+import { MaintenanceScreen } from '@/features/maintenance/components/MaintenanceScreen'
 
 // Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
@@ -79,7 +81,8 @@ const icons: { [key: string]: React.ReactNode } = {
 
 export const DashboardLayout: React.FC = () => {
   useInactivityRedirect()
-  const { profile, logout, hasModuleAccess } = useAuth()
+  const { user, profile, logout, hasModuleAccess } = useAuth()
+  const { isMaintenanceActive, isUserAllowed } = useMaintenance()
   const location = useLocation()
   const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -87,10 +90,14 @@ export const DashboardLayout: React.FC = () => {
   const [loggingOut, setLoggingOut] = useState(false)
   const [activeTasksCount, setActiveTasksCount] = useState(0)
 
+  const isBlocked = isMaintenanceActive && !isUserAllowed(user?.uid, user?.email, profile?.role)
+
   const { run, steps, startTutorial, handleJoyrideCallback } = useTutorial()
   const { globalSteps } = useTutorialSteps()
 
   React.useEffect(() => {
+    if (isBlocked) return // Prevent any Firestore activity for blocked users
+
     const fetchMyTasks = async () => {
       if (profile?.displayName) {
         try {
@@ -102,15 +109,16 @@ export const DashboardLayout: React.FC = () => {
       }
     }
     fetchMyTasks()
-  }, [profile?.displayName, location.pathname]) // Refresh on navigation
+  }, [profile?.displayName, location.pathname, isBlocked]) // Refresh on navigation
 
   React.useEffect(() => {
+    if (isBlocked) return
     const hasSeenTutorial = localStorage.getItem('mats_tutorial_seen')
     if (!hasSeenTutorial && globalSteps.length > 0) {
       startTutorial(globalSteps)
       localStorage.setItem('mats_tutorial_seen', 'true')
     }
-  }, [globalSteps, startTutorial])
+  }, [globalSteps, startTutorial, isBlocked])
 
   React.useEffect(() => {
     if (run && window.innerWidth < 640) {
@@ -194,6 +202,12 @@ export const DashboardLayout: React.FC = () => {
     return 'Dashboard'
   }
 
+  // Strict Realtime Guard: If Maintenance Mode is active and user is blocked, logout & render MaintenanceScreen directly
+  if (isBlocked) {
+    logout().catch(console.error)
+    return <MaintenanceScreen />
+  }
+
   return (
     <div 
       className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden"
@@ -219,6 +233,23 @@ export const DashboardLayout: React.FC = () => {
 
       {/* Offline Alert Banner */}
       <OfflineBanner />
+
+      {/* Maintenance Mode Active Banner for Logged-In Authorized Staff */}
+      {isMaintenanceActive && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs border-b border-amber-600">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950"></span>
+            </span>
+            <span>SYSTEM MAINTENANCE MODE IS ACTIVE</span>
+            <span className="hidden sm:inline font-normal opacity-90">&bull; You are accessing MATS as an authorized user.</span>
+          </div>
+          <Link to="/settings" className="underline hover:text-slate-900 text-[11px] font-extrabold shrink-0">
+            Manage Settings &rarr;
+          </Link>
+        </div>
+      )}
 
       {/* Top Navbar */}
       <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95">

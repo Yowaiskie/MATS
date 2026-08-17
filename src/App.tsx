@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from '@/features/authentication/AuthContext'
+import { MaintenanceProvider } from '@/context/MaintenanceContext'
+import { PublicMaintenanceGuard } from '@/features/maintenance/components/PublicMaintenanceGuard'
 import { PWAProvider } from '@/context/PWAContext'
 import { TutorialProvider } from '@/context/TutorialContext'
 import { ProtectedRoute, PublicRoute } from '@/features/authentication/components/ProtectedRoute'
@@ -27,40 +29,57 @@ function App() {
   return (
     <PWAProvider>
       <AuthProvider>
-        <TutorialProvider>
-          <BrowserRouter>
-            <Routes>
-              {/* Public Login Route */}
-            <Route 
-              path="/login" 
-              element={
-                <PublicRoute>
-                  <LoginPage />
-                </PublicRoute>
-              } 
-            />
+        <MaintenanceProvider>
+          <TutorialProvider>
+            <BrowserRouter>
+              <Routes>
+                {/* Public Login Route */}
+              <Route 
+                path="/login" 
+                element={
+                  <PublicRoute>
+                    <LoginPage />
+                  </PublicRoute>
+                } 
+              />
 
-            {/* Public Self-Service Schedule Link */}
-            <Route 
-              path="/public/schedule/:id" 
-              element={<PublicSchedulePage />} 
-            />
+              {/* Public Self-Service Schedule Link */}
+              <Route 
+                path="/public/schedule/:id" 
+                element={
+                  <PublicMaintenanceGuard>
+                    <PublicSchedulePage />
+                  </PublicMaintenanceGuard>
+                } 
+              />
 
-            {/* Public Excuse Link */}
-            <Route 
-              path="/public/excuse" 
-              element={<PublicExcusePage />} 
-            />
+              {/* Public Excuse Link */}
+              <Route 
+                path="/public/excuse" 
+                element={
+                  <PublicMaintenanceGuard>
+                    <PublicExcusePage />
+                  </PublicMaintenanceGuard>
+                } 
+              />
 
-            {/* Public Event Registration Form Link */}
-            <Route 
-              path="/public/events/:eventId/forms/:formId" 
-              element={<PublicEventFormPage />} 
-            />
-            <Route 
-              path="/public/forms/:formId" 
-              element={<PublicEventFormPage />} 
-            />
+              {/* Public Event Registration Form Link */}
+              <Route 
+                path="/public/events/:eventId/forms/:formId" 
+                element={
+                  <PublicMaintenanceGuard>
+                    <PublicEventFormPage />
+                  </PublicMaintenanceGuard>
+                } 
+              />
+              <Route 
+                path="/public/forms/:formId" 
+                element={
+                  <PublicMaintenanceGuard>
+                    <PublicEventFormPage />
+                  </PublicMaintenanceGuard>
+                } 
+              />
 
             {/* Protected Routes wrapped under a single layout parent */}
             <Route 
@@ -183,6 +202,7 @@ function App() {
           <PWAUpdatePrompt />
         </BrowserRouter>
         </TutorialProvider>
+        </MaintenanceProvider>
       </AuthProvider>
     </PWAProvider>
   )
