@@ -57,7 +57,7 @@ export const downloadEventFormPdf = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  // 1. Draw Official Header (Single Ministry Logo on Right Side)
+  // 1. Prepare Logo for Header on Every Page
   let logoImg: HTMLImageElement | null = null
   try {
     logoImg = await loadImage('/ministy_logo.jpg')
@@ -69,45 +69,8 @@ export const downloadEventFormPdf = async (
     }
   }
 
-  // Single logo on upper right
-  if (logoImg) {
-    doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
-  }
-
-  // Left Parish Text
-  doc.setFont('times', 'bolditalic')
-  doc.setFontSize(15)
-  doc.setTextColor(15, 23, 42)
-  doc.text('Ministry of Altar Servers', 14, 14)
-
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9)
-  doc.setTextColor(51, 65, 85)
-  doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19)
-  doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 23)
-
-  // Horizontal Header Divider Line
-  doc.setDrawColor(30, 41, 59)
-  doc.setLineWidth(0.6)
-  doc.line(14, 27, pageWidth - 14, 27)
-
-  // 2. Document Title (Centered & Bold Underline Style)
+  // 2. Document Title
   const titleText = (options.documentTitle.trim() || form.title).toUpperCase()
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13)
-  doc.setTextColor(15, 23, 42)
-  const titleWidth = doc.getTextWidth(titleText)
-  const titleX = (pageWidth - titleWidth) / 2
-  const titleY = 35
-  doc.text(titleText, titleX, titleY)
-  doc.setLineWidth(0.4)
-  doc.line(titleX, titleY + 1, titleX + titleWidth, titleY + 1)
-
-  // Sub-header Metadata Row
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8)
-  doc.setTextColor(100, 116, 139)
-  doc.text(`Generated: ${dateStr} at ${timeStr}`, 14, 42)
 
   // Filter Responses if configured
   let filteredResponses = responses
@@ -135,8 +98,6 @@ export const downloadEventFormPdf = async (
     const nameB = getCleanMemberName(b)
     return nameA.localeCompare(nameB)
   })
-
-  doc.text(`Total Records: ${filteredResponses.length}`, pageWidth - 14, 42, { align: 'right' })
 
   // 4. Prepare Table Columns & Rows with Sequential Numbering (#)
   const sortedQuestions = [...questions].sort((a, b) => a.order - b.order)
@@ -215,37 +176,85 @@ export const downloadEventFormPdf = async (
     return rowCells
   })
 
-  // 5. Draw AutoTable
+  // Determine dynamic comfortable font sizes based on column count
+  const isDense = tableHeaders.length > 5
+  const headerFontSize = isDense ? 10 : 11.5
+  const bodyFontSize = isDense ? 9.5 : 10.5
+  const cellPadding = isDense ? 3 : 3.8
+
+  // 5. Draw AutoTable with Header and Footer applied on every page
   autoTable(doc, {
-    startY: 46,
+    startY: 49,
     head: [tableHeaders],
     body: tableRows,
     theme: 'grid',
+    showHead: 'everyPage',
     headStyles: {
       fillColor: [30, 41, 59],
       textColor: [255, 255, 255],
-      fontSize: 8.5,
+      fontSize: headerFontSize,
       fontStyle: 'bold',
       halign: 'left',
-      cellPadding: 2.5
+      cellPadding: cellPadding
     },
     bodyStyles: {
-      fontSize: 8,
-      textColor: [51, 65, 85],
-      cellPadding: 2.5
+      fontSize: bodyFontSize,
+      textColor: [15, 23, 42],
+      cellPadding: cellPadding,
+      fontStyle: 'normal'
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center', fontStyle: 'bold' } // '#' numbering column styling
+      0: { cellWidth: 12, halign: 'center', fontStyle: 'bold' } // '#' numbering column styling
     },
     alternateRowStyles: {
       fillColor: [248, 250, 252]
     },
-    margin: { left: 14, right: 14, top: 46, bottom: 16 },
+    margin: { left: 14, right: 14, top: 49, bottom: 16 },
     didDrawPage: (data) => {
+      // 1. Draw Official Header (Single Ministry Logo on Right Side) on EVERY page
+      if (logoImg) {
+        doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
+      }
+
+      // Left Parish Text
+      doc.setFont('times', 'bolditalic')
+      doc.setFontSize(16)
+      doc.setTextColor(15, 23, 42)
+      doc.text('Ministry of Altar Servers', 14, 14)
+
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.setTextColor(51, 65, 85)
+      doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
+      doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+
+      // Horizontal Header Divider Line
+      doc.setDrawColor(30, 41, 59)
+      doc.setLineWidth(0.6)
+      doc.line(14, 28, pageWidth - 14, 28)
+
+      // 2. Document Title (Centered & Bold Underline Style)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(15)
+      doc.setTextColor(15, 23, 42)
+      const titleWidth = doc.getTextWidth(titleText)
+      const titleX = (pageWidth - titleWidth) / 2
+      const titleY = 37
+      doc.text(titleText, titleX, titleY)
+      doc.setLineWidth(0.5)
+      doc.line(titleX, titleY + 1.2, titleX + titleWidth, titleY + 1.2)
+
+      // Sub-header Metadata Row
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(9.5)
+      doc.setTextColor(71, 85, 105)
+      doc.text(`Generated: ${dateStr} at ${timeStr}`, 14, 45)
+      doc.text(`Total Records: ${filteredResponses.length}`, pageWidth - 14, 45, { align: 'right' })
+
       // Footer page numbers
       const pageCount = (doc as any).internal.getNumberOfPages()
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7.5)
+      doc.setFontSize(8.5)
       doc.setTextColor(148, 163, 184)
       doc.text(
         `Page ${data.pageNumber} of ${pageCount} - MATS Official Event Form Report`,
