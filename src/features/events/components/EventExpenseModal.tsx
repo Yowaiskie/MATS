@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
 import { categoryService } from '@/services/finance/categoryService'
+import { eventAssignmentService } from '@/services/eventAssignmentService'
 import type { EventFinanceCategory, PaymentMethod, EventExpense } from '@/types/eventFinance'
 import type { FinanceCategory } from '@/types/finance'
+import type { EventAssignment } from '@/types/event'
 
 interface Props {
   isOpen: boolean
@@ -20,6 +22,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
   const { user, profile } = useAuth()
   const [categories, setCategories] = useState<EventFinanceCategory[]>([])
   const [mainCategories, setMainCategories] = useState<FinanceCategory[]>([])
+  const [eventAssignments, setEventAssignments] = useState<EventAssignment[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -28,6 +31,9 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
   const [amount, setAmount] = useState('')
   const [spentOn, setSpentOn] = useState('')
   const [spentBy, setSpentBy] = useState('')
+  const [spentByUid, setSpentByUid] = useState('')
+  const [showMemberDropdown, setShowMemberDropdown] = useState(false)
+  const memberDropdownRef = useRef<HTMLDivElement>(null)
   const [categoryId, setCategoryId] = useState('')
   const [mainFinanceCategoryId, setMainFinanceCategoryId] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash')
@@ -39,14 +45,14 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
 
   useEffect(() => {
     if (isOpen) {
-      fetchCategories()
-      fetchMainCategories()
+      fetchInitialData()
       if (editItem) {
         const parts = editItem.amount.toString().split('.')
         if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
         setAmount(parts.join('.'))
         setSpentOn(editItem.spentOn)
         setSpentBy(editItem.spentByName)
+        setSpentByUid(editItem.spentByUid || '')
         setFundSource(editItem.fundSource || 'event')
         setCategoryId(editItem.categoryId || '')
         setMainFinanceCategoryId(editItem.mainFinanceCategoryId || '')
@@ -56,36 +62,46 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         setDescription(editItem.description || '')
         setAllocation(editItem.allocation || '')
         setNewCategoryName('')
+        setShowMemberDropdown(false)
         setError(null)
       } else {
         resetForm()
         if (profile?.displayName) {
           setSpentBy(profile.displayName)
+          setSpentByUid(user?.uid || '')
         } else if (user?.email) {
           setSpentBy(user.email)
+          setSpentByUid(user?.uid || '')
         }
       }
     }
   }, [isOpen, profile, user, editItem])
 
-  const fetchCategories = async () => {
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (memberDropdownRef.current && !memberDropdownRef.current.contains(e.target as Node)) {
+        setShowMemberDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const fetchInitialData = async () => {
     try {
       setLoading(true)
-      const data = await eventFinanceService.getEventFinanceCategories(eventId, 'expense')
-      setCategories(data.filter(c => !c.isArchived))
+      const [catsData, mainCatsData, assignmentsData] = await Promise.all([
+        eventFinanceService.getEventFinanceCategories(eventId, 'expense'),
+        categoryService.getCategories(),
+        eventAssignmentService.getAssignmentsByEventId(eventId).catch(() => [])
+      ])
+      setCategories(catsData.filter(c => !c.isArchived))
+      setMainCategories(mainCatsData.filter(c => !c.isArchived))
+      setEventAssignments(assignmentsData)
     } catch (err) {
-      console.error('Failed to load categories:', err)
+      console.error('Failed to load modal data:', err)
     } finally {
       setLoading(false)
-    }
-  }
-
-  const fetchMainCategories = async () => {
-    try {
-      const data = await categoryService.getCategories()
-      setMainCategories(data.filter(c => !c.isArchived))
-    } catch (err) {
-      console.error('Failed to load main categories:', err)
     }
   }
 
@@ -93,6 +109,9 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
     setFundSource('event')
     setAmount('')
     setSpentOn('')
+    setSpentBy('')
+    setSpentByUid('')
+    setShowMemberDropdown(false)
     setCategoryId('')
     setMainFinanceCategoryId('')
     setPaymentMethod('Cash')
@@ -103,6 +122,47 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
     setNewCategoryName('')
     setError(null)
   }
+
+  // Only Event Team Members assigned to this event
+  const memberCandidates = useMemo(() => {
+    const candidates: Array<{
+      id: string
+      name: string
+      roleSubtitle: string
+    }> = []
+
+    const addedNames = new Set<string>()
+
+    eventAssignments.forEach(a => {
+      if (!a.memberName || addedNames.has(a.memberName.toLowerCase().trim())) return
+      let roleLabel = a.eventRoleName || 'Team Member'
+      if (a.committeeName) {
+        roleLabel = `${a.committeeName} (${roleLabel})`
+      }
+      if (a.isOverallHead) {
+        roleLabel = `Overall Head • ${roleLabel}`
+      }
+      candidates.push({
+        id: a.memberUid,
+        name: a.memberName,
+        roleSubtitle: roleLabel
+      })
+      addedNames.add(a.memberName.toLowerCase().trim())
+    })
+
+    return candidates
+  }, [eventAssignments])
+
+  const filteredMembers = useMemo(() => {
+    const query = spentBy.trim().toLowerCase()
+    if (!query) {
+      return memberCandidates
+    }
+    return memberCandidates.filter(m => 
+      m.name.toLowerCase().includes(query) || 
+      m.roleSubtitle.toLowerCase().includes(query)
+    )
+  }, [memberCandidates, spentBy])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -151,6 +211,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           amount: numAmount,
           spentOn: spentOn.trim(),
           spentByName: spentBy.trim(),
+          spentByUid: spentByUid || editItem.spentByUid || user.uid,
           fundSource,
           paymentMethod,
           categoryId: fundSource === 'event' ? finalCategoryId : (finalCategoryId || ''),
@@ -177,12 +238,12 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           eventId,
           amount: numAmount,
           spentOn: spentOn.trim(),
-          spentByUid: user.uid,
+          spentByUid: spentByUid || user.uid,
           spentByName: spentBy.trim(),
           fundSource,
           paymentMethod,
           categoryId: fundSource === 'event' ? finalCategoryId : (finalCategoryId || ''),
-          mainFinanceCategoryId: fundSource === 'main_funds' ? mainFinanceCategoryId : undefined,
+          mainFinanceCategoryId: fundSource === 'main_funds' ? mainFinanceCategoryId : null,
           allocation: allocation.trim() || null,
           date,
           description: description.trim()
@@ -263,7 +324,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
                 </span>
                 <span className="text-xs font-bold text-indigo-900">Main Ministry Funds</span>
               </div>
-              <p className="text-[11px] text-indigo-700/80 mt-1 pl-5">Deducted directly from Main Ministry general funds</p>
+              <p className="text-[11px] text-indigo-700/80 mt-1 pl-5">Auto-synced directly with Main Finance</p>
             </button>
           </div>
         </div>
@@ -321,16 +382,105 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
               placeholder="e.g. Food, Venue"
             />
           </div>
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Spent By *</label>
-            <input
-              type="text"
-              required
-              maxLength={100}
-              value={spentBy}
-              onChange={(e) => setSpentBy(e.target.value)}
-              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
-            />
+
+          {/* Searchable Dropdown for Spent By */}
+          <div className="relative" ref={memberDropdownRef}>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5 flex items-center justify-between">
+              <span>Spent By *</span>
+              {eventAssignments.length > 0 && (
+                <span className="text-[10px] font-semibold text-blue-600 lowercase tracking-normal">
+                  ({eventAssignments.length} event {eventAssignments.length === 1 ? 'member' : 'members'})
+                </span>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                required
+                maxLength={100}
+                value={spentBy}
+                onChange={(e) => {
+                  setSpentBy(e.target.value)
+                  setSpentByUid('')
+                  setShowMemberDropdown(true)
+                }}
+                onFocus={() => setShowMemberDropdown(true)}
+                className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all pl-9 pr-8 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-sm"
+                placeholder="Search event member or enter name..."
+              />
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+              </div>
+              {spentBy && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSpentBy('')
+                    setSpentByUid('')
+                    setShowMemberDropdown(true)
+                  }}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                  title="Clear name"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Dropdown Menu */}
+            {showMemberDropdown && (
+              <div className="absolute z-50 left-0 right-0 mt-1.5 bg-white border border-slate-200 rounded-xl shadow-xl max-h-60 overflow-y-auto divide-y divide-slate-100 animate-in fade-in slide-in-from-top-1 duration-150">
+                {filteredMembers.length > 0 ? (
+                  <>
+                    <div className="px-3 py-1.5 bg-slate-50 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 border-b border-slate-100 flex items-center justify-between">
+                      <span>Event Team Members</span>
+                      <span className="font-normal text-slate-400 lowercase">{filteredMembers.length} {filteredMembers.length === 1 ? 'member' : 'members'}</span>
+                    </div>
+                    {filteredMembers.map((candidate) => (
+                      <button
+                        key={`${candidate.id}-${candidate.name}`}
+                        type="button"
+                        onClick={() => {
+                          setSpentBy(candidate.name)
+                          setSpentByUid(candidate.id)
+                          setShowMemberDropdown(false)
+                        }}
+                        className={`w-full px-3.5 py-2.5 text-left text-xs hover:bg-blue-50/70 transition-colors flex items-center justify-between gap-2 cursor-pointer group ${
+                          spentBy.trim().toLowerCase() === candidate.name.toLowerCase() ? 'bg-blue-50' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-blue-100 text-blue-700">
+                            {candidate.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="truncate">
+                            <div className="font-semibold text-slate-800 group-hover:text-blue-700 truncate">
+                              {candidate.name}
+                            </div>
+                            <div className="text-[11px] text-slate-500 truncate">
+                              {candidate.roleSubtitle}
+                            </div>
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </>
+                ) : (
+                  <div className="p-3 text-center text-xs text-slate-500">
+                    <p className="font-medium text-slate-700">
+                      {eventAssignments.length === 0 ? 'No members assigned to this event team' : 'No matching event team member'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {spentBy.trim() ? `Press enter or keep "${spentBy}" as custom name.` : 'You can type a custom name.'}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

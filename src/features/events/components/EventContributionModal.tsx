@@ -128,7 +128,7 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
       await eventContributionService.addContribution(
         {
           eventId,
-          contributorUid: contributorUid || undefined,
+          contributorUid: contributorUid || null,
           contributorName: finalContributorName,
           purposeId,
           purposeName: selectedPurpose.name,
