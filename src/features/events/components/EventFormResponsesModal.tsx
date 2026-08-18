@@ -100,26 +100,30 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
   if (!isOpen) return null
 
+  const hasTargetMembers = questions.some(q => q.type === 'member_selector')
+
   // Find form target member filter from member_selector question if present
   const memberSelectorQ = questions.find(q => q.type === 'member_selector' && q.memberFilterType && q.memberFilterType !== 'all')
 
   // Determine eligible members list matching the form's target audience
-  const eligibleMembersList = membersList.filter(member => {
-    if (!memberSelectorQ) return true
-    const filterType = memberSelectorQ.memberFilterType
-    const filterValue = memberSelectorQ.memberFilterValue
-    if (!filterValue) return true
+  const eligibleMembersList = hasTargetMembers
+    ? membersList.filter(member => {
+        if (!memberSelectorQ) return true
+        const filterType = memberSelectorQ.memberFilterType
+        const filterValue = memberSelectorQ.memberFilterValue
+        if (!filterValue) return true
 
-    const allowed = Array.isArray(filterValue) ? filterValue : [filterValue]
+        const allowed = Array.isArray(filterValue) ? filterValue : [filterValue]
 
-    if (filterType === 'order') {
-      return !!member.order && allowed.includes(member.order)
-    }
-    if (filterType === 'rank') {
-      return !!member.rank && allowed.includes(member.rank)
-    }
-    return true
-  })
+        if (filterType === 'order') {
+          return !!member.order && allowed.includes(member.order)
+        }
+        if (filterType === 'rank') {
+          return !!member.rank && allowed.includes(member.rank)
+        }
+        return true
+      })
+    : []
 
   // Map of memberId to response (if member submitted)
   const respondedMemberIds = new Set<string>()
@@ -197,13 +201,27 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     return trackingMatch || nameMatch || emailMatch || answerMatch
   })
 
+  // Filter general submissions when there is no target member selector
+  const filteredGeneralResponses = responses.filter(r => {
+    const term = searchTerm.toLowerCase().trim()
+    if (!term) return true
+    const nameMatch = (r.respondentMemberName || '').toLowerCase().includes(term)
+    const emailMatch = (r.respondentEmail || '').toLowerCase().includes(term)
+    const answerMatch = Object.values(r.answers).some(val =>
+      String(val).toLowerCase().includes(term)
+    )
+    return nameMatch || emailMatch || answerMatch
+  })
+
   const totalRespondedCount = responses.length
   const totalPendingCount = eligibleMembersList.length - respondedMemberIds.size
 
-  const activeFilteredResponses = [
-    ...filteredMemberRows.map(r => r.response).filter((r): r is EventFormResponse => !!r),
-    ...filteredGuestResponses
-  ]
+  const activeFilteredResponses = hasTargetMembers
+    ? [
+        ...filteredMemberRows.map(r => r.response).filter((r): r is EventFormResponse => !!r),
+        ...filteredGuestResponses
+      ]
+    : filteredGeneralResponses
 
   const handleExportCSV = () => {
     eventFormResponseService.exportResponsesToCSV(form, questions, activeFilteredResponses)
@@ -324,159 +342,347 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
         {/* Sub-Header / Status & Filter Bar */}
         <div className="px-6 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
-          {/* Status Tabs */}
-          <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setActiveTab('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'all'
-                  ? 'bg-white text-blue-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Target Members ({eligibleMembersList.length})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('responded')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'responded'
-                  ? 'bg-white text-emerald-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Responded ({totalRespondedCount})
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('pending')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                activeTab === 'pending'
-                  ? 'bg-white text-amber-700 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Not Yet Answered ({totalPendingCount})
-            </button>
-          </div>
+          {hasTargetMembers ? (
+            <>
+              {/* Status Tabs */}
+              <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('all')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'all'
+                      ? 'bg-white text-blue-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  All Target Members ({eligibleMembersList.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('responded')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'responded'
+                      ? 'bg-white text-emerald-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Responded ({totalRespondedCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('pending')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === 'pending'
+                      ? 'bg-white text-amber-700 shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Not Yet Answered ({totalPendingCount})
+                </button>
+              </div>
 
-          {/* Search & Order Filter Controls */}
-          <div className="flex items-center space-x-3">
-            {/* Order Filter Dropdown */}
-            <div className="flex items-center space-x-1.5">
-              <span className="text-xs font-bold text-slate-500">Order / Group:</span>
-              <select
-                value={orderFilter}
-                onChange={e => setOrderFilter(e.target.value)}
-                className="p-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-slate-50"
-              >
-                <option value="all">All Groups</option>
-                {ORDER_GROUPS.map(og => (
-                  <option key={og} value={og}>
-                    {og}
-                  </option>
-                ))}
-              </select>
-            </div>
+              {/* Search & Order Filter Controls */}
+              <div className="flex items-center space-x-3">
+                {/* Order Filter Dropdown */}
+                <div className="flex items-center space-x-1.5">
+                  <span className="text-xs font-bold text-slate-500">Order / Group:</span>
+                  <select
+                    value={orderFilter}
+                    onChange={e => setOrderFilter(e.target.value)}
+                    className="p-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-slate-50"
+                  >
+                    <option value="all">All Groups</option>
+                    {ORDER_GROUPS.map(og => (
+                      <option key={og} value={og}>
+                        {og}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-            {/* Search Input */}
-            <input
-              type="text"
-              placeholder="Search member, order, or answer..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-64 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-            />
-          </div>
+                {/* Search Input */}
+                <input
+                  type="text"
+                  placeholder="Search member, order, or answer..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-64 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center space-x-2">
+                <span className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold">
+                  All Responses ({filteredGeneralResponses.length})
+                </span>
+              </div>
+
+              {/* Search Input */}
+              <input
+                type="text"
+                placeholder="Search responses by name, email, answer..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-72 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+              />
+            </>
+          )}
         </div>
 
         {/* Content Table */}
         <div className="flex-1 overflow-auto p-6 bg-slate-50">
-          {loading ? (
-            <div className="p-12 text-center text-xs font-semibold text-slate-500">Loading form responses and members roster...</div>
-          ) : (filteredMemberRows.length === 0 && filteredGuestResponses.length === 0) ? (
-            <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
-              <p className="text-sm font-bold">No records found</p>
-              <p className="text-xs mt-1 text-slate-400">Try adjusting your status tab, order filter, or search keywords.</p>
-            </div>
-          ) : (
-            <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
-              <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-                <thead>
-                  <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
-                    <th className="p-3.5">Member / Respondent</th>
-                    <th className="p-3.5">Order / Group</th>
-                    <th className="p-3.5">Status</th>
-                    {questions.map(q => (
-                      <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
-                        {q.question}
-                      </th>
-                    ))}
-                    <th className="p-3.5">Submitted At</th>
-                    <th className="p-3.5 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {/* Render Member Rows */}
-                  {filteredMemberRows.map(row => {
-                    const r = row.response
-                    const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                      : String(r?.submittedAt || '-')
+          {/* Category Slot Capacity & Open Slots Overview */}
+          {!loading && questions.some(q => q.optionLimits && Object.keys(q.optionLimits).length > 0) && (
+            <div className="mb-5 bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <div className="flex items-center space-x-2">
+                  <span className="p-1.5 bg-blue-50 text-blue-600 rounded-lg">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </span>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Category Slot Capacity & Availability Overview
+                  </h4>
+                </div>
+                <span className="text-[11px] text-slate-400 font-semibold">Real-time slot count</span>
+              </div>
 
-                    return (
-                      <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
-                        <td className="p-3.5 font-bold text-slate-900">
-                          {row.memberName}
-                        </td>
-                        <td className="p-3.5 font-medium text-slate-600">
-                          {row.member.order || row.member.position || '-'}
-                        </td>
-                        <td className="p-3.5">
-                          {row.hasResponded ? (
-                            <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              Responded
-                            </span>
-                          ) : (
-                            <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                              Not Yet Answered
-                            </span>
-                          )}
-                        </td>
+              <div className="space-y-4">
+                {questions
+                  .filter(q => q.optionLimits && Object.keys(q.optionLimits).length > 0)
+                  .map(q => (
+                    <div key={q.id} className="space-y-2">
+                      <span className="text-xs font-bold text-slate-700 block">{q.question}</span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
+                        {(q.options || []).map((opt, oIdx) => {
+                          const maxSlots = q.optionLimits?.[opt] || 0
+                          if (maxSlots <= 0) return null
 
-                        {/* Question Answers */}
-                        {questions.map(q => {
-                          if (!r) {
-                            return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
-                          }
-                          const val = r.answers[q.id]
-                          let displayVal = '-'
-                          if (val !== undefined && val !== null && val !== '') {
-                            if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                              displayVal = (val as unknown as CompanionEntry[])
-                                .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                .join('; ')
-                            } else if (q.type === 'member_selector' && typeof val === 'string') {
-                              displayVal = membersMap[val] || val
-                            } else if (typeof val === 'string' && membersMap[val]) {
-                              displayVal = membersMap[val]
-                            } else {
-                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                            }
-                          }
+                          const usedCount = responses.filter(r => {
+                            const ans = r.answers?.[q.id]
+                            if (Array.isArray(ans)) return ans.includes(opt)
+                            return ans === opt
+                          }).length
+
+                          const openSlots = Math.max(0, maxSlots - usedCount)
+                          const percent = Math.min(100, Math.round((usedCount / maxSlots) * 100))
+                          const isFull = openSlots <= 0
+
                           return (
-                            <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                              {displayVal}
-                            </td>
+                            <div
+                              key={oIdx}
+                              className={`p-3 rounded-xl border transition ${
+                                isFull
+                                  ? 'bg-rose-50/60 border-rose-200'
+                                  : openSlots <= 3
+                                  ? 'bg-amber-50/60 border-amber-200'
+                                  : 'bg-slate-50 border-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="font-bold text-xs text-slate-900 truncate max-w-[140px]" title={opt}>
+                                  {opt}
+                                </span>
+                                {isFull ? (
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                    FULL
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                                      openSlots <= 3
+                                        ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                        : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                    }`}
+                                  >
+                                    {openSlots} open left
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Progress Bar */}
+                              <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden mb-1">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-300 ${
+                                    isFull
+                                      ? 'bg-rose-500'
+                                      : percent >= 75
+                                      ? 'bg-amber-500'
+                                      : 'bg-emerald-500'
+                                  }`}
+                                  style={{ width: `${percent}%` }}
+                                />
+                              </div>
+
+                              <div className="flex items-center justify-between text-[10px] text-slate-500 font-medium">
+                                <span>{usedCount} / {maxSlots} filled</span>
+                                <span>{percent}%</span>
+                              </div>
+                            </div>
                           )
                         })}
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          )}
 
-                        <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
-                        <td className="p-3.5 text-right">
-                          {r ? (
+          {loading ? (
+            <div className="p-12 text-center text-xs font-semibold text-slate-500">Loading form responses...</div>
+          ) : hasTargetMembers ? (
+            filteredMemberRows.length === 0 && filteredGuestResponses.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+                <p className="text-sm font-bold">No records found</p>
+                <p className="text-xs mt-1 text-slate-400">Try adjusting your status tab, order filter, or search keywords.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
+                      <th className="p-3.5">Member / Respondent</th>
+                      <th className="p-3.5">Order / Group</th>
+                      <th className="p-3.5">Status</th>
+                      {questions.map(q => (
+                        <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
+                          {q.question}
+                        </th>
+                      ))}
+                      <th className="p-3.5">Submitted At</th>
+                      <th className="p-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {/* Render Member Rows */}
+                    {filteredMemberRows.map(row => {
+                      const r = row.response
+                      const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                        ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                        : String(r?.submittedAt || '-')
+
+                      return (
+                        <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
+                          <td className="p-3.5 font-bold text-slate-900">
+                            {row.memberName}
+                          </td>
+                          <td className="p-3.5 font-medium text-slate-600">
+                            {row.member.order || row.member.position || '-'}
+                          </td>
+                          <td className="p-3.5">
+                            {row.hasResponded ? (
+                              <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                Responded
+                              </span>
+                            ) : (
+                              <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                Not Yet Answered
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Question Answers */}
+                          {questions.map(q => {
+                            if (!r) {
+                              return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
+                            }
+                            const val = r.answers[q.id]
+                            let displayVal = '-'
+                            if (val !== undefined && val !== null && val !== '') {
+                              if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                displayVal = (val as unknown as CompanionEntry[])
+                                  .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                  .join('; ')
+                              } else if (q.type === 'member_selector' && typeof val === 'string') {
+                                displayVal = membersMap[val] || val
+                              } else if (typeof val === 'string' && membersMap[val]) {
+                                displayVal = membersMap[val]
+                              } else {
+                                displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                              }
+                            }
+                            return (
+                              <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                                {displayVal}
+                              </td>
+                            )
+                          })}
+
+                          <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
+                          <td className="p-3.5 text-right">
+                            {r ? (
+                              <div className="flex items-center justify-end space-x-2">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedResponse(r)}
+                                  className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  View Detail
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setResponseToEdit(r)}
+                                  className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  Edit
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setResponseToDelete(r)}
+                                  className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-slate-400 text-[11px] italic">No submission</span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {/* Guest Responses if any */}
+                    {filteredGuestResponses.map(r => {
+                      const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                        ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                        : String(r.submittedAt || '-')
+
+                      return (
+                        <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
+                          <td className="p-3.5 font-bold text-slate-900">
+                            {r.respondentMemberName || 'Guest / Non-Member'}
+                          </td>
+                          <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
+                          <td className="p-3.5">
+                            <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
+                              Responded
+                            </span>
+                          </td>
+                          {questions.map(q => {
+                            const val = r.answers[q.id]
+                            let displayVal = '-'
+                            if (val !== undefined && val !== null && val !== '') {
+                              if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                displayVal = (val as unknown as CompanionEntry[])
+                                  .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                  .join('; ')
+                              } else {
+                                displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                              }
+                            }
+                            return (
+                              <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                                {displayVal}
+                              </td>
+                            )
+                          })}
+                          <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
+                          <td className="p-3.5 text-right">
                             <div className="flex items-center justify-end space-x-2">
                               <button
                                 type="button"
@@ -500,81 +706,107 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                                 Delete
                               </button>
                             </div>
-                          ) : (
-                            <span className="text-slate-400 text-[11px] italic">No submission</span>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
+          ) : (
+            /* Direct Submissions List (when no target members are set) */
+            filteredGeneralResponses.length === 0 ? (
+              <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+                <p className="text-sm font-bold">No responses submitted yet</p>
+                <p className="text-xs mt-1 text-slate-400">Responses will appear here once participants submit the form.</p>
+              </div>
+            ) : (
+              <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                  <thead>
+                    <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
+                      <th className="p-3.5 w-12 text-slate-400">#</th>
+                      <th className="p-3.5">Respondent</th>
+                      {questions.map(q => (
+                        <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
+                          {q.question}
+                        </th>
+                      ))}
+                      <th className="p-3.5">Submitted At</th>
+                      <th className="p-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {filteredGeneralResponses.map((r, rIdx) => {
+                      const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                        ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                        : String(r.submittedAt || '-')
 
-                  {/* Guest Responses if any */}
-                  {filteredGuestResponses.map(r => {
-                    const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                      : String(r.submittedAt || '-')
-
-                    return (
-                      <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
-                        <td className="p-3.5 font-bold text-slate-900">
-                          {r.respondentMemberName || 'Guest / Non-Member'}
-                        </td>
-                        <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
-                        <td className="p-3.5">
-                          <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
-                            Responded
-                          </span>
-                        </td>
-                        {questions.map(q => {
-                          const val = r.answers[q.id]
-                          let displayVal = '-'
-                          if (val !== undefined && val !== null && val !== '') {
-                            if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                              displayVal = (val as unknown as CompanionEntry[])
-                                .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                .join('; ')
-                            } else {
-                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                      return (
+                        <tr key={r.id || rIdx} className="hover:bg-slate-50 transition-colors group">
+                          <td className="p-3.5 text-slate-400 font-mono text-[11px]">{rIdx + 1}</td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-slate-900">{r.respondentMemberName || 'Guest / Public User'}</div>
+                            {r.respondentEmail && (
+                              <div className="text-[11px] text-slate-500 font-normal">{r.respondentEmail}</div>
+                            )}
+                          </td>
+                          {questions.map(q => {
+                            const val = r.answers[q.id]
+                            let displayVal = '-'
+                            if (val !== undefined && val !== null && val !== '') {
+                              if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                displayVal = (val as unknown as CompanionEntry[])
+                                  .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                  .join('; ')
+                              } else if (q.type === 'member_selector' && typeof val === 'string') {
+                                displayVal = membersMap[val] || val
+                              } else if (typeof val === 'string' && membersMap[val]) {
+                                displayVal = membersMap[val]
+                              } else {
+                                displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                              }
                             }
-                          }
-                          return (
-                            <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                              {displayVal}
-                            </td>
-                          )
-                        })}
-                        <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
-                        <td className="p-3.5 text-right">
-                          <div className="flex items-center justify-end space-x-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedResponse(r)}
-                              className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
-                            >
-                              View Detail
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setResponseToEdit(r)}
-                              className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setResponseToDelete(r)}
-                              className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
-                            >
-                              Delete
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                            return (
+                              <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                                {displayVal}
+                              </td>
+                            )
+                          })}
+                          <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
+                          <td className="p-3.5 text-right">
+                            <div className="flex items-center justify-end space-x-2">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedResponse(r)}
+                                className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
+                              >
+                                View Detail
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setResponseToEdit(r)}
+                                className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setResponseToDelete(r)}
+                                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </div>
       </div>

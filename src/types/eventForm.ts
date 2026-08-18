@@ -81,6 +81,8 @@ export interface EventFormQuestion {
   required: boolean
   order: number
   options?: string[]
+  optionLimits?: Record<string, number>
+  fullOptionBehavior?: 'disable' | 'hide'
   visibilityCondition?: VisibilityCondition
   memberFilterType?: 'all' | 'order' | 'rank'
   memberFilterValue?: string | string[]

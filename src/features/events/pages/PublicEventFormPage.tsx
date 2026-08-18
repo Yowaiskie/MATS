@@ -23,6 +23,7 @@ export const PublicEventFormPage: React.FC = () => {
   const [linkedEvent, setLinkedEvent] = useState<Event | null>(null)
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [members, setMembers] = useState<Member[]>([])
+  const [formResponses, setFormResponses] = useState<EventFormResponse[]>([])
   const [loading, setLoading] = useState(true)
   const [openMemberPickerQuestionId, setOpenMemberPickerQuestionId] = useState<string | null>(null)
   const [memberSearchQuery, setMemberSearchQuery] = useState('')
@@ -35,6 +36,36 @@ export const PublicEventFormPage: React.FC = () => {
 
   // Answers State: maps questionId -> value
   const [answers, setAnswers] = useState<Record<string, any>>({})
+
+  // Helper to compute used and remaining open slots for an option/category
+  const getOptionSlotInfo = (q: EventFormQuestion, opt: string) => {
+    const maxLimit = q.optionLimits?.[opt]
+    if (!maxLimit || maxLimit <= 0) {
+      return { hasLimit: false, maxSlots: 0, usedSlots: 0, openSlots: 0, isFull: false }
+    }
+
+    const usedSlots = formResponses.reduce((count, r) => {
+      // Exclude current respondent's previous answer if editing
+      if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
+      if (user?.uid && r.respondentMemberUid === user.uid) return count
+      const ans = r.answers?.[q.id]
+      if (Array.isArray(ans)) {
+        return ans.includes(opt) ? count + 1 : count
+      }
+      return ans === opt ? count + 1 : count
+    }, 0)
+
+    const openSlots = Math.max(0, maxLimit - usedSlots)
+    const isFull = openSlots <= 0
+
+    return {
+      hasLimit: true,
+      maxSlots: maxLimit,
+      usedSlots,
+      openSlots,
+      isFull
+    }
+  }
 
   useEffect(() => {
     async function loadFormAndQuestions() {
@@ -93,6 +124,19 @@ export const PublicEventFormPage: React.FC = () => {
         })
         setQuestions(qs)
 
+        // Load all existing submissions to calculate member uniqueness & category slot limits
+        let existingResponses: EventFormResponse[] = []
+        try {
+          existingResponses = await queryClient.fetchQuery({
+            queryKey: ['public-form-submissions', realFormId],
+            queryFn: () => eventFormResponseService.getResponsesByFormId(realFormId),
+            staleTime: 0
+          })
+          setFormResponses(existingResponses)
+        } catch (err) {
+          console.error('Failed to load responses for slot limits:', err)
+        }
+
         // If form contains a member selector, load active members list and exclude already submitted members
         if (qs.some(q => q.type === 'member_selector')) {
           try {
@@ -102,17 +146,6 @@ export const PublicEventFormPage: React.FC = () => {
               staleTime: 1000 * 60 * 10 // 10 minutes cache
             })
             const activeMembers = allMembers.filter(m => m.status === 'active')
-
-            let existingResponses: EventFormResponse[] = []
-            try {
-              existingResponses = await queryClient.fetchQuery({
-                queryKey: ['public-form-member-submissions', realFormId],
-                queryFn: () => eventFormResponseService.getResponsesByFormId(realFormId),
-                staleTime: 0
-              })
-            } catch {
-              // Ignore if unauthenticated or read permissions fail
-            }
 
             // Build set of member IDs who already submitted a response for this form
             const submittedSet = new Set<string>()
@@ -143,11 +176,10 @@ export const PublicEventFormPage: React.FC = () => {
     loadFormAndQuestions()
   }, [formId, user, queryClient])
 
-  // On mount, check localStorage for a previous anonymous tracking number for this form
+  // Do not automatically load previous tracking number on mount to ensure new entries are separate
   useEffect(() => {
-    if (!form?.id) return
-    const storedTracking = localStorage.getItem(`mats_form_response_${form.id}`)
-    if (storedTracking) setExistingTrackingNumber(storedTracking)
+    // Clean slate on initial page load
+    setExistingTrackingNumber(null)
   }, [form?.id])
 
   if (loading) {
@@ -365,6 +397,22 @@ export const PublicEventFormPage: React.FC = () => {
           errorsMap[q.id] = 'This field is required. Please provide an answer.'
         }
       }
+
+      // Validate option slot limits
+      if (q.optionLimits && Object.keys(q.optionLimits).length > 0) {
+        const val = answers[q.id]
+        if (val) {
+          const selectedOpts = Array.isArray(val) ? val : [val]
+          for (const selOpt of selectedOpts) {
+            if (typeof selOpt === 'string') {
+              const slotInfo = getOptionSlotInfo(q, selOpt)
+              if (slotInfo.isFull) {
+                errorsMap[q.id] = `The category / option "${selOpt}" is already full (${slotInfo.maxSlots} max slots reached). Please select another option.`
+              }
+            }
+          }
+        }
+      }
     }
 
     if (Object.keys(errorsMap).length > 0) {
@@ -413,13 +461,6 @@ export const PublicEventFormPage: React.FC = () => {
         existingTrackingNumber || undefined
       )
 
-      // For anonymous submissions (no logged-in user, no member_selector chosen),
-      // store the tracking number in localStorage so re-submits overwrite instead of duplicate
-      if (!user && !respMemberUid && form?.id) {
-        localStorage.setItem(`mats_form_response_${form.id}`, trackingNumber)
-        setExistingTrackingNumber(trackingNumber)
-      }
-
       setSubmittedTrackingNumber(trackingNumber)
     } catch (err) {
       console.error('Failed to submit form response:', err)
@@ -448,18 +489,57 @@ export const PublicEventFormPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col gap-2.5">
+            {form.allowEditResponse && (
+              <button
+                type="button"
+                onClick={() => {
+                  setExistingTrackingNumber(submittedTrackingNumber)
+                  setSubmittedTrackingNumber(null)
+                }}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-md shadow-blue-500/20"
+              >
+                Edit Your Response
+              </button>
+            )}
+
             <button
               type="button"
-              onClick={() => {
+              onClick={async () => {
                 setAnswers({})
                 setSubmittedTrackingNumber(null)
+                setExistingTrackingNumber(null)
                 setValidationErrors({})
+
+                // Re-fetch existing responses so member list and slot counts are updated immediately!
+                if (form?.id) {
+                  try {
+                    const rs = await eventFormResponseService.getResponsesByFormId(form.id)
+                    setFormResponses(rs)
+
+                    if (questions.some(q => q.type === 'member_selector')) {
+                      const allMembers = await memberService.getMembers()
+                      const activeMembers = allMembers.filter(m => m.status === 'active')
+                      const submittedSet = new Set<string>()
+                      rs.forEach(r => {
+                        if (r.respondentMemberUid) submittedSet.add(r.respondentMemberUid)
+                        Object.values(r.answers).forEach(val => {
+                          if (typeof val === 'string' && val.startsWith('mem_')) {
+                            submittedSet.add(val)
+                          }
+                        })
+                      })
+                      setMembers(activeMembers.filter(m => !submittedSet.has(m.id)))
+                    }
+                  } catch (err) {
+                    console.error('Failed to reload form responses after submission:', err)
+                  }
+                }
                 window.scrollTo({ top: 0, behavior: 'smooth' })
               }}
-              className="w-full py-3.5 px-6 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-2xl shadow-md transition-all cursor-pointer"
+              className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
             >
-              Submit Again
+              Submit Another Response
             </button>
           </div>
         </div>
@@ -738,19 +818,62 @@ export const PublicEventFormPage: React.FC = () => {
 
                 {(q.type === 'multiple_choice' || q.type === 'relationship_selector') && (
                   <div className="space-y-2">
-                    {(q.options || []).map((opt, oIdx) => (
-                      <label key={oIdx} className="flex items-center space-x-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition">
-                        <input
-                          type="radio"
-                          name={`q_${q.id}`}
-                          required={q.required}
-                          checked={answers[q.id] === opt}
-                          onChange={() => handleInputChange(q.id, opt)}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                        />
-                        <span className="text-xs font-semibold text-slate-800">{opt}</span>
-                      </label>
-                    ))}
+                    {(q.options || []).map((opt, oIdx) => {
+                      const slotInfo = getOptionSlotInfo(q, opt)
+                      if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                        return null
+                      }
+                      const isOptionFull = slotInfo.isFull
+                      const isSelected = answers[q.id] === opt
+
+                      return (
+                        <label
+                          key={oIdx}
+                          className={`flex items-center justify-between p-3.5 border rounded-2xl transition ${
+                            isOptionFull
+                              ? 'opacity-50 bg-slate-100/90 border-slate-200 cursor-not-allowed select-none'
+                              : isSelected
+                              ? 'bg-blue-50/80 border-blue-400 shadow-2xs cursor-pointer'
+                              : 'border-slate-200 hover:bg-slate-50 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name={`q_${q.id}`}
+                              required={q.required}
+                              disabled={isOptionFull}
+                              checked={isSelected}
+                              onChange={() => !isOptionFull && handleInputChange(q.id, opt)}
+                              className={`h-4 w-4 text-blue-600 focus:ring-blue-500 ${isOptionFull ? 'cursor-not-allowed' : 'cursor-pointer'}`}
+                            />
+                            <span className={`text-xs font-semibold ${isOptionFull ? 'text-slate-500 line-through decoration-slate-400' : 'text-slate-800'}`}>
+                              {opt}
+                            </span>
+                          </div>
+
+                          {slotInfo.hasLimit && (
+                            <div className="shrink-0 ml-2">
+                              {isOptionFull ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 uppercase tracking-wide">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  FULL (0 Slots Left)
+                                </span>
+                              ) : (
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  slotInfo.openSlots <= 3
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${slotInfo.openSlots <= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                  {slotInfo.openSlots} open {slotInfo.openSlots === 1 ? 'slot' : 'slots'} left ({slotInfo.usedSlots}/{slotInfo.maxSlots})
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </label>
+                      )
+                    })}
                   </div>
                 )}
 
@@ -762,27 +885,88 @@ export const PublicEventFormPage: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                   >
                     <option value="">Select an option...</option>
-                    {(q.options || []).map((opt, oIdx) => (
-                      <option key={oIdx} value={opt}>
-                        {opt}
-                      </option>
-                    ))}
+                    {(q.options || []).map((opt, oIdx) => {
+                      const slotInfo = getOptionSlotInfo(q, opt)
+                      if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                        return null
+                      }
+                      return (
+                        <option
+                          key={oIdx}
+                          value={opt}
+                          disabled={slotInfo.isFull}
+                          className={slotInfo.isFull ? 'text-slate-400 bg-slate-100' : ''}
+                        >
+                          {opt}
+                          {slotInfo.hasLimit
+                            ? slotInfo.isFull
+                              ? ' — [FULL / No Slots Left]'
+                              : ` (${slotInfo.openSlots} / ${slotInfo.maxSlots} open slots)`
+                            : ''}
+                        </option>
+                      )
+                    })}
                   </select>
                 )}
 
                 {q.type === 'checkbox' && (
                   <div className="space-y-2">
                     {(q.options || []).map((opt, oIdx) => {
+                      const slotInfo = getOptionSlotInfo(q, opt)
+                      if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                        return null
+                      }
+                      const isOptionFull = slotInfo.isFull
                       const isChecked = Array.isArray(answers[q.id]) && answers[q.id].includes(opt)
+
                       return (
-                        <label key={oIdx} className="flex items-center space-x-3 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={e => handleCheckboxChange(q.id, opt, e.target.checked)}
-                            className="h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500"
-                          />
-                          <span className="text-xs font-semibold text-slate-800">{opt}</span>
+                        <label
+                          key={oIdx}
+                          className={`flex items-center justify-between p-3.5 border rounded-2xl transition ${
+                            isOptionFull && !isChecked
+                              ? 'opacity-50 bg-slate-100/90 border-slate-200 cursor-not-allowed select-none'
+                              : isChecked
+                              ? 'bg-blue-50/80 border-blue-400 shadow-2xs cursor-pointer'
+                              : 'border-slate-200 hover:bg-slate-50 cursor-pointer'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="checkbox"
+                              disabled={isOptionFull && !isChecked}
+                              checked={isChecked}
+                              onChange={e => {
+                                if (isOptionFull && !isChecked) return
+                                handleCheckboxChange(q.id, opt, e.target.checked)
+                              }}
+                              className={`h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 ${
+                                isOptionFull && !isChecked ? 'cursor-not-allowed' : 'cursor-pointer'
+                              }`}
+                            />
+                            <span className={`text-xs font-semibold ${isOptionFull && !isChecked ? 'text-slate-500 line-through decoration-slate-400' : 'text-slate-800'}`}>
+                              {opt}
+                            </span>
+                          </div>
+
+                          {slotInfo.hasLimit && (
+                            <div className="shrink-0 ml-2">
+                              {isOptionFull ? (
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 uppercase tracking-wide">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                  FULL (0 Slots Left)
+                                </span>
+                              ) : (
+                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  slotInfo.openSlots <= 3
+                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                }`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${slotInfo.openSlots <= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                  {slotInfo.openSlots} open {slotInfo.openSlots === 1 ? 'slot' : 'slots'} left ({slotInfo.usedSlots}/{slotInfo.maxSlots})
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </label>
                       )
                     })}

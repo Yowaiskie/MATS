@@ -86,6 +86,12 @@ export const eventFormQuestionService = {
           fullQuestionData.memberFilterType = q.memberFilterType
           fullQuestionData.memberFilterValue = q.memberFilterValue || ''
         }
+        if (q.optionLimits) {
+          fullQuestionData.optionLimits = q.optionLimits
+        }
+        if (q.fullOptionBehavior) {
+          fullQuestionData.fullOptionBehavior = q.fullOptionBehavior
+        }
 
         // Set complete document without merge so deleted/updated conditions overwrite cleanly
         await setDoc(docRef, fullQuestionData)

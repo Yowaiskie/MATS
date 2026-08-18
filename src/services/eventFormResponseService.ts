@@ -42,7 +42,7 @@ export const eventFormResponseService = {
         throw new Error('Form submission window has closed.')
       }
 
-      // --- Overwrite path 1: anonymous re-submit via stored tracking number ---
+      // --- Overwrite path 1: explicit edit re-submit via provided tracking number ---
       if (existingTrackingNumber) {
         const existingByTracking = query(
           collection(db, RESPONSES_COLLECTION),
@@ -70,8 +70,8 @@ export const eventFormResponseService = {
         }
       }
 
-      // --- Overwrite path 2: authenticated member re-submit via memberUid ---
-      if (respondentInfo?.memberUid) {
+      // --- Overwrite path 2: member re-submit via memberUid (ONLY when allowMultipleResponses is false) ---
+      if (respondentInfo?.memberUid && form.allowMultipleResponses === false) {
         const existingQ = query(
           collection(db, RESPONSES_COLLECTION),
           where('formId', '==', form.id),

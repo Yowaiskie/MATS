@@ -699,27 +699,55 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                       )}
                       {(q.type === 'multiple_choice' || q.type === 'relationship_selector') && (
                         <div className="space-y-1">
-                          {(q.options || ['Option 1', 'Option 2']).map((opt, oIdx) => (
-                            <div key={oIdx} className="flex items-center space-x-2">
-                              <input type="radio" disabled className="h-3 w-3" />
-                              <span className="text-xs text-slate-700">{opt}</span>
-                            </div>
-                          ))}
+                          {(q.options || ['Option 1', 'Option 2']).map((opt, oIdx) => {
+                            const limit = q.optionLimits?.[opt]
+                            return (
+                              <div key={oIdx} className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <input type="radio" disabled className="h-3 w-3" />
+                                  <span className="text-xs text-slate-700">{opt}</span>
+                                </div>
+                                {limit && limit > 0 ? (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                                    Limit: {limit} slots
+                                  </span>
+                                ) : null}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                       {q.type === 'checkbox' && (
                         <div className="space-y-1">
-                          {(q.options || ['Option 1', 'Option 2']).map((opt, oIdx) => (
-                            <div key={oIdx} className="flex items-center space-x-2">
-                              <input type="checkbox" disabled className="h-3 w-3" />
-                              <span className="text-xs text-slate-700">{opt}</span>
-                            </div>
-                          ))}
+                          {(q.options || ['Option 1', 'Option 2']).map((opt, oIdx) => {
+                            const limit = q.optionLimits?.[opt]
+                            return (
+                              <div key={oIdx} className="flex items-center justify-between">
+                                <div className="flex items-center space-x-2">
+                                  <input type="checkbox" disabled className="h-3 w-3" />
+                                  <span className="text-xs text-slate-700">{opt}</span>
+                                </div>
+                                {limit && limit > 0 ? (
+                                  <span className="text-[10px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-700 rounded-md border border-blue-200">
+                                    Limit: {limit} slots
+                                  </span>
+                                ) : null}
+                              </div>
+                            )
+                          })}
                         </div>
                       )}
                       {q.type === 'dropdown' && (
                         <select className="w-full p-2 border rounded-xl text-xs bg-slate-50" disabled>
                           <option>Select an option...</option>
+                          {(q.options || []).map((opt, oIdx) => {
+                            const limit = q.optionLimits?.[opt]
+                            return (
+                              <option key={oIdx}>
+                                {opt} {limit && limit > 0 ? `(Limit: ${limit} slots)` : ''}
+                              </option>
+                            )
+                          })}
                         </select>
                       )}
                       {q.type === 'yes_no' && (
@@ -824,46 +852,136 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                     selectedQuestion.type === 'dropdown' ||
                     selectedQuestion.type === 'checkbox' ||
                     selectedQuestion.type === 'relationship_selector') && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-bold text-slate-700">Options</label>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const opts = selectedQuestion.options || []
-                            handleUpdateQuestion(selectedQuestion.id, { options: [...opts, `Option ${opts.length + 1}`] })
-                          }}
-                          className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
-                        >
-                          + Add Option
-                        </button>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-bold text-slate-700">Options & Slot Limits</label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const opts = selectedQuestion.options || []
+                              handleUpdateQuestion(selectedQuestion.id, { options: [...opts, `Option ${opts.length + 1}`] })
+                            }}
+                            className="text-[11px] font-bold text-blue-600 hover:underline cursor-pointer"
+                          >
+                            + Add Option
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-slate-400 mb-2">
+                          Specify an optional Max Slot / Limit per option. Leave blank for unlimited slots.
+                        </p>
+                        <div className="space-y-2">
+                          {(selectedQuestion.options || []).map((opt, oIdx) => {
+                            const currentLimit = selectedQuestion.optionLimits?.[opt]
+                            return (
+                              <div key={oIdx} className="flex items-center space-x-1.5 bg-slate-50 p-1.5 rounded-xl border border-slate-200">
+                                <input
+                                  type="text"
+                                  value={opt}
+                                  onChange={e => {
+                                    const newOpts = [...(selectedQuestion.options || [])]
+                                    const oldVal = newOpts[oIdx]
+                                    const newVal = e.target.value
+                                    newOpts[oIdx] = newVal
+
+                                    const newLimits = { ...(selectedQuestion.optionLimits || {}) }
+                                    if (oldVal && oldVal !== newVal && newLimits[oldVal] !== undefined) {
+                                      newLimits[newVal] = newLimits[oldVal]
+                                      delete newLimits[oldVal]
+                                    }
+                                    handleUpdateQuestion(selectedQuestion.id, { options: newOpts, optionLimits: newLimits })
+                                  }}
+                                  placeholder="Option name / Category"
+                                  className="flex-1 p-1.5 border border-slate-300 rounded-lg text-xs bg-white focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
+                                />
+
+                                {/* Slot Limit Input */}
+                                <div className="flex items-center gap-1 bg-white border border-slate-300 rounded-lg px-2 py-1 focus-within:ring-1 focus-within:ring-blue-500" title="Max slots allowed for this option/category">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase">Max:</span>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={currentLimit ?? ''}
+                                    onChange={e => {
+                                      const val = e.target.value.trim() === '' ? undefined : parseInt(e.target.value, 10)
+                                      const newLimits = { ...(selectedQuestion.optionLimits || {}) }
+                                      if (val === undefined || isNaN(val) || val <= 0) {
+                                        delete newLimits[opt]
+                                      } else {
+                                        newLimits[opt] = val
+                                      }
+                                      handleUpdateQuestion(selectedQuestion.id, { optionLimits: newLimits })
+                                    }}
+                                    placeholder="∞"
+                                    className="w-12 text-xs font-semibold text-slate-700 bg-transparent focus:outline-hidden text-center"
+                                  />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const optToDelete = (selectedQuestion.options || [])[oIdx]
+                                    const newOpts = (selectedQuestion.options || []).filter((_, i) => i !== oIdx)
+                                    const newLimits = { ...(selectedQuestion.optionLimits || {}) }
+                                    if (optToDelete && newLimits[optToDelete] !== undefined) {
+                                      delete newLimits[optToDelete]
+                                    }
+                                    handleUpdateQuestion(selectedQuestion.id, { options: newOpts, optionLimits: newLimits })
+                                  }}
+                                  className="text-red-400 hover:text-red-600 text-xs px-1.5 py-1 cursor-pointer"
+                                  title="Remove option"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                            )
+                          })}
+                        </div>
                       </div>
-                      <div className="space-y-1.5">
-                        {(selectedQuestion.options || []).map((opt, oIdx) => (
-                          <div key={oIdx} className="flex items-center space-x-1.5">
-                            <input
-                              type="text"
-                              value={opt}
-                              onChange={e => {
-                                const newOpts = [...(selectedQuestion.options || [])]
-                                newOpts[oIdx] = e.target.value
-                                handleUpdateQuestion(selectedQuestion.id, { options: newOpts })
-                              }}
-                              className="flex-1 p-1.5 border border-slate-300 rounded-lg text-xs bg-white"
-                            />
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const newOpts = (selectedQuestion.options || []).filter((_, i) => i !== oIdx)
-                                handleUpdateQuestion(selectedQuestion.id, { options: newOpts })
-                              }}
-                              className="text-red-500 hover:text-red-700 text-xs px-1"
+
+                      {/* When slot limit reached setting */}
+                      {selectedQuestion.optionLimits && Object.keys(selectedQuestion.optionLimits).length > 0 && (
+                        <div className="p-3 bg-blue-50/50 border border-blue-100 rounded-xl space-y-2">
+                          <label className="text-[11px] font-bold text-slate-700 block">
+                            When Category / Option Reaches Max Limit:
+                          </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <label
+                              className={`flex items-center gap-1.5 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                                (selectedQuestion.fullOptionBehavior || 'disable') === 'disable'
+                                  ? 'bg-blue-100/80 border-blue-400 text-blue-900 font-bold'
+                                  : 'bg-white border-slate-200 text-slate-600'
+                              }`}
                             >
-                              ✕
-                            </button>
+                              <input
+                                type="radio"
+                                name={`full_behavior_${selectedQuestion.id}`}
+                                checked={(selectedQuestion.fullOptionBehavior || 'disable') === 'disable'}
+                                onChange={() => handleUpdateQuestion(selectedQuestion.id, { fullOptionBehavior: 'disable' })}
+                                className="h-3.5 w-3.5 text-blue-600"
+                              />
+                              <span className="text-[11px]">Disable Option (Show "FULL")</span>
+                            </label>
+
+                            <label
+                              className={`flex items-center gap-1.5 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                                selectedQuestion.fullOptionBehavior === 'hide'
+                                  ? 'bg-blue-100/80 border-blue-400 text-blue-900 font-bold'
+                                  : 'bg-white border-slate-200 text-slate-600'
+                              }`}
+                            >
+                              <input
+                                type="radio"
+                                name={`full_behavior_${selectedQuestion.id}`}
+                                checked={selectedQuestion.fullOptionBehavior === 'hide'}
+                                onChange={() => handleUpdateQuestion(selectedQuestion.id, { fullOptionBehavior: 'hide' })}
+                                className="h-3.5 w-3.5 text-blue-600"
+                              />
+                              <span className="text-[11px]">Hide Option Completely</span>
+                            </label>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

@@ -126,7 +126,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
         <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin Action</span>
-            <h3 className="text-base font-black text-slate-900">Edit Form Response ({response.trackingNumber || 'Submission'})</h3>
+            <h3 className="text-base font-black text-slate-900">Edit Form Response</h3>
           </div>
           <button
             type="button"
@@ -247,14 +247,40 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                       <option value="">-- Select option --</option>
                       {(q.options || []).map((opt, oIdx) => (
                         <option key={oIdx} value={opt}>
-                          {opt}
+                          {opt} {q.optionLimits?.[opt] ? `(Limit: ${q.optionLimits[opt]} slots)` : ''}
                         </option>
                       ))}
                     </select>
                   )}
 
-                  {/* Multiple Choice (Checkboxes) */}
-                  {(q.type === 'multiple_choice' || q.type === 'checkbox') && (
+                  {/* Multiple Choice (Radio) */}
+                  {q.type === 'multiple_choice' && (
+                    <div className="space-y-1.5 pt-1">
+                      {(q.options || []).map((opt, oIdx) => {
+                        const isChecked = currentVal === opt
+                        return (
+                          <label key={oIdx} className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                            <input
+                              type="radio"
+                              name={`mc_${q.id}`}
+                              checked={isChecked}
+                              onChange={() => handleAnswerChange(q.id, opt)}
+                              className="text-blue-600 focus:ring-blue-500 h-4 w-4"
+                            />
+                            <span className="font-medium">{opt}</span>
+                            {q.optionLimits?.[opt] ? (
+                              <span className="text-[10px] text-slate-400 font-bold ml-1">
+                                (Limit: {q.optionLimits[opt]} slots)
+                              </span>
+                            ) : null}
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {/* Checkbox */}
+                  {q.type === 'checkbox' && (
                     <div className="space-y-1.5 pt-1">
                       {(q.options || []).map((opt, oIdx) => {
                         const isChecked = Array.isArray(currentVal) && currentVal.includes(opt)
@@ -267,6 +293,11 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                               className="rounded-md text-blue-600 focus:ring-blue-500 h-4 w-4"
                             />
                             <span className="font-medium">{opt}</span>
+                            {q.optionLimits?.[opt] ? (
+                              <span className="text-[10px] text-slate-400 font-bold ml-1">
+                                (Limit: {q.optionLimits[opt]} slots)
+                              </span>
+                            ) : null}
                           </label>
                         )
                       })}
