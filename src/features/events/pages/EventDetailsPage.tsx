@@ -13,7 +13,8 @@ import { EventContributionsBoard } from '../components/EventContributionsBoard'
 import { EventFormModal } from '../components/EventFormModal'
 import { dashboardService } from '@/services/dashboardService'
 import { eventTaskService } from '@/services/eventTaskService'
-import { ConfirmModal, AlertModal } from '@/components/Dialog'
+import { authService } from '@/services/authService'
+import { PasswordConfirmModal, AlertModal } from '@/components/Dialog'
 
 type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms' | 'contributions'
 
@@ -71,14 +72,16 @@ export const EventDetailsPage: React.FC = () => {
     setIsConfirmDeleteOpen(true)
   }
 
-  const confirmDelete = async () => {
+  const confirmDelete = async (password: string) => {
     if (!id) return
     try {
+      await authService.verifyPassword(password)
       await eventService.deleteEvent(id, profile?.email || 'System')
+      setIsConfirmDeleteOpen(false)
       navigate('/events')
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to delete event:', err)
-      setIsAlertOpen(true)
+      throw new Error(err.message || 'Verification failed. Password may be incorrect.')
     }
   }
   
@@ -225,14 +228,13 @@ export const EventDetailsPage: React.FC = () => {
         />
       )}
 
-      <ConfirmModal
+      <PasswordConfirmModal
         isOpen={isConfirmDeleteOpen}
         onClose={() => setIsConfirmDeleteOpen(false)}
         onConfirm={confirmDelete}
         title="Delete Workspace"
-        message={`Are you sure you want to delete the event workspace "${event.title}"? This cannot be undone.`}
+        message={`Are you sure you want to delete the event workspace "${event.title}"? This cannot be undone. Please enter your password to confirm.`}
         confirmLabel="Delete Workspace"
-        variant="danger"
       />
 
       <AlertModal

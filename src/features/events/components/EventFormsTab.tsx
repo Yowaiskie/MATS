@@ -7,6 +7,7 @@ import { EventFormBuilderModal } from './EventFormBuilderModal'
 import { EventFormResponsesModal } from './EventFormResponsesModal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
+import { FormattedText } from '@/components/FormattedText'
 
 interface EventFormsTabProps {
   eventId: string
@@ -183,17 +184,43 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
               archived: 'bg-red-50 text-red-700 border-red-200'
             }
 
+            const purposeLabels: Record<string, string> = {
+              registration: 'Registration / RSVP',
+              survey: 'Survey & Feedback',
+              consent: 'Consent Slip',
+              order: 'Order Form',
+              general: 'General Form'
+            }
+
             return (
               <div key={f.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4">
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <h3 className="text-base font-black text-slate-900 line-clamp-1">{f.title}</h3>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border ${statusColors[f.status]}`}>
+                    <div>
+                      {f.purposeTag && (
+                        <span className="inline-block text-[9px] font-extrabold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100 mb-1">
+                          {purposeLabels[f.purposeTag] || f.purposeTag}
+                        </span>
+                      )}
+                      <h3 className="text-base font-black text-slate-900 line-clamp-1">{f.title}</h3>
+                    </div>
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border shrink-0 ${statusColors[f.status]}`}>
                       {f.status}
                     </span>
                   </div>
 
-                  {f.description && <p className="text-xs text-slate-500 line-clamp-2 mb-3">{f.description}</p>}
+                  {f.description && (
+                    <div className="text-xs text-slate-500 line-clamp-2 mb-2">
+                      <FormattedText text={f.description} as="span" />
+                    </div>
+                  )}
+
+                  {f.guidelines && (
+                    <div className="p-2 bg-amber-50/50 border border-amber-100 rounded-lg text-[11px] text-amber-900/80 line-clamp-2 mb-3">
+                      <span className="font-bold text-amber-950">Guidelines: </span>
+                      <FormattedText text={f.guidelines.replace(/\n/g, ' • ')} as="span" />
+                    </div>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500 pt-2 border-t border-slate-100">
                     <span className="flex items-center space-x-1">
@@ -372,6 +399,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         title="Duplicate Form"
         message={`Duplicate "${formToDuplicate?.title}"? A copy will be created as a draft.`}
         confirmLabel="Duplicate"
+        variant="primary"
       />
 
       <AlertModal

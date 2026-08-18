@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { EventForm, EventFormQuestion, QuestionType, ConditionOperator } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, QuestionType, ConditionOperator, FormPurposeTag, FormContactItem, ContactType } from '@/types/eventForm'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { FormattedText, FormatToolbar } from '@/components/FormattedText'
 
 interface EventFormBuilderModalProps {
   isOpen: boolean
@@ -27,7 +28,16 @@ const QUESTION_TYPES: { type: QuestionType; label: string; description: string }
   { type: 'name_selector', label: 'Name Selector', description: 'Input for participant full name' },
   { type: 'member_selector', label: 'Member Selector', description: 'Select active member from MATS database' },
   { type: 'relationship_selector', label: 'Relationship Selector', description: 'Select relationship to participant' },
-  { type: 'companion_repeater', label: 'Companions / Group List', description: 'Register multiple family members or companions in 1 form' }
+  { type: 'companion_repeater', label: 'Companions / Group List', description: 'Register multiple family members or companions in 1 form' },
+  { type: 'section_header', label: 'Section Header / Info Block', description: 'Add section title, instructions or visual divider' }
+]
+
+const CONTACT_PRESETS: { type: ContactType; label: string; placeholder: string; defaultLabel: string }[] = [
+  { type: 'phone', label: 'Phone / Mobile', placeholder: 'e.g. 0917-123-4567', defaultLabel: 'Phone / Mobile' },
+  { type: 'coordinator', label: 'Coordinator Name', placeholder: 'e.g. Bro. Mark Santos', defaultLabel: 'Coordinator' },
+  { type: 'email', label: 'Email Address', placeholder: 'e.g. youth@parish.org', defaultLabel: 'Email' },
+  { type: 'messenger', label: 'Messenger / FB', placeholder: 'e.g. m.me/MATSYouth or FB Page link', defaultLabel: 'Messenger' },
+  { type: 'custom', label: 'Custom Contact', placeholder: 'e.g. Parish Office Room 204', defaultLabel: 'Contact Info' }
 ]
 
 export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
@@ -45,10 +55,41 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
 
+  // Field Refs for Formatting Toolbars
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const guidelinesRef = useRef<HTMLTextAreaElement>(null)
+  const questionDescRef = useRef<HTMLTextAreaElement>(null)
+
   // Form Metadata State
   const [title, setTitle] = useState(formToEdit?.title || 'New Event Registration Form')
   const [slug, setSlug] = useState(formToEdit?.slug || '')
   const [description, setDescription] = useState(formToEdit?.description || '')
+  const [purposeTag, setPurposeTag] = useState<FormPurposeTag>(formToEdit?.purposeTag || 'registration')
+  const [guidelines, setGuidelines] = useState(formToEdit?.guidelines || '')
+  const [contacts, setContacts] = useState<FormContactItem[]>(() => {
+    if (formToEdit?.contacts && formToEdit.contacts.length > 0) {
+      return formToEdit.contacts
+    }
+    const initial: FormContactItem[] = []
+    if (formToEdit?.contactPerson) {
+      initial.push({
+        id: 'init_1',
+        type: 'coordinator',
+        label: 'Coordinator',
+        value: formToEdit.contactPerson
+      })
+    }
+    if (formToEdit?.contactInfo) {
+      initial.push({
+        id: 'init_2',
+        type: 'phone',
+        label: 'Phone / Mobile',
+        value: formToEdit.contactInfo
+      })
+    }
+    return initial
+  })
+  const [showEventBanner, setShowEventBanner] = useState(formToEdit?.showEventBanner ?? true)
   const [status, setStatus] = useState<EventForm['status']>(formToEdit?.status || 'draft')
   const [isPublic, setIsPublic] = useState(formToEdit?.isPublic ?? true)
   const [startAt, setStartAt] = useState(formToEdit?.startAt || '')
@@ -56,6 +97,27 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
   const [confirmationMessage, setConfirmationMessage] = useState(formToEdit?.confirmationMessage || 'Thank you for submitting your response.')
   const [allowEditResponse, setAllowEditResponse] = useState(formToEdit?.allowEditResponse ?? false)
   const [allowMultipleResponses, setAllowMultipleResponses] = useState(formToEdit?.allowMultipleResponses ?? true)
+
+  const handleAddContact = (type: ContactType = 'phone') => {
+    const preset = CONTACT_PRESETS.find(p => p.type === type) || CONTACT_PRESETS[0]
+    setContacts(prev => [
+      ...prev,
+      {
+        id: 'cnt_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+        type,
+        label: preset.defaultLabel,
+        value: ''
+      }
+    ])
+  }
+
+  const handleUpdateContact = (id: string, updates: Partial<FormContactItem>) => {
+    setContacts(prev => prev.map(c => c.id === id ? { ...c, ...updates } : c))
+  }
+
+  const handleDeleteContact = (id: string) => {
+    setContacts(prev => prev.filter(c => c.id !== id))
+  }
 
   // Questions State
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
@@ -179,11 +241,24 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         }
       }
 
+      const validContacts = contacts
+        .map(c => ({ ...c, label: c.label.trim(), value: c.value.trim() }))
+        .filter(c => c.value.length > 0)
+
+      const firstCoord = validContacts.find(c => c.type === 'coordinator')?.value || ''
+      const firstPhone = validContacts.find(c => c.type === 'phone' || c.type === 'email')?.value || ''
+
       const formPayload: Omit<EventForm, 'id' | 'createdAt' | 'updatedAt'> = {
         eventId,
         title: title.trim(),
         slug: cleanSlug,
         description: description.trim(),
+        purposeTag,
+        guidelines: guidelines.trim(),
+        contactPerson: firstCoord,
+        contactInfo: firstPhone,
+        contacts: validContacts,
+        showEventBanner,
         status,
         isPublic,
         startAt,
@@ -314,14 +389,44 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                 </div>
               </div>
 
-              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs mb-3 sm:mb-4 space-y-2">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  placeholder="Form Title"
-                  className="w-full text-lg sm:text-xl font-black text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden pb-1 transition-colors"
-                />
+              <div className="bg-white p-4 sm:p-6 rounded-2xl border border-slate-200 shadow-xs mb-3 sm:mb-4 space-y-4">
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Form Title</label>
+                  <input
+                    type="text"
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder="e.g. Parish Pilgrimage 2026 Registration"
+                    className="w-full text-lg sm:text-xl font-black text-slate-900 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden pb-1 transition-colors"
+                  />
+                </div>
+
+                {/* Purpose Category Tag Selector */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Purpose / Form Category</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      { key: 'registration', label: 'Registration / RSVP' },
+                      { key: 'survey', label: 'Survey / Feedback' },
+                      { key: 'consent', label: 'Consent / Permission' },
+                      { key: 'order', label: 'Order / Merchandise' },
+                      { key: 'general', label: 'General Form' }
+                    ].map(tag => (
+                      <button
+                        key={tag.key}
+                        type="button"
+                        onClick={() => setPurposeTag(tag.key as FormPurposeTag)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
+                          purposeTag === tag.key
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {tag.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 {/* Custom URL Slug Input */}
                 <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
@@ -338,37 +443,212 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                   </div>
                 </div>
 
-                <textarea
-                  value={description}
-                  onChange={e => setDescription(e.target.value)}
-                  placeholder="Form description / instructions..."
-                  className="w-full text-xs sm:text-sm text-slate-600 border-b border-transparent hover:border-slate-300 focus:border-blue-500 focus:outline-hidden resize-none h-14 sm:h-16 transition-colors"
-                />
+                {/* Purpose / Objective Description */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">Form Purpose & Description</label>
+                    <FormatToolbar
+                      targetRef={descriptionRef}
+                      value={description}
+                      onChange={setDescription}
+                      compact
+                    />
+                  </div>
+                  <textarea
+                    ref={descriptionRef}
+                    value={description}
+                    onChange={e => setDescription(e.target.value)}
+                    placeholder="Explain what this form is for (supports **bold**, *italic*, <u>underline</u>, ~~strike~~, divider lines)..."
+                    className="w-full text-xs sm:text-sm text-slate-700 p-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-hidden resize-y min-h-16 transition-colors"
+                  />
+                </div>
+
+                {/* Guidelines & Important Reminders */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                      Guidelines & Important Reminders
+                    </label>
+                    <FormatToolbar
+                      targetRef={guidelinesRef}
+                      value={guidelines}
+                      onChange={setGuidelines}
+                      compact
+                    />
+                  </div>
+                  <textarea
+                    ref={guidelinesRef}
+                    value={guidelines}
+                    onChange={e => setGuidelines(e.target.value)}
+                    placeholder="Enter reminders (one per line):&#10;• **Please wear proper server attire.**&#10;• Registration closes 3 days before event.&#10;• Bring *packed lunch* and water bottle."
+                    className="w-full text-xs sm:text-sm text-slate-700 p-2.5 bg-amber-50/40 border border-amber-200 rounded-xl focus:bg-white focus:border-amber-400 focus:ring-1 focus:ring-amber-400 focus:outline-hidden resize-y min-h-20 transition-colors font-mono text-[11px]"
+                  />
+                </div>
+
+                {/* Event Banner & Dynamic Contact Info */}
+                <div className="pt-2 border-t border-slate-100 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-800">Show Event Date & Venue Banner</span>
+                      <p className="text-[10px] text-slate-400">Automatically displays the event date, schedule, and location at the top of the form.</p>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={showEventBanner}
+                      onChange={e => setShowEventBanner(e.target.checked)}
+                      className="h-4 w-4 text-blue-600 rounded-md border-slate-300 cursor-pointer"
+                    />
+                  </div>
+
+                  {/* Dynamic Contact Persons & Inquiries List */}
+                  <div className="space-y-2 pt-1">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          Contact & Inquiry Details <span className="text-slate-400 font-normal">(Optional)</span>
+                        </label>
+                        <p className="text-[10px] text-slate-400">Add coordinator names, contact numbers, emails, or Facebook/Messenger links.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddContact('phone')}
+                        className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold rounded-lg transition-colors cursor-pointer"
+                      >
+                        + Add Contact
+                      </button>
+                    </div>
+
+                    {contacts.length === 0 ? (
+                      <div className="p-3.5 bg-slate-50/70 border border-dashed border-slate-200 rounded-xl text-center">
+                        <p className="text-xs text-slate-400">No contact info added yet.</p>
+                        <div className="flex flex-wrap items-center justify-center gap-1.5 mt-2">
+                          {CONTACT_PRESETS.map(preset => (
+                            <button
+                              key={preset.type}
+                              type="button"
+                              onClick={() => handleAddContact(preset.type)}
+                              className="px-2 py-1 bg-white border border-slate-200 hover:border-blue-400 text-slate-600 hover:text-blue-600 text-[10px] font-semibold rounded-md transition shadow-2xs cursor-pointer"
+                            >
+                              + {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {contacts.map((c, cIdx) => {
+                          const currentPreset = CONTACT_PRESETS.find(p => p.type === c.type)
+                          return (
+                            <div key={c.id || cIdx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center space-x-1.5 flex-1">
+                                  <select
+                                    value={c.type}
+                                    onChange={e => {
+                                      const nextType = e.target.value as ContactType
+                                      const pr = CONTACT_PRESETS.find(p => p.type === nextType)
+                                      handleUpdateContact(c.id, {
+                                        type: nextType,
+                                        label: pr ? pr.defaultLabel : c.label
+                                      })
+                                    }}
+                                    className="p-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                                  >
+                                    {CONTACT_PRESETS.map(p => (
+                                      <option key={p.type} value={p.type}>{p.label}</option>
+                                    ))}
+                                  </select>
+
+                                  <input
+                                    type="text"
+                                    value={c.label}
+                                    onChange={e => handleUpdateContact(c.id, { label: e.target.value })}
+                                    placeholder="Label"
+                                    className="w-28 p-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-700 focus:outline-hidden"
+                                    title="Custom label (e.g. Coordinator, Mobile, Office)"
+                                  />
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteContact(c.id)}
+                                  className="p-1.5 text-slate-400 hover:text-red-600 rounded-lg hover:bg-red-50 transition cursor-pointer"
+                                  title="Remove Contact"
+                                >
+                                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              <input
+                                type="text"
+                                value={c.value}
+                                onChange={e => handleUpdateContact(c.id, { value: e.target.value })}
+                                placeholder={currentPreset?.placeholder || 'Enter contact details...'}
+                                className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-blue-500"
+                              />
+                            </div>
+                          )
+                        })}
+
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {CONTACT_PRESETS.map(preset => (
+                            <button
+                              key={preset.type}
+                              type="button"
+                              onClick={() => handleAddContact(preset.type)}
+                              className="px-2 py-1 bg-white border border-slate-200 hover:border-blue-400 text-slate-600 hover:text-blue-600 text-[10px] font-bold rounded-lg transition shadow-2xs cursor-pointer"
+                            >
+                              + {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {questions.map((q, idx) => {
                 const isSelected = q.id === selectedQuestionId
                 const typeObj = QUESTION_TYPES.find(t => t.type === q.type)
+                const isSectionHeader = q.type === 'section_header'
 
                 return (
                   <div
                     key={q.id}
                     onClick={() => setSelectedQuestionId(q.id)}
                     className={`p-5 rounded-2xl border transition-all cursor-pointer ${
-                      isSelected
+                      isSectionHeader
+                        ? isSelected
+                          ? 'bg-indigo-50/50 border-indigo-500 shadow-md ring-2 ring-indigo-500/20'
+                          : 'bg-indigo-50/30 border-indigo-200 hover:border-indigo-300 shadow-xs'
+                        : isSelected
                         ? 'bg-white border-blue-500 shadow-md ring-2 ring-blue-500/20'
                         : 'bg-white border-slate-200 hover:border-slate-300 shadow-xs'
                     }`}
                   >
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md">
-                          #{idx + 1}
-                        </span>
-                        <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md">
-                          {typeObj?.label || q.type}
-                        </span>
-                        {q.required && <span className="text-xs font-bold text-red-500">* Required</span>}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="space-y-1 flex-1">
+                        <div className="flex items-center space-x-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                            isSectionHeader
+                              ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}>
+                            {typeObj?.label || q.type}
+                          </span>
+                          {!isSectionHeader && q.required && (
+                            <span className="text-[10px] font-bold text-red-500">* Required</span>
+                          )}
+                        </div>
+                        <div className={`font-bold text-slate-900 ${isSectionHeader ? 'text-base text-indigo-950 font-black' : 'text-sm'}`}>
+                          <FormattedText text={q.question || (isSectionHeader ? 'Untitled Section' : 'Untitled Question')} as="span" />
+                        </div>
+                        {q.description && (
+                          <FormattedText text={q.description} className="text-xs text-slate-500 mt-1" />
+                        )}
                       </div>
 
                       <div className="flex items-center space-x-1">
@@ -408,9 +688,6 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                         </button>
                       </div>
                     </div>
-
-                    <h4 className="text-sm font-bold text-slate-900">{q.question || 'Untitled Question'}</h4>
-                    {q.description && <p className="text-xs text-slate-500 mt-1">{q.description}</p>}
 
                     {/* Preview controls */}
                     <div className="mt-3 pointer-events-none opacity-80">
@@ -497,34 +774,50 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
               {selectedQuestion ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Question Label</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      {selectedQuestion.type === 'section_header' ? 'Section Heading' : 'Question Label'}
+                    </label>
                     <input
                       type="text"
                       value={selectedQuestion.question}
                       onChange={e => handleUpdateQuestion(selectedQuestion.id, { question: e.target.value })}
+                      placeholder={selectedQuestion.type === 'section_header' ? 'e.g. Part 1: Participant Information' : 'Enter question text...'}
                       className="w-full p-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Description / Help Text</label>
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-bold text-slate-700">
+                        {selectedQuestion.type === 'section_header' ? 'Section Description / Instructions' : 'Description / Help Text'}
+                      </label>
+                      <FormatToolbar
+                        targetRef={questionDescRef}
+                        value={selectedQuestion.description || ''}
+                        onChange={val => handleUpdateQuestion(selectedQuestion.id, { description: val })}
+                        compact
+                      />
+                    </div>
                     <textarea
+                      ref={questionDescRef}
                       value={selectedQuestion.description || ''}
                       onChange={e => handleUpdateQuestion(selectedQuestion.id, { description: e.target.value })}
-                      className="w-full p-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden h-16"
-                      placeholder="Optional instructions for respondent..."
+                      className="w-full p-2 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden h-20"
+                      placeholder={selectedQuestion.type === 'section_header' ? 'Optional instructions for this section (**bold**, *italic*, <u>underline</u>, divider lines)...' : 'Optional instructions for respondent...'}
                     />
                   </div>
 
-                  <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
-                    <span className="text-xs font-bold text-slate-800">Required Field</span>
-                    <input
-                      type="checkbox"
-                      checked={selectedQuestion.required}
-                      onChange={e => handleUpdateQuestion(selectedQuestion.id, { required: e.target.checked })}
-                      className="h-4 w-4 text-blue-600 rounded-md border-slate-300"
-                    />
-                  </div>
+                  {selectedQuestion.type !== 'section_header' && (
+                    <div className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+                      <span className="text-xs font-bold text-slate-800">Required Field</span>
+                      <input
+                        type="checkbox"
+                        checked={selectedQuestion.required}
+                        onChange={e => handleUpdateQuestion(selectedQuestion.id, { required: e.target.checked })}
+                        className="h-4 w-4 text-blue-600 rounded-md border-slate-300"
+                      />
+                    </div>
+                  )}
 
                   {/* Options editor for choice types */}
                   {(selectedQuestion.type === 'multiple_choice' ||

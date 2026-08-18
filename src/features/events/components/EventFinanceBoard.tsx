@@ -5,6 +5,7 @@ import { eventFinanceService } from '@/services/eventFinanceService'
 import type { EventIncome, EventExpense, EventFundTransfer } from '@/types/eventFinance'
 import { EventIncomeModal } from './EventIncomeModal'
 import { EventExpenseModal } from './EventExpenseModal'
+import { EventFundRequestModal } from './EventFundRequestModal'
 import { TransferToMainFundsModal } from './TransferToMainFundsModal'
 import { EventFinanceReportModal } from './EventFinanceReportModal'
 import { PasswordConfirmModal } from '@/components/Dialog'
@@ -31,6 +32,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
   const [isIncomeModalOpen, setIsIncomeModalOpen] = useState(false)
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false)
+  const [isFundRequestModalOpen, setIsFundRequestModalOpen] = useState(false)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
@@ -77,9 +79,11 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
   const pendingIncome = incomes.filter(i => !i.isArchived && i.encashmentStatus === 'pending').reduce((sum, i) => sum + i.amount, 0)
   const totalIncome = incomes.filter(i => !i.isArchived && i.encashmentStatus !== 'pending').reduce((sum, i) => sum + i.amount, 0)
+  const eventFundedExpenses = expenses.filter(e => !e.isArchived && e.encashmentStatus !== 'pending' && e.fundSource !== 'main_funds').reduce((sum, e) => sum + e.amount, 0)
+  const mainFundedExpenses = expenses.filter(e => !e.isArchived && e.encashmentStatus !== 'pending' && e.fundSource === 'main_funds').reduce((sum, e) => sum + e.amount, 0)
   const totalExpenses = expenses.filter(e => !e.isArchived && e.encashmentStatus !== 'pending').reduce((sum, e) => sum + e.amount, 0)
   const totalTransfers = transfers.filter(t => t.status === 'completed').reduce((sum, t) => sum + t.amount, 0)
-  const balance = totalIncome - totalExpenses - totalTransfers
+  const balance = totalIncome - eventFundedExpenses - totalTransfers
 
   const uniqueAllocations = Array.from(new Set([
     ...incomes.filter(i => !i.isArchived && i.allocation).map(i => i.allocation!),
@@ -145,6 +149,9 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         <Card className="p-6 border border-gray-200 shadow-xs">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Total Expenses</h3>
           <div className="text-3xl font-black text-red-600">₱{totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+          <div className="text-[10px] text-gray-400 mt-1 font-medium">
+            Event: ₱{eventFundedExpenses.toLocaleString()} | Main: ₱{mainFundedExpenses.toLocaleString()}
+          </div>
         </Card>
         <Card className="p-6 border border-gray-200 shadow-xs">
           <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Total Transfers</h3>
@@ -163,19 +170,19 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         <div className="flex space-x-6 px-1 overflow-x-auto whitespace-nowrap hide-scrollbar max-w-full">
           <button 
             onClick={() => setActiveTab('income')}
-            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'income' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors cursor-pointer ${activeTab === 'income' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
             Income ({incomes.length})
           </button>
           <button 
             onClick={() => setActiveTab('expenses')}
-            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'expenses' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors cursor-pointer ${activeTab === 'expenses' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
             Expenses ({expenses.length})
           </button>
           <button 
             onClick={() => setActiveTab('transfers')}
-            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'transfers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors cursor-pointer ${activeTab === 'transfers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
           >
             Transfers ({transfers.length})
           </button>
@@ -186,14 +193,27 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
               type="checkbox" 
               checked={showArchived}
               onChange={(e) => setShowArchived(e.target.checked)}
-              className="text-blue-600 focus:ring-blue-500 h-4 w-4 rounded"
+              className="text-blue-600 focus:ring-blue-500 h-4 w-4 rounded cursor-pointer"
             />
             <span className="text-sm font-semibold text-gray-500">Show Archived</span>
           </label>
 
+          {(isHeadOrCreator || canAction('canAddEventIncome')) && (
+            <button
+              onClick={() => setIsFundRequestModalOpen(true)}
+              title="Request Funds from Main Ministry"
+              aria-label="Request Funds from Main Ministry"
+              className="p-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200 rounded-lg transition-all cursor-pointer flex items-center justify-center shadow-2xs mr-2 active:scale-95"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+              </svg>
+            </button>
+          )}
+
           <button
             onClick={() => setIsReportModalOpen(true)}
-            className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-sm font-medium hover:bg-indigo-100 transition mr-2"
+            className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-sm font-medium hover:bg-indigo-100 transition mr-2 cursor-pointer"
           >
             Generate Report
           </button>
@@ -201,7 +221,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
           {(activeTab === 'income' && (isHeadOrCreator || canAction('canAddEventIncome'))) && (
             <button
               onClick={() => handleOpenIncomeModal()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition cursor-pointer"
             >
               + Add Income
             </button>
@@ -209,7 +229,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
           {(activeTab === 'expenses' && (isHeadOrCreator || canAction('canAddEventExpense'))) && (
             <button
               onClick={() => handleOpenExpenseModal()}
-              className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition"
+              className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition cursor-pointer"
             >
               + Add Expense
             </button>
@@ -218,7 +238,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
             <button
               onClick={() => setIsTransferModalOpen(true)}
               disabled={balance <= 0}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
               Transfer to Main Funds
             </button>
@@ -245,6 +265,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Spent On</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fund Source</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Spent By</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Allocation</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Amount</th>
@@ -268,7 +289,20 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{inc.date}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 min-w-[120px]">
                     <div className="flex flex-col">
-                      <span className="font-bold text-gray-900">{inc.receivedFrom}</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-gray-900">{inc.receivedFrom}</span>
+                        {(inc.sourceType === 'main_fund_release' || inc.sourceFundRequestId) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                            <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                            </svg>
+                            Ministry Grant
+                          </span>
+                        )}
+                      </div>
+                      {inc.description && (
+                        <span className="text-[11px] text-gray-500 line-clamp-1">{inc.description}</span>
+                      )}
                       {inc.lastEditedBy && (
                         <span className="text-[10px] text-gray-400 mt-0.5">Edited by {inc.lastEditedBy} at {new Date(inc.lastEditedAt!).toLocaleString()}</span>
                       )}
@@ -299,13 +333,13 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
                     {(isHeadOrCreator || canAction('canEditEventFinance')) && !inc.isArchived && (
-                      <button onClick={() => handleOpenIncomeModal(inc)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded">Edit</button>
+                      <button onClick={() => handleOpenIncomeModal(inc)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer">Edit</button>
                     )}
                     {(isHeadOrCreator || canAction('canVoidEventFinance')) && !inc.isArchived && (
-                      <button onClick={() => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded">Archive</button>
+                      <button onClick={() => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded cursor-pointer">Archive</button>
                     )}
                     {(isHeadOrCreator || canAction('canVoidEventFinance')) && inc.isArchived && (
-                      <button onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded">Delete</button>
+                      <button onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded cursor-pointer">Delete</button>
                     )}
                   </td>
                 </tr>
@@ -320,6 +354,17 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                         <span className="text-[10px] text-gray-400 mt-0.5">Edited by {exp.lastEditedBy} at {new Date(exp.lastEditedAt!).toLocaleString()}</span>
                       )}
                     </div>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm">
+                    {exp.fundSource === 'main_funds' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        🏛️ Main Funds
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        Event Funds
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-500 min-w-[120px]">{exp.spentByName}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
@@ -342,13 +387,13 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
                     {(isHeadOrCreator || canAction('canEditEventFinance')) && !exp.isArchived && (
-                      <button onClick={() => handleOpenExpenseModal(exp)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded">Edit</button>
+                      <button onClick={() => handleOpenExpenseModal(exp)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer">Edit</button>
                     )}
                     {(isHeadOrCreator || canAction('canVoidEventFinance')) && !exp.isArchived && (
-                      <button onClick={() => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded">Archive</button>
+                      <button onClick={() => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded cursor-pointer">Archive</button>
                     )}
                     {(isHeadOrCreator || canAction('canVoidEventFinance')) && exp.isArchived && (
-                      <button onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded">Delete</button>
+                      <button onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded cursor-pointer">Delete</button>
                     )}
                   </td>
                 </tr>
@@ -373,7 +418,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No income records found.</td></tr>
               )}
               {activeTab === 'expenses' && activeExpenses.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No expense records found.</td></tr>
+                <tr><td colSpan={8} className="px-6 py-8 text-center text-gray-500">No expense records found.</td></tr>
               )}
               {activeTab === 'transfers' && transfers.length === 0 && (
                 <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No transfers found.</td></tr>
@@ -395,9 +440,17 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         isOpen={isExpenseModalOpen} 
         onClose={() => setIsExpenseModalOpen(false)} 
         eventId={eventId}
+        eventName={eventName}
         onSuccess={fetchData}
         editItem={editExpenseItem}
         allocations={uniqueAllocations}
+      />
+      <EventFundRequestModal
+        isOpen={isFundRequestModalOpen}
+        onClose={() => setIsFundRequestModalOpen(false)}
+        eventId={eventId}
+        eventName={eventName}
+        onSuccess={fetchData}
       />
       <TransferToMainFundsModal
         isOpen={isTransferModalOpen}

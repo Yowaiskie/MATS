@@ -44,6 +44,12 @@ export interface DirectExpense {
   updatedByUid?: string
   updatedByName?: string
 
+  // Tracing for event expenses
+  sourceType?: 'event_expense'
+  sourceEventId?: string
+  sourceEventExpenseId?: string
+  sourceEventName?: string
+
   // Soft Delete Fields
   isArchived: boolean
   archivedAt?: any
@@ -114,6 +120,11 @@ export interface FinanceFundRequest {
   liquidationReviewedByUid?: string
   liquidationReviewedByName?: string
   liquidationReviewedAt?: any
+
+  // Target Event Link (when requested for a specific event)
+  targetEventId?: string
+  targetEventName?: string
+  linkedEventIncomeId?: string
 
   // Soft Delete Fields
   isArchived: boolean

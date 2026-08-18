@@ -2,28 +2,34 @@ import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
+import { categoryService } from '@/services/finance/categoryService'
 import type { EventFinanceCategory, PaymentMethod, EventExpense } from '@/types/eventFinance'
+import type { FinanceCategory } from '@/types/finance'
 
 interface Props {
   isOpen: boolean
   onClose: () => void
   eventId: string
+  eventName?: string
   onSuccess: () => void
   editItem?: EventExpense
   allocations: string[]
 }
 
-export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, onSuccess, editItem, allocations }) => {
+export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, eventName, onSuccess, editItem, allocations }) => {
   const { user, profile } = useAuth()
   const [categories, setCategories] = useState<EventFinanceCategory[]>([])
+  const [mainCategories, setMainCategories] = useState<FinanceCategory[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
+  const [fundSource, setFundSource] = useState<'event' | 'main_funds'>('event')
   const [amount, setAmount] = useState('')
   const [spentOn, setSpentOn] = useState('')
   const [spentBy, setSpentBy] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [mainFinanceCategoryId, setMainFinanceCategoryId] = useState('')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash')
   const [encashmentStatus, setEncashmentStatus] = useState<'pending' | 'encashed'>('pending')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
@@ -34,13 +40,16 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
   useEffect(() => {
     if (isOpen) {
       fetchCategories()
+      fetchMainCategories()
       if (editItem) {
         const parts = editItem.amount.toString().split('.')
         if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
         setAmount(parts.join('.'))
         setSpentOn(editItem.spentOn)
         setSpentBy(editItem.spentByName)
+        setFundSource(editItem.fundSource || 'event')
         setCategoryId(editItem.categoryId || '')
+        setMainFinanceCategoryId(editItem.mainFinanceCategoryId || '')
         setPaymentMethod(editItem.paymentMethod || 'Cash')
         setEncashmentStatus(editItem.encashmentStatus || 'pending')
         setDate(editItem.date || new Date().toISOString().split('T')[0])
@@ -71,10 +80,21 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
     }
   }
 
+  const fetchMainCategories = async () => {
+    try {
+      const data = await categoryService.getCategories()
+      setMainCategories(data.filter(c => !c.isArchived))
+    } catch (err) {
+      console.error('Failed to load main categories:', err)
+    }
+  }
+
   const resetForm = () => {
+    setFundSource('event')
     setAmount('')
     setSpentOn('')
     setCategoryId('')
+    setMainFinanceCategoryId('')
     setPaymentMethod('Cash')
     setEncashmentStatus('pending')
     setDate(new Date().toISOString().split('T')[0])
@@ -99,6 +119,11 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
       return
     }
 
+    if (fundSource === 'main_funds' && !mainFinanceCategoryId) {
+      setError('Please select a Main Finance Category for expenses funded by Main Ministry Funds.')
+      return
+    }
+
     try {
       setSubmitting(true)
       setError(null)
@@ -106,7 +131,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
       let finalCategoryId = categoryId
       const uName = profile.displayName || user.email || 'Unknown User'
 
-      if (categoryId === 'new') {
+      if (fundSource === 'event' && categoryId === 'new') {
         if (!newCategoryName.trim()) {
           setError('New category name is required.')
           setSubmitting(false)
@@ -126,8 +151,10 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
           amount: numAmount,
           spentOn: spentOn.trim(),
           spentByName: spentBy.trim(),
+          fundSource,
           paymentMethod,
-          categoryId: finalCategoryId,
+          categoryId: fundSource === 'event' ? finalCategoryId : (finalCategoryId || ''),
+          mainFinanceCategoryId: fundSource === 'main_funds' ? mainFinanceCategoryId : null,
           allocation: allocation.trim() || null,
           date,
           description: description.trim()
@@ -152,8 +179,10 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
           spentOn: spentOn.trim(),
           spentByUid: user.uid,
           spentByName: spentBy.trim(),
+          fundSource,
           paymentMethod,
-          categoryId: finalCategoryId,
+          categoryId: fundSource === 'event' ? finalCategoryId : (finalCategoryId || ''),
+          mainFinanceCategoryId: fundSource === 'main_funds' ? mainFinanceCategoryId : undefined,
           allocation: allocation.trim() || null,
           date,
           description: description.trim()
@@ -167,7 +196,8 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
         await eventFinanceService.addEventExpense(
           payload,
           user.uid,
-          uName
+          uName,
+          eventName
         )
       }
 
@@ -185,8 +215,65 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
     <Modal isOpen={isOpen} onClose={onClose} title={editItem ? "Edit Event Expense" : "Add Event Expense"} maxWidth="md">
       <form onSubmit={handleSubmit} className="space-y-5 p-1">
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+          <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm font-medium">
             {error}
+          </div>
+        )}
+
+        {/* Funding Source Selector */}
+        <div>
+          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-2">Fund Source *</label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setFundSource('event')}
+              disabled={!!editItem?.mainFinanceExpenseId}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                fundSource === 'event'
+                  ? 'border-blue-600 bg-blue-50/70 ring-2 ring-blue-500/20'
+                  : 'border-slate-200 bg-slate-50 hover:bg-white'
+              } ${editItem?.mainFinanceExpenseId ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                  fundSource === 'event' ? 'border-blue-600 bg-blue-600' : 'border-slate-400'
+                }`}>
+                  {fundSource === 'event' && <span className="w-1 h-1 rounded-full bg-white" />}
+                </span>
+                <span className="text-xs font-bold text-slate-900">Event Funds</span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1 pl-5">Deducted from this event's internal collection</p>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFundSource('main_funds')}
+              disabled={!!editItem?.id && !editItem?.mainFinanceExpenseId}
+              className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                fundSource === 'main_funds'
+                  ? 'border-indigo-600 bg-indigo-50/70 ring-2 ring-indigo-500/20'
+                  : 'border-slate-200 bg-slate-50 hover:bg-white'
+              } ${editItem?.id && !editItem?.mainFinanceExpenseId ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${
+                  fundSource === 'main_funds' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-400'
+                }`}>
+                  {fundSource === 'main_funds' && <span className="w-1 h-1 rounded-full bg-white" />}
+                </span>
+                <span className="text-xs font-bold text-indigo-900">Main Ministry Funds</span>
+              </div>
+              <p className="text-[11px] text-indigo-700/80 mt-1 pl-5">Deducted directly from Main Ministry general funds</p>
+            </button>
+          </div>
+        </div>
+
+        {fundSource === 'main_funds' && (
+          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-800 flex items-start gap-2">
+            <span className="font-bold text-indigo-600 mt-0.5">ℹ️</span>
+            <div>
+              <span className="font-bold">Main Funds Synchronization:</span> This expense will automatically be recorded as a Direct Expense in the Main Finance module and deducted from the general ministry balance.
+            </div>
           </div>
         )}
 
@@ -247,6 +334,77 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
           </div>
         </div>
 
+        {/* Category fields */}
+        {fundSource === 'main_funds' ? (
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1.5">Main Finance Category *</label>
+            <select
+              required
+              value={mainFinanceCategoryId}
+              onChange={(e) => setMainFinanceCategoryId(e.target.value)}
+              className="w-full border-indigo-200 rounded-xl shadow-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all px-4 py-2.5 bg-indigo-50/50 hover:bg-white focus:bg-white"
+            >
+              <option value="">Select Main Ministry Category</option>
+              {mainCategories.map(c => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Event Category</label>
+              <select
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+              >
+                <option value="">Select Category (Optional)</option>
+                {loading ? (
+                  <option disabled>Loading...</option>
+                ) : (
+                  categories.map(c => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))
+                )}
+                <option value="new" className="font-semibold text-blue-600">+ Add New Category</option>
+              </select>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Payment Method *</label>
+              <select
+                required
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+              >
+                <option value="Cash">Cash</option>
+                <option value="GCash">GCash</option>
+                <option value="Cheque">Cheque</option>
+                <option value="Bank Transfer">Bank Transfer</option>
+              </select>
+            </div>
+          </div>
+        )}
+
+        {fundSource === 'main_funds' && (
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Payment Method *</label>
+            <select
+              required
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+            >
+              <option value="Cash">Cash</option>
+              <option value="GCash">GCash</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </select>
+          </div>
+        )}
+
         <div>
           <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Fund Allocation (Optional)</label>
           <input
@@ -263,42 +421,6 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
               <option key={a} value={a} />
             ))}
           </datalist>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Category</label>
-            <select
-              value={categoryId}
-              onChange={(e) => setCategoryId(e.target.value)}
-              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
-            >
-              <option value="">Select Category (Optional)</option>
-              {loading ? (
-                <option disabled>Loading...</option>
-              ) : (
-                categories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))
-              )}
-              <option value="new" className="font-semibold text-blue-600">+ Add New Category</option>
-            </select>
-          </div>
-          
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Payment Method *</label>
-            <select
-              required
-              value={paymentMethod}
-              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
-            >
-              <option value="Cash">Cash</option>
-              <option value="GCash">GCash</option>
-              <option value="Cheque">Cheque</option>
-              <option value="Bank Transfer">Bank Transfer</option>
-            </select>
-          </div>
         </div>
 
         {paymentMethod === 'Cheque' && (
@@ -331,7 +453,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
           </div>
         )}
 
-        {categoryId === 'new' && (
+        {fundSource === 'event' && categoryId === 'new' && (
           <div className="animate-in fade-in slide-in-from-top-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-blue-600 mb-1.5">New Category Name *</label>
             <input
@@ -364,14 +486,14 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none"
+            className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm shadow-blue-500/30 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all active:scale-95"
+            className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm shadow-blue-500/30 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all active:scale-95 cursor-pointer"
           >
             {submitting ? 'Saving...' : editItem ? 'Update Expense' : 'Save Expense'}
           </button>
@@ -380,3 +502,4 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, o
     </Modal>
   )
 }
+

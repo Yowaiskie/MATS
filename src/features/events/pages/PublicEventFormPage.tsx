@@ -4,12 +4,15 @@ import { useQueryClient } from '@tanstack/react-query'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
+import { eventService } from '@/services/eventService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type { Event } from '@/types/event'
 import type { Member } from '@/types/member'
 import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
+import { FormattedText } from '@/components/FormattedText'
 
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
@@ -17,6 +20,7 @@ export const PublicEventFormPage: React.FC = () => {
   const queryClient = useQueryClient()
 
   const [form, setForm] = useState<EventForm | null>(null)
+  const [linkedEvent, setLinkedEvent] = useState<Event | null>(null)
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -32,11 +36,14 @@ export const PublicEventFormPage: React.FC = () => {
   // Answers State: maps questionId -> value
   const [answers, setAnswers] = useState<Record<string, any>>({})
 
-
-
   useEffect(() => {
     async function loadFormAndQuestions() {
-      if (!formId) return
+      if (!formId) {
+        setPageLoadError('Invalid form link.')
+        setLoading(false)
+        return
+      }
+
       setLoading(true)
       try {
         const formData = await queryClient.fetchQuery({
@@ -51,6 +58,20 @@ export const PublicEventFormPage: React.FC = () => {
         }
 
         setForm(formData)
+
+        // Load linked event details if available
+        if (formData.eventId) {
+          try {
+            const ev = await queryClient.fetchQuery({
+              queryKey: ['event-details-public', formData.eventId],
+              queryFn: () => eventService.getEventById(formData.eventId),
+              staleTime: 1000 * 60 * 5
+            })
+            setLinkedEvent(ev)
+          } catch (err) {
+            console.error('Failed to load linked event for banner:', err)
+          }
+        }
 
         if (formData.status !== 'published') {
           setPageLoadError(formData.status === 'draft' ? 'draft' : 'closed')
@@ -449,6 +470,7 @@ export const PublicEventFormPage: React.FC = () => {
   const visibleQuestions = questions.filter(isQuestionVisible)
 
   const checkQuestionFilled = (q: EventFormQuestion): boolean => {
+    if (q.type === 'section_header') return true
     const val = answers[q.id]
     if (q.type === 'companion_repeater' && Array.isArray(val) && val.length > 0) {
       const allNamed = val.every((c: any) => c && typeof c.name === 'string' && c.name.trim().length > 0)
@@ -463,31 +485,202 @@ export const PublicEventFormPage: React.FC = () => {
   const missingRequiredQuestions = visibleQuestions.filter(q => !checkQuestionFilled(q))
   const isFormComplete = missingRequiredQuestions.length === 0
 
+  const purposeLabels: Record<string, { label: string; bg: string }> = {
+    registration: { label: 'Event Registration / RSVP', bg: 'bg-blue-100 text-blue-800 border-blue-200' },
+    survey: { label: 'Survey & Feedback', bg: 'bg-purple-100 text-purple-800 border-purple-200' },
+    consent: { label: 'Consent / Permission Slip', bg: 'bg-emerald-100 text-emerald-800 border-emerald-200' },
+    order: { label: 'Order / Merchandise Form', bg: 'bg-amber-100 text-amber-800 border-amber-200' },
+    general: { label: 'General Information Form', bg: 'bg-slate-100 text-slate-700 border-slate-200' }
+  }
+
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center py-4 px-3 sm:py-8 sm:px-4 font-sans">
       <div className="max-w-2xl w-full space-y-4 sm:space-y-6">
         
         {/* Form Header Card */}
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-lg sm:shadow-xl p-5 sm:p-8 border border-slate-200 relative overflow-hidden">
+        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-lg sm:shadow-xl p-5 sm:p-8 border border-slate-200 relative overflow-hidden space-y-4">
           <div className="h-2.5 sm:h-3 bg-blue-600 absolute top-0 left-0 right-0" />
-          <div className="flex items-center space-x-3 mb-3 sm:mb-4">
-            <img src="/favicon/favicon.png" alt="MATS" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl border border-slate-200 shadow-xs" />
-            <div>
-              <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">MATS Event Registration</span>
-              <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">{form.title}</h1>
+          
+          <div className="flex items-start justify-between gap-3 pt-1">
+            <div className="flex items-center space-x-3">
+              <img src="/favicon/favicon.png" alt="MATS" className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl border border-slate-200 shadow-xs" />
+              <div>
+                <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wider text-slate-400">MATS Online Forms</span>
+                <h1 className="text-lg sm:text-2xl font-black text-slate-900 leading-tight">{form.title}</h1>
+              </div>
             </div>
+
+            {/* Purpose Category Tag Badge */}
+            {form.purposeTag && (
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-[10px] sm:text-xs font-bold border shrink-0 ${purposeLabels[form.purposeTag]?.bg || 'bg-blue-100 text-blue-800 border-blue-200'}`}>
+                {purposeLabels[form.purposeTag]?.label || form.purposeTag}
+              </span>
+            )}
           </div>
-          {form.description && <p className="text-xs text-slate-600 mt-1.5 sm:mt-2 leading-relaxed">{form.description}</p>}
+
+          {/* Linked Event Info Banner */}
+          {form.showEventBanner !== false && linkedEvent && (
+            <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2 text-xs">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-blue-950 flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {linkedEvent.title}
+                </span>
+                {linkedEvent.stage && (
+                  <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
+                    {linkedEvent.stage}
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-blue-900/80 pt-1 border-t border-blue-100">
+                {(linkedEvent.startDate || linkedEvent.startTime) && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-blue-950">Schedule:</span>
+                    <span>{linkedEvent.startDate} {linkedEvent.startTime && `• ${linkedEvent.startTime}`}</span>
+                  </div>
+                )}
+                {linkedEvent.location && (
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-blue-950">Location:</span>
+                    <span className="line-clamp-1">{linkedEvent.location}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Form Purpose & Objective Description */}
+          {form.description && (
+            <div className="text-xs sm:text-sm text-slate-700 bg-slate-50 p-3.5 rounded-xl border border-slate-100">
+              <FormattedText text={form.description} />
+            </div>
+          )}
+
+          {/* Guidelines & Important Reminders Box */}
+          {form.guidelines && (
+            <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-2xl space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-900">
+                <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Important Guidelines & Reminders</span>
+              </div>
+              <div className="text-xs text-amber-950">
+                <FormattedText text={form.guidelines} />
+              </div>
+            </div>
+          )}
+
+          {/* Dynamic Contacts & Inquiry Information */}
+          {((form.contacts && form.contacts.length > 0) || form.contactPerson || form.contactInfo) && (
+            <div className="pt-3 border-t border-slate-100 space-y-2">
+              <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 8h2a2 2 0 012 2v6a2 2 0 01-2 2h-2v4l-4-4H9a1.994 1.994 0 01-1.414-.586m0 0L11 14h4a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2v4l.586-.586z" />
+                </svg>
+                <span>For Inquiries & Questions:</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                {(form.contacts && form.contacts.length > 0
+                  ? form.contacts
+                  : [
+                      ...(form.contactPerson ? [{ id: '1', type: 'coordinator' as const, label: 'Coordinator', value: form.contactPerson }] : []),
+                      ...(form.contactInfo ? [{ id: '2', type: 'phone' as const, label: 'Contact', value: form.contactInfo }] : [])
+                    ]
+                ).map((c, idx) => {
+                  const isPhone = c.type === 'phone' || /^[0-9\+\-\s\(\)]+$/.test(c.value)
+                  const isEmail = c.type === 'email' || c.value.includes('@')
+                  const isUrl = c.type === 'messenger' || c.value.startsWith('http') || c.value.startsWith('m.me') || c.value.startsWith('fb.com')
+
+                  return (
+                    <div key={c.id || idx} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-100 rounded-xl">
+                      <div className="flex items-center space-x-2 overflow-hidden">
+                        {c.type === 'coordinator' && (
+                          <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        )}
+                        {c.type === 'phone' && (
+                          <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        )}
+                        {c.type === 'email' && (
+                          <svg className="w-4 h-4 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                        {c.type === 'messenger' && (
+                          <svg className="w-4 h-4 text-sky-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                          </svg>
+                        )}
+                        {c.type === 'custom' && (
+                          <svg className="w-4 h-4 text-slate-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                        <span className="text-[11px] font-semibold text-slate-500 truncate">{c.label}:</span>
+                      </div>
+
+                      <div className="font-bold text-slate-900 ml-2 truncate">
+                        {isPhone ? (
+                          <a href={`tel:${c.value.replace(/[^0-9\+]/g, '')}`} className="text-blue-600 hover:underline">
+                            {c.value}
+                          </a>
+                        ) : isEmail ? (
+                          <a href={`mailto:${c.value}`} className="text-blue-600 hover:underline">
+                            {c.value}
+                          </a>
+                        ) : isUrl ? (
+                          <a href={c.value.startsWith('http') ? c.value : `https://${c.value}`} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            {c.value}
+                          </a>
+                        ) : (
+                          <span>{c.value}</span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Public Form Form Element */}
         <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-          
-
-
           {/* Dynamic Questions Rendering */}
           {visibleQuestions.map((q, idx) => {
             const hasError = !!validationErrors[q.id]
+            const isSectionHeader = q.type === 'section_header'
+
+            if (isSectionHeader) {
+              return (
+                <div
+                  key={q.id}
+                  id={`q_card_${q.id}`}
+                  className="bg-indigo-50/70 border border-indigo-200 rounded-2xl sm:rounded-3xl p-5 sm:p-6 shadow-sm space-y-1 relative overflow-hidden"
+                >
+                  <div className="h-1.5 bg-indigo-600 absolute top-0 left-0 right-0" />
+                  <div className="text-base sm:text-lg font-black text-indigo-950 flex items-center gap-2">
+                    <svg className="w-5 h-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    <FormattedText text={q.question} as="span" />
+                  </div>
+                  {q.description && (
+                    <div className="text-xs sm:text-sm text-indigo-900/80 leading-relaxed pt-1">
+                      <FormattedText text={q.description} />
+                    </div>
+                  )}
+                </div>
+              )
+            }
 
             return (
               <div
@@ -500,20 +693,25 @@ export const PublicEventFormPage: React.FC = () => {
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <label className="text-sm font-bold text-slate-900">
-                      {idx + 1}. {q.question}
-                      {q.required && <span className="text-red-500 ml-1">*</span>}
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-bold text-slate-900 inline-flex flex-wrap items-baseline gap-1">
+                      <span className="shrink-0">{idx + 1}.</span>
+                      <FormattedText text={q.question} as="span" />
+                      {q.required && <span className="text-red-500 ml-1 shrink-0">*</span>}
                     </label>
                     {hasError && (
-                      <span className="block text-[11px] font-bold text-red-600 mt-1 animate-pulse">
+                      <span className="block text-[11px] font-bold text-red-600 animate-pulse">
                         {validationErrors[q.id]}
                       </span>
                     )}
                   </div>
                 </div>
 
-                {q.description && <p className="text-xs text-slate-500">{q.description}</p>}
+                {q.description && (
+                  <div className="text-xs text-slate-500">
+                    <FormattedText text={q.description} />
+                  </div>
+                )}
 
               {/* Render Question Control */}
               <div className="pt-1">

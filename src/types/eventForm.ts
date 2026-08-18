@@ -2,12 +2,29 @@ import type { Timestamp, FieldValue } from 'firebase/firestore'
 
 export type FormStatus = 'draft' | 'published' | 'temporary_closed' | 'closed' | 'archived'
 
+export type FormPurposeTag = 'registration' | 'survey' | 'consent' | 'order' | 'general'
+
+export type ContactType = 'coordinator' | 'phone' | 'email' | 'messenger' | 'custom'
+
+export interface FormContactItem {
+  id: string
+  type: ContactType
+  label: string
+  value: string
+}
+
 export interface EventForm {
   id?: string
   eventId: string
   title: string
   slug?: string
   description?: string
+  purposeTag?: FormPurposeTag
+  guidelines?: string
+  contactPerson?: string
+  contactInfo?: string
+  contacts?: FormContactItem[]
+  showEventBanner?: boolean
   status: FormStatus
   isPublic: boolean
   startAt?: string
@@ -19,6 +36,7 @@ export interface EventForm {
   createdByName?: string
   createdAt?: Timestamp | FieldValue | string
   updatedAt?: Timestamp | FieldValue | string
+  responsesCount?: number
 }
 
 export type QuestionType =
@@ -35,6 +53,7 @@ export type QuestionType =
   | 'member_selector'
   | 'relationship_selector'
   | 'companion_repeater'
+  | 'section_header'
 
 export interface CompanionEntry {
   id: string

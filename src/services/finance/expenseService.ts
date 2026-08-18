@@ -3,6 +3,7 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   doc, 
   getDoc,
   serverTimestamp, 
@@ -213,6 +214,119 @@ export const expenseService = {
     } catch (err) {
       console.error('Failed to archive expense record:', err)
       throw err
+    }
+  },
+
+  /**
+   * Restores an archived expense record.
+   */
+  async restoreExpense(
+    id: string,
+    restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, EXPENSE_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) {
+        throw new Error('Expense record does not exist.')
+      }
+
+      const currentData = docSnap.data()
+      await checkPeriodClosed(currentData.date)
+
+      await updateDoc(docRef, {
+        isArchived: false,
+        archivedAt: null,
+        archivedByUid: null,
+        archivedByName: null,
+        updatedAt: serverTimestamp(),
+        updatedByUid: restoredByUid,
+        updatedByName: restoredByName
+      })
+
+      await auditService.logAction(
+        'EXPENSE_RESTORE',
+        'attendance',
+        `Restored direct expense '${currentData.referenceNumber}' ($${currentData.amount})`,
+        restoredByName,
+        { expenseId: id, referenceNumber: currentData.referenceNumber }
+      )
+    } catch (err) {
+      console.error('Failed to restore expense record:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Permanently deletes a direct expense record.
+   */
+  async deleteExpense(
+    id: string,
+    _deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, EXPENSE_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) {
+        throw new Error('Expense record does not exist.')
+      }
+
+      const currentData = docSnap.data()
+      await checkPeriodClosed(currentData.date)
+
+      await deleteDoc(docRef)
+
+      await auditService.logAction(
+        'EXPENSE_DELETE',
+        'attendance',
+        `Permanently deleted direct expense '${currentData.referenceNumber}' ($${currentData.amount})`,
+        deletedByName,
+        { expenseId: id, referenceNumber: currentData.referenceNumber, amount: currentData.amount }
+      )
+    } catch (err) {
+      console.error('Failed to permanently delete expense record:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Bulk permanently deletes direct expenses.
+   */
+  async bulkDeleteExpenses(
+    ids: string[],
+    deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.deleteExpense(id, deletedByUid, deletedByName)
+    }
+  },
+
+  /**
+   * Bulk archives direct expenses.
+   */
+  async bulkArchiveExpenses(
+    ids: string[],
+    archivedByUid: string,
+    archivedByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.archiveExpense(id, archivedByUid, archivedByName)
+    }
+  },
+
+  /**
+   * Bulk restores direct expenses.
+   */
+  async bulkRestoreExpenses(
+    ids: string[],
+    restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.restoreExpense(id, restoredByUid, restoredByName)
     }
   }
 }

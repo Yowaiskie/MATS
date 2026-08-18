@@ -2,7 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { Loading } from '@/components/Loading'
-import { AlertModal } from '@/components/Dialog'
+import { AlertModal, PasswordConfirmModal } from '@/components/Dialog'
+import { authService } from '@/services/authService'
 
 // Import types
 import type { FinanceIncome, DirectExpense, FinanceCategory, FinanceFundRequest, FinancePeriod, LedgerEntry } from '@/types/finance'
@@ -57,6 +58,32 @@ export const FinancePage: React.FC = () => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false)
   const [isLiquidationModalOpen, setIsLiquidationModalOpen] = useState(false)
+
+  // Edit states
+  const [editIncomeItem, setEditIncomeItem] = useState<FinanceIncome | null>(null)
+  const [editExpenseItem, setEditExpenseItem] = useState<DirectExpense | null>(null)
+  const [editCategoryItem, setEditCategoryItem] = useState<FinanceCategory | null>(null)
+
+  // Show archives toggle
+  const [showArchived, setShowArchived] = useState(false)
+
+  // Multi-selection state for Bulk Operations
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
+  // Reset selectedIds when switching tabs or toggling archives
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [activeTab, showArchived])
+
+  // Password confirmation for permanent delete (single or bulk)
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean
+    id?: string
+    ids?: string[]
+    name?: string
+    categories?: { id: string, name: string }[]
+    type: 'income' | 'expense' | 'category' | 'request'
+  }>({ isOpen: false, type: 'income' })
 
   // Selection states for workflows
   const [selectedRequest, setSelectedRequest] = useState<FinanceFundRequest | null>(null)
@@ -125,12 +152,12 @@ export const FinancePage: React.FC = () => {
     setErrorMsg(null)
     try {
       const [cats, incs, exps, reqs, pers, ledg] = await Promise.all([
-        categoryService.getCategories(false),
-        incomeService.getIncomes(undefined, undefined, false),
-        expenseService.getExpenses(undefined, undefined, false),
-        fundRequestService.getFundRequests(undefined, undefined, false),
+        categoryService.getCategories(showArchived),
+        incomeService.getIncomes(undefined, undefined, showArchived),
+        expenseService.getExpenses(undefined, undefined, showArchived),
+        fundRequestService.getFundRequests(undefined, undefined, showArchived),
         financePeriodService.getPeriods(),
-        ledgerService.getLedgerEntries(undefined, undefined, false)
+        ledgerService.getLedgerEntries(undefined, undefined, showArchived)
       ])
       setCategories(cats)
       setIncomes(incs)
@@ -148,7 +175,7 @@ export const FinancePage: React.FC = () => {
 
   useEffect(() => {
     fetchData()
-  }, [])
+  }, [showArchived])
 
   // Calculate current month identifier
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), [])
@@ -263,33 +290,85 @@ export const FinancePage: React.FC = () => {
     return Number(val.replace(/,/g, '')) || 0
   }
 
-  // Handle Save Category
-  const handleCreateCategory = async (e: React.FormEvent) => {
+  // Category Modal Helpers
+  const handleOpenAddCategory = () => {
+    setEditCategoryItem(null)
+    setCatName('')
+    setCatColor('blue')
+    setIsCategoryModalOpen(true)
+  }
+
+  const handleOpenEditCategory = (cat: FinanceCategory) => {
+    setEditCategoryItem(cat)
+    setCatName(cat.name)
+    setCatColor(cat.color || 'blue')
+    setIsCategoryModalOpen(true)
+  }
+
+  // Handle Save Category (Create or Edit)
+  const handleSaveCategory = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!catName.trim()) return
     setSaving(true)
     setErrorMsg(null)
     try {
-      await categoryService.createCategory(
-        catName.trim(),
-        catIcon,
-        catColor,
-        profile?.uid || 'System',
-        profile?.displayName || 'Admin'
-      )
+      if (editCategoryItem) {
+        await categoryService.updateCategory(
+          editCategoryItem.id,
+          catName.trim(),
+          catColor,
+          profile?.uid || 'System',
+          profile?.displayName || 'Admin'
+        )
+        setSuccessMsg('Category updated successfully.')
+      } else {
+        await categoryService.createCategory(
+          catName.trim(),
+          catIcon,
+          catColor,
+          profile?.uid || 'System',
+          profile?.displayName || 'Admin'
+        )
+        setSuccessMsg('Category created successfully.')
+      }
       setCatName('')
+      setEditCategoryItem(null)
       setIsCategoryModalOpen(false)
-      setSuccessMsg('Category created successfully.')
       await fetchData()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to create category.')
+      setErrorMsg(err.message || 'Failed to save category.')
     } finally {
       setSaving(false)
     }
   }
 
-  // Handle Save Income
-  const handleAddIncome = async (e: React.FormEvent) => {
+  // Open Income Modal Helpers
+  const handleOpenAddIncome = () => {
+    setEditIncomeItem(null)
+    setIncAmount('')
+    setIncSource('')
+    setIncCategoryId('')
+    setIncReceivedFrom('')
+    setIncDate(getLocalYYYYMMDD())
+    setIncDesc('')
+    setIsIncomeModalOpen(true)
+  }
+
+  const handleOpenEditIncome = (inc: FinanceIncome) => {
+    setEditIncomeItem(inc)
+    const parts = inc.amount.toString().split('.')
+    if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+    setIncAmount(parts.join('.'))
+    setIncSource(inc.source)
+    setIncCategoryId(inc.categoryId)
+    setIncReceivedFrom(inc.receivedFrom)
+    setIncDate(inc.date)
+    setIncDesc(inc.description || '')
+    setIsIncomeModalOpen(true)
+  }
+
+  // Handle Save Income (Create or Edit)
+  const handleSaveIncome = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!incAmount || !incSource || !incCategoryId || !incReceivedFrom) {
       setErrorMsg('Please populate all mandatory income fields.')
@@ -303,37 +382,78 @@ export const FinancePage: React.FC = () => {
     setSaving(true)
     setErrorMsg(null)
     try {
-      await incomeService.addIncome(
-        {
-          amount: parseAmount(incAmount),
-          source: incSource.trim(),
-          categoryId: incCategoryId,
-          receivedFrom: incReceivedFrom.trim(),
-          date: incDate,
-          description: incDesc.trim(),
-          createdByUid: profile?.uid || 'System',
-          createdByName: profile?.displayName || 'Admin'
-        },
-        profile?.uid || 'System',
-        profile?.displayName || 'Admin'
-      )
+      if (editIncomeItem) {
+        await incomeService.updateIncome(
+          editIncomeItem.id,
+          {
+            amount: parseAmount(incAmount),
+            source: incSource.trim(),
+            categoryId: incCategoryId,
+            receivedFrom: incReceivedFrom.trim(),
+            date: incDate,
+            description: incDesc.trim()
+          },
+          profile?.uid || 'System',
+          profile?.displayName || 'Admin'
+        )
+        setSuccessMsg('Income transaction updated successfully.')
+      } else {
+        await incomeService.addIncome(
+          {
+            amount: parseAmount(incAmount),
+            source: incSource.trim(),
+            categoryId: incCategoryId,
+            receivedFrom: incReceivedFrom.trim(),
+            date: incDate,
+            description: incDesc.trim(),
+            createdByUid: profile?.uid || 'System',
+            createdByName: profile?.displayName || 'Admin'
+          },
+          profile?.uid || 'System',
+          profile?.displayName || 'Admin'
+        )
+        setSuccessMsg('Income transaction recorded.')
+      }
       setIncAmount('')
       setIncSource('')
       setIncCategoryId('')
       setIncReceivedFrom('')
       setIncDesc('')
+      setEditIncomeItem(null)
       setIsIncomeModalOpen(false)
-      setSuccessMsg('Income transaction recorded.')
       await fetchData()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to record income.')
+      setErrorMsg(err.message || 'Failed to save income.')
     } finally {
       setSaving(false)
     }
   }
 
-  // Handle Save Expense
-  const handleAddExpense = async (e: React.FormEvent) => {
+  // Open Expense Modal Helpers
+  const handleOpenAddExpense = () => {
+    setEditExpenseItem(null)
+    setExpAmount('')
+    setExpCategoryId('')
+    setExpSpentByName(profile?.displayName || '')
+    setExpDate(getLocalYYYYMMDD())
+    setExpDesc('')
+    setIsExpenseModalOpen(true)
+  }
+
+  const handleOpenEditExpense = (exp: DirectExpense) => {
+    setEditExpenseItem(exp)
+    const parts = exp.amount.toString().split('.')
+    if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+    setExpAmount(parts.join('.'))
+    setExpCategoryId(exp.categoryId)
+    setExpSpentByName(exp.spentByName)
+    setExpDate(exp.date)
+    setExpDesc(exp.description || '')
+    setIsExpenseModalOpen(true)
+  }
+
+  // Handle Save Expense (Create or Edit)
+  const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!expAmount || !expCategoryId || !expSpentByName) {
       setErrorMsg('Please populate all mandatory expense fields.')
@@ -347,28 +467,45 @@ export const FinancePage: React.FC = () => {
     setSaving(true)
     setErrorMsg(null)
     try {
-      await expenseService.addExpense(
-        {
-          amount: parseAmount(expAmount),
-          categoryId: expCategoryId,
-          spentByUid: profile?.uid || 'Unknown',
-          spentByName: expSpentByName.trim(),
-          date: expDate,
-          description: expDesc.trim(),
-          createdByUid: profile?.uid || 'System',
-          createdByName: profile?.displayName || 'Admin'
-        },
-        profile?.uid || 'System',
-        profile?.displayName || 'Admin'
-      )
+      if (editExpenseItem) {
+        await expenseService.updateExpense(
+          editExpenseItem.id,
+          {
+            amount: parseAmount(expAmount),
+            categoryId: expCategoryId,
+            spentByName: expSpentByName.trim(),
+            date: expDate,
+            description: expDesc.trim()
+          },
+          profile?.uid || 'System',
+          profile?.displayName || 'Admin'
+        )
+        setSuccessMsg('Direct expense updated successfully.')
+      } else {
+        await expenseService.addExpense(
+          {
+            amount: parseAmount(expAmount),
+            categoryId: expCategoryId,
+            spentByUid: profile?.uid || 'Unknown',
+            spentByName: expSpentByName.trim(),
+            date: expDate,
+            description: expDesc.trim(),
+            createdByUid: profile?.uid || 'System',
+            createdByName: profile?.displayName || 'Admin'
+          },
+          profile?.uid || 'System',
+          profile?.displayName || 'Admin'
+        )
+        setSuccessMsg('Direct expense transaction recorded.')
+      }
       setExpAmount('')
       setExpCategoryId('')
       setExpDesc('')
+      setEditExpenseItem(null)
       setIsExpenseModalOpen(false)
-      setSuccessMsg('Direct expense transaction recorded.')
       await fetchData()
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to record expense.')
+      setErrorMsg(err.message || 'Failed to save expense.')
     } finally {
       setSaving(false)
     }
@@ -572,7 +709,7 @@ export const FinancePage: React.FC = () => {
     }
   }
 
-  // Soft Archiving Operations
+  // Soft Archiving & Restoring Operations
   const handleArchiveIncome = async (id: string) => {
     setDialog({
       title: 'Archive Income',
@@ -588,6 +725,16 @@ export const FinancePage: React.FC = () => {
         }
       }
     })
+  }
+
+  const handleRestoreIncome = async (id: string) => {
+    try {
+      await incomeService.restoreIncome(id, profile?.uid || 'System', profile?.displayName || 'Admin')
+      setSuccessMsg('Income record restored.')
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to restore income.')
+    }
   }
 
   const handleArchiveExpense = async (id: string) => {
@@ -607,6 +754,16 @@ export const FinancePage: React.FC = () => {
     })
   }
 
+  const handleRestoreExpense = async (id: string) => {
+    try {
+      await expenseService.restoreExpense(id, profile?.uid || 'System', profile?.displayName || 'Admin')
+      setSuccessMsg('Direct expense record restored.')
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to restore expense.')
+    }
+  }
+
   const handleArchiveRequest = async (id: string) => {
     setDialog({
       title: 'Archive Fund Request',
@@ -624,6 +781,16 @@ export const FinancePage: React.FC = () => {
     })
   }
 
+  const handleRestoreRequest = async (id: string) => {
+    try {
+      await fundRequestService.restoreRequest(id, profile?.uid || 'System', profile?.displayName || 'Admin')
+      setSuccessMsg('Fund request restored.')
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to restore request.')
+    }
+  }
+
   const handleArchiveCategory = async (id: string, name: string) => {
     setDialog({
       title: 'Archive Category',
@@ -639,6 +806,169 @@ export const FinancePage: React.FC = () => {
         }
       }
     })
+  }
+
+  const handleRestoreCategory = async (id: string, name: string) => {
+    try {
+      await categoryService.restoreCategory(id, name, profile?.uid || 'System', profile?.displayName || 'Admin')
+      setSuccessMsg(`Category "${name}" restored.`)
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to restore category.')
+    }
+  }
+
+  // Selection Helpers
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleSelectAll = (allIds: string[]) => {
+    if (selectedIds.size === allIds.length && allIds.length > 0) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(allIds))
+    }
+  }
+
+  // Bulk Trigger Helpers
+  const handleTriggerBulkDelete = (type: 'income' | 'expense' | 'category' | 'request') => {
+    if (selectedIds.size === 0) return
+    const ids = Array.from(selectedIds)
+
+    if (type === 'category') {
+      const cats = categories.filter(c => selectedIds.has(c.id)).map(c => ({ id: c.id, name: c.name }))
+      setDeleteConfirm({
+        isOpen: true,
+        ids,
+        categories: cats,
+        type: 'category'
+      })
+    } else {
+      setDeleteConfirm({
+        isOpen: true,
+        ids,
+        type
+      })
+    }
+  }
+
+  const handleTriggerBulkArchive = async (type: 'income' | 'expense' | 'category' | 'request') => {
+    if (selectedIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    const uId = profile?.uid || 'System'
+    const uName = profile?.displayName || 'Admin'
+
+    setDialog({
+      title: `Bulk Archive ${ids.length} Item(s)`,
+      message: `Are you sure you want to archive ${ids.length} selected item(s)?`,
+      isConfirm: true,
+      onConfirm: async () => {
+        try {
+          if (type === 'income') {
+            await incomeService.bulkArchiveIncomes(ids, uId, uName)
+            setSuccessMsg(`${ids.length} income transaction(s) archived.`)
+          } else if (type === 'expense') {
+            await expenseService.bulkArchiveExpenses(ids, uId, uName)
+            setSuccessMsg(`${ids.length} direct expense(s) archived.`)
+          } else if (type === 'category') {
+            const cats = categories.filter(c => selectedIds.has(c.id)).map(c => ({ id: c.id, name: c.name }))
+            await categoryService.bulkArchiveCategories(cats, uId, uName)
+            setSuccessMsg(`${cats.length} category(ies) archived.`)
+          } else if (type === 'request') {
+            await fundRequestService.bulkArchiveRequests(ids, uId, uName)
+            setSuccessMsg(`${ids.length} fund request(s) archived.`)
+          }
+          setSelectedIds(new Set())
+          await fetchData()
+        } catch (err: any) {
+          setErrorMsg(err.message || 'Failed to bulk archive items.')
+        }
+      }
+    })
+  }
+
+  const handleTriggerBulkRestore = async (type: 'income' | 'expense' | 'category' | 'request') => {
+    if (selectedIds.size === 0) return
+    const ids = Array.from(selectedIds)
+    const uId = profile?.uid || 'System'
+    const uName = profile?.displayName || 'Admin'
+
+    try {
+      if (type === 'income') {
+        await incomeService.bulkRestoreIncomes(ids, uId, uName)
+        setSuccessMsg(`${ids.length} income transaction(s) restored.`)
+      } else if (type === 'expense') {
+        await expenseService.bulkRestoreExpenses(ids, uId, uName)
+        setSuccessMsg(`${ids.length} direct expense(s) restored.`)
+      } else if (type === 'category') {
+        const cats = categories.filter(c => selectedIds.has(c.id)).map(c => ({ id: c.id, name: c.name }))
+        await categoryService.bulkRestoreCategories(cats, uId, uName)
+        setSuccessMsg(`${cats.length} category(ies) restored.`)
+      } else if (type === 'request') {
+        await fundRequestService.bulkRestoreRequests(ids, uId, uName)
+        setSuccessMsg(`${ids.length} fund request(s) restored.`)
+      }
+      setSelectedIds(new Set())
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to bulk restore items.')
+    }
+  }
+
+  // Permanent Delete Password Verification Handlers
+  const handleConfirmDelete = async (password: string) => {
+    if (!deleteConfirm.id && (!deleteConfirm.ids || deleteConfirm.ids.length === 0)) return
+    try {
+      await authService.verifyPassword(password)
+
+      const uId = profile?.uid || 'System'
+      const uName = profile?.displayName || 'Admin'
+
+      if (deleteConfirm.ids && deleteConfirm.ids.length > 0) {
+        // Bulk deletion
+        if (deleteConfirm.type === 'income') {
+          await incomeService.bulkDeleteIncomes(deleteConfirm.ids, uId, uName)
+          setSuccessMsg(`${deleteConfirm.ids.length} income transactions permanently deleted.`)
+        } else if (deleteConfirm.type === 'expense') {
+          await expenseService.bulkDeleteExpenses(deleteConfirm.ids, uId, uName)
+          setSuccessMsg(`${deleteConfirm.ids.length} direct expenses permanently deleted.`)
+        } else if (deleteConfirm.type === 'category' && deleteConfirm.categories) {
+          await categoryService.bulkDeleteCategories(deleteConfirm.categories, uId, uName)
+          setSuccessMsg(`${deleteConfirm.categories.length} categories permanently deleted.`)
+        } else if (deleteConfirm.type === 'request') {
+          await fundRequestService.bulkDeleteRequests(deleteConfirm.ids, uId, uName)
+          setSuccessMsg(`${deleteConfirm.ids.length} fund requests permanently deleted.`)
+        }
+      } else if (deleteConfirm.id) {
+        // Single deletion
+        if (deleteConfirm.type === 'income') {
+          await incomeService.deleteIncome(deleteConfirm.id, uId, uName)
+          setSuccessMsg('Income transaction permanently deleted.')
+        } else if (deleteConfirm.type === 'expense') {
+          await expenseService.deleteExpense(deleteConfirm.id, uId, uName)
+          setSuccessMsg('Direct expense record permanently deleted.')
+        } else if (deleteConfirm.type === 'category') {
+          await categoryService.deleteCategory(deleteConfirm.id, deleteConfirm.name || '', uId, uName)
+          setSuccessMsg(`Category "${deleteConfirm.name || ''}" permanently deleted.`)
+        } else if (deleteConfirm.type === 'request') {
+          await fundRequestService.deleteRequest(deleteConfirm.id, uId, uName)
+          setSuccessMsg('Fund request permanently deleted.')
+        }
+      }
+
+      setDeleteConfirm({ isOpen: false, type: 'income' })
+      setSelectedIds(new Set())
+      await fetchData()
+    } catch (err: any) {
+      console.error(err)
+      throw new Error(err.message || 'Verification failed. Password may be incorrect.')
+    }
   }
 
   // Financial Period Operations
@@ -727,9 +1057,9 @@ export const FinancePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Mobile Tab Selector */}
-      <div className="sm:hidden mb-4">
-        <div className="relative">
+      {/* Mobile Tab Selector & Archive Toggle */}
+      <div className="sm:hidden mb-4 flex items-center gap-2">
+        <div className="relative flex-1">
           <select
             id="finance-tabs"
             name="finance-tabs"
@@ -758,10 +1088,25 @@ export const FinancePage: React.FC = () => {
             </svg>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={() => setShowArchived(!showArchived)}
+          title={showArchived ? 'Hide Archives' : 'View Archives'}
+          className={`flex items-center justify-center p-3 rounded-xl border transition-all cursor-pointer ${
+            showArchived
+              ? 'bg-amber-100 text-amber-900 border-amber-300'
+              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+          }`}
+        >
+          <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
+        </button>
       </div>
 
       {/* Desktop Tabs list */}
-      <div className="hidden sm:flex border border-gray-200 bg-white p-2 rounded-xl shadow-2xs flex-wrap gap-2">
+      <div className="hidden sm:flex border border-gray-200 bg-white p-2 rounded-xl shadow-2xs flex-wrap items-center gap-2">
         {[
           { key: 'dashboard', label: 'Dashboard', icon: (
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
@@ -801,6 +1146,22 @@ export const FinancePage: React.FC = () => {
             <span>{t.label}</span>
           </button>
         ))}
+
+        {/* View Archives Global Toggle Button */}
+        <button
+          type="button"
+          onClick={() => setShowArchived(!showArchived)}
+          className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer sm:ml-auto ${
+            showArchived
+              ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
+              : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
+          }`}
+        >
+          <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
+          <span>{showArchived ? 'Hide Archives' : 'View Archives'}</span>
+        </button>
       </div>
 
       {loading ? (
@@ -976,17 +1337,73 @@ export const FinancePage: React.FC = () => {
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold text-gray-900">Recorded Income Receipts</h3>
                 <button
-                  onClick={() => setIsIncomeModalOpen(true)}
+                  onClick={handleOpenAddIncome}
                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
-                  Record Income
+                  + Record Income
                 </button>
               </div>
+
+              {/* Bulk Action Bar for Incomes */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 p-3 rounded-xl shadow-xs animate-fade-in flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                    <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[11px]">{selectedIds.size}</span>
+                    <span>Selected</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {showArchived ? (
+                      <button
+                        onClick={() => handleTriggerBulkRestore('income')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Restore Selected ({selectedIds.size})</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTriggerBulkArchive('income')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                        <span>Archive Selected ({selectedIds.size})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleTriggerBulkDelete('income')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Delete Permanently ({selectedIds.size})</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedIds(new Set())}
+                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
                 <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+                      <th className="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={incomes.length > 0 && selectedIds.size === incomes.length}
+                          onChange={() => handleSelectAll(incomes.map(i => i.id))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                      </th>
                       <th className="p-3">Reference No</th>
                       <th className="p-3">Date</th>
                       <th className="p-3">Source</th>
@@ -997,8 +1414,23 @@ export const FinancePage: React.FC = () => {
                   </thead>
                   <tbody>
                     {incomes.map((inc) => (
-                      <tr key={inc.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
-                        <td className="p-3 font-mono font-bold text-gray-950">{inc.referenceNumber}</td>
+                      <tr key={inc.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${inc.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(inc.id) ? 'bg-blue-50/40' : ''}`}>
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(inc.id)}
+                            onChange={() => handleToggleSelect(inc.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 font-mono font-bold text-gray-950">
+                          {inc.referenceNumber}
+                          {inc.isArchived && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </td>
                         <td className="p-3">{inc.date}</td>
                         <td className="p-3">{inc.source}</td>
                         <td className="p-3">
@@ -1007,16 +1439,48 @@ export const FinancePage: React.FC = () => {
                           </span>
                         </td>
                         <td className="p-3 font-black text-emerald-600">₱{inc.amount.toLocaleString()}</td>
-                        <td className="p-3">
-                          <button
-                            onClick={() => handleArchiveIncome(inc.id)}
-                            className="text-red-600 hover:underline cursor-pointer font-bold"
-                          >
-                            Archive
-                          </button>
+                        <td className="p-3 whitespace-nowrap">
+                          {inc.isArchived ? (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleRestoreIncome(inc.id)}
+                                className="text-emerald-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })}
+                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleOpenEditIncome(inc)}
+                                className="text-blue-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleArchiveIncome(inc.id)}
+                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Archive
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
+                    {incomes.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                          No income records found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1029,17 +1493,73 @@ export const FinancePage: React.FC = () => {
               <div className="flex justify-between items-center">
                 <h3 className="text-sm font-bold text-gray-900">Direct Expense Payments</h3>
                 <button
-                  onClick={() => setIsExpenseModalOpen(true)}
+                  onClick={handleOpenAddExpense}
                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
-                  Record Expense
+                  + Record Expense
                 </button>
               </div>
+
+              {/* Bulk Action Bar for Expenses */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 p-3 rounded-xl shadow-xs animate-fade-in flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                    <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[11px]">{selectedIds.size}</span>
+                    <span>Selected</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {showArchived ? (
+                      <button
+                        onClick={() => handleTriggerBulkRestore('expense')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Restore Selected ({selectedIds.size})</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTriggerBulkArchive('expense')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                        <span>Archive Selected ({selectedIds.size})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleTriggerBulkDelete('expense')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Delete Permanently ({selectedIds.size})</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedIds(new Set())}
+                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
                 <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+                      <th className="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={expenses.length > 0 && selectedIds.size === expenses.length}
+                          onChange={() => handleSelectAll(expenses.map(e => e.id))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                      </th>
                       <th className="p-3">Reference No</th>
                       <th className="p-3">Date</th>
                       <th className="p-3">Description</th>
@@ -1050,22 +1570,78 @@ export const FinancePage: React.FC = () => {
                   </thead>
                   <tbody>
                     {expenses.map((exp) => (
-                      <tr key={exp.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
-                        <td className="p-3 font-mono font-bold text-gray-950">{exp.referenceNumber}</td>
+                      <tr key={exp.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${exp.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(exp.id) ? 'bg-blue-50/40' : ''}`}>
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(exp.id)}
+                            onChange={() => handleToggleSelect(exp.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 font-mono font-bold text-gray-950">
+                          {exp.referenceNumber}
+                          {exp.isArchived && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </td>
                         <td className="p-3">{exp.date}</td>
-                        <td className="p-3">{exp.description}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1.5">
+                            {exp.sourceType === 'event_expense' && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                                Event: {exp.sourceEventName || 'Event'}
+                              </span>
+                            )}
+                            <span className="font-medium text-gray-800">{exp.description}</span>
+                          </div>
+                        </td>
                         <td className="p-3">{exp.spentByName}</td>
                         <td className="p-3 font-black text-red-600">₱{exp.amount.toLocaleString()}</td>
-                        <td className="p-3">
-                          <button
-                            onClick={() => handleArchiveExpense(exp.id)}
-                            className="text-red-600 hover:underline cursor-pointer font-bold"
-                          >
-                            Archive
-                          </button>
+                        <td className="p-3 whitespace-nowrap">
+                          {exp.isArchived ? (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleRestoreExpense(exp.id)}
+                                className="text-emerald-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })}
+                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleOpenEditExpense(exp)}
+                                className="text-blue-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleArchiveExpense(exp.id)}
+                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                              >
+                                Archive
+                              </button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     ))}
+                    {expenses.length === 0 && (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                          No expense records found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1076,30 +1652,136 @@ export const FinancePage: React.FC = () => {
           {activeTab === 'categories' && (
             <div className="space-y-4">
               <div className="flex justify-between items-center">
-                <h3 className="text-sm font-bold text-gray-900">Expense Categories</h3>
+                <div className="flex items-center gap-4">
+                  <h3 className="text-sm font-bold text-gray-900">Expense Categories</h3>
+                  {categories.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => handleSelectAll(categories.map(c => c.id))}
+                      className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                    >
+                      {selectedIds.size === categories.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
                 <button
-                  onClick={() => setIsCategoryModalOpen(true)}
+                  onClick={handleOpenAddCategory}
                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
-                  Add Category
+                  + Add Category
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {categories.map((cat) => (
-                  <div key={cat.id} className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs flex justify-between items-center">
-                    <div>
-                      <div className="text-sm font-bold text-gray-800">{cat.name}</div>
-                      <span className={`text-[10px] text-${cat.color}-600 capitalize font-bold`}>{cat.color || 'blue'} theme</span>
-                    </div>
+              {/* Bulk Action Bar for Categories */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 p-3 rounded-xl shadow-xs animate-fade-in flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                    <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[11px]">{selectedIds.size}</span>
+                    <span>Selected</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {showArchived ? (
+                      <button
+                        onClick={() => handleTriggerBulkRestore('category')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Restore Selected ({selectedIds.size})</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTriggerBulkArchive('category')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                        <span>Archive Selected ({selectedIds.size})</span>
+                      </button>
+                    )}
                     <button
-                      onClick={() => handleArchiveCategory(cat.id, cat.name)}
-                      className="text-red-600 text-xs font-bold hover:underline cursor-pointer"
+                      onClick={() => handleTriggerBulkDelete('category')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
                     >
-                      Archive
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Delete Permanently ({selectedIds.size})</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedIds(new Set())}
+                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Clear
                     </button>
                   </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {categories.map((cat) => (
+                  <div key={cat.id} className={`p-4 bg-white border rounded-xl shadow-2xs flex justify-between items-center ${cat.isArchived ? 'border-amber-200 bg-amber-50/30 opacity-75' : 'border-gray-200'} ${selectedIds.has(cat.id) ? 'ring-2 ring-blue-500 bg-blue-50/30' : ''}`}>
+                    <div className="flex items-center gap-2.5">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(cat.id)}
+                        onChange={() => handleToggleSelect(cat.id)}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                      />
+                      <div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-gray-800">{cat.name}</span>
+                          {cat.isArchived && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </div>
+                        <span className={`text-[10px] text-${cat.color}-600 capitalize font-bold`}>{cat.color || 'blue'} theme</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {cat.isArchived ? (
+                        <>
+                          <button
+                            onClick={() => handleRestoreCategory(cat.id, cat.name)}
+                            className="text-emerald-600 hover:underline text-xs font-bold cursor-pointer"
+                          >
+                            Restore
+                          </button>
+                          <button
+                            onClick={() => setDeleteConfirm({ isOpen: true, id: cat.id, name: cat.name, type: 'category' })}
+                            className="text-red-600 hover:underline text-xs font-bold cursor-pointer"
+                          >
+                            Delete
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => handleOpenEditCategory(cat)}
+                            className="text-blue-600 hover:underline text-xs font-bold cursor-pointer"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleArchiveCategory(cat.id, cat.name)}
+                            className="text-red-600 hover:underline text-xs font-bold cursor-pointer"
+                          >
+                            Archive
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 ))}
+                {categories.length === 0 && (
+                  <div className="col-span-full p-8 text-center text-gray-400 font-medium italic bg-white rounded-xl border border-gray-200">
+                    No categories found.
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1113,14 +1795,70 @@ export const FinancePage: React.FC = () => {
                   onClick={() => setIsRequestModalOpen(true)}
                   className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
                 >
-                  Create Fund Request
+                  + Create Fund Request
                 </button>
               </div>
+
+              {/* Bulk Action Bar for Requests */}
+              {selectedIds.size > 0 && (
+                <div className="flex items-center justify-between bg-blue-50/80 border border-blue-200 p-3 rounded-xl shadow-xs animate-fade-in flex-wrap gap-2">
+                  <div className="flex items-center gap-2 text-xs font-bold text-blue-900">
+                    <span className="bg-blue-600 text-white px-2 py-0.5 rounded-full text-[11px]">{selectedIds.size}</span>
+                    <span>Selected</span>
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {showArchived ? (
+                      <button
+                        onClick={() => handleTriggerBulkRestore('request')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Restore Selected ({selectedIds.size})</span>
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => handleTriggerBulkArchive('request')}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                        <span>Archive Selected ({selectedIds.size})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleTriggerBulkDelete('request')}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Delete Permanently ({selectedIds.size})</span>
+                    </button>
+                    <button
+                      onClick={() => setSelectedIds(new Set())}
+                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              )}
 
               <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
                 <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+                      <th className="p-3 w-10 text-center">
+                        <input
+                          type="checkbox"
+                          checked={requests.length > 0 && selectedIds.size === requests.length}
+                          onChange={() => handleSelectAll(requests.map(r => r.id))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                      </th>
                       <th className="p-3">Reference No</th>
                       <th className="p-3">Title & Log</th>
                       <th className="p-3">Requester</th>
@@ -1131,11 +1869,31 @@ export const FinancePage: React.FC = () => {
                   </thead>
                   <tbody>
                     {requests.map((req) => (
-                      <tr key={req.id} className="border-b border-gray-100 hover:bg-gray-50/50 group">
-                        <td className="p-3 font-mono font-bold text-gray-950">{req.referenceNumber}</td>
+                      <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(req.id)}
+                            onChange={() => handleToggleSelect(req.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 font-mono font-bold text-gray-950">
+                          {req.referenceNumber}
+                          {req.isArchived && (
+                            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </td>
                         <td className="p-3">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-gray-800">{req.title}</span>
+                            {req.targetEventName && (
+                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                Event: {req.targetEventName}
+                              </span>
+                            )}
                             <button
                               type="button"
                               onClick={() => setHistoryRequest(req)}
@@ -1159,23 +1917,42 @@ export const FinancePage: React.FC = () => {
                             {req.status}
                           </span>
                         </td>
-                        <td className="p-3 space-x-2">
-                          {req.status === 'pending' && (
+                        <td className="p-3 space-x-2 whitespace-nowrap">
+                          {req.isArchived ? (
+                            <div className="flex items-center gap-3">
+                              <button
+                                onClick={() => handleRestoreRequest(req.id)}
+                                className="text-emerald-600 font-bold hover:underline cursor-pointer"
+                              >
+                                Restore
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
+                                className="text-red-600 font-bold hover:underline cursor-pointer"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          ) : (
                             <>
-                              <button onClick={() => handleApproveRequest(req.id)} className="text-emerald-600 font-bold hover:underline cursor-pointer">Approve</button>
-                              <button onClick={() => setShowRejectionInput(req.id)} className="text-red-600 font-bold hover:underline cursor-pointer">Reject</button>
+                              {req.status === 'pending' && (
+                                <>
+                                  <button onClick={() => handleApproveRequest(req.id)} className="text-emerald-600 font-bold hover:underline cursor-pointer">Approve</button>
+                                  <button onClick={() => setShowRejectionInput(req.id)} className="text-red-600 font-bold hover:underline cursor-pointer">Reject</button>
+                                </>
+                              )}
+                              {req.status === 'approved' && (
+                                <button onClick={() => handleReleaseOpen(req)} className="text-amber-600 font-bold hover:underline cursor-pointer">Release Funds</button>
+                              )}
+                              {req.status === 'released' && (
+                                <button onClick={() => handleLiquidationOpen(req)} className="text-indigo-600 font-bold hover:underline cursor-pointer">Liquidate</button>
+                              )}
+                              {req.status === 'liquidated' && (
+                                <button onClick={() => handleReviewLiquidation(req.id)} className="text-emerald-700 font-bold hover:underline cursor-pointer">Review & Close</button>
+                              )}
+                              <button onClick={() => handleArchiveRequest(req.id)} className="text-gray-400 hover:text-red-600 text-xs font-semibold cursor-pointer">Archive</button>
                             </>
                           )}
-                          {req.status === 'approved' && (
-                            <button onClick={() => handleReleaseOpen(req)} className="text-amber-600 font-bold hover:underline cursor-pointer">Release Funds</button>
-                          )}
-                          {req.status === 'released' && (
-                            <button onClick={() => handleLiquidationOpen(req)} className="text-indigo-600 font-bold hover:underline cursor-pointer">Liquidate</button>
-                          )}
-                          {req.status === 'liquidated' && (
-                            <button onClick={() => handleReviewLiquidation(req.id)} className="text-emerald-700 font-bold hover:underline cursor-pointer">Review & Close</button>
-                          )}
-                          <button onClick={() => handleArchiveRequest(req.id)} className="text-gray-400 hover:text-red-600 text-[10px] cursor-pointer">Archive</button>
 
                           {showRejectionInput === req.id && (
                             <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
@@ -1495,12 +2272,14 @@ export const FinancePage: React.FC = () => {
         </div>
       )}
 
-      {/* Record Income Modal */}
+      {/* Record / Edit Income Modal */}
       {isIncomeModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h4 className="text-sm font-bold text-gray-900">Record Inflow Receipt</h4>
-            <form onSubmit={handleAddIncome} className="space-y-3">
+            <h4 className="text-sm font-bold text-gray-900">
+              {editIncomeItem ? 'Edit Income Transaction' : 'Record Inflow Receipt'}
+            </h4>
+            <form onSubmit={handleSaveIncome} className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase">Amount (₱)</label>
                 <input 
@@ -1536,20 +2315,34 @@ export const FinancePage: React.FC = () => {
                 <textarea value={incDesc} onChange={(e) => setIncDesc(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setIsIncomeModalOpen(false)} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Save Income</button>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsIncomeModalOpen(false); setEditIncomeItem(null); }} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                >
+                  {saving ? 'Saving...' : editIncomeItem ? 'Update Income' : 'Save Income'}
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Record Expense Modal */}
+      {/* Record / Edit Expense Modal */}
       {isExpenseModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h4 className="text-sm font-bold text-gray-900">Record Direct Outflow</h4>
-            <form onSubmit={handleAddExpense} className="space-y-3">
+            <h4 className="text-sm font-bold text-gray-900">
+              {editExpenseItem ? 'Edit Direct Expense' : 'Record Direct Outflow'}
+            </h4>
+            <form onSubmit={handleSaveExpense} className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase">Amount (₱)</label>
                 <input 
@@ -1581,20 +2374,34 @@ export const FinancePage: React.FC = () => {
                 <textarea required value={expDesc} onChange={(e) => setExpDesc(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setIsExpenseModalOpen(false)} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Save Expense</button>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsExpenseModalOpen(false); setEditExpenseItem(null); }} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                >
+                  {saving ? 'Saving...' : editExpenseItem ? 'Update Expense' : 'Save Expense'}
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Add Category Modal */}
+      {/* Add / Edit Category Modal */}
       {isCategoryModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-sm p-6 space-y-4 shadow-xl">
-            <h4 className="text-sm font-bold text-gray-900">Add Finance Category</h4>
-            <form onSubmit={handleCreateCategory} className="space-y-3">
+            <h4 className="text-sm font-bold text-gray-900">
+              {editCategoryItem ? 'Edit Category' : 'Add Finance Category'}
+            </h4>
+            <form onSubmit={handleSaveCategory} className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase">Category Name</label>
                 <input type="text" required placeholder="e.g. Utility Bills" value={catName} onChange={(e) => setCatName(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
@@ -1610,8 +2417,20 @@ export const FinancePage: React.FC = () => {
                 </select>
               </div>
               <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setIsCategoryModalOpen(false)} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Create</button>
+                <button 
+                  type="button" 
+                  onClick={() => { setIsCategoryModalOpen(false); setEditCategoryItem(null); }} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                >
+                  {saving ? 'Saving...' : editCategoryItem ? 'Update Category' : 'Create'}
+                </button>
               </div>
             </form>
           </div>
@@ -1665,6 +2484,13 @@ export const FinancePage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
           <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
             <h4 className="text-sm font-bold text-gray-900">Release Approved Allocation</h4>
+
+            {selectedRequest.targetEventName && (
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 leading-relaxed">
+                🏛️ <strong>Event Budget Allocation:</strong> Releasing these funds will automatically credit them to the event <strong>"{selectedRequest.targetEventName}"</strong> as Event Income in its financial ledger.
+              </div>
+            )}
+
             <form onSubmit={handleReleaseSubmit} className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-500 uppercase">Released To (Name)</label>
@@ -1757,6 +2583,34 @@ export const FinancePage: React.FC = () => {
         variant="success"
         title="Success"
         message={successMsg ?? ''}
+      />
+
+      {/* Password Confirmation Modal for Permanent Deletion */}
+      <PasswordConfirmModal
+        isOpen={deleteConfirm.isOpen}
+        onClose={() => setDeleteConfirm({ ...deleteConfirm, isOpen: false })}
+        onConfirm={handleConfirmDelete}
+        title={
+          deleteConfirm.ids && deleteConfirm.ids.length > 0
+            ? `Permanently Delete ${deleteConfirm.ids.length} ${
+                deleteConfirm.type === 'income' ? 'Income Transactions' :
+                deleteConfirm.type === 'expense' ? 'Direct Expenses' :
+                deleteConfirm.type === 'category' ? 'Categories' :
+                'Fund Requests'
+              }`
+            : `Permanently Delete ${
+                deleteConfirm.type === 'income' ? 'Income Transaction' :
+                deleteConfirm.type === 'expense' ? 'Direct Expense' :
+                deleteConfirm.type === 'category' ? `Category "${deleteConfirm.name || ''}"` :
+                'Fund Request'
+              }`
+        }
+        message={
+          deleteConfirm.ids && deleteConfirm.ids.length > 0
+            ? `Are you sure you want to permanently delete ${deleteConfirm.ids.length} selected ${deleteConfirm.type} records? This action cannot be undone. Please enter your password to confirm.`
+            : `Are you sure you want to permanently delete this ${deleteConfirm.type} record? This action cannot be undone. Please enter your password to confirm.`
+        }
+        confirmLabel="Delete Permanently"
       />
     </div>
   )

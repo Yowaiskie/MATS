@@ -3,6 +3,7 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   doc, 
   getDoc,
   serverTimestamp, 
@@ -95,6 +96,11 @@ export const fundRequestService = {
           liquidationReviewedByName: data.liquidationReviewedByName,
           liquidationReviewedAt: data.liquidationReviewedAt,
 
+          // Event link
+          targetEventId: data.targetEventId,
+          targetEventName: data.targetEventName,
+          linkedEventIncomeId: data.linkedEventIncomeId,
+
           isArchived: !!data.isArchived,
           archivedAt: data.archivedAt,
           archivedByUid: data.archivedByUid,
@@ -122,7 +128,17 @@ export const fundRequestService = {
     createdByName: string,
     submitImmediately = false
   ): Promise<string> {
-    const { title, purpose, requestedAmount, requestedByUid, requestedByName, dateNeeded, description } = requestData
+    const { 
+      title, 
+      purpose, 
+      requestedAmount, 
+      requestedByUid, 
+      requestedByName, 
+      dateNeeded, 
+      description,
+      targetEventId,
+      targetEventName
+    } = requestData
 
     await checkPeriodClosed(dateNeeded)
 
@@ -143,6 +159,8 @@ export const fundRequestService = {
         status,
         referenceNumber,
         periodId,
+        targetEventId: targetEventId || null,
+        targetEventName: targetEventName || null,
         isArchived: false,
         createdByUid,
         createdByName,
@@ -153,9 +171,9 @@ export const fundRequestService = {
       await auditService.logAction(
         'REQUEST_SUBMIT',
         'attendance',
-        `Created fund request '${title}' ($${requestedAmount}) as ${status} (${referenceNumber})`,
+        `Created fund request '${title}' ($${requestedAmount}) as ${status} (${referenceNumber})${targetEventName ? ` for event ${targetEventName}` : ''}`,
         createdByName,
-        { requestId: docRef.id, referenceNumber, amount: requestedAmount, status }
+        { requestId: docRef.id, referenceNumber, amount: requestedAmount, status, targetEventId, targetEventName }
       )
 
       return docRef.id
@@ -300,7 +318,40 @@ export const fundRequestService = {
       await checkPeriodClosed(data.dateNeeded)
       await checkPeriodClosed(releasedDate)
 
-      await updateDoc(docRef, {
+      let linkedEventIncomeId: string | null = null
+
+      // If this request is allocated for an Event, automatically create an Event Income record!
+      if (data.targetEventId) {
+        const eventIncomeRef = await addDoc(collection(db, 'eventIncome'), {
+          eventId: data.targetEventId,
+          amount: Number(releasedAmount),
+          receivedFrom: 'Main Ministry Funds',
+          categoryId: '',
+          date: releasedDate,
+          paymentMethod: 'Cash',
+          allocation: 'Ministry Grant',
+          description: `Budget released from Main Ministry Funds (${data.referenceNumber}) - ${data.title}`,
+          isArchived: false,
+          sourceType: 'main_fund_release',
+          sourceFundRequestId: id,
+          sourceFundRequestRef: data.referenceNumber,
+          createdByUid: releasedByUid,
+          createdByName: releasedByName,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        })
+        linkedEventIncomeId = eventIncomeRef.id
+
+        await auditService.logAction(
+          'EVENT_INCOME_ADD',
+          'events',
+          `Added event income of ₱${releasedAmount} to event ${data.targetEventId} from Main Ministry Fund Release (${data.referenceNumber})`,
+          releasedByName,
+          { eventId: data.targetEventId, incomeId: eventIncomeRef.id, referenceNumber: data.referenceNumber }
+        )
+      }
+
+      const updatePayload: any = {
         status: 'released',
         releasedByUid,
         releasedByName,
@@ -310,14 +361,20 @@ export const fundRequestService = {
         releasedAmount: Number(releasedAmount),
         releaseRemarks: remarks || '',
         updatedAt: serverTimestamp()
-      })
+      }
+
+      if (linkedEventIncomeId) {
+        updatePayload.linkedEventIncomeId = linkedEventIncomeId
+      }
+
+      await updateDoc(docRef, updatePayload)
 
       await auditService.logAction(
         'FUNDS_RELEASE',
         'attendance',
-        `Released $${releasedAmount} to ${releasedToName} for request '${data.title}' (${data.referenceNumber})`,
+        `Released ₱${releasedAmount} to ${releasedToName} for request '${data.title}' (${data.referenceNumber})${data.targetEventName ? ` (Auto-credited to event ${data.targetEventName})` : ''}`,
         releasedByName,
-        { requestId: id, referenceNumber: data.referenceNumber, amount: releasedAmount }
+        { requestId: id, referenceNumber: data.referenceNumber, amount: releasedAmount, linkedEventIncomeId }
       )
     } catch (err) {
       console.error('Failed to release funds:', err)
@@ -492,6 +549,113 @@ export const fundRequestService = {
     } catch (err) {
       console.error('Failed to archive fund request:', err)
       throw err
+    }
+  },
+
+  /**
+   * Restores an archived request.
+   */
+  async restoreRequest(
+    id: string,
+    _restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, REQUEST_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) throw new Error('Fund request does not exist.')
+
+      const currentData = docSnap.data()
+      await checkPeriodClosed(currentData.dateNeeded)
+
+      await updateDoc(docRef, {
+        isArchived: false,
+        archivedAt: null,
+        archivedByUid: null,
+        archivedByName: null,
+        updatedAt: serverTimestamp()
+      })
+
+      await auditService.logAction(
+        'REQUEST_RESTORE',
+        'attendance',
+        `Restored fund request '${currentData.referenceNumber}'`,
+        restoredByName,
+        { requestId: id, referenceNumber: currentData.referenceNumber }
+      )
+    } catch (err) {
+      console.error('Failed to restore fund request:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Permanently deletes a fund request.
+   */
+  async deleteRequest(
+    id: string,
+    _deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, REQUEST_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) throw new Error('Fund request does not exist.')
+
+      const currentData = docSnap.data()
+      await checkPeriodClosed(currentData.dateNeeded)
+
+      await deleteDoc(docRef)
+
+      await auditService.logAction(
+        'REQUEST_DELETE',
+        'attendance',
+        `Permanently deleted fund request '${currentData.referenceNumber}' ($${currentData.requestedAmount})`,
+        deletedByName,
+        { requestId: id, referenceNumber: currentData.referenceNumber, amount: currentData.requestedAmount }
+      )
+    } catch (err) {
+      console.error('Failed to permanently delete fund request:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Bulk permanently deletes fund requests.
+   */
+  async bulkDeleteRequests(
+    ids: string[],
+    deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.deleteRequest(id, deletedByUid, deletedByName)
+    }
+  },
+
+  /**
+   * Bulk archives fund requests.
+   */
+  async bulkArchiveRequests(
+    ids: string[],
+    archivedByUid: string,
+    archivedByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.archiveRequest(id, archivedByUid, archivedByName)
+    }
+  },
+
+  /**
+   * Bulk restores fund requests.
+   */
+  async bulkRestoreRequests(
+    ids: string[],
+    restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.restoreRequest(id, restoredByUid, restoredByName)
     }
   }
 }

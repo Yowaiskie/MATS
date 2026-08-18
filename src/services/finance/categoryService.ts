@@ -3,6 +3,7 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   doc, 
   serverTimestamp, 
   query, 
@@ -92,6 +93,37 @@ export const categoryService = {
   },
 
   /**
+   * Updates an existing category.
+   */
+  async updateCategory(
+    id: string,
+    name: string,
+    color: string | undefined,
+    _updatedByUid: string,
+    updatedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, CATEGORIES_COLLECTION, id)
+      await updateDoc(docRef, {
+        name,
+        color: color || '',
+        updatedAt: serverTimestamp()
+      })
+
+      await auditService.logAction(
+        'CATEGORY_UPDATE',
+        'settings',
+        `Finance category '${name}' was updated by ${updatedByName}`,
+        updatedByName,
+        { categoryId: id, categoryName: name }
+      )
+    } catch (err) {
+      console.error('Failed to update finance category:', err)
+      throw err
+    }
+  },
+
+  /**
    * Archives (soft-deletes) a category.
    */
   async archiveCategory(
@@ -119,6 +151,102 @@ export const categoryService = {
     } catch (err) {
       console.error('Failed to archive finance category:', err)
       throw err
+    }
+  },
+
+  /**
+   * Restores an archived category.
+   */
+  async restoreCategory(
+    id: string,
+    name: string,
+    _restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, CATEGORIES_COLLECTION, id)
+      await updateDoc(docRef, {
+        isArchived: false,
+        archivedAt: null,
+        archivedByUid: null,
+        archivedByName: null
+      })
+
+      await auditService.logAction(
+        'CATEGORY_RESTORE',
+        'settings',
+        `Finance category '${name}' was restored by ${restoredByName}`,
+        restoredByName,
+        { categoryId: id, categoryName: name }
+      )
+    } catch (err) {
+      console.error('Failed to restore finance category:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Permanently deletes a category.
+   */
+  async deleteCategory(
+    id: string,
+    name: string,
+    _deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, CATEGORIES_COLLECTION, id)
+      await deleteDoc(docRef)
+
+      await auditService.logAction(
+        'CATEGORY_DELETE',
+        'settings',
+        `Permanently deleted finance category '${name}'`,
+        deletedByName,
+        { categoryId: id, categoryName: name }
+      )
+    } catch (err) {
+      console.error('Failed to permanently delete finance category:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Bulk permanently deletes categories.
+   */
+  async bulkDeleteCategories(
+    items: { id: string, name: string }[],
+    deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    for (const item of items) {
+      await this.deleteCategory(item.id, item.name, deletedByUid, deletedByName)
+    }
+  },
+
+  /**
+   * Bulk archives categories.
+   */
+  async bulkArchiveCategories(
+    items: { id: string, name: string }[],
+    archivedByUid: string,
+    archivedByName: string
+  ): Promise<void> {
+    for (const item of items) {
+      await this.archiveCategory(item.id, item.name, archivedByUid, archivedByName)
+    }
+  },
+
+  /**
+   * Bulk restores categories.
+   */
+  async bulkRestoreCategories(
+    items: { id: string, name: string }[],
+    restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    for (const item of items) {
+      await this.restoreCategory(item.id, item.name, restoredByUid, restoredByName)
     }
   }
 }

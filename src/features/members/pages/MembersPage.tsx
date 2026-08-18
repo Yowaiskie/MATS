@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { memberService } from '@/services/memberService'
 import { Card } from '@/components/Card'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { AlertModal, ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
+import { authService } from '@/services/authService'
 import { Loading } from '@/components/Loading'
 import { MemberTable } from '../components/MemberTable'
 import { MemberFormModal } from '../components/MemberFormModal'
@@ -104,17 +105,18 @@ export const MembersPage: React.FC = () => {
     setConfirmDelete({ id, name: member ? `${member.firstName} ${member.lastName}` : 'this member' })
   }
 
-  const handleDeleteConfirmed = async () => {
+  const handleDeleteConfirmed = async (password: string) => {
     if (!confirmDelete) return
     const { id } = confirmDelete
-    setConfirmDelete(null)
     try {
+      await authService.verifyPassword(password)
       await memberService.deleteMember(id, profile?.email || 'Admin')
+      setConfirmDelete(null)
       await loadMembers(false)
       setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
-    } catch (err) {
+    } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Delete Failed', message: 'Failed to delete member. Please try again.' })
+      throw new Error(err.message || 'Verification failed. Password may be incorrect.')
     }
   }
 
@@ -194,9 +196,10 @@ export const MembersPage: React.FC = () => {
   }
 
   // Bulk delete confirmed
-  const handleBulkDeleteConfirmed = async () => {
+  const handleBulkDeleteConfirmed = async (password: string) => {
     setBulkProcessing(true)
     try {
+      await authService.verifyPassword(password)
       const ids = Array.from(selectedIds)
       await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkDeleteOpen(false)
@@ -205,7 +208,7 @@ export const MembersPage: React.FC = () => {
       setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected members.' })
+      throw new Error(err.message || 'Verification failed. Password may be incorrect.')
     } finally {
       setBulkProcessing(false)
     }
@@ -410,26 +413,23 @@ export const MembersPage: React.FC = () => {
       />
 
       {/* Single Delete Confirm Dialog */}
-      <ConfirmModal
+      <PasswordConfirmModal
         isOpen={!!confirmDelete}
         onClose={() => setConfirmDelete(null)}
         onConfirm={handleDeleteConfirmed}
-        variant="danger"
         title="Permanently Delete Member"
-        message={`Are you sure you want to permanently delete ${confirmDelete?.name}? This action cannot be undone.`}
+        message={`Are you sure you want to permanently delete ${confirmDelete?.name}? This action cannot be undone. Please enter your password to confirm.`}
         confirmLabel="Delete Permanently"
       />
 
       {/* Bulk Delete Confirm Dialog */}
-      <ConfirmModal
+      <PasswordConfirmModal
         isOpen={bulkDeleteOpen}
         onClose={() => setBulkDeleteOpen(false)}
         onConfirm={handleBulkDeleteConfirmed}
-        variant="danger"
         title={`Permanently Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''}`}
-        message={`Are you sure you want to permanently delete ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone.`}
+        message={`Are you sure you want to permanently delete ${selectedIds.size} selected member${selectedIds.size > 1 ? 's' : ''}? This action cannot be undone. Please enter your password to confirm.`}
         confirmLabel={`Delete ${selectedIds.size} Member${selectedIds.size > 1 ? 's' : ''} Permanently`}
-        loading={bulkProcessing}
       />
 
       {/* Bulk Rank Edit Modal */}

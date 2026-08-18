@@ -1,6 +1,7 @@
 import {
   collection,
   getDocs,
+  getDoc,
   doc,
   addDoc,
   updateDoc,
@@ -134,10 +135,83 @@ export const eventFinanceService = {
   async addEventExpense(
     expense: Omit<EventExpense, 'id' | 'createdAt' | 'updatedAt' | 'createdByUid' | 'createdByName'>,
     uid: string,
-    name: string
+    name: string,
+    eventName?: string
   ): Promise<string> {
+    if (expense.fundSource === 'main_funds') {
+      let createdExpenseId = ''
+      await runTransaction(db, async (tx) => {
+        // Validate Event
+        const eventRef = doc(db, 'events', expense.eventId)
+        const eventDoc = await tx.get(eventRef)
+        const resolvedEventName = eventName || (eventDoc.exists() ? (eventDoc.data().title || eventDoc.data().name || 'Event') : 'Event')
+
+        // Validate Period
+        await checkPeriodClosedTx(tx, expense.date)
+
+        // Generate Reference Number for Main Finance Expense
+        const yearMonth = expense.date.slice(0, 7).replace('-', '')
+        const counterId = `finance_exp_${yearMonth}`
+        const counterRef = doc(db, 'counters', counterId)
+        const counterDoc = await tx.get(counterRef)
+        let nextSeq = 1
+        if (counterDoc.exists()) {
+          nextSeq = (counterDoc.data().currentSeq || 0) + 1
+        }
+        tx.set(counterRef, { currentSeq: nextSeq }, { merge: true })
+        const paddedSeq = String(nextSeq).padStart(5, '0')
+        const referenceNumber = `EXP-${yearMonth}-${paddedSeq}`
+
+        const mainExpenseRef = doc(collection(db, 'financeExpenses'))
+        const eventExpenseRef = doc(collection(db, EXPENSES_COL))
+        createdExpenseId = eventExpenseRef.id
+
+        tx.set(mainExpenseRef, {
+          amount: Number(expense.amount),
+          categoryId: expense.mainFinanceCategoryId || '',
+          spentByUid: uid,
+          spentByName: expense.spentByName,
+          date: expense.date,
+          description: `[Event: ${resolvedEventName}] ${expense.spentOn}${expense.description ? ` - ${expense.description}` : ''}`,
+          referenceNumber,
+          periodId: expense.date.slice(0, 7),
+          isArchived: false,
+          createdByUid: uid,
+          createdByName: name,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          sourceType: 'event_expense',
+          sourceEventId: expense.eventId,
+          sourceEventExpenseId: eventExpenseRef.id,
+          sourceEventName: resolvedEventName
+        })
+
+        tx.set(eventExpenseRef, {
+          ...expense,
+          amount: Number(expense.amount),
+          fundSource: 'main_funds',
+          mainFinanceExpenseId: mainExpenseRef.id,
+          isArchived: false,
+          createdByUid: uid,
+          createdByName: name,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        })
+      })
+
+      await auditService.logAction(
+        'EVENT_EXPENSE_ADD',
+        'events',
+        `Added event expense of ₱${expense.amount} to event ${expense.eventId} (Funded from Main Funds)`,
+        name,
+        { eventId: expense.eventId, expenseId: createdExpenseId, fundSource: 'main_funds' }
+      )
+      return createdExpenseId
+    }
+
     const payload = {
       ...expense,
+      fundSource: 'event',
       isArchived: false,
       createdByUid: uid,
       createdByName: name,
@@ -148,7 +222,7 @@ export const eventFinanceService = {
     await auditService.logAction(
       'EVENT_EXPENSE_ADD',
       'events',
-      `Added event expense of $${expense.amount} to event ${expense.eventId}`,
+      `Added event expense of ₱${expense.amount} to event ${expense.eventId}`,
       name,
       { eventId: expense.eventId, expenseId: docRef.id }
     )
@@ -162,12 +236,46 @@ export const eventFinanceService = {
     _uid: string,
     name: string
   ): Promise<void> {
-    await updateDoc(doc(db, EXPENSES_COL, id), {
+    const expenseRef = doc(db, EXPENSES_COL, id)
+    const expenseDoc = await getDoc(expenseRef)
+    
+    await updateDoc(expenseRef, {
       ...updates,
       updatedAt: serverTimestamp(),
       lastEditedBy: name,
       lastEditedAt: new Date().toISOString()
     })
+
+    if (expenseDoc.exists()) {
+      const data = expenseDoc.data()
+      const mainExpenseId = updates.mainFinanceExpenseId || data.mainFinanceExpenseId
+      if (mainExpenseId) {
+        const mainExpenseRef = doc(db, 'financeExpenses', mainExpenseId)
+        const mainExpDoc = await getDoc(mainExpenseRef)
+        if (mainExpDoc.exists()) {
+          const mainUpdates: any = {
+            updatedAt: serverTimestamp(),
+            updatedByUid: _uid,
+            updatedByName: name
+          }
+          if (updates.amount !== undefined) mainUpdates.amount = Number(updates.amount)
+          if (updates.date) {
+            mainUpdates.date = updates.date
+            mainUpdates.periodId = updates.date.slice(0, 7)
+          }
+          if (updates.mainFinanceCategoryId) mainUpdates.categoryId = updates.mainFinanceCategoryId
+          if (updates.spentByName) mainUpdates.spentByName = updates.spentByName
+          if (updates.spentOn !== undefined || updates.description !== undefined) {
+            const spentOn = updates.spentOn || data.spentOn || ''
+            const desc = updates.description !== undefined ? updates.description : (data.description || '')
+            const eventName = mainExpDoc.data().sourceEventName || 'Event'
+            mainUpdates.description = `[Event: ${eventName}] ${spentOn}${desc ? ` - ${desc}` : ''}`
+          }
+          await updateDoc(mainExpenseRef, mainUpdates)
+        }
+      }
+    }
+
     await auditService.logAction(
       'EVENT_EXPENSE_UPDATE',
       'events',
@@ -178,12 +286,27 @@ export const eventFinanceService = {
   },
 
   async archiveEventExpense(id: string, eventId: string, _uid: string, name: string): Promise<void> {
-    await updateDoc(doc(db, EXPENSES_COL, id), {
+    const expenseRef = doc(db, EXPENSES_COL, id)
+    const expenseDoc = await getDoc(expenseRef)
+
+    await updateDoc(expenseRef, {
       isArchived: true,
       archivedBy: name,
       archivedAt: new Date().toISOString(),
       updatedAt: serverTimestamp()
     })
+
+    if (expenseDoc.exists() && expenseDoc.data().mainFinanceExpenseId) {
+      const mainExpenseRef = doc(db, 'financeExpenses', expenseDoc.data().mainFinanceExpenseId)
+      await updateDoc(mainExpenseRef, {
+        isArchived: true,
+        archivedByUid: _uid,
+        archivedByName: name,
+        archivedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+    }
+
     await auditService.logAction(
       'EVENT_EXPENSE_DELETE',
       'events',
@@ -194,7 +317,16 @@ export const eventFinanceService = {
   },
 
   async deleteEventExpense(id: string, eventId: string, _uid: string, name: string): Promise<void> {
-    await deleteDoc(doc(db, EXPENSES_COL, id))
+    const expenseRef = doc(db, EXPENSES_COL, id)
+    const expenseDoc = await getDoc(expenseRef)
+
+    await deleteDoc(expenseRef)
+
+    if (expenseDoc.exists() && expenseDoc.data().mainFinanceExpenseId) {
+      const mainExpenseRef = doc(db, 'financeExpenses', expenseDoc.data().mainFinanceExpenseId)
+      await deleteDoc(mainExpenseRef)
+    }
+
     await auditService.logAction(
       'EVENT_EXPENSE_DELETE',
       'events',

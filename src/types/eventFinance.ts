@@ -34,6 +34,9 @@ export interface EventIncome {
   archivedBy?: string
   archivedAt?: string
   encashmentStatus?: 'pending' | 'encashed'
+  sourceType?: 'main_fund_release' | 'event_transfer' | 'contribution' | 'general'
+  sourceFundRequestId?: string
+  sourceFundRequestRef?: string
 }
 
 export interface EventExpense {
@@ -58,6 +61,9 @@ export interface EventExpense {
   archivedBy?: string
   archivedAt?: string
   encashmentStatus?: 'pending' | 'encashed'
+  fundSource?: 'event' | 'main_funds'
+  mainFinanceExpenseId?: string
+  mainFinanceCategoryId?: string
 }
 
 export interface EventFundTransfer {

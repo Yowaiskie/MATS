@@ -3,6 +3,7 @@ import {
   getDocs, 
   addDoc, 
   updateDoc, 
+  deleteDoc,
   doc, 
   getDoc,
   serverTimestamp, 
@@ -217,6 +218,119 @@ export const incomeService = {
     } catch (err) {
       console.error('Failed to archive income record:', err)
       throw err
+    }
+  },
+
+  /**
+   * Restores an archived income record.
+   */
+  async restoreIncome(
+    id: string,
+    restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, INCOME_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) {
+        throw new Error('Income record does not exist.')
+      }
+
+      const currentData = docSnap.data()
+      await checkPeriodClosed(currentData.date)
+
+      await updateDoc(docRef, {
+        isArchived: false,
+        archivedAt: null,
+        archivedByUid: null,
+        archivedByName: null,
+        updatedAt: serverTimestamp(),
+        updatedByUid: restoredByUid,
+        updatedByName: restoredByName
+      })
+
+      await auditService.logAction(
+        'INCOME_RESTORE',
+        'attendance',
+        `Restored income transaction '${currentData.referenceNumber}' ($${currentData.amount})`,
+        restoredByName,
+        { incomeId: id, referenceNumber: currentData.referenceNumber }
+      )
+    } catch (err) {
+      console.error('Failed to restore income record:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Permanently deletes an income record.
+   */
+  async deleteIncome(
+    id: string,
+    _deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, INCOME_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) {
+        throw new Error('Income record does not exist.')
+      }
+
+      const currentData = docSnap.data()
+      await checkPeriodClosed(currentData.date)
+
+      await deleteDoc(docRef)
+
+      await auditService.logAction(
+        'INCOME_DELETE',
+        'attendance',
+        `Permanently deleted income transaction '${currentData.referenceNumber}' ($${currentData.amount})`,
+        deletedByName,
+        { incomeId: id, referenceNumber: currentData.referenceNumber, amount: currentData.amount }
+      )
+    } catch (err) {
+      console.error('Failed to permanently delete income record:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Bulk permanently deletes income records.
+   */
+  async bulkDeleteIncomes(
+    ids: string[],
+    deletedByUid: string,
+    deletedByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.deleteIncome(id, deletedByUid, deletedByName)
+    }
+  },
+
+  /**
+   * Bulk archives income records.
+   */
+  async bulkArchiveIncomes(
+    ids: string[],
+    archivedByUid: string,
+    archivedByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.archiveIncome(id, archivedByUid, archivedByName)
+    }
+  },
+
+  /**
+   * Bulk restores income records.
+   */
+  async bulkRestoreIncomes(
+    ids: string[],
+    restoredByUid: string,
+    restoredByName: string
+  ): Promise<void> {
+    for (const id of ids) {
+      await this.restoreIncome(id, restoredByUid, restoredByName)
     }
   }
 }
