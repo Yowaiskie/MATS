@@ -18,7 +18,7 @@ export interface EventContribution {
   id: string
   eventId: string
 
-  contributorUid?: string // Optional if contributor is not a registered member
+  contributorUid?: string | null // Optional if contributor is not a registered member
   contributorName: string // Full name of the contributor
 
   purposeId: string
