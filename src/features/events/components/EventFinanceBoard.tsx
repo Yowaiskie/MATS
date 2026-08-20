@@ -137,7 +137,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className={`grid gap-4 ${totalTransfers > 0 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-4' : 'grid-cols-1 md:grid-cols-3'}`}>
         {/* Card 1: Net / Current Balance (Highlighted) */}
         <div className={`p-5 rounded-2xl border transition-all shadow-xs flex flex-col justify-between ${
           balance > 0
@@ -221,25 +221,27 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
           </div>
         </div>
 
-        {/* Card 4: Transfers to Main Funds */}
-        <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Transfers to Main</span>
-            <div className="p-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-600">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-              </svg>
+        {/* Card 4: Transfers to Fund (Displayed only if > 0) */}
+        {totalTransfers > 0 && (
+          <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Transfer to Fund</span>
+              <div className="p-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-600">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                </svg>
+              </div>
+            </div>
+            <div className="mt-3">
+              <div className="text-2xl sm:text-3xl font-black text-blue-600">
+                ₱{totalTransfers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <span className="text-[10px] font-semibold text-slate-400 block mt-1">
+                Remitted to treasury
+              </span>
             </div>
           </div>
-          <div className="mt-3">
-            <div className="text-2xl sm:text-3xl font-black text-blue-600">
-              ₱{totalTransfers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </div>
-            <span className="text-[10px] font-semibold text-slate-400 block mt-1">
-              Remitted to treasury
-            </span>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Tabs & Actions Header */}

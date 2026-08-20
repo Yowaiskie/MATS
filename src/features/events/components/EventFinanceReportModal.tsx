@@ -91,7 +91,7 @@ export const EventFinanceReportModal: React.FC<Props> = ({
           </div>
 
           {/* Executive Summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className={`grid gap-4 mb-8 ${totalTransfer > 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
             <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Income</p>
               <p className="text-xl font-black text-green-600">₱{totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
@@ -100,10 +100,12 @@ export const EventFinanceReportModal: React.FC<Props> = ({
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Total Expenses</p>
               <p className="text-xl font-black text-red-600">₱{totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
             </div>
-            <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
-              <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Transferred</p>
-              <p className="text-xl font-black text-blue-600">₱{totalTransfer.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
-            </div>
+            {totalTransfer > 0 && (
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Transfer to Fund</p>
+                <p className="text-xl font-black text-blue-600">₱{totalTransfer.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+              </div>
+            )}
             <div className={`p-4 rounded-2xl border ${balance >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">Remaining Balance</p>
               <p className={`text-xl font-black ${balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>₱{balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
@@ -111,11 +113,9 @@ export const EventFinanceReportModal: React.FC<Props> = ({
           </div>
 
           {/* Income Breakdown */}
-          <div className="mb-8">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Income Breakdown (Sources / Sponsors)</h3>
-            {Object.keys(incomeByCategory).length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No income recorded.</p>
-            ) : (
+          {Object.keys(incomeByCategory).length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Income Breakdown (Sources / Sponsors)</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {Object.entries(incomeByCategory).sort((a,b) => b[1] - a[1]).map(([source, amount]) => (
                   <div key={source} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -124,15 +124,13 @@ export const EventFinanceReportModal: React.FC<Props> = ({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           {/* Expense Breakdown */}
-          <div className="mb-8">
-            <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Expense Breakdown (Items / Services)</h3>
-            {Object.keys(expenseByCategory).length === 0 ? (
-              <p className="text-sm text-slate-500 italic">No expenses recorded.</p>
-            ) : (
+          {Object.keys(expenseByCategory).length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-200 pb-2">Expense Breakdown (Items / Services)</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {Object.entries(expenseByCategory).sort((a,b) => b[1] - a[1]).map(([item, amount]) => (
                   <div key={item} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl border border-slate-100">
@@ -141,8 +139,8 @@ export const EventFinanceReportModal: React.FC<Props> = ({
                   </div>
                 ))}
               </div>
-            )}
-          </div>
+            </div>
+          )}
 
           <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100 print:hidden">
             <button

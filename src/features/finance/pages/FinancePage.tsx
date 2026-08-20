@@ -17,8 +17,9 @@ import { ledgerService } from '@/services/finance/ledgerService'
 import { financePeriodService } from '@/services/finance/financePeriodService'
 import { reportService } from '@/services/finance/reportService'
 
-// Import Finance Engine
+// Import Finance Engine & Report PDF Generator
 import { financeEngine } from '@/utils/financeEngine'
+import { downloadFinanceReportPdf } from '@/utils/financePdfReport'
 
 export const FinancePage: React.FC = () => {
   const { hasModuleAccess, canAction, profile } = useAuth()
@@ -1039,12 +1040,18 @@ export const FinancePage: React.FC = () => {
     document.body.removeChild(link)
   }
 
-  const handleExportPDF = () => {
-    setDialog({
-      title: 'PDF Generation',
-      message: 'PDF download triggered successfully. Report metadata compiled dynamically using landscape auto-tables.',
-      onConfirm: () => {}
-    })
+  const handleExportPDF = async () => {
+    if (!reportData) return
+    try {
+      setSaving(true)
+      await downloadFinanceReportPdf(reportData)
+      setSuccessMsg('PDF financial report downloaded successfully.')
+    } catch (err: any) {
+      console.error('Failed to generate finance report PDF:', err)
+      setErrorMsg(err.message || 'Failed to generate PDF report.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) {
@@ -2126,24 +2133,28 @@ export const FinancePage: React.FC = () => {
 
               {/* Categorized Breakdowns */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
-                  <h4 className="text-xs font-bold uppercase text-gray-500">Incomes by Source / Category</h4>
-                  {reportData.incomeByCategory.map((c: any) => (
-                    <div key={c.categoryId} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2">
-                      <span className="font-bold text-gray-700">{c.categoryName}</span>
-                      <span className="font-black text-emerald-600">₱{c.total.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-                <div className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
-                  <h4 className="text-xs font-bold uppercase text-gray-500">Expenses by Category</h4>
-                  {reportData.expenseByCategory.map((c: any) => (
-                    <div key={c.categoryId} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2">
-                      <span className="font-bold text-gray-700">{c.categoryName}</span>
-                      <span className="font-black text-red-600">₱{c.total.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
+                {reportData.incomeByCategory && reportData.incomeByCategory.filter((c: any) => c.total > 0).length > 0 && (
+                  <div className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
+                    <h4 className="text-xs font-bold uppercase text-gray-500">Incomes by Source / Category</h4>
+                    {reportData.incomeByCategory.filter((c: any) => c.total > 0).map((c: any) => (
+                      <div key={c.categoryId} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2">
+                        <span className="font-bold text-gray-700">{c.categoryName}</span>
+                        <span className="font-black text-emerald-600">₱{c.total.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {reportData.expenseByCategory && reportData.expenseByCategory.filter((c: any) => c.total > 0).length > 0 && (
+                  <div className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
+                    <h4 className="text-xs font-bold uppercase text-gray-500">Expenses by Category</h4>
+                    {reportData.expenseByCategory.filter((c: any) => c.total > 0).map((c: any) => (
+                      <div key={c.categoryId} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2">
+                        <span className="font-bold text-gray-700">{c.categoryName}</span>
+                        <span className="font-black text-red-600">₱{c.total.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
