@@ -82,7 +82,7 @@ export interface FinanceFundRequest {
   requestedByName: string
   dateNeeded: string // YYYY-MM-DD
   description: string
-  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'released' | 'liquidated' | 'closed'
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'released' | 'liquidated' | 'closed' | 'cancelled' | 'voided'
   periodId: string // YYYY-MM
   referenceNumber: string
   createdAt: any
@@ -99,6 +99,18 @@ export interface FinanceFundRequest {
   rejectedByName?: string
   rejectedAt?: any
   rejectionReason?: string
+
+  // Cancellation
+  cancelledByUid?: string
+  cancelledByName?: string
+  cancelledAt?: any
+  cancellationReason?: string
+
+  // Voiding
+  voidedByUid?: string
+  voidedByName?: string
+  voidedAt?: any
+  voidReason?: string
 
   // Release
   releasedByUid?: string

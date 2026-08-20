@@ -75,6 +75,18 @@ export const fundRequestService = {
           rejectedAt: data.rejectedAt,
           rejectionReason: data.rejectionReason,
 
+          // Cancellation
+          cancelledByUid: data.cancelledByUid,
+          cancelledByName: data.cancelledByName,
+          cancelledAt: data.cancelledAt,
+          cancellationReason: data.cancellationReason,
+
+          // Voiding
+          voidedByUid: data.voidedByUid,
+          voidedByName: data.voidedByName,
+          voidedAt: data.voidedAt,
+          voidReason: data.voidReason,
+
           // Release
           releasedByUid: data.releasedByUid,
           releasedByName: data.releasedByName,
@@ -292,6 +304,122 @@ export const fundRequestService = {
       )
     } catch (err) {
       console.error('Failed to reject fund request:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Cancels a fund request (allowed for draft, pending, or approved before release).
+   */
+  async cancelRequest(
+    id: string,
+    reason: string,
+    cancelledByUid: string,
+    cancelledByName: string
+  ): Promise<void> {
+    if (!reason.trim()) throw new Error('A cancellation reason is required.')
+
+    try {
+      const docRef = doc(db, REQUEST_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) throw new Error('Fund request does not exist.')
+
+      const data = docSnap.data()
+      if (data.status === 'cancelled') throw new Error('Fund request is already cancelled.')
+      if (data.status === 'voided') throw new Error('Fund request is already voided.')
+      if (data.status === 'released' || data.status === 'liquidated' || data.status === 'closed') {
+        throw new Error('Funds have already been released. Please use "Void" instead of "Cancel".')
+      }
+
+      await checkPeriodClosed(data.dateNeeded)
+
+      await updateDoc(docRef, {
+        status: 'cancelled',
+        cancelledByUid,
+        cancelledByName,
+        cancelledAt: serverTimestamp(),
+        cancellationReason: reason.trim(),
+        updatedAt: serverTimestamp()
+      })
+
+      await auditService.logAction(
+        'REQUEST_CANCEL',
+        'attendance',
+        `Cancelled fund request '${data.title}' (${data.referenceNumber})`,
+        cancelledByName,
+        { requestId: id, referenceNumber: data.referenceNumber, reason: reason.trim() }
+      )
+    } catch (err) {
+      console.error('Failed to cancel fund request:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Voids an active or released fund request with an audit trail and reverses linked event income if any.
+   */
+  async voidRequest(
+    id: string,
+    reason: string,
+    voidedByUid: string,
+    voidedByName: string
+  ): Promise<void> {
+    if (!reason.trim()) throw new Error('A reason for voiding is required.')
+
+    try {
+      const docRef = doc(db, REQUEST_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) throw new Error('Fund request does not exist.')
+
+      const data = docSnap.data()
+      if (data.status === 'voided') throw new Error('Fund request is already voided.')
+      if (data.status === 'cancelled') throw new Error('Fund request is already cancelled.')
+      if (data.status !== 'released' && data.status !== 'liquidated' && data.status !== 'closed') {
+        throw new Error('Funds have not been released yet. Please use "Cancel" instead of "Void".')
+      }
+
+      await checkPeriodClosed(data.dateNeeded)
+      if (data.releasedDate) {
+        await checkPeriodClosed(data.releasedDate)
+      }
+
+      // If funds were released to an event, soft-archive the linked event income to keep ledgers synchronized
+      if (data.linkedEventIncomeId) {
+        try {
+          const eventIncomeRef = doc(db, 'eventIncome', data.linkedEventIncomeId)
+          const incomeSnap = await getDoc(eventIncomeRef)
+          if (incomeSnap.exists()) {
+            await updateDoc(eventIncomeRef, {
+              isArchived: true,
+              archivedAt: serverTimestamp(),
+              archivedByUid: voidedByUid,
+              archivedByName: voidedByName,
+              updatedAt: serverTimestamp()
+            })
+          }
+        } catch (incomeErr) {
+          console.warn('Could not archive linked event income on void:', incomeErr)
+        }
+      }
+
+      await updateDoc(docRef, {
+        status: 'voided',
+        voidedByUid,
+        voidedByName,
+        voidedAt: serverTimestamp(),
+        voidReason: reason.trim(),
+        updatedAt: serverTimestamp()
+      })
+
+      await auditService.logAction(
+        'REQUEST_VOID',
+        'attendance',
+        `Voided fund request '${data.title}' (${data.referenceNumber})`,
+        voidedByName,
+        { requestId: id, referenceNumber: data.referenceNumber, reason: reason.trim(), linkedEventIncomeId: data.linkedEventIncomeId }
+      )
+    } catch (err) {
+      console.error('Failed to void fund request:', err)
       throw err
     }
   },
