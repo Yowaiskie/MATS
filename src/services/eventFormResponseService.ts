@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
+import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
 
 const RESPONSES_COLLECTION = 'eventFormResponses'
@@ -42,7 +43,41 @@ export const eventFormResponseService = {
         throw new Error('Form submission window has closed.')
       }
 
-      // --- Overwrite path 1: explicit edit re-submit via provided tracking number ---
+      // --- Option Limits Backend Validation ---
+      const questions = await eventFormQuestionService.getQuestionsByFormId(form.id)
+      const limitedQuestions = questions.filter(q => q.optionLimits && Object.keys(q.optionLimits).length > 0)
+
+      if (limitedQuestions.length > 0) {
+        const freshResponses = await this.getResponsesByFormId(form.id)
+
+        for (const q of limitedQuestions) {
+          const val = answers[q.id]
+          if (!val) continue
+          const selectedOpts = Array.isArray(val) ? val : [val]
+
+          for (const selOpt of selectedOpts) {
+            if (typeof selOpt === 'string') {
+              const maxLimit = q.optionLimits?.[selOpt]
+              if (maxLimit && maxLimit > 0) {
+                const usedCount = freshResponses.reduce((count, r) => {
+                  if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
+                  const rAns = r.answers?.[q.id]
+                  if (Array.isArray(rAns)) {
+                    return rAns.includes(selOpt) ? count + 1 : count
+                  }
+                  return rAns === selOpt ? count + 1 : count
+                }, 0)
+
+                if (usedCount >= maxLimit) {
+                  throw new Error(`The option "${selOpt}" is already full (${maxLimit} max slots reached). Please select another option.`)
+                }
+              }
+            }
+          }
+        }
+      }
+
+      // --- Explicit edit path: re-submit via provided tracking number ---
       if (existingTrackingNumber) {
         const existingByTracking = query(
           collection(db, RESPONSES_COLLECTION),
@@ -54,6 +89,7 @@ export const eventFormResponseService = {
           const existingDoc = existingSnap.docs[0]
           await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
             answers,
+            respondentMemberUid: respondentInfo?.memberUid || '',
             respondentMemberName: respondentInfo?.memberName || '',
             respondentEmail: respondentInfo?.email || '',
             status: 'submitted',
@@ -70,7 +106,7 @@ export const eventFormResponseService = {
         }
       }
 
-      // --- Overwrite path 2: member re-submit via memberUid (ONLY when allowMultipleResponses is false) ---
+      // --- When allowMultipleResponses is false and respondent already answered ---
       if (respondentInfo?.memberUid && form.allowMultipleResponses === false) {
         const existingQ = query(
           collection(db, RESPONSES_COLLECTION),
@@ -79,23 +115,27 @@ export const eventFormResponseService = {
         )
         const existingSnap = await getDocs(existingQ)
         if (!existingSnap.empty) {
-          const existingDoc = existingSnap.docs[0]
-          const existingTrackingNumber = existingDoc.data().trackingNumber as string
-          await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
-            answers,
-            respondentMemberName: respondentInfo?.memberName || '',
-            respondentEmail: respondentInfo?.email || '',
-            status: 'submitted',
-            updatedAt: serverTimestamp()
-          })
-          await auditService.logAction(
-            'FORM_RESPONSE_SUBMIT',
-            'events',
-            `Updated existing response ${existingTrackingNumber} for form "${form.title}"`,
-            respondentInfo?.memberName || respondentInfo?.email || 'Public User',
-            { formId: form.id, eventId: form.eventId, trackingNumber: existingTrackingNumber }
-          )
-          return existingTrackingNumber
+          if (form.allowEditResponse) {
+            const existingDoc = existingSnap.docs[0]
+            const foundTrackingNumber = existingDoc.data().trackingNumber as string
+            await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
+              answers,
+              respondentMemberName: respondentInfo?.memberName || '',
+              respondentEmail: respondentInfo?.email || '',
+              status: 'submitted',
+              updatedAt: serverTimestamp()
+            })
+            await auditService.logAction(
+              'FORM_RESPONSE_SUBMIT',
+              'events',
+              `Updated response for form "${form.title}"`,
+              respondentInfo?.memberName || respondentInfo?.email || 'Public User',
+              { formId: form.id, eventId: form.eventId, trackingNumber: foundTrackingNumber }
+            )
+            return foundTrackingNumber
+          } else {
+            throw new Error('You have already submitted a response for this form. Multiple responses are not allowed.')
+          }
         }
       }
 

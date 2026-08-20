@@ -1174,17 +1174,93 @@ export const FinancePage: React.FC = () => {
           {activeTab === 'dashboard' && (
             <div className="space-y-6 animate-fade-in">
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                {[
-                  { label: 'Current Balance', val: `₱${summary.currentBalance.toLocaleString()}`, color: 'text-blue-600 bg-blue-50/50 border-blue-100' },
-                  { label: 'Monthly Income', val: `₱${summary.incomeThisMonth.toLocaleString()}`, color: 'text-emerald-600 bg-emerald-50/50 border-emerald-100' },
-                  { label: 'Monthly Expenses', val: `₱${summary.expensesThisMonth.toLocaleString()}`, color: 'text-red-600 bg-red-50/50 border-red-100' },
-                  { label: 'Pending Actions', val: summary.pendingRequestsCount + summary.pendingLiquidationsCount, color: 'text-amber-600 bg-amber-50/50 border-amber-100' }
-                ].map((card, idx) => (
-                  <div key={idx} className={`p-5 rounded-2xl border bg-white shadow-2xs ${card.color}`}>
-                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-75">{card.label}</span>
-                    <div className="text-2xl font-black mt-1">{card.val}</div>
+                {/* Current Balance */}
+                <div className={`p-5 rounded-2xl border transition-all shadow-2xs flex flex-col justify-between ${
+                  summary.currentBalance > 0
+                    ? 'bg-emerald-50/50 border-emerald-200 text-emerald-950'
+                    : summary.currentBalance < 0
+                    ? 'bg-rose-50/50 border-rose-200 text-rose-950'
+                    : 'bg-white border-gray-200 text-gray-900'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Current Balance</span>
+                    <div className="p-2 rounded-xl bg-blue-50 border border-blue-100 text-blue-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
                   </div>
-                ))}
+                  <div className="mt-2">
+                    <div className={`text-2xl sm:text-3xl font-black ${
+                      summary.currentBalance > 0 ? 'text-emerald-700' : summary.currentBalance < 0 ? 'text-rose-700' : 'text-gray-900'
+                    }`}>
+                      ₱{summary.currentBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      Total Income − Total Expenses
+                    </span>
+                  </div>
+                </div>
+
+                {/* Monthly Income */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Monthly Income</span>
+                    <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-2xl sm:text-3xl font-black text-emerald-600">
+                      ₱{summary.incomeThisMonth.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      This month's collections
+                    </span>
+                  </div>
+                </div>
+
+                {/* Monthly Expenses */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Monthly Expenses</span>
+                    <div className="p-2 rounded-xl bg-red-50 border border-red-100 text-red-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-2xl sm:text-3xl font-black text-red-600">
+                      ₱{summary.expensesThisMonth.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      This month's disbursements
+                    </span>
+                  </div>
+                </div>
+
+                {/* Pending Actions */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Pending Actions</span>
+                    <div className="p-2 rounded-xl bg-amber-50 border border-amber-100 text-amber-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-2xl sm:text-3xl font-black text-amber-600">
+                      {summary.pendingRequestsCount + summary.pendingLiquidationsCount}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      Requests needing action
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Graphical Overview */}

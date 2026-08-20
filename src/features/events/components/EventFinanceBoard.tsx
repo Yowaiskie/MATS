@@ -137,32 +137,109 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <Card className="p-6 border border-gray-200 shadow-xs">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Total Income</h3>
-          <div className="text-3xl font-black text-green-600">₱{totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </Card>
-        <Card className="p-6 border border-amber-200 shadow-xs bg-amber-50">
-          <h3 className="text-sm font-bold text-amber-700 uppercase tracking-wider mb-2">Pending Amount</h3>
-          <div className="text-3xl font-black text-amber-600">₱{pendingIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </Card>
-        <Card className="p-6 border border-gray-200 shadow-xs">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Total Expenses</h3>
-          <div className="text-3xl font-black text-red-600">₱{totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-          <div className="text-[10px] text-gray-400 mt-1 font-medium">
-            Event: ₱{eventFundedExpenses.toLocaleString()} | Main: ₱{mainFundedExpenses.toLocaleString()}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Card 1: Net / Current Balance (Highlighted) */}
+        <div className={`p-5 rounded-2xl border transition-all shadow-xs flex flex-col justify-between ${
+          balance > 0
+            ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+            : balance < 0
+            ? 'bg-rose-50/60 border-rose-200 text-rose-950'
+            : 'bg-slate-50/70 border-slate-200 text-slate-900'
+        }`}>
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Current Balance</span>
+            <div className={`p-2 rounded-xl border ${
+              balance > 0
+                ? 'bg-emerald-100/80 border-emerald-200 text-emerald-700'
+                : balance < 0
+                ? 'bg-rose-100/80 border-rose-200 text-rose-700'
+                : 'bg-slate-100 border-slate-200 text-slate-600'
+            }`}>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+            </div>
           </div>
-        </Card>
-        <Card className="p-6 border border-gray-200 shadow-xs">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Total Transfers</h3>
-          <div className="text-3xl font-black text-blue-600">₱{totalTransfers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-        </Card>
-        <Card className={`p-6 border shadow-xs ${balance > 0 ? 'border-green-200 bg-green-50' : balance < 0 ? 'border-red-200 bg-red-50' : 'border-gray-200'}`}>
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Current Balance</h3>
-          <div className={`text-3xl font-black ${balance > 0 ? 'text-green-700' : balance < 0 ? 'text-red-700' : 'text-gray-900'}`}>
-            ₱{balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="mt-3">
+            <div className={`text-2xl sm:text-3xl font-black ${
+              balance > 0 ? 'text-emerald-700' : balance < 0 ? 'text-rose-700' : 'text-slate-900'
+            }`}>
+              ₱{balance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] font-semibold text-slate-400 block mt-1">
+              Net Available (Income − Expenses)
+            </span>
           </div>
-        </Card>
+        </div>
+
+        {/* Card 2: Total Income */}
+        <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Total Income</span>
+            <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-emerald-600">
+              ₱{totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-[10px] font-semibold text-slate-400">Total collections</span>
+              {pendingIncome > 0 && (
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
+                  +₱{pendingIncome.toLocaleString()} pending
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Total Expenses */}
+        <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Total Expenses</span>
+            <div className="p-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-rose-600">
+              ₱{totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div className="text-[10px] text-slate-400 mt-1 font-medium truncate">
+              {eventFundedExpenses > 0 || mainFundedExpenses > 0 ? (
+                <>Event: ₱{eventFundedExpenses.toLocaleString()} • Main: ₱{mainFundedExpenses.toLocaleString()}</>
+              ) : (
+                'Total disbursements'
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Transfers to Main Funds */}
+        <div className="p-5 rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-black uppercase tracking-wider text-slate-500">Transfers to Main</span>
+            <div className="p-2 rounded-xl bg-blue-50 border border-blue-200 text-blue-600">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="text-2xl sm:text-3xl font-black text-blue-600">
+              ₱{totalTransfers.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <span className="text-[10px] font-semibold text-slate-400 block mt-1">
+              Remitted to treasury
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Tabs & Actions Header */}
