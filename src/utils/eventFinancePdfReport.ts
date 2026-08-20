@@ -27,6 +27,9 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   })
 }
 
+import type { SignatureConfig } from '@/types/signature'
+import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
+
 export interface EventFinanceReportData {
   eventName: string
   totalIncome: number
@@ -37,8 +40,13 @@ export interface EventFinanceReportData {
   expenseByCategory: Record<string, number>
 }
 
+export interface EventFinancePdfOptions {
+  signatureConfig?: SignatureConfig
+}
+
 export const downloadEventFinanceReportPdf = async (
-  data: EventFinanceReportData
+  data: EventFinanceReportData,
+  options?: EventFinancePdfOptions
 ): Promise<void> => {
   const now = new Date()
   const dateStr = formatDate(now)
@@ -344,6 +352,17 @@ export const downloadEventFinanceReportPdf = async (
       didDrawPage: d => {
         currentY = d.cursor ? d.cursor.y : currentY
       }
+    })
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : currentY + 8
+  }
+
+  // Section: Dynamic Signatures
+  if (options?.signatureConfig?.enabled && options.signatureConfig.signatories.length > 0) {
+    currentY = renderPdfSignatures(doc, options.signatureConfig.signatories, currentY, {
+      leftMargin: 14,
+      rightMargin: 14,
+      bottomMargin: 18,
+      topMarginOnNewPage: 49
     })
   }
 

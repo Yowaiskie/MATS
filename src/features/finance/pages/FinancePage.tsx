@@ -19,7 +19,7 @@ import { reportService } from '@/services/finance/reportService'
 
 // Import Finance Engine & Report PDF Generator
 import { financeEngine } from '@/utils/financeEngine'
-import { downloadFinanceReportPdf } from '@/utils/financePdfReport'
+import { FinanceExportModal } from '@/features/finance/components/FinanceExportModal'
 
 export const FinancePage: React.FC = () => {
   const { hasModuleAccess, canAction, profile } = useAuth()
@@ -59,6 +59,7 @@ export const FinancePage: React.FC = () => {
   const [isRequestModalOpen, setIsRequestModalOpen] = useState(false)
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false)
   const [isLiquidationModalOpen, setIsLiquidationModalOpen] = useState(false)
+  const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false)
 
   // Edit states
   const [editIncomeItem, setEditIncomeItem] = useState<FinanceIncome | null>(null)
@@ -1040,18 +1041,9 @@ export const FinancePage: React.FC = () => {
     document.body.removeChild(link)
   }
 
-  const handleExportPDF = async () => {
+  const handleExportPDF = () => {
     if (!reportData) return
-    try {
-      setSaving(true)
-      await downloadFinanceReportPdf(reportData)
-      setSuccessMsg('PDF financial report downloaded successfully.')
-    } catch (err: any) {
-      console.error('Failed to generate finance report PDF:', err)
-      setErrorMsg(err.message || 'Failed to generate PDF report.')
-    } finally {
-      setSaving(false)
-    }
+    setIsExportPdfModalOpen(true)
   }
 
   if (loading) {
@@ -2698,6 +2690,15 @@ export const FinancePage: React.FC = () => {
             : `Are you sure you want to permanently delete this ${deleteConfirm.type} record? This action cannot be undone. Please enter your password to confirm.`
         }
         confirmLabel="Delete Permanently"
+      />
+
+      {/* Finance PDF Export Modal with Dynamic Signatures */}
+      <FinanceExportModal
+        isOpen={isExportPdfModalOpen}
+        onClose={() => setIsExportPdfModalOpen(false)}
+        reportData={reportData}
+        startDate={reportStartDate}
+        endDate={reportEndDate}
       />
     </div>
   )

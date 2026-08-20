@@ -9,8 +9,8 @@ import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
 import { useAuth } from '@/features/authentication/AuthContext'
 
-import { downloadMembersReportPdf } from '@/utils/memberPdfReport'
 import { Pagination } from '@/components/Pagination'
+import { MemberReportExportModal } from '../components/MemberReportExportModal'
 
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly'
 
@@ -47,6 +47,7 @@ export const ReportsPage: React.FC = () => {
   // Absence breakdown modal state
   const [selectedMemberRow, setSelectedMemberRow] = useState<MemberReportRow | null>(null)
   const [showBreakdownModal, setShowBreakdownModal] = useState(false)
+  const [showExportPdfModal, setShowExportPdfModal] = useState(false)
 
   // Load baseline data on change of date filters
   const loadData = async () => {
@@ -171,8 +172,7 @@ export const ReportsPage: React.FC = () => {
   }
 
   const handleDownloadMemberPdf = () => {
-    const filteredRows = getFilteredMemberRows()
-    downloadMembersReportPdf(filteredRows, { start: startDate, end: endDate })
+    setShowExportPdfModal(true)
   }
 
   return (
@@ -538,6 +538,14 @@ export const ReportsPage: React.FC = () => {
         }}
         memberRow={selectedMemberRow}
         policy={rawData?.policy ?? null}
+      />
+
+      {/* Member Masterlist PDF Export Modal with Dynamic Signatures */}
+      <MemberReportExportModal
+        isOpen={showExportPdfModal}
+        onClose={() => setShowExportPdfModal(false)}
+        rows={getFilteredMemberRows()}
+        dateRange={{ start: startDate, end: endDate }}
       />
 
       {/* Error Alert Modal */}

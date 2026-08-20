@@ -9,6 +9,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
+import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
 
 const mockSchedule: Schedule = {
   id: 'mock-123',
@@ -41,7 +42,7 @@ const mockUnassignedMembers: Member[] = [
   { id: 'm-5', firstName: 'Marcial', lastName: 'Rimando', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
-type TabId = 'policy' | 'template' | 'maintenance'
+type TabId = 'policy' | 'template' | 'signatures' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -56,6 +57,12 @@ const FileTextIcon: React.FC<{ className?: string }> = ({ className }) => (
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
     <polyline points="10 9 9 9 8 9" />
+  </svg>
+)
+
+const SignatureIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
   </svg>
 )
 
@@ -74,6 +81,7 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
   { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
+  { id: 'signatures', label: 'Signature Presets', icon: <SignatureIcon className="w-4 h-4" /> },
   { id: 'maintenance', label: 'Maintenance Mode', icon: <WrenchIcon className="w-4 h-4" /> }
 ]
 
@@ -181,6 +189,12 @@ export const SettingsPage: React.FC = () => {
         <div>
           {activeTab === 'policy' && (
             <PolicySettingsCard
+              onNotifySuccess={(msg) => setSuccessMsg(msg)}
+              onNotifyError={(msg) => setError(msg)}
+            />
+          )}
+          {activeTab === 'signatures' && (
+            <SignatureSettingsCard
               onNotifySuccess={(msg) => setSuccessMsg(msg)}
               onNotifyError={(msg) => setError(msg)}
             />

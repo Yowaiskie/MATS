@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { FinanceReportData } from '@/services/finance/reportService'
+import type { SignatureConfig } from '@/types/signature'
+import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -28,8 +30,14 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   })
 }
 
+export interface FinancePdfOptions {
+  documentTitle?: string
+  signatureConfig?: SignatureConfig
+}
+
 export const downloadFinanceReportPdf = async (
-  report: FinanceReportData
+  report: FinanceReportData,
+  options?: FinancePdfOptions
 ): Promise<void> => {
   const now = new Date()
   const dateStr = formatDate(now)
@@ -97,7 +105,7 @@ export const downloadFinanceReportPdf = async (
   }
 
   // Document Title (Centered & Bold Underline Style)
-  const titleText = 'TREASURY FINANCIAL STATEMENT & REPORT'
+  const titleText = (options?.documentTitle?.trim() || 'TREASURY FINANCIAL STATEMENT & REPORT').toUpperCase()
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14)
   doc.setTextColor(15, 23, 42)
@@ -349,6 +357,17 @@ export const downloadFinanceReportPdf = async (
         fillColor: [248, 250, 252]
       },
       margin: { left: 14, right: 14, top: 49, bottom: 16 }
+    })
+    currentY = (doc as any).lastAutoTable.finalY + 8
+  }
+
+  // Section: Dynamic Signatures
+  if (options?.signatureConfig?.enabled && options.signatureConfig.signatories.length > 0) {
+    currentY = renderPdfSignatures(doc, options.signatureConfig.signatories, currentY, {
+      leftMargin: 14,
+      rightMargin: 14,
+      bottomMargin: 18,
+      topMarginOnNewPage: 49
     })
   }
 

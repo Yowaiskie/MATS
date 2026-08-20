@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { MemberReportRow } from '@/services/reportService'
+import type { SignatureConfig } from '@/types/signature'
+import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -28,18 +30,29 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
   })
 }
 
+export interface MemberPdfOptions {
+  dateRange?: { start?: string; end?: string }
+  documentTitle?: string
+  signatureConfig?: SignatureConfig
+}
+
 /**
- * Generates direct download landscape PDF report.
- * Removes redundant "Member Status" column and styles "Triggering Absences" text
- * with alert highlight colors for easy readability.
+ * Generates direct download landscape PDF report matching the official Finance header style.
+ * Includes official parish title, ministry logo, custom document title with underline,
+ * metadata row, attendance metrics, status badges, and dynamic signatures.
  */
 export const downloadMembersReportPdf = async (
   rows: MemberReportRow[],
-  dateRange?: { start?: string; end?: string }
+  options?: MemberPdfOptions | { start?: string; end?: string }
 ): Promise<void> => {
   const now = new Date()
   const dateStr = formatDate(now)
   const timeStr = formatTime(now)
+
+  // Normalize options parameter (support legacy dateRange or new MemberPdfOptions)
+  const opts: MemberPdfOptions = options && ('signatureConfig' in options || 'documentTitle' in options)
+    ? (options as MemberPdfOptions)
+    : { dateRange: options as { start?: string; end?: string } }
 
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -47,131 +60,168 @@ export const downloadMembersReportPdf = async (
     format: 'a4',
   })
 
-  // Try loading logo
+  const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+
+  // 1. Prepare Logo for Header
+  let logoImg: HTMLImageElement | null = null
   try {
-    const logoImg = await loadImage('/favicon/icon-192.png')
-    doc.addImage(logoImg, 'PNG', 14, 10, 14, 14)
-  } catch (err) {
-    console.warn('Logo image could not be loaded for PDF:', err)
+    logoImg = await loadImage('/ministy_logo.jpg')
+  } catch {
+    try {
+      logoImg = await loadImage('/favicon/favicon.png')
+    } catch {
+      try {
+        logoImg = await loadImage('/favicon/icon-192.png')
+      } catch {
+        // Fallback if image not found
+      }
+    }
   }
 
-  // Header Title
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(16)
-  doc.setTextColor(15, 23, 42)
-  doc.text('Ministry of Altar Servers', 32, 16)
+  // 2. Helper to draw Uniform Header & Footer across all pages
+  const drawUniformHeader = (pageNumber: number, totalPages: number) => {
+    // Single Ministry Logo on Right Side
+    if (logoImg) {
+      doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
+    }
 
-  // Subtitle
+    // Left Parish Text
+    doc.setFont('times', 'bolditalic')
+    doc.setFontSize(16)
+    doc.setTextColor(15, 23, 42)
+    doc.text('Ministry of Altar Servers', 14, 14)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(51, 65, 85)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+
+    // Horizontal Header Divider Line
+    doc.setDrawColor(30, 41, 59)
+    doc.setLineWidth(0.6)
+    doc.line(14, 28, pageWidth - 14, 28)
+
+    // Footer on bottom of page
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(148, 163, 184)
+    doc.text(
+      `Page ${pageNumber} of ${totalPages} - MATS Official Member Masterlist & Attendance Report`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    )
+  }
+
+  // 3. Document Title (Centered & Bold Underline Style matching Finance)
+  const defaultTitle = 'MEMBER MASTERLIST & ATTENDANCE REPORT'
+  const titleText = (opts.documentTitle?.trim() || defaultTitle).toUpperCase()
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(14.5)
+  doc.setTextColor(15, 23, 42)
+  const titleWidth = doc.getTextWidth(titleText)
+  const titleX = (pageWidth - titleWidth) / 2
+  const titleY = 37
+  doc.text(titleText, titleX, titleY)
+  doc.setLineWidth(0.5)
+  doc.setDrawColor(15, 23, 42)
+  doc.line(titleX, titleY + 1.2, titleX + titleWidth, titleY + 1.2)
+
+  // 4. Sub-header Metadata Row
+  const dateRange = opts.dateRange
   const rangeSubtitle = dateRange?.start || dateRange?.end
-    ? `Period: ${dateRange.start || 'Start'} to ${dateRange.end || 'Present'}`
+    ? `${dateRange.start || 'Start'} to ${dateRange.end || 'Present'}`
     : 'All Time Records'
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
-  doc.setTextColor(37, 99, 235)
-  doc.text(`Member Performance & Attendance Report (${rangeSubtitle})`, 32, 22)
+  doc.setFontSize(9)
+  doc.setTextColor(71, 85, 105)
+  doc.text(`Covered Period: ${rangeSubtitle}`, 14, 45)
+  doc.text(
+    `Generated: ${dateStr} at ${timeStr} • Total Records: ${rows.length}`,
+    pageWidth - 14,
+    45,
+    { align: 'right' }
+  )
 
-  // Metadata Right
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(8.5)
-  doc.setTextColor(100, 116, 139)
-  doc.text(`Generated: ${dateStr} at ${timeStr}`, 283, 16, { align: 'right' })
-  doc.text(`Total Members: ${rows.length}`, 283, 21, { align: 'right' })
+  // 5. Define Table Columns
+  const tableHead = [
+    [
+      '#',
+      'MEMBER NAME',
+      'RANK',
+      'PRESENT',
+      'LATE',
+      'ABSENT',
+      'EXCUSED',
+      'ATTENDANCE %',
+      'STATUS',
+      'TRIGGERING ABSENCES',
+    ],
+  ]
 
-  // Divider Line
-  doc.setDrawColor(37, 99, 235)
-  doc.setLineWidth(0.5)
-  doc.line(14, 27, 283, 27)
-
-  // Table Headers (Removed "Member Status" column)
-  const tableHead = [[
-    '#',
-    'Server Name',
-    'Assigned',
-    'Present',
-    'Late',
-    'Absent',
-    'Excused',
-    'Rate',
-    'Status',
-    'Triggering Absences'
-  ]]
-
-  const tableBody = rows.map((r, idx) => {
-    let relevantMissed = r.missedSchedules
-
-    // Filter relevant missed schedules depending on warningCategory
-    if (r.warningCategory === 'sunday') {
-      relevantMissed = r.missedSchedules.filter(m => m.isSunday)
-    } else if (r.warningCategory === 'weekday') {
-      relevantMissed = r.missedSchedules.filter(m => !m.isSunday && !m.isMeeting)
-    } else if (r.warningCategory === 'meeting') {
-      relevantMissed = r.missedSchedules.filter(m => m.isMeeting)
+  const tableBody = rows.map((r, index) => {
+    let triggering = '—'
+    if (r.warningStatus === 'suspended' || r.warningStatus === 'warning') {
+      const parts = []
+      if (r.sundayAbsences > 0) parts.push(`${r.sundayAbsences} Sun`)
+      if (r.weekdayAbsences > 0) parts.push(`${r.weekdayAbsences} Wkday`)
+      if (r.meetingAbsences > 0) parts.push(`${r.meetingAbsences} Mtg`)
+      triggering = parts.join(', ') || `${r.absent} Absences`
     }
-
-    // Format triggering absences text
-    let absentsFormatted = '—'
-    if (r.warningStatus !== 'active') {
-      if (relevantMissed.length > 0) {
-        absentsFormatted = relevantMissed
-          .map(item => `${item.date} • ${item.title}`)
-          .join('\n')
-      } else {
-        absentsFormatted = `Absence threshold exceeded (${r.policyAbsencesCount} mark/s)`
-      }
-    }
-
-    const statusLabel = r.warningStatus === 'suspended'
-      ? 'SUSPENDED'
-      : r.warningStatus === 'warning'
-      ? 'WARNING'
-      : r.warningStatus === 'inactive'
-      ? 'INACTIVE'
-      : 'ACTIVE'
 
     return [
-      idx + 1,
-      r.name,
-      r.totalAssigned,
-      r.present,
-      r.late,
-      r.absent,
-      r.excused,
-      `${r.rate}%`,
-      statusLabel,
-      absentsFormatted
+      String(index + 1),
+      r.name.toUpperCase(),
+      (r.rank || '—').toUpperCase(),
+      String(r.present),
+      String(r.late),
+      String(r.absent),
+      String(r.excused),
+      `${r.rate.toFixed(1)}%`,
+      r.warningStatus.toUpperCase(),
+      triggering,
     ]
   })
 
+  // 6. Generate Table using autoTable
   autoTable(doc, {
-    startY: 31,
+    startY: 49,
     head: tableHead,
     body: tableBody,
     theme: 'grid',
+    showHead: 'everyPage',
     headStyles: {
-      fillColor: [241, 245, 249],
-      textColor: [51, 65, 85],
+      fillColor: [30, 41, 59],
+      textColor: [255, 255, 255],
       fontSize: 8.5,
       fontStyle: 'bold',
       halign: 'left',
+      cellPadding: 2.5,
     },
     bodyStyles: {
       fontSize: 8,
-      textColor: [51, 65, 85],
-      valign: 'middle',
+      textColor: [15, 23, 42],
+      cellPadding: 2.2,
+    },
+    alternateRowStyles: {
+      fillColor: [248, 250, 252],
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 10 },
-      1: { fontStyle: 'bold', cellWidth: 48 },
-      2: { halign: 'center', cellWidth: 20 },
-      3: { halign: 'center', textColor: [22, 163, 74], fontStyle: 'bold', cellWidth: 18 },  // Present
-      4: { halign: 'center', textColor: [217, 119, 6], fontStyle: 'bold', cellWidth: 16 },  // Late
-      5: { halign: 'center', textColor: [220, 38, 38], fontStyle: 'bold', cellWidth: 18 },  // Absent
+      0: { halign: 'center', cellWidth: 10, fontStyle: 'bold' },                             // #
+      1: { fontStyle: 'bold', cellWidth: 52 },                                               // Name
+      2: { cellWidth: 26 },                                                                  // Rank
+      3: { halign: 'center', cellWidth: 18 },
+      4: { halign: 'center', cellWidth: 18 },
+      5: { halign: 'center', cellWidth: 18 },
       6: { halign: 'center', cellWidth: 18 },
-      7: { halign: 'right', fontStyle: 'bold', cellWidth: 20 },
+      7: { halign: 'right', fontStyle: 'bold', cellWidth: 24 },
       8: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },                             // Status Badge
       9: { fontSize: 7.5, cellWidth: 'auto' },                                               // Triggering Absences
     },
+    margin: { left: 14, right: 14, top: 49, bottom: 16 },
     didParseCell: (data) => {
       // Style Status column (Column 8)
       if (data.section === 'body' && data.column.index === 8) {
@@ -204,25 +254,27 @@ export const downloadMembersReportPdf = async (
           data.cell.styles.textColor = [148, 163, 184] // Muted slate text for ACTIVE ('—')
         }
       }
-    },
-    didDrawPage: (data) => {
-      const pageCount = doc.getNumberOfPages()
-      doc.setFontSize(8)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(148, 163, 184)
-      doc.text(
-        'MATS Portal • Official Ministry Report',
-        14,
-        202
-      )
-      doc.text(
-        `Page ${data.pageNumber} of ${pageCount}`,
-        283,
-        202,
-        { align: 'right' }
-      )
-    },
+    }
   })
+
+  let currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 49
+
+  // 7. Draw dynamic signatures if enabled
+  if (opts.signatureConfig?.enabled && opts.signatureConfig.signatories.length > 0) {
+    currentY = renderPdfSignatures(doc, opts.signatureConfig.signatories, currentY, {
+      leftMargin: 14,
+      rightMargin: 14,
+      bottomMargin: 18,
+      topMarginOnNewPage: 49
+    })
+  }
+
+  // 8. Draw uniform header and footer across all generated pages
+  const totalPages = (doc as any).internal.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    drawUniformHeader(i, totalPages)
+  }
 
   const filename = `Ministry_Members_Report_${now.toISOString().split('T')[0]}.pdf`
   doc.save(filename)

@@ -8,9 +8,9 @@ import type { EventContribution, EventContributionPurpose } from '@/types/eventC
 import type { EventFinanceCategory } from '@/types/eventFinance'
 import { EventContributionModal } from './EventContributionModal'
 import { ContributionPurposeModal } from './ContributionPurposeModal'
-import { downloadEventContributionReportPdf } from '@/utils/eventContributionPdfReport'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
 import { Modal } from '@/components/Modal'
+import { EventContributionExportModal } from './EventContributionExportModal'
 
 interface Props {
   eventId: string
@@ -50,6 +50,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
   // Void confirmation state
   const [voidTarget, setVoidTarget] = useState<EventContribution | null>(null)
   const [showVoidConfirm, setShowVoidConfirm] = useState(false)
+  const [showExportPdfModal, setShowExportPdfModal] = useState(false)
 
   // Filtering states
   const [searchQuery, setSearchQuery] = useState('')
@@ -295,31 +296,9 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     }
   }
 
-  const handleExportPdf = async () => {
+  const handleExportPdf = () => {
     if (!canExport) return
-    let filterDesc = ''
-    if (selectedPurposeId !== 'all') {
-      const p = purposes.find(purp => purp.id === selectedPurposeId)
-      filterDesc += `Purpose: ${p ? p.name : 'Unknown'}. `
-    }
-    if (selectedPaymentMethod !== 'all') {
-      filterDesc += `Method: ${selectedPaymentMethod.toUpperCase()}. `
-    }
-    if (selectedStatus !== 'all') {
-      filterDesc += `Status: ${selectedStatus.toUpperCase()}. `
-    }
-
-    try {
-      await downloadEventContributionReportPdf({
-        eventName,
-        contributions: filteredContributions,
-        filterDescription: filterDesc || 'None (All logs)'
-      })
-    } catch (err) {
-      console.error('PDF export failed:', err)
-      setAlertTitle('Export Failed')
-      setAlertMessage('Failed to compile PDF report.')
-    }
+    setShowExportPdfModal(true)
   }
 
   const handleExportCsv = () => {
@@ -1011,6 +990,28 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         onClose={() => setAlertMessage(null)}
         title={alertTitle}
         message={alertMessage || ''}
+      />
+
+      {/* Dynamic PDF Export Modal with Signatures */}
+      <EventContributionExportModal
+        isOpen={showExportPdfModal}
+        onClose={() => setShowExportPdfModal(false)}
+        eventName={eventName}
+        contributions={filteredContributions}
+        filterDescription={(() => {
+          let desc = ''
+          if (selectedPurposeId !== 'all') {
+            const p = purposes.find(purp => purp.id === selectedPurposeId)
+            desc += `Purpose: ${p ? p.name : 'Unknown'}. `
+          }
+          if (selectedPaymentMethod !== 'all') {
+            desc += `Method: ${selectedPaymentMethod.toUpperCase()}. `
+          }
+          if (selectedStatus !== 'all') {
+            desc += `Status: ${selectedStatus.toUpperCase()}. `
+          }
+          return desc || undefined
+        })()}
       />
     </div>
   )

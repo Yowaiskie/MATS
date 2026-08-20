@@ -9,6 +9,9 @@ import { memberService } from '@/services/memberService'
 import { ConfirmModal } from '@/components/Dialog'
 import { downloadEventFormPdf } from '@/utils/eventFormPdfReport'
 import { EditFormResponseModal } from './EditFormResponseModal'
+import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
+import type { SignatureConfig } from '@/types/signature'
+import { DEFAULT_MINISTRY_NAME, DEFAULT_PARISH_NAME } from '@/types/signature'
 
 interface EventFormResponsesModalProps {
   isOpen: boolean
@@ -28,7 +31,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const [membersList, setMembersList] = useState<Member[]>([])
   const [membersMap, setMembersMap] = useState<Record<string, string>>({})
   const [searchTerm, setSearchTerm] = useState('')
-  const [activeTab, setActiveTab] = useState<'responded' | 'pending' | 'all'>('all')
+  const [activeTab, setActiveTab] = useState<'responded' | 'pending' | 'all'>('responded')
   const [orderFilter, setOrderFilter] = useState<string>('all')
   const [selectedResponse, setSelectedResponse] = useState<EventFormResponse | null>(null)
   const [responseToEdit, setResponseToEdit] = useState<EventFormResponse | null>(null)
@@ -44,6 +47,27 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const [pdfFilterQuestionId, setPdfFilterQuestionId] = useState('')
   const [pdfFilterValue, setPdfFilterValue] = useState('')
   const [generatingPdf, setGeneratingPdf] = useState(false)
+  const [pdfSignatureConfig, setPdfSignatureConfig] = useState<SignatureConfig>({
+    enabled: false,
+    signatories: [
+      {
+        id: 'ev-sig-1',
+        label: 'Prepared by:',
+        name: '',
+        title: DEFAULT_MINISTRY_NAME,
+        organization: DEFAULT_PARISH_NAME,
+        column: 1
+      },
+      {
+        id: 'ev-sig-2',
+        label: 'Noted by:',
+        name: 'Bro. KYLE VINCENT MADRIAGA',
+        title: `Coordinator, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
+        column: 2
+      }
+    ]
+  })
 
   const fetchData = async () => {
     if (!form.id) return
@@ -237,7 +261,8 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
         filterQuestionId: pdfFilterQuestionId || undefined,
         filterValue: pdfFilterValue || undefined,
         orientation: pdfOrientation,
-        membersMap
+        membersMap,
+        signatureConfig: pdfSignatureConfig.enabled ? pdfSignatureConfig : undefined
       })
       setExportPdfModalOpen(false)
     } catch (err) {
@@ -1109,6 +1134,13 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                   })}
                 </div>
               </div>
+
+              {/* Dynamic Signatures Configuration */}
+              <DynamicSignatureConfig
+                value={pdfSignatureConfig}
+                onChange={setPdfSignatureConfig}
+                defaultPresetName="General"
+              />
             </div>
 
             <div className="pt-3 border-t flex items-center justify-end space-x-3">

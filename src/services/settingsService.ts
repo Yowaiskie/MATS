@@ -2,10 +2,14 @@ import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
 import type { PermissionPreset } from '@/types/auth'
+import type { SignaturePreset } from '@/types/signature'
+import { DEFAULT_SIGNATURE_PRESETS } from '@/types/signature'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
 const POLICY_DOC = 'suspensionPolicy'
+const SIGNATURE_PRESETS_DOC = 'signaturePresets'
+const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v1'
 
 export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
 
@@ -346,6 +350,68 @@ export const settingsService = {
       'SETTINGS_UPDATE',
       'settings',
       `Updated public schedule settings (Month: ${settings.enabledMonth}, Year: ${settings.enabledYear})`,
+      performedBy,
+      payload
+    )
+  },
+
+  /**
+   * Fetches the dynamic signature presets from Firestore (with localStorage fallback).
+   */
+  async getSignaturePresets(): Promise<SignaturePreset[]> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, SIGNATURE_PRESETS_DOC)
+      const docSnap = await getDoc(docRef)
+
+      if (docSnap.exists()) {
+        const data = docSnap.data()
+        if (data.presets && Array.isArray(data.presets) && data.presets.length > 0) {
+          try {
+            localStorage.setItem(LOCAL_STORAGE_PRESETS_KEY, JSON.stringify(data.presets))
+          } catch {}
+          return data.presets
+        }
+      }
+
+      // Check localStorage
+      try {
+        const stored = localStorage.getItem(LOCAL_STORAGE_PRESETS_KEY)
+        if (stored) {
+          return JSON.parse(stored)
+        }
+      } catch {}
+
+      return DEFAULT_SIGNATURE_PRESETS
+    } catch (err) {
+      console.error('Failed to get signature presets from Firestore:', err)
+      try {
+        const stored = localStorage.getItem(LOCAL_STORAGE_PRESETS_KEY)
+        if (stored) return JSON.parse(stored)
+      } catch {}
+      return DEFAULT_SIGNATURE_PRESETS
+    }
+  },
+
+  /**
+   * Saves dynamic signature presets to Firestore and localStorage.
+   */
+  async saveSignaturePresets(presets: SignaturePreset[], performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, SIGNATURE_PRESETS_DOC)
+    const payload = {
+      presets,
+      updatedAt: serverTimestamp()
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    try {
+      localStorage.setItem(LOCAL_STORAGE_PRESETS_KEY, JSON.stringify(presets))
+    } catch {}
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated dynamic signature presets (${presets.length} presets configured)`,
       performedBy,
       payload
     )

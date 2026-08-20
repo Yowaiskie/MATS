@@ -1,6 +1,8 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type { SignatureConfig } from '@/types/signature'
+import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -36,6 +38,7 @@ export interface EventFormPdfOptions {
   filterValue?: string
   orientation?: 'portrait' | 'landscape'
   membersMap?: Record<string, string>
+  signatureConfig?: SignatureConfig
 }
 
 export const downloadEventFormPdf = async (
@@ -56,6 +59,7 @@ export const downloadEventFormPdf = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
 
   // 1. Prepare Logo for Header on Every Page
   let logoImg: HTMLImageElement | null = null
@@ -63,9 +67,13 @@ export const downloadEventFormPdf = async (
     logoImg = await loadImage('/ministy_logo.jpg')
   } catch {
     try {
-      logoImg = await loadImage('/favicon/icon-192.png')
+      logoImg = await loadImage('/favicon/favicon.png')
     } catch {
-      // Fallback if image not found
+      try {
+        logoImg = await loadImage('/favicon/icon-192.png')
+      } catch {
+        // Fallback if image not found
+      }
     }
   }
 
@@ -182,7 +190,60 @@ export const downloadEventFormPdf = async (
   const bodyFontSize = isDense ? 9.5 : 10.5
   const cellPadding = isDense ? 3 : 3.8
 
-  // 5. Draw AutoTable with Header and Footer applied on every page
+  const drawUniformHeaderAndFooter = (pageNumber: number, totalPageCount: number) => {
+    // 1. Draw Official Header (Single Ministry Logo on Right Side) on EVERY page
+    if (logoImg) {
+      doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
+    }
+
+    // Left Parish Text
+    doc.setFont('times', 'bolditalic')
+    doc.setFontSize(16)
+    doc.setTextColor(15, 23, 42)
+    doc.text('Ministry of Altar Servers', 14, 14)
+
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(10)
+    doc.setTextColor(51, 65, 85)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+
+    // Horizontal Header Divider Line
+    doc.setDrawColor(30, 41, 59)
+    doc.setLineWidth(0.6)
+    doc.line(14, 28, pageWidth - 14, 28)
+
+    // 2. Document Title (Centered & Bold Underline Style)
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(15)
+    doc.setTextColor(15, 23, 42)
+    const titleWidth = doc.getTextWidth(titleText)
+    const titleX = (pageWidth - titleWidth) / 2
+    const titleY = 37
+    doc.text(titleText, titleX, titleY)
+    doc.setLineWidth(0.5)
+    doc.line(titleX, titleY + 1.2, titleX + titleWidth, titleY + 1.2)
+
+    // Sub-header Metadata Row
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9.5)
+    doc.setTextColor(71, 85, 105)
+    doc.text(`Generated: ${dateStr} at ${timeStr}`, 14, 45)
+    doc.text(`Total Records: ${filteredResponses.length}`, pageWidth - 14, 45, { align: 'right' })
+
+    // Footer page numbers
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(8.5)
+    doc.setTextColor(148, 163, 184)
+    doc.text(
+      `Page ${pageNumber} of ${totalPageCount} - MATS Official Event Form Report`,
+      pageWidth / 2,
+      pageHeight - 8,
+      { align: 'center' }
+    )
+  }
+
+  // 5. Draw AutoTable
   autoTable(doc, {
     startY: 49,
     head: [tableHeaders],
@@ -209,61 +270,27 @@ export const downloadEventFormPdf = async (
     alternateRowStyles: {
       fillColor: [248, 250, 252]
     },
-    margin: { left: 14, right: 14, top: 49, bottom: 16 },
-    didDrawPage: (data) => {
-      // 1. Draw Official Header (Single Ministry Logo on Right Side) on EVERY page
-      if (logoImg) {
-        doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
-      }
-
-      // Left Parish Text
-      doc.setFont('times', 'bolditalic')
-      doc.setFontSize(16)
-      doc.setTextColor(15, 23, 42)
-      doc.text('Ministry of Altar Servers', 14, 14)
-
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.setTextColor(51, 65, 85)
-      doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-      doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
-
-      // Horizontal Header Divider Line
-      doc.setDrawColor(30, 41, 59)
-      doc.setLineWidth(0.6)
-      doc.line(14, 28, pageWidth - 14, 28)
-
-      // 2. Document Title (Centered & Bold Underline Style)
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(15)
-      doc.setTextColor(15, 23, 42)
-      const titleWidth = doc.getTextWidth(titleText)
-      const titleX = (pageWidth - titleWidth) / 2
-      const titleY = 37
-      doc.text(titleText, titleX, titleY)
-      doc.setLineWidth(0.5)
-      doc.line(titleX, titleY + 1.2, titleX + titleWidth, titleY + 1.2)
-
-      // Sub-header Metadata Row
-      doc.setFont('helvetica', 'bold')
-      doc.setFontSize(9.5)
-      doc.setTextColor(71, 85, 105)
-      doc.text(`Generated: ${dateStr} at ${timeStr}`, 14, 45)
-      doc.text(`Total Records: ${filteredResponses.length}`, pageWidth - 14, 45, { align: 'right' })
-
-      // Footer page numbers
-      const pageCount = (doc as any).internal.getNumberOfPages()
-      doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8.5)
-      doc.setTextColor(148, 163, 184)
-      doc.text(
-        `Page ${data.pageNumber} of ${pageCount} - MATS Official Event Form Report`,
-        pageWidth / 2,
-        doc.internal.pageSize.getHeight() - 8,
-        { align: 'center' }
-      )
-    }
+    margin: { left: 14, right: 14, top: 49, bottom: 16 }
   })
+
+  let currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 55
+
+  // 6. Draw Dynamic Signatures
+  if (options.signatureConfig?.enabled && options.signatureConfig.signatories.length > 0) {
+    currentY = renderPdfSignatures(doc, options.signatureConfig.signatories, currentY, {
+      leftMargin: 14,
+      rightMargin: 14,
+      bottomMargin: 18,
+      topMarginOnNewPage: 49
+    })
+  }
+
+  // 7. Draw uniform headers and footers across all generated pages
+  const totalPages = (doc as any).internal.getNumberOfPages()
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i)
+    drawUniformHeaderAndFooter(i, totalPages)
+  }
 
   // Save PDF
   const safeTitle = form.title.toLowerCase().replace(/[^a-z0-9]/g, '_')
