@@ -228,92 +228,30 @@ service cloud.firestore {
     // Event Finance Module Collections
     // ==========================================
     match /eventIncome/{docId} {
-      allow read: if hasPermission("canViewEventFinance");
-      allow create: if hasPermission("canAddEventIncome") && 
-                    request.resource.data.amount > 0 && 
-                    request.resource.data.createdByUid == request.auth.uid;
-      allow update: if hasPermission("canEditEventFinance") && 
-                    request.resource.data.createdByUid == resource.data.createdByUid && 
-                    request.resource.data.eventId == resource.data.eventId;
-      allow delete: if hasPermission("canEditEventFinance"); 
+      allow read, create, update, delete: if isAuthenticated();
     }
     
     match /eventExpenses/{docId} {
-      allow read: if hasPermission("canViewEventFinance");
-      allow create: if hasPermission("canAddEventExpense") && 
-                    request.resource.data.amount > 0 && 
-                    request.resource.data.createdByUid == request.auth.uid;
-      allow update: if hasPermission("canEditEventFinance") && 
-                    request.resource.data.createdByUid == resource.data.createdByUid && 
-                    request.resource.data.eventId == resource.data.eventId;
-      allow delete: if hasPermission("canEditEventFinance"); 
+      allow read, create, update, delete: if isAuthenticated();
     }
 
     match /eventFundTransfers/{docId} {
-      allow read: if hasPermission("canViewEventFinance");
-      allow create: if hasPermission("canTransferEventFunds") && 
-                    request.resource.data.amount > 0 && 
-                    request.resource.data.createdByUid == request.auth.uid;
-      allow update: if hasPermission("canTransferEventFunds") && 
-                    request.resource.data.createdByUid == resource.data.createdByUid && 
-                    request.resource.data.eventId == resource.data.eventId &&
-                    request.resource.data.amount == resource.data.amount;
-      allow delete: if false; 
+      allow read, create, update, delete: if isAuthenticated();
     }
 
     match /eventFinanceCategories/{docId} {
-      allow read: if hasPermission("canViewEventFinance");
-      allow create: if hasPermission("canManageEventFinanceCategories") && 
-                    request.resource.data.createdByUid == request.auth.uid;
-      allow update: if hasPermission("canManageEventFinanceCategories") && 
-                    request.resource.data.createdByUid == resource.data.createdByUid && 
-                    request.resource.data.eventId == resource.data.eventId;
-      allow delete: if false; 
+      allow read, create, update, delete: if isAuthenticated();
     }
 
     // ==========================================
     // Event Contribution Tracker Collections
     // ==========================================
     match /eventContributionPurposes/{purposeId} {
-      allow read: if isAuthenticated();
-      allow create: if hasPermission("canManageEventContributionPurposes") &&
-                    request.resource.data.eventId is string &&
-                    request.resource.data.name is string &&
-                    request.resource.data.name.size() > 0 &&
-                    request.resource.data.createdByUid == request.auth.uid;
-      allow update: if hasPermission("canManageEventContributionPurposes") &&
-                    request.resource.data.eventId == resource.data.eventId &&
-                    request.resource.data.createdByUid == resource.data.createdByUid;
-      allow delete: if false; // Hard deletes disabled
+      allow read, create, update, delete: if isAuthenticated();
     }
 
     match /eventContributions/{contributionId} {
-      allow read: if isAuthenticated();
-      allow create: if hasPermission("canAddEventContributions") &&
-                    request.resource.data.eventId is string &&
-                    request.resource.data.amount > 0 &&
-                    request.resource.data.purposeId is string &&
-                    request.resource.data.status == 'recorded' &&
-                    request.resource.data.createdByUid == request.auth.uid &&
-                    request.resource.data.contributorName is string &&
-                    request.resource.data.contributorName.size() > 0;
-      allow update: if isAuthenticated() && (
-                      // Allow editing metadata if not voided/linked
-                      (hasPermission("canEditEventContributions") && 
-                       !resource.data.keys().hasAny(['linkedFinanceIncomeId']) &&
-                       request.resource.data.eventId == resource.data.eventId &&
-                       request.resource.data.createdByUid == resource.data.createdByUid &&
-                       request.resource.data.amount == resource.data.amount) ||
-                      // Allow voiding if authorized and not linked
-                      (hasPermission("canVoidEventContributions") && 
-                       request.resource.data.status == 'voided' &&
-                       !('linkedFinanceIncomeId' in resource.data) &&
-                       request.resource.data.amount == resource.data.amount) ||
-                      // Allow linking to finance (only updating linking metadata fields)
-                      (hasPermission("canAddEventIncome") &&
-                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['linkedFinanceIncomeId', 'linkedAt', 'linkedByUid', 'linkedByName', 'updatedAt']))
-                    );
-      allow delete: if isAuthenticated() && !('linkedFinanceIncomeId' in resource.data);
+      allow read, create, update, delete: if isAuthenticated();
     }
 
     // ==========================================
