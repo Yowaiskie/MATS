@@ -1176,7 +1176,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                                   </svg>
                                 </button>
                               )}
-                              {canDelete && (
+                              {canDelete && summary.totalLinked === 0 && (
                                 <button
                                   type="button"
                                   onClick={() => {

@@ -23,13 +23,20 @@ service cloud.firestore {
     }
 
     function hasPermission(permissionKey) {
-      // TEMPORARY BYPASS FOR TESTING
-      return isAuthenticated();
+      return isAuthenticated() && hasUserDocument() && (
+        isSuperAdmin() ||
+        (getUserData().permissions != null &&
+         getUserData().permissions[permissionKey] == true)
+      );
     }
 
     function hasModuleAccess(moduleKey) {
-      // TEMPORARY BYPASS FOR TESTING
-      return isAuthenticated();
+      return isAuthenticated() && hasUserDocument() && (
+        isSuperAdmin() ||
+        (getUserData().permissions != null &&
+         getUserData().permissions.moduleAccess != null &&
+         getUserData().permissions.moduleAccess[moduleKey] == true)
+      );
     }
 
     // ==========================================
@@ -228,30 +235,75 @@ service cloud.firestore {
     // Event Finance Module Collections
     // ==========================================
     match /eventIncome/{docId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventIncome') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddIncome')
+      );
     }
     
     match /eventExpenses/{docId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventExpenses') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddExpense')
+      );
     }
 
     match /eventFundTransfers/{docId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canTransferEventFunds') ||
+        hasPermission('canManageEvents')
+      );
     }
 
     match /eventFinanceCategories/{docId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventFinanceCategories') ||
+        hasPermission('canManageEvents')
+      );
     }
 
     // ==========================================
     // Event Contribution Tracker Collections
     // ==========================================
     match /eventContributionPurposes/{purposeId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventContributionPurposes') ||
+        hasPermission('canManageEvents')
+      );
     }
 
     match /eventContributions/{contributionId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canManageEvents')
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canVoidEventContributions') ||
+        hasPermission('canAddEventIncome') ||
+        hasPermission('canAddIncome') ||
+        hasPermission('canManageEvents')
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canVoidEventContributions') ||
+        hasPermission('canManageEvents')
+      );
     }
 
     // ==========================================
