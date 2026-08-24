@@ -6,19 +6,23 @@ import type { ExcuseRequest } from '@/types/excuse'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { ReviewExcuseModal } from './ReviewExcuseModal'
-import { AlertModal } from '@/components/Dialog'
+import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 const PAGE_SIZE = 10
 
 export const AdminExcusePage: React.FC = () => {
+  const { profile } = useAuth()
   const [requests, setRequests] = useState<ExcuseRequest[]>([])
   const [membersMap, setMembersMap] = useState<Map<string, Member>>(new Map())
   const [schedulesMap, setSchedulesMap] = useState<Map<string, Schedule>>(new Map())
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedRequest, setSelectedRequest] = useState<ExcuseRequest | null>(null)
+  const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; trackingNumber: string; name: string } | null>(null)
+  const [deleting, setDeleting] = useState(false)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant: 'error' | 'success' | 'info' } | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -251,12 +255,25 @@ export const AdminExcusePage: React.FC = () => {
 
                         {/* Actions */}
                         <td className="px-5 py-4 align-top text-right whitespace-nowrap">
-                          <button 
-                            onClick={() => setSelectedRequest(req)}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-xl text-xs font-extrabold hover:bg-indigo-700 transition shadow-2xs cursor-pointer"
-                          >
-                            Review & Process
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button 
+                              onClick={() => setSelectedRequest(req)}
+                              className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-extrabold hover:bg-indigo-700 transition shadow-2xs cursor-pointer"
+                            >
+                              Review
+                            </button>
+                            <button 
+                              onClick={() => setDeleteConfirm({ 
+                                id: req.id!, 
+                                trackingNumber: req.trackingNumber, 
+                                name: getMemberDisplayName(req) 
+                              })}
+                              className="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-extrabold border border-rose-200 transition cursor-pointer"
+                              title="Delete excuse request"
+                            >
+                              Delete
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     )
@@ -283,6 +300,44 @@ export const AdminExcusePage: React.FC = () => {
         member={selectedRequest ? membersMap.get(selectedRequest.memberId) : undefined}
         schedulesMap={schedulesMap}
         onUpdated={loadData}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={!!deleteConfirm}
+        onClose={() => setDeleteConfirm(null)}
+        onConfirm={async () => {
+          if (!deleteConfirm) return
+          setDeleting(true)
+          try {
+            await excuseService.deleteExcuseRequest(
+              deleteConfirm.id,
+              deleteConfirm.trackingNumber,
+              profile?.displayName || 'Officer'
+            )
+            setDeleteConfirm(null)
+            loadData()
+            setAlertModal({
+              variant: 'success',
+              title: 'Excuse Deleted',
+              message: `Excuse request ${deleteConfirm.trackingNumber} has been permanently deleted.`
+            })
+          } catch (err) {
+            console.error(err)
+            setAlertModal({
+              variant: 'error',
+              title: 'Deletion Failed',
+              message: 'Failed to delete excuse request.'
+            })
+          } finally {
+            setDeleting(false)
+          }
+        }}
+        title="Delete Excuse Request"
+        message={`Are you sure you want to permanently delete the excuse request ${deleteConfirm?.trackingNumber} filed for ${deleteConfirm?.name}?`}
+        confirmLabel="Yes, Delete"
+        loading={deleting}
+        variant="danger"
       />
 
       <AlertModal

@@ -4,6 +4,7 @@ import {
   getDocs,
   getDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
   runTransaction,
   query,
@@ -232,6 +233,36 @@ export const excuseService = {
     } catch (error) {
       console.error('Error rejecting excuse request:', error)
       throw new Error('Failed to reject excuse request.')
+    }
+  },
+
+  /**
+   * Delete an excuse request document and its tracking status document.
+   */
+  async deleteExcuseRequest(
+    id: string,
+    trackingNumber?: string,
+    performedBy = 'Officer'
+  ): Promise<void> {
+    try {
+      const ref = doc(db, EXCUSES_COLLECTION, id)
+      await deleteDoc(ref)
+
+      if (trackingNumber) {
+        const statusRef = doc(db, 'excuseStatus', trackingNumber)
+        await deleteDoc(statusRef).catch(() => {})
+      }
+
+      await auditService.logAction(
+        'EXCUSE_DELETED',
+        'excuse',
+        `Deleted excuse request ${trackingNumber || id}`,
+        performedBy,
+        { trackingNumber, excuseId: id }
+      )
+    } catch (error) {
+      console.error('Error deleting excuse request:', error)
+      throw new Error('Failed to delete excuse request.')
     }
   }
 }

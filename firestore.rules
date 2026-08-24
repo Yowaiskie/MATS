@@ -146,7 +146,7 @@ service cloud.firestore {
       allow read: if true; // Allows public track status by member selection
       allow create: if true;
       allow update: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
-      allow delete: if isSuperAdmin();
+      allow delete: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
     }
 
     // excuseStatus collection
@@ -155,7 +155,7 @@ service cloud.firestore {
       allow list: if isAuthenticated();
       allow create: if true;
       allow update: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
-      allow delete: if isSuperAdmin();
+      allow delete: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
     }
 
     // ==========================================

@@ -79,6 +79,28 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
     }
   }
 
+  const [isDeleting, setIsDeleting] = useState(false)
+
+  const handleDelete = async () => {
+    if (!window.confirm('Are you sure you want to permanently delete this excuse request?')) return
+    setIsDeleting(true)
+    try {
+      await excuseService.deleteExcuseRequest(
+        request.id!,
+        request.trackingNumber,
+        profile?.displayName || 'Officer'
+      )
+      onUpdated()
+      onClose()
+    } catch (err: any) {
+      console.error(err)
+      setAlertMsg(err.message || 'Failed to delete excuse request.')
+      setIsAlertOpen(true)
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const memberDisplayName = member 
     ? `${member.lastName}, ${member.firstName}` 
     : request.memberName || `Server #${request.memberId.substring(0, 8)}`
@@ -190,30 +212,41 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
           </div>
 
           {/* Modal Actions */}
-          <div className="flex gap-2 justify-end pt-3 border-t border-slate-100 flex-wrap">
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2">
             <button 
               type="button"
-              onClick={onClose} 
-              className="px-4 py-2.5 text-slate-700 font-extrabold bg-slate-100 hover:bg-slate-200 rounded-xl text-xs transition cursor-pointer"
+              disabled={loading || isDeleting}
+              onClick={handleDelete}
+              className="px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-extrabold transition cursor-pointer disabled:opacity-50"
             >
-              Cancel
+              {isDeleting ? 'Deleting...' : '🗑️ Delete Request'}
             </button>
-            <button 
-              type="button"
-              disabled={loading} 
-              onClick={() => handleUpdate('rejected')} 
-              className="px-5 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 font-extrabold hover:bg-rose-100 rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Reject Request'}
-            </button>
-            <button 
-              type="button"
-              disabled={loading} 
-              onClick={() => handleUpdate('approved')} 
-              className="px-6 py-2.5 bg-emerald-600 text-white font-extrabold hover:bg-emerald-700 rounded-xl text-xs transition cursor-pointer shadow-sm disabled:opacity-50"
-            >
-              {loading ? 'Processing...' : 'Approve Excuse'}
-            </button>
+
+            <div className="flex gap-2 justify-end flex-wrap">
+              <button 
+                type="button"
+                onClick={onClose} 
+                className="px-4 py-2.5 text-slate-700 font-extrabold bg-slate-100 hover:bg-slate-200 rounded-xl text-xs transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button"
+                disabled={loading || isDeleting} 
+                onClick={() => handleUpdate('rejected')} 
+                className="px-5 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 font-extrabold hover:bg-rose-100 rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : 'Reject Request'}
+              </button>
+              <button 
+                type="button"
+                disabled={loading || isDeleting} 
+                onClick={() => handleUpdate('approved')} 
+                className="px-6 py-2.5 bg-emerald-600 text-white font-extrabold hover:bg-emerald-700 rounded-xl text-xs transition cursor-pointer shadow-sm disabled:opacity-50"
+              >
+                {loading ? 'Processing...' : 'Approve Excuse'}
+              </button>
+            </div>
           </div>
         </div>
       </Modal>
