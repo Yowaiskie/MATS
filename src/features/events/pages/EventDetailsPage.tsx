@@ -145,54 +145,33 @@ export const EventDetailsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Tabs Placeholder */}
-      <div className="border-b border-gray-200 flex space-x-6 px-1 overflow-x-auto whitespace-nowrap hide-scrollbar">
-        <button 
-          onClick={() => setActiveTab('overview')}
-          className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'overview' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          Overview
-        </button>
-        <button 
-          onClick={() => setActiveTab('team')}
-          className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'team' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          Team
-        </button>
-        <button 
-          onClick={() => setActiveTab('tasks')}
-          className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'tasks' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          Tasks
-        </button>
-        <button 
-          onClick={() => setActiveTab('timeline')}
-          className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'timeline' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          Timeline
-        </button>
-        {(canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
-          <button 
-            onClick={() => setActiveTab('finance')}
-            className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'finance' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            Finance
-          </button>
-        )}
-        <button 
-          onClick={() => setActiveTab('forms')}
-          className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'forms' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-        >
-          Forms
-        </button>
-        {(canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
-          <button 
-            onClick={() => setActiveTab('contributions')}
-            className={`pb-3 border-b-2 text-sm font-bold px-1 transition-colors ${activeTab === 'contributions' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            Contributions
-          </button>
-        )}
+      {/* Sleek Modern Segmented Tabs Bar (Mobile Swipeable & Desktop Responsive) */}
+      <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+        {[
+          { key: 'overview', label: 'Overview' },
+          { key: 'team', label: 'Team' },
+          { key: 'tasks', label: 'Tasks' },
+          { key: 'timeline', label: 'Timeline' },
+          ...((canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? [{ key: 'finance', label: 'Finance' }] : []),
+          { key: 'forms', label: 'Forms' },
+          ...((canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? [{ key: 'contributions', label: 'Contributions' }] : [])
+        ].map((t) => {
+          const isActive = activeTab === t.key
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setActiveTab(t.key as any)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+              }`}
+            >
+              <span className="whitespace-nowrap">{t.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Content Area */}

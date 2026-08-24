@@ -370,40 +370,33 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
           {hasTargetMembers ? (
             <>
               {/* Status Tabs */}
-              <div className="flex items-center space-x-1 bg-slate-100 p-1 rounded-xl">
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('all')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'all'
-                      ? 'bg-white text-blue-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  All Target Members ({eligibleMembersList.length})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('responded')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'responded'
-                      ? 'bg-white text-emerald-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Responded ({totalRespondedCount})
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('pending')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === 'pending'
-                      ? 'bg-white text-amber-700 shadow-xs'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  Not Yet Answered ({totalPendingCount})
-                </button>
+              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                {[
+                  { key: 'all', label: 'All Target Members', count: eligibleMembersList.length },
+                  { key: 'responded', label: 'Responded', count: totalRespondedCount },
+                  { key: 'pending', label: 'Not Yet Answered', count: totalPendingCount }
+                ].map((t) => {
+                  const isActive = activeTab === t.key
+                  return (
+                    <button
+                      key={t.key}
+                      type="button"
+                      onClick={() => setActiveTab(t.key as any)}
+                      className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
+                        isActive
+                          ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
+                          : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                      }`}
+                    >
+                      <span className="whitespace-nowrap">{t.label}</span>
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none ${
+                        isActive ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {t.count}
+                      </span>
+                    </button>
+                  )
+                })}
               </div>
 
               {/* Search & Order Filter Controls */}

@@ -6,7 +6,17 @@ import { AlertModal, PasswordConfirmModal } from '@/components/Dialog'
 import { authService } from '@/services/authService'
 
 // Import types
-import type { FinanceIncome, DirectExpense, FinanceCategory, FinanceFundRequest, FinancePeriod, LedgerEntry } from '@/types/finance'
+import type { 
+  FinanceIncome, 
+  DirectExpense, 
+  FinanceCategory, 
+  FinanceFundRequest, 
+  FinancePeriod, 
+  LedgerEntry,
+  FundRequisitionItem,
+  LiquidationBudgetSource,
+  LiquidationExpenseItem
+} from '@/types/finance'
 
 // Import services
 import { categoryService } from '@/services/finance/categoryService'
@@ -17,9 +27,11 @@ import { ledgerService } from '@/services/finance/ledgerService'
 import { financePeriodService } from '@/services/finance/financePeriodService'
 import { reportService } from '@/services/finance/reportService'
 
-// Import Finance Engine & Report PDF Generator
+// Import Finance Engine & Report PDF Generators
 import { financeEngine } from '@/utils/financeEngine'
 import { FinanceExportModal } from '@/features/finance/components/FinanceExportModal'
+import { FundRequisitionExportModal } from '@/features/finance/components/FundRequisitionExportModal'
+import { LiquidationExportModal } from '@/features/finance/components/LiquidationExportModal'
 
 export const FinancePage: React.FC = () => {
   const { hasModuleAccess, canAction, profile } = useAuth()
@@ -60,6 +72,12 @@ export const FinancePage: React.FC = () => {
   const [isReleaseModalOpen, setIsReleaseModalOpen] = useState(false)
   const [isLiquidationModalOpen, setIsLiquidationModalOpen] = useState(false)
   const [isExportPdfModalOpen, setIsExportPdfModalOpen] = useState(false)
+
+  // Document PDF Export Modals
+  const [isRequisitionExportOpen, setIsRequisitionExportOpen] = useState(false)
+  const [requisitionExportRequest, setRequisitionExportRequest] = useState<FinanceFundRequest | null>(null)
+  const [isLiquidationExportOpen, setIsLiquidationExportOpen] = useState(false)
+  const [liquidationExportRequest, setLiquidationExportRequest] = useState<FinanceFundRequest | null>(null)
 
   // Cancel & Void Modal state
   const [cancelModalRequest, setCancelModalRequest] = useState<FinanceFundRequest | null>(null)
@@ -126,12 +144,19 @@ export const FinancePage: React.FC = () => {
   const catIcon = 'clipboard'
   const [catColor, setCatColor] = useState('blue')
 
-  // Form states - Fund Request (Formatted Text)
+  // Form states - Fund Request (Formatted Text & Dynamic Items)
   const [reqTitle, setReqTitle] = useState('')
   const [reqPurpose, setReqPurpose] = useState('')
   const [reqAmount, setReqAmount] = useState('')
   const [reqDateNeeded, setReqDateNeeded] = useState(getLocalYYYYMMDD())
   const [reqDesc, setReqDesc] = useState('')
+  const [reqFromMinistry, setReqFromMinistry] = useState('The MINISTRY OF ALTAR SERVERS')
+  const [reqVenue, setReqVenue] = useState('N/A')
+  const [reqParticipants, setReqParticipants] = useState('N/A')
+  const [reqAssembly, setReqAssembly] = useState('N/A')
+  const [reqExpectedExpenses, setReqExpectedExpenses] = useState<FundRequisitionItem[]>([
+    { id: 'item-1', intendedUse: '', unitPrice: '', quantity: '', amount: 0 }
+  ])
 
   // Form states - Release (Formatted Text)
   const [relToName, setRelToName] = useState('')
@@ -139,15 +164,21 @@ export const FinancePage: React.FC = () => {
   const [relDate, setRelDate] = useState(getLocalYYYYMMDD())
   const [relRemarks, setRelRemarks] = useState('')
 
-  // Form states - Liquidation (Formatted Text)
-  const [liqSpent, setLiqSpent] = useState('')
-  const [liqReturned, setLiqReturned] = useState('')
+  // Form states - Liquidation (Dynamic Tables & Summary)
+  const [liqTo, setLiqTo] = useState('Rev. Fr. ILDEFONSO DE GUZMAN JR., Parish Priest')
+  const [liqFrom, setLiqFrom] = useState('MINISTRY OF ALTAR SERVERS')
+  const [liqDate, setLiqDate] = useState(getLocalYYYYMMDD())
+  const [liqBudgetSources, setLiqBudgetSources] = useState<LiquidationBudgetSource[]>([])
+  const [liqExpenses, setLiqExpenses] = useState<LiquidationExpenseItem[]>([])
   const [liqRemarks, setLiqRemarks] = useState('')
 
   // Filter States - General / Reports (Start and End of current month local time)
   const [reportStartDate, setReportStartDate] = useState(getLocalYYYYMMDD(new Date(new Date().getFullYear(), new Date().getMonth(), 1)))
   const [reportEndDate, setReportEndDate] = useState(getLocalYYYYMMDD(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)))
   const [reportData, setReportData] = useState<any>(null)
+
+  // Action Menu Dropdown state for requests table
+  const [actionMenuReqId, setActionMenuReqId] = useState<string | null>(null)
 
   // Check if page should render
   if (!hasModuleAccess('finance')) {
@@ -185,6 +216,17 @@ export const FinancePage: React.FC = () => {
     fetchData()
   }, [showArchived])
 
+  // Close row action dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (!(e.target as HTMLElement).closest('.action-menu-container')) {
+        setActionMenuReqId(null)
+      }
+    }
+    document.addEventListener('click', handleClickOutside)
+    return () => document.removeEventListener('click', handleClickOutside)
+  }, [])
+
   // Calculate current month identifier
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), [])
 
@@ -192,6 +234,11 @@ export const FinancePage: React.FC = () => {
   const summary = useMemo(() => {
     return financeEngine.computeMonthlySummary(ledgerEntries, requests, currentMonthStr)
   }, [ledgerEntries, requests, currentMonthStr])
+
+  // Pending requests count for tab notification badge
+  const pendingRequestsCount = useMemo(() => {
+    return requests.filter(r => r.status === 'pending' && !r.isArchived).length
+  }, [requests])
 
   // Last 6 months trend calculations
   const monthlyTrends = useMemo(() => {
@@ -293,9 +340,22 @@ export const FinancePage: React.FC = () => {
     setter(parts.join('.'))
   }
 
-  // Helper to parse comma formatted string to pure number
-  const parseAmount = (val: string): number => {
-    return Number(val.replace(/,/g, '')) || 0
+  // Format single value string with real-time commas
+  const formatCommaAmount = (val: string | number | undefined): string => {
+    if (val === '' || val === undefined || val === null) return ''
+    const str = String(val).replace(/,/g, '')
+    const clean = str.replace(/[^0-9.]/g, '')
+    const parts = clean.split('.')
+    if (parts.length > 2) return parts[0] + '.' + parts[1]
+    parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+    return parts.join('.')
+  }
+
+  // Helper to parse comma formatted string or number to pure number
+  const parseAmount = (val: string | number | undefined): number => {
+    if (typeof val === 'number') return isNaN(val) ? 0 : val
+    if (!val) return 0
+    return Number(String(val).replace(/,/g, '')) || 0
   }
 
   // Category Modal Helpers
@@ -522,12 +582,20 @@ export const FinancePage: React.FC = () => {
   // Handle Save Fund Request
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!reqTitle || !reqPurpose || !reqAmount || !reqDateNeeded) {
+    if (!reqTitle || !reqPurpose || !reqDateNeeded) {
       setErrorMsg('Please populate all mandatory request fields.')
       return
     }
     if (isPeriodClosed(reqDateNeeded)) {
       setErrorMsg('The selected period is closed.')
+      return
+    }
+
+    const calculatedTotal = reqExpectedExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+    const finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(reqAmount)
+
+    if (finalAmount <= 0) {
+      setErrorMsg('Please enter a valid requested amount or add expected expense items.')
       return
     }
 
@@ -538,11 +606,16 @@ export const FinancePage: React.FC = () => {
         {
           title: reqTitle.trim(),
           purpose: reqPurpose.trim(),
-          requestedAmount: parseAmount(reqAmount),
+          requestedAmount: finalAmount,
           requestedByUid: profile?.uid || 'Unknown',
           requestedByName: profile?.displayName || 'User',
           dateNeeded: reqDateNeeded,
           description: reqDesc.trim(),
+          fromMinistry: reqFromMinistry.trim() || 'The MINISTRY OF ALTAR SERVERS',
+          venue: reqVenue.trim() || 'N/A',
+          participants: reqParticipants.trim() || 'N/A',
+          assembly: reqAssembly.trim() || 'N/A',
+          expectedExpenses: reqExpectedExpenses.filter(item => item.intendedUse.trim() || Number(item.amount) > 0),
           createdByUid: profile?.uid || 'System',
           createdByName: profile?.displayName || 'Admin'
         },
@@ -554,6 +627,10 @@ export const FinancePage: React.FC = () => {
       setReqPurpose('')
       setReqAmount('')
       setReqDesc('')
+      setReqVenue('N/A')
+      setReqParticipants('N/A')
+      setReqAssembly('N/A')
+      setReqExpectedExpenses([{ id: 'item-1', intendedUse: '', unitPrice: '', quantity: '', amount: 0 }])
       setIsRequestModalOpen(false)
       setSuccessMsg('Fund request submitted successfully.')
       await fetchData()
@@ -723,8 +800,42 @@ export const FinancePage: React.FC = () => {
   // Liquidation Workflow
   const handleLiquidationOpen = (req: FinanceFundRequest) => {
     setSelectedRequest(req)
-    setLiqSpent((req.releasedAmount || req.requestedAmount).toLocaleString())
-    setLiqReturned('0')
+    setLiqTo(req.liquidationTo || 'Rev. Fr. ILDEFONSO DE GUZMAN JR., Parish Priest')
+    setLiqFrom(req.liquidationFrom || 'MINISTRY OF ALTAR SERVERS')
+    setLiqDate(req.liquidationDate || getLocalYYYYMMDD())
+    
+    // Initialize Budget Sources
+    const initialSources: LiquidationBudgetSource[] = req.budgetSources && req.budgetSources.length > 0
+      ? req.budgetSources.map(b => ({ ...b, amount: formatCommaAmount(b.amount) }))
+      : [
+          {
+            id: 'b-1',
+            description: `Parish (Request - ${req.referenceNumber})`,
+            amount: formatCommaAmount(req.releasedAmount || req.requestedAmount || 0)
+          }
+        ]
+    setLiqBudgetSources(initialSources)
+
+    // Initialize Actual Expenses
+    const initialExpenses: LiquidationExpenseItem[] = req.liquidationExpenses && req.liquidationExpenses.length > 0
+      ? req.liquidationExpenses.map(e => ({ ...e, amount: formatCommaAmount(e.amount) }))
+      : (req.expectedExpenses && req.expectedExpenses.length > 0)
+      ? req.expectedExpenses.map((exp, idx) => ({
+          id: `e-${idx + 1}`,
+          orNumber: 'NO O.R',
+          description: exp.intendedUse || 'Expenditure',
+          amount: formatCommaAmount(exp.amount)
+        }))
+      : [
+          {
+            id: 'e-1',
+            orNumber: 'NO O.R',
+            description: req.purpose || req.title || 'Actual Expenditures',
+            amount: formatCommaAmount(req.releasedAmount || req.requestedAmount || 0)
+          }
+        ]
+    setLiqExpenses(initialExpenses)
+    setLiqRemarks(req.liquidationRemarks || '')
     setIsLiquidationModalOpen(true)
   }
 
@@ -732,12 +843,13 @@ export const FinancePage: React.FC = () => {
     e.preventDefault()
     if (!selectedRequest) return
     
-    const releasedAmt = selectedRequest.releasedAmount || selectedRequest.requestedAmount
-    const spent = parseAmount(liqSpent)
-    const ret = parseAmount(liqReturned)
+    const totalBudget = liqBudgetSources.reduce((sum, b) => sum + parseAmount(b.amount), 0)
+    const totalSpent = liqExpenses.reduce((sum, exp) => sum + parseAmount(exp.amount), 0)
+    const returnedAmount = Math.max(0, totalBudget - totalSpent)
+    const reimbursedAmount = Math.max(0, totalSpent - totalBudget)
 
-    if (spent + ret !== releasedAmt) {
-      setErrorMsg(`Total spent (₱${spent.toLocaleString()}) and returned (₱${ret.toLocaleString()}) must equal the released amount (₱${releasedAmt.toLocaleString()}).`)
+    if (totalBudget <= 0 && totalSpent <= 0) {
+      setErrorMsg('Please specify budget sources or actual expenses for this liquidation.')
       return
     }
 
@@ -747,10 +859,16 @@ export const FinancePage: React.FC = () => {
       await fundRequestService.submitLiquidation(
         selectedRequest.id,
         {
-          totalSpent: spent,
+          totalSpent,
           remainingAmount: 0,
-          returnedAmount: ret,
-          remarks: liqRemarks.trim()
+          returnedAmount,
+          reimbursedAmount,
+          remarks: liqRemarks.trim(),
+          liquidationTo: liqTo.trim(),
+          liquidationFrom: liqFrom.trim(),
+          liquidationDate: liqDate,
+          budgetSources: liqBudgetSources.filter(b => b.description.trim() || parseAmount(b.amount) > 0),
+          liquidationExpenses: liqExpenses.filter(e => e.description.trim() || parseAmount(e.amount) > 0)
         },
         profile?.uid || 'User',
         profile?.displayName || 'User'
@@ -758,7 +876,7 @@ export const FinancePage: React.FC = () => {
       setIsLiquidationModalOpen(false)
       setSelectedRequest(null)
       setLiqRemarks('')
-      setSuccessMsg('Liquidation report submitted.')
+      setSuccessMsg('Liquidation report recorded successfully.')
       await fetchData()
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to submit liquidation.')
@@ -783,6 +901,78 @@ export const FinancePage: React.FC = () => {
     } finally {
       setSaving(false)
     }
+  }
+
+  // Row Helpers: Requisition Expected Expenses
+  const handleAddReqExpenseRow = () => {
+    setReqExpectedExpenses(prev => [
+      ...prev,
+      { id: `item-${Date.now()}`, intendedUse: '', unitPrice: '', quantity: '', amount: '' }
+    ])
+  }
+
+  const handleUpdateReqExpenseRow = (index: number, field: keyof FundRequisitionItem, value: any) => {
+    setReqExpectedExpenses(prev => {
+      const next = [...prev]
+      const finalVal = field === 'amount' ? formatCommaAmount(value) : value
+      next[index] = { ...next[index], [field]: finalVal }
+      return next
+    })
+  }
+
+  const handleRemoveReqExpenseRow = (index: number) => {
+    setReqExpectedExpenses(prev => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length > 0 ? next : [{ id: `item-${Date.now()}`, intendedUse: '', unitPrice: '', quantity: '', amount: '' }]
+    })
+  }
+
+  // Row Helpers: Liquidation Budget Sources
+  const handleAddLiqBudgetRow = () => {
+    setLiqBudgetSources(prev => [
+      ...prev,
+      { id: `b-${Date.now()}`, description: '', amount: '' }
+    ])
+  }
+
+  const handleUpdateLiqBudgetRow = (index: number, field: keyof LiquidationBudgetSource, value: any) => {
+    setLiqBudgetSources(prev => {
+      const next = [...prev]
+      const finalVal = field === 'amount' ? formatCommaAmount(value) : value
+      next[index] = { ...next[index], [field]: finalVal }
+      return next
+    })
+  }
+
+  const handleRemoveLiqBudgetRow = (index: number) => {
+    setLiqBudgetSources(prev => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length > 0 ? next : [{ id: `b-${Date.now()}`, description: '', amount: '' }]
+    })
+  }
+
+  // Row Helpers: Liquidation Actual Expenses
+  const handleAddLiqExpenseRow = () => {
+    setLiqExpenses(prev => [
+      ...prev,
+      { id: `e-${Date.now()}`, orNumber: 'NO O.R', description: '', amount: '' }
+    ])
+  }
+
+  const handleUpdateLiqExpenseRow = (index: number, field: keyof LiquidationExpenseItem, value: any) => {
+    setLiqExpenses(prev => {
+      const next = [...prev]
+      const finalVal = field === 'amount' ? formatCommaAmount(value) : value
+      next[index] = { ...next[index], [field]: finalVal }
+      return next
+    })
+  }
+
+  const handleRemoveLiqExpenseRow = (index: number) => {
+    setLiqExpenses(prev => {
+      const next = prev.filter((_, i) => i !== index)
+      return next.length > 0 ? next : [{ id: `e-${Date.now()}`, orNumber: 'NO O.R', description: '', amount: '' }]
+    })
   }
 
   // Soft Archiving & Restoring Operations
@@ -1130,110 +1320,127 @@ export const FinancePage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Mobile Tab Selector & Archive Toggle */}
-      <div className="sm:hidden mb-4 flex items-center gap-2">
-        <div className="relative flex-1">
-          <select
-            id="finance-tabs"
-            name="finance-tabs"
-            className="block w-full appearance-none rounded-xl border border-gray-200 bg-white py-3 pl-4 pr-10 text-sm font-bold text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 shadow-2xs cursor-pointer"
-            value={activeTab}
-            onChange={(e) => setActiveTab(e.target.value as any)}
-          >
-            <optgroup label="Overview & Reports">
-              <option value="dashboard">Dashboard</option>
-              <option value="reports">Financial Reports</option>
-            </optgroup>
-            <optgroup label="Transactions">
-              <option value="requests">Fund Requests</option>
-              <option value="income">Incomes</option>
-              <option value="expenses">Direct Expenses</option>
-              <option value="ledger">Ledger</option>
-            </optgroup>
-            <optgroup label="Settings">
-              <option value="categories">Categories</option>
-              <option value="closing">Lock Periods</option>
-            </optgroup>
-          </select>
-          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-blue-500">
-            <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
-            </svg>
-          </div>
+      {/* Sleek Modern Tabs Navigation Bar (Mobile Swipeable & Desktop Responsive) */}
+      <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 px-0.5 flex-1">
+          {[
+            { 
+              key: 'dashboard', 
+              label: 'Dashboard', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'requests', 
+              label: 'Fund Requests', 
+              badge: pendingRequestsCount > 0 ? pendingRequestsCount : undefined,
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'income', 
+              label: 'Incomes', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'expenses', 
+              label: 'Expenses', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'ledger', 
+              label: 'Ledger', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'reports', 
+              label: 'Reports', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'categories', 
+              label: 'Categories', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              ) 
+            },
+            { 
+              key: 'closing', 
+              label: 'Lock Periods', 
+              icon: (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+              ) 
+            }
+          ].map((t) => {
+            const isActive = activeTab === t.key
+            return (
+              <button
+                key={t.key}
+                type="button"
+                onClick={() => setActiveTab(t.key as any)}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                }`}
+              >
+                <span className={isActive ? 'text-blue-100' : 'text-slate-400'}>
+                  {t.icon}
+                </span>
+                <span className="whitespace-nowrap">{t.label}</span>
+                {t.badge !== undefined && (
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none ${
+                    isActive ? 'bg-white text-blue-700' : 'bg-amber-100 text-amber-800'
+                  }`}>
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
 
+        {/* Global Archive Filter Toggle */}
         <button
           type="button"
           onClick={() => setShowArchived(!showArchived)}
-          title={showArchived ? 'Hide Archives' : 'View Archives'}
-          className={`flex items-center justify-center p-3 rounded-xl border transition-all cursor-pointer ${
+          title={showArchived ? 'Hide Archived Records' : 'Show Archived Records'}
+          className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl border transition-all shrink-0 cursor-pointer ${
             showArchived
-              ? 'bg-amber-100 text-amber-900 border-amber-300'
-              : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-          }`}
-        >
-          <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-          </svg>
-        </button>
-      </div>
-
-      {/* Desktop Tabs list */}
-      <div className="hidden sm:flex border border-gray-200 bg-white p-2 rounded-xl shadow-2xs flex-wrap items-center gap-2">
-        {[
-          { key: 'dashboard', label: 'Dashboard', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
-          ) },
-          { key: 'requests', label: 'Fund Requests', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          ) },
-          { key: 'income', label: 'Incomes', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
-          ) },
-          { key: 'expenses', label: 'Expenses', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" /></svg>
-          ) },
-          { key: 'ledger', label: 'Ledger', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-          ) },
-          { key: 'reports', label: 'Reports', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
-          ) },
-          { key: 'categories', label: 'Categories', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" /></svg>
-          ) },
-          { key: 'closing', label: 'Lock Periods', icon: (
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
-          ) }
-        ].map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key as any)}
-            className={`flex items-center space-x-2 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
-              activeTab === t.key
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
-            }`}
-          >
-            <span className={activeTab === t.key ? 'text-blue-100' : 'text-gray-400'}>{t.icon}</span>
-            <span>{t.label}</span>
-          </button>
-        ))}
-
-        {/* View Archives Global Toggle Button */}
-        <button
-          type="button"
-          onClick={() => setShowArchived(!showArchived)}
-          className={`flex items-center space-x-1.5 px-3 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer sm:ml-auto ${
-            showArchived
-              ? 'bg-amber-100 text-amber-900 border border-amber-300 shadow-xs'
-              : 'bg-gray-50 text-gray-600 hover:bg-gray-100 hover:text-gray-900 border border-gray-200'
+              ? 'bg-amber-100 text-amber-900 border-amber-300 shadow-xs'
+              : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border-slate-200/80 shadow-2xs'
           }`}
         >
           <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
           </svg>
-          <span>{showArchived ? 'Hide Archives' : 'View Archives'}</span>
+          <span className="hidden md:inline">{showArchived ? 'Hide Archives' : 'Archives'}</span>
         </button>
       </div>
 
@@ -1996,8 +2203,8 @@ export const FinancePage: React.FC = () => {
                 </div>
               )}
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
-                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3 w-10 text-center">
@@ -2017,7 +2224,7 @@ export const FinancePage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {requests.map((req) => (
+                    {requests.map((req, idx) => (
                       <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
                         <td className="p-3 text-center">
                           <input
@@ -2069,63 +2276,251 @@ export const FinancePage: React.FC = () => {
                             {req.status}
                           </span>
                         </td>
-                        <td className="p-3 space-x-2 whitespace-nowrap">
+                        <td className="p-3">
                           {req.isArchived ? (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => handleRestoreRequest(req.id)}
-                                className="text-emerald-600 font-bold hover:underline cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
                               >
-                                Restore
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Restore</span>
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
-                                className="text-red-600 font-bold hover:underline cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
                               >
-                                Delete
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete</span>
                               </button>
                             </div>
                           ) : (
-                            <>
+                            <div className="flex items-center gap-2">
+                              {/* 1. Primary Lifecycle Action Button */}
                               {req.status === 'pending' && (
-                                <>
-                                  <button onClick={() => handleApproveRequest(req.id)} className="text-emerald-600 font-bold hover:underline cursor-pointer">Approve</button>
-                                  <button onClick={() => setShowRejectionInput(req.id)} className="text-red-600 font-bold hover:underline cursor-pointer">Reject</button>
-                                  <button onClick={() => handleOpenCancelModal(req)} className="text-slate-600 font-bold hover:underline cursor-pointer">Cancel</button>
-                                </>
+                                <button
+                                  onClick={() => handleApproveRequest(req.id)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>Approve</span>
+                                </button>
                               )}
+
                               {req.status === 'approved' && (
-                                <>
-                                  <button onClick={() => handleReleaseOpen(req)} className="text-amber-600 font-bold hover:underline cursor-pointer">Release Funds</button>
-                                  <button onClick={() => handleOpenCancelModal(req)} className="text-slate-600 font-bold hover:underline cursor-pointer">Cancel</button>
-                                </>
+                                <button
+                                  onClick={() => handleReleaseOpen(req)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  <span>Release Funds</span>
+                                </button>
                               )}
+
                               {req.status === 'released' && (
-                                <>
-                                  <button onClick={() => handleLiquidationOpen(req)} className="text-indigo-600 font-bold hover:underline cursor-pointer">Liquidate</button>
-                                  <button onClick={() => handleOpenVoidModal(req)} className="text-rose-600 font-bold hover:underline cursor-pointer">Void</button>
-                                </>
+                                <button
+                                  onClick={() => handleLiquidationOpen(req)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                  </svg>
+                                  <span>Liquidate</span>
+                                </button>
                               )}
+
                               {req.status === 'liquidated' && (
-                                <>
-                                  <button onClick={() => handleReviewLiquidation(req.id)} className="text-emerald-700 font-bold hover:underline cursor-pointer">Review & Close</button>
-                                  <button onClick={() => handleOpenVoidModal(req)} className="text-rose-600 font-bold hover:underline cursor-pointer">Void</button>
-                                </>
+                                <button
+                                  onClick={() => handleReviewLiquidation(req.id)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>Review & Close</span>
+                                </button>
                               )}
-                              <button onClick={() => handleArchiveRequest(req.id)} className="text-gray-400 hover:text-red-600 text-xs font-semibold cursor-pointer">Archive</button>
-                            </>
+
+                              {/* 2. Actions & PDF Menu Dropdown */}
+                              <div className="relative action-menu-container">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
+                                  }}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border rounded-lg transition-colors cursor-pointer ${
+                                    actionMenuReqId === req.id
+                                      ? 'bg-slate-100 border-slate-300 text-slate-900 shadow-2xs'
+                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <span>Actions</span>
+                                  <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+
+                                {actionMenuReqId === req.id && (
+                                  <div className={`absolute right-0 ${idx >= requests.length - 2 && requests.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'} w-52 max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
+                                    {/* Group: PDF Documents */}
+                                    <div className="py-1">
+                                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Documents & Exports
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          setRequisitionExportRequest(req)
+                                          setIsRequisitionExportOpen(true)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-blue-50 text-blue-700 font-semibold cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        <span>Requisition PDF</span>
+                                      </button>
+
+                                      {(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)) && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            setLiquidationExportRequest(req)
+                                            setIsLiquidationExportOpen(true)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                          </svg>
+                                          <span>Liquidation PDF</span>
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {/* Group: Workflow Operations */}
+                                    <div className="py-1">
+                                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                        Management
+                                      </div>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          setHistoryRequest(req)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        <span>Workflow History</span>
+                                      </button>
+
+                                      {req.status === 'pending' && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            setShowRejectionInput(req.id)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                          <span>Reject Request</span>
+                                        </button>
+                                      )}
+
+                                      {(req.status === 'pending' || req.status === 'approved') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            handleOpenCancelModal(req)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                          </svg>
+                                          <span>Cancel Request</span>
+                                        </button>
+                                      )}
+
+                                      {(req.status === 'released' || req.status === 'liquidated') && (
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            handleOpenVoidModal(req)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                          </svg>
+                                          <span>Void Transaction</span>
+                                        </button>
+                                      )}
+
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          handleArchiveRequest(req.id)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-500 hover:text-red-600 font-medium cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                        </svg>
+                                        <span>Archive</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
                           )}
 
                           {showRejectionInput === req.id && (
-                            <div className="mt-2 p-2 bg-gray-50 border border-gray-200 rounded-lg space-y-2">
+                            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-2 animate-fade-in">
                               <input
                                 type="text"
-                                placeholder="Rejection reason..."
+                                placeholder="Reason for rejection..."
                                 value={rejectionReason}
                                 onChange={(e) => setRejectionReason(e.target.value)}
-                                className="w-full text-xs p-1.5 border border-gray-300 rounded"
+                                className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-rose-500"
                               />
-                              <button onClick={() => handleRejectRequest(req.id)} className="bg-red-600 text-white px-2.5 py-1 rounded text-[10px]">Submit Rejection</button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => { setShowRejectionInput(null); setRejectionReason(''); }}
+                                  className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRejectRequest(req.id)}
+                                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
+                                >
+                                  Confirm Rejection
+                                </button>
+                              </div>
                             </div>
                           )}
                         </td>
@@ -2627,40 +3022,240 @@ export const FinancePage: React.FC = () => {
 
       {/* Create Request Modal */}
       {isRequestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h4 className="text-sm font-bold text-gray-900">Request Allocation Funds</h4>
-            <form onSubmit={handleCreateRequest} className="space-y-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Title</label>
-                <input type="text" required placeholder="e.g. Choir Food Supplies" value={reqTitle} onChange={(e) => setReqTitle(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                  Procurement & Requisition
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">Request Allocation Funds</h4>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsRequestModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleCreateRequest} className="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Top Metadata Grid */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Request Details</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Request Title *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="e.g. Replenishing of Liturgical Supplies" 
+                      value={reqTitle} 
+                      onChange={(e) => setReqTitle(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Purpose / Intended Objective *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Detailed purpose" 
+                      value={reqPurpose} 
+                      onChange={(e) => setReqPurpose(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Date Needed *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={reqDateNeeded} 
+                      onChange={(e) => setReqDateNeeded(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">From (Requester Unit)</label>
+                    <input 
+                      type="text" 
+                      value={reqFromMinistry} 
+                      onChange={(e) => setReqFromMinistry(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity / Logistics Metadata */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">2. Logistics & Activity Info</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Participants</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. N/A or 15 Servers" 
+                      value={reqParticipants} 
+                      onChange={(e) => setReqParticipants(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Venue</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. N/A or Parish Hall" 
+                      value={reqVenue} 
+                      onChange={(e) => setReqVenue(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Assembly / Gathering Time</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. N/A or 6:00 AM" 
+                      value={reqAssembly} 
+                      onChange={(e) => setReqAssembly(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Expected Expenses Table */}
+              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>3. Expected Expenses Breakdown</span>
+                    </h5>
+                    <p className="text-[10px] text-gray-500">I-lista ang mga bibilhin o gastusin (tulad ng nasa requisition format).</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddReqExpenseRow}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <span>+ Add Item Row</span>
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
+                      <tr>
+                        <th className="p-2 text-left min-w-[140px]">Intended Use</th>
+                        <th className="p-2 text-center min-w-[120px]">Unit Price</th>
+                        <th className="p-2 text-center min-w-[110px]">Quantity</th>
+                        <th className="p-2 text-right min-w-[100px]">Amount (₱)</th>
+                        <th className="p-2 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {reqExpectedExpenses.map((item, idx) => (
+                        <tr key={item.id || idx} className="hover:bg-gray-50/50">
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. Candle Sticks"
+                              value={item.intendedUse}
+                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'intendedUse', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. ₱175 per plastic"
+                              value={item.unitPrice}
+                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'unitPrice', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. 2 plastic 6 pairs"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'quantity', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={item.amount !== undefined && item.amount !== null ? String(item.amount) : ''}
+                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'amount', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
+                            />
+                          </td>
+                          <td className="p-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveReqExpenseRow(idx)}
+                              className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                              title="Remove item"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                      <tr>
+                        <td colSpan={3} className="p-2.5 text-slate-800 text-right uppercase text-[11px]">
+                          Total Calculated Requisition Amount:
+                        </td>
+                        <td className="p-2.5 text-right font-black text-sm text-blue-700 font-mono">
+                          ₱{reqExpectedExpenses.reduce((s, i) => s + parseAmount(i.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Description & Remarks */}
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Purpose Description</label>
-                <input type="text" required placeholder="Detailed objective" value={reqPurpose} onChange={(e) => setReqPurpose(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
+                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Additional Notes / Description Explanation</label>
+                <textarea 
+                  value={reqDesc} 
+                  onChange={(e) => setReqDesc(e.target.value)} 
+                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs" 
+                  rows={2}
+                  placeholder="Any further justifications or details..."
+                ></textarea>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Requested Amount (₱)</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="0.00" 
-                  value={reqAmount} 
-                  onChange={(e) => handleNumberChange(e.target.value, setReqAmount)} 
-                  className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" 
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Date Needed</label>
-                <input type="date" required value={reqDateNeeded} onChange={(e) => setReqDateNeeded(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Description Explanation</label>
-                <textarea value={reqDesc} onChange={(e) => setReqDesc(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setIsRequestModalOpen(false)} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700">Submit Request</button>
+
+              {/* Sticky Modal Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button 
+                  type="button" 
+                  onClick={() => setIsRequestModalOpen(false)} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {saving ? 'Submitting...' : 'Submit Fund Requisition'}
+                </button>
               </div>
             </form>
           </div>
@@ -2674,8 +3269,13 @@ export const FinancePage: React.FC = () => {
             <h4 className="text-sm font-bold text-gray-900">Release Approved Allocation</h4>
 
             {selectedRequest.targetEventName && (
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 leading-relaxed">
-                🏛️ <strong>Event Budget Allocation:</strong> Releasing these funds will automatically credit them to the event <strong>"{selectedRequest.targetEventName}"</strong> as Event Income in its financial ledger.
+              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 leading-relaxed flex items-start gap-2">
+                <span className="shrink-0 px-1.5 py-0.5 bg-indigo-200 text-indigo-900 rounded font-bold text-[10px] uppercase">
+                  Event
+                </span>
+                <div>
+                  <strong>Event Budget Allocation:</strong> Releasing these funds will automatically credit them to the event <strong>"{selectedRequest.targetEventName}"</strong> as Event Income in its financial ledger.
+                </div>
               </div>
             )}
 
@@ -2714,42 +3314,291 @@ export const FinancePage: React.FC = () => {
 
       {/* Submit Liquidation Modal */}
       {isLiquidationModalOpen && selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
-            <h4 className="text-sm font-bold text-gray-900">Record Liquidation Expenditures</h4>
-            <div className="text-xs p-3 bg-gray-50 rounded-lg border border-gray-200 text-gray-600">
-              Released Funds: <strong className="text-gray-900">₱{(selectedRequest.releasedAmount || selectedRequest.requestedAmount).toLocaleString()}</strong>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                  Liquidation Statement
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">Record Liquidation Expenditures</h4>
+                <p className="text-[10px] font-mono text-gray-500">Voucher Ref: {selectedRequest.referenceNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsLiquidationModalOpen(false); setSelectedRequest(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1"
+              >
+                ✕
+              </button>
             </div>
-            <form onSubmit={handleLiquidationSubmit} className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Total Spent (₱)</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="0.00" 
-                  value={liqSpent} 
-                  onChange={(e) => handleNumberChange(e.target.value, setLiqSpent)} 
-                  className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" 
-                />
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleLiquidationSubmit} className="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Header Info */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Liquidation Memo Header</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">To (Parish Priest / Addressee) *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={liqTo} 
+                      onChange={(e) => setLiqTo(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">From *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={liqFrom} 
+                      onChange={(e) => setLiqFrom(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Liquidation Date *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={liqDate} 
+                      onChange={(e) => setLiqDate(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-indigo-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Activity / Requisition Title</label>
+                    <input 
+                      type="text" 
+                      disabled
+                      value={selectedRequest.title} 
+                      className="w-full p-2.5 border border-gray-200 rounded-xl bg-gray-100 text-gray-600 font-semibold text-xs" 
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Returned Excess (₱)</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="0.00" 
-                  value={liqReturned} 
-                  onChange={(e) => handleNumberChange(e.target.value, setLiqReturned)} 
-                  className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" 
-                />
+
+              {/* Live KPI Metric Cards */}
+              {(() => {
+                const curBudget = liqBudgetSources.reduce((s, b) => s + parseAmount(b.amount), 0)
+                const curSpent = liqExpenses.reduce((s, e) => s + parseAmount(e.amount), 0)
+                const curReturned = Math.max(0, curBudget - curSpent)
+                const curReimbursed = Math.max(0, curSpent - curBudget)
+
+                return (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100">
+                    <div className="p-2.5 bg-white rounded-xl border border-indigo-100 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase text-gray-500 block">Total Budget</span>
+                      <span className="text-sm font-black text-indigo-900 font-mono">₱{curBudget.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-indigo-100 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase text-gray-500 block">Total Expenses</span>
+                      <span className="text-sm font-black text-rose-700 font-mono">₱{curSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-indigo-100 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase text-gray-500 block">Returned (Sukli)</span>
+                      <span className={`text-sm font-black font-mono ${curReturned > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                        ₱{curReturned.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div className="p-2.5 bg-white rounded-xl border border-indigo-100 shadow-2xs">
+                      <span className="text-[10px] font-bold uppercase text-gray-500 block">Reimbursed (Abono)</span>
+                      <span className={`text-sm font-black font-mono ${curReimbursed > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                        ₱{curReimbursed.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })()}
+
+              {/* Table 1: BUDGET INFO | SPONSORS */}
+              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      <span>2. Budget Info | Sponsors</span>
+                    </h5>
+                    <p className="text-[10px] text-gray-500">I-lista ang pondo mula sa Parish o mga donors/sponsors.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddLiqBudgetRow}
+                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded-lg border border-emerald-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <span>+ Add Budget Source</span>
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
+                      <tr>
+                        <th className="p-2 text-left">Expense / Source Description</th>
+                        <th className="p-2 text-right w-40">Amount (₱)</th>
+                        <th className="p-2 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {liqBudgetSources.map((source, idx) => (
+                        <tr key={source.id || idx} className="hover:bg-gray-50/50">
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. Parish (Request) o Sponsor Name"
+                              value={source.description}
+                              onChange={(e) => handleUpdateLiqBudgetRow(idx, 'description', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={source.amount !== undefined && source.amount !== null ? String(source.amount) : ''}
+                              onChange={(e) => handleUpdateLiqBudgetRow(idx, 'amount', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
+                            />
+                          </td>
+                          <td className="p-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLiqBudgetRow(idx)}
+                              className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Liquidation remarks</label>
-                <textarea value={liqRemarks} onChange={(e) => setLiqRemarks(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2} required></textarea>
+
+              {/* Table 2: EXPENSES (Actual Receipts) */}
+              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                      </svg>
+                      <span>3. Actual Expenses & Receipts</span>
+                    </h5>
+                    <p className="text-[10px] text-gray-500">I-lista ang mga actual na resibo (O.R.) at mga nagastos.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddLiqExpenseRow}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold rounded-lg border border-indigo-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <span>+ Add Receipt / Expense</span>
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
+                      <tr>
+                        <th className="p-2 text-center w-36">O.R. Number</th>
+                        <th className="p-2 text-left">Expense Description</th>
+                        <th className="p-2 text-right w-36">Amount (₱)</th>
+                        <th className="p-2 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {liqExpenses.map((exp, idx) => (
+                        <tr key={exp.id || idx} className="hover:bg-gray-50/50">
+                          <td className="p-1.5">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="text"
+                                placeholder="e.g. 9240"
+                                value={exp.orNumber}
+                                onChange={(e) => handleUpdateLiqExpenseRow(idx, 'orNumber', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-mono text-center"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateLiqExpenseRow(idx, 'orNumber', exp.orNumber === 'NO O.R' ? '' : 'NO O.R')}
+                                className={`px-1.5 py-1 text-[9px] font-bold rounded border ${exp.orNumber === 'NO O.R' ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                                title="Toggle NO O.R"
+                              >
+                                NO
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. Catering, Banana, Tube Ice..."
+                              value={exp.description}
+                              onChange={(e) => handleUpdateLiqExpenseRow(idx, 'description', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={exp.amount !== undefined && exp.amount !== null ? String(exp.amount) : ''}
+                              onChange={(e) => handleUpdateLiqExpenseRow(idx, 'amount', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
+                            />
+                          </td>
+                          <td className="p-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveLiqExpenseRow(idx)}
+                              className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => { setIsLiquidationModalOpen(false); setSelectedRequest(null); }} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded hover:bg-indigo-700">Submit Report</button>
+
+              {/* Remarks */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Liquidation Remarks</label>
+                <textarea 
+                  value={liqRemarks} 
+                  onChange={(e) => setLiqRemarks(e.target.value)} 
+                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs" 
+                  rows={2}
+                  placeholder="Summary notes regarding the expenditures and receipts..."
+                ></textarea>
+              </div>
+
+              {/* Sticky Modal Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsLiquidationModalOpen(false); setSelectedRequest(null); }} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-xl shadow-md shadow-indigo-500/20 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {saving ? 'Submitting...' : 'Submit Liquidation Statement'}
+                </button>
               </div>
             </form>
           </div>
@@ -2947,6 +3796,26 @@ export const FinancePage: React.FC = () => {
         reportData={reportData}
         startDate={reportStartDate}
         endDate={reportEndDate}
+      />
+
+      {/* Fund Requisition Voucher PDF Modal with Dynamic Signatures */}
+      <FundRequisitionExportModal
+        isOpen={isRequisitionExportOpen}
+        onClose={() => {
+          setIsRequisitionExportOpen(false)
+          setRequisitionExportRequest(null)
+        }}
+        request={requisitionExportRequest}
+      />
+
+      {/* Liquidation Report PDF Modal with Dynamic Signatures */}
+      <LiquidationExportModal
+        isOpen={isLiquidationExportOpen}
+        onClose={() => {
+          setIsLiquidationExportOpen(false)
+          setLiquidationExportRequest(null)
+        }}
+        request={liquidationExportRequest}
       />
     </div>
   )

@@ -73,6 +73,27 @@ export interface FinanceCategory {
   archivedByName?: string
 }
 
+export interface FundRequisitionItem {
+  id: string
+  intendedUse: string
+  unitPrice: string
+  quantity: string
+  amount: number | string
+}
+
+export interface LiquidationBudgetSource {
+  id: string
+  description: string
+  amount: number | string
+}
+
+export interface LiquidationExpenseItem {
+  id: string
+  orNumber: string
+  description: string
+  amount: number | string
+}
+
 export interface FinanceFundRequest {
   id: string
   title: string
@@ -89,6 +110,13 @@ export interface FinanceFundRequest {
   updatedAt: any
   createdByUid: string
   createdByName: string
+
+  // Requisition Details
+  fromMinistry?: string
+  venue?: string
+  participants?: string
+  assembly?: string
+  expectedExpenses?: FundRequisitionItem[]
 
   // Approval / Rejection
   approvedByUid?: string
@@ -125,7 +153,13 @@ export interface FinanceFundRequest {
   totalSpent?: number
   remainingAmount?: number
   returnedAmount?: number
+  reimbursedAmount?: number
   liquidationRemarks?: string
+  liquidationTo?: string
+  liquidationFrom?: string
+  liquidationDate?: string
+  budgetSources?: LiquidationBudgetSource[]
+  liquidationExpenses?: LiquidationExpenseItem[]
   liquidatedByUid?: string
   liquidatedByName?: string
   liquidatedAt?: any

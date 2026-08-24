@@ -198,26 +198,30 @@ export const ReportsPage: React.FC = () => {
         )}
       </div>
 
-      {/* Tabs list triggers */}
-      <div className="flex border-b border-gray-200 space-x-1">
+      {/* Sleek Modern Segmented Tabs Bar (Mobile Swipeable & Desktop Responsive) */}
+      <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {[
           { key: 'summary', label: 'Overall Summary' },
           { key: 'member', label: 'Member Reports' },
           { key: 'schedule', label: 'Schedule Reports' },
           { key: 'monthly', label: 'Monthly Analytics' },
-        ].map((tab) => (
-          <button
-            key={tab.key}
-            onClick={() => setActiveTab(tab.key as TabType)}
-            className={`pb-3 px-1 text-sm font-semibold tracking-wide border-b-2 transition-colors cursor-pointer ${
-              activeTab === tab.key
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-800 hover:border-gray-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        ].map((tab) => {
+          const isActive = activeTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              type="button"
+              onClick={() => setActiveTab(tab.key as TabType)}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
+                isActive
+                  ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+              }`}
+            >
+              <span className="whitespace-nowrap">{tab.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       {/* Filter component */}

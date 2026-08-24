@@ -1,13 +1,15 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/Card'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
 import type { EventIncome, EventExpense, EventFundTransfer } from '@/types/eventFinance'
+import type { FinanceFundRequest } from '@/types/finance'
 import { EventIncomeModal } from './EventIncomeModal'
 import { EventExpenseModal } from './EventExpenseModal'
 import { EventFundRequestModal } from './EventFundRequestModal'
 import { TransferToMainFundsModal } from './TransferToMainFundsModal'
 import { EventFinanceReportModal } from './EventFinanceReportModal'
+import { LiquidationExportModal } from '@/features/finance/components/LiquidationExportModal'
 import { PasswordConfirmModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
 import { authService } from '@/services/authService'
@@ -35,6 +37,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
   const [isFundRequestModalOpen, setIsFundRequestModalOpen] = useState(false)
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false)
   const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [isLiquidationModalOpen, setIsLiquidationModalOpen] = useState(false)
 
   const [deleteConfirm, setDeleteConfirm] = useState<{ isOpen: boolean, id: string, type: 'income' | 'expense' }>({ isOpen: false, id: '', type: 'income' })
   const [archiveConfirm, setArchiveConfirm] = useState<{ isOpen: boolean, id: string, type: 'income' | 'expense' }>({ isOpen: false, id: '', type: 'income' })
@@ -89,6 +92,51 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
     ...incomes.filter(i => !i.isArchived && i.allocation).map(i => i.allocation!),
     ...expenses.filter(e => !e.isArchived && e.allocation).map(e => e.allocation!)
   ])).sort()
+
+  // Pre-generate event liquidation voucher data for modal
+  const eventLiquidationRequest = useMemo<FinanceFundRequest>(() => {
+    const validIncomes = incomes.filter(i => !i.isArchived)
+    const validExpenses = expenses.filter(e => !e.isArchived)
+    const totalInc = validIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0)
+    const totalExp = validExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
+    const today = new Date().toISOString().slice(0, 10)
+
+    return {
+      id: eventId,
+      referenceNumber: `EVT-${eventId.slice(0, 6).toUpperCase()}`,
+      title: eventName,
+      purpose: `Official Liquidation of Event Expenditures for ${eventName}`,
+      description: `Official Liquidation Report for event: ${eventName}`,
+      requestedAmount: totalInc,
+      releasedAmount: totalInc,
+      totalSpent: totalExp,
+      status: 'liquidated',
+      periodId: today.slice(0, 7),
+      dateNeeded: today,
+      requestedByUid: user?.uid || 'event-head',
+      requestedByName: profile?.displayName || 'Event Head',
+      createdByUid: user?.uid || 'event-head',
+      createdByName: profile?.displayName || 'Event Head',
+      liquidatedByName: profile?.displayName || 'Event Head',
+      approvedByName: 'Bro. KYLE VINCENT MADRIAGA',
+      liquidationTo: 'Rev. Fr. ILDEFONSO DE GUZMAN JR.',
+      liquidationFrom: `MINISTRY OF ALTAR SERVERS - ${eventName}`,
+      isArchived: false,
+      budgetSources: validIncomes.map(inc => ({
+        id: inc.id,
+        description: inc.receivedFrom ? `${inc.description || 'Income'} (${inc.receivedFrom})` : (inc.description || 'Event Income Source'),
+        amount: inc.amount
+      })),
+      liquidationExpenses: validExpenses.map(exp => ({
+        id: exp.id,
+        orNumber: 'NO O.R',
+        description: exp.spentOn ? `${exp.description || 'Expense'} - ${exp.spentOn}` : (exp.description || 'Event Expenditure'),
+        amount: exp.amount
+      })),
+      createdAt: new Date() as any,
+      updatedAt: new Date() as any
+    }
+  }, [eventId, eventName, incomes, expenses, profile, user])
 
   const handleConfirmDelete = async (password: string) => {
     if (!user || !profile || !deleteConfirm.id) return
@@ -245,36 +293,45 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
       </div>
 
       {/* Tabs & Actions Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-200 pb-4 space-y-4 sm:space-y-0">
-        <div className="flex space-x-6 px-1 overflow-x-auto whitespace-nowrap hide-scrollbar max-w-full">
-          <button 
-            onClick={() => setActiveTab('income')}
-            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors cursor-pointer ${activeTab === 'income' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            Income ({incomes.length})
-          </button>
-          <button 
-            onClick={() => setActiveTab('expenses')}
-            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors cursor-pointer ${activeTab === 'expenses' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            Expenses ({expenses.length})
-          </button>
-          <button 
-            onClick={() => setActiveTab('transfers')}
-            className={`pb-2 border-b-2 text-sm font-bold px-1 transition-colors cursor-pointer ${activeTab === 'transfers' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-          >
-            Transfers ({transfers.length})
-          </button>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+        <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden w-full sm:w-auto">
+          {[
+            { key: 'income', label: 'Income', count: incomes.length },
+            { key: 'expenses', label: 'Expenses', count: expenses.length },
+            { key: 'transfers', label: 'Transfers', count: transfers.length }
+          ].map((t) => {
+            const isActive = activeTab === t.key
+            return (
+              <button 
+                key={t.key}
+                type="button"
+                onClick={() => setActiveTab(t.key as any)}
+                className={`inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
+                  isActive 
+                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20' 
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                }`}
+              >
+                <span className="whitespace-nowrap">{t.label}</span>
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none ${
+                  isActive ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
+                }`}>
+                  {t.count}
+                </span>
+              </button>
+            )
+          })}
         </div>
-        <div className="flex space-x-2 items-center">
-          <label className="flex items-center gap-2 cursor-pointer mr-4">
+
+        <div className="flex space-x-2 items-center flex-wrap gap-2">
+          <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-2xs text-xs font-semibold text-slate-600 hover:bg-slate-50">
             <input 
               type="checkbox" 
               checked={showArchived}
               onChange={(e) => setShowArchived(e.target.checked)}
               className="text-blue-600 focus:ring-blue-500 h-4 w-4 rounded cursor-pointer"
             />
-            <span className="text-sm font-semibold text-gray-500">Show Archived</span>
+            <span>Show Archived</span>
           </label>
 
           {(isHeadOrCreator || canAction('canAddEventIncome')) && (
@@ -291,10 +348,27 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
           )}
 
           <button
+            type="button"
             onClick={() => setIsReportModalOpen(true)}
-            className="px-4 py-2 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded-md text-sm font-medium hover:bg-indigo-100 transition mr-2 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+            title="Generate Event Financial Report"
           >
-            Generate Report
+            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span>Financial Report</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsLiquidationModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-900 border border-emerald-200 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-95"
+            title="Generate Official Event Liquidation Report (PDF)"
+          >
+            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+            </svg>
+            <span>Liquidation Report (PDF)</span>
           </button>
 
           {(activeTab === 'income' && (isHeadOrCreator || canAction('canAddEventIncome'))) && (
@@ -546,6 +620,11 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         incomes={incomes}
         expenses={expenses}
         transfers={transfers}
+      />
+      <LiquidationExportModal
+        isOpen={isLiquidationModalOpen}
+        onClose={() => setIsLiquidationModalOpen(false)}
+        request={eventLiquidationRequest}
       />
       <PasswordConfirmModal
         isOpen={deleteConfirm.isOpen}

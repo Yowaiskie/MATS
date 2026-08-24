@@ -357,23 +357,27 @@ export const SchedulesPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Schedule Management</h1>
-          <div className="flex gap-4 mt-3 border-b border-gray-200">
-            <button
-              onClick={() => setActiveTab('schedules')}
-              className={`pb-2 text-sm font-bold transition-colors border-b-2 ${
-                activeTab === 'schedules' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Schedules
-            </button>
-            <button
-              onClick={() => setActiveTab('publications')}
-              className={`pb-2 text-sm font-bold transition-colors border-b-2 ${
-                activeTab === 'publications' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-              }`}
-            >
-              Publications
-            </button>
+          <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 mt-3 w-fit">
+            {[
+              { key: 'schedules', label: 'Schedules' },
+              { key: 'publications', label: 'Publications' }
+            ].map((t) => {
+              const isActive = activeTab === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setActiveTab(t.key as any)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                  }`}
+                >
+                  <span className="whitespace-nowrap">{t.label}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">

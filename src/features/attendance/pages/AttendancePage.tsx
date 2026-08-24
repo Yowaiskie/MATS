@@ -655,7 +655,7 @@ export const AttendancePage: React.FC = () => {
         </div>
 
         {/* Order Group Filter Pills Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto px-4 py-3 border-b border-gray-100 bg-white">
+        <div className="flex items-center gap-2 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden px-4 py-3 border-b border-gray-100 bg-white">
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider shrink-0">Filter Order:</span>
           <button
             type="button"

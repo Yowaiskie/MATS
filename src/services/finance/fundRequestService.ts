@@ -65,6 +65,13 @@ export const fundRequestService = {
           createdByUid: data.createdByUid || '',
           createdByName: data.createdByName || '',
 
+          // Requisition Details
+          fromMinistry: data.fromMinistry || '',
+          venue: data.venue || '',
+          participants: data.participants || '',
+          assembly: data.assembly || '',
+          expectedExpenses: data.expectedExpenses || [],
+
           // Approval / Rejection
           approvedByUid: data.approvedByUid,
           approvedByName: data.approvedByName,
@@ -100,7 +107,13 @@ export const fundRequestService = {
           totalSpent: data.totalSpent,
           remainingAmount: data.remainingAmount,
           returnedAmount: data.returnedAmount,
+          reimbursedAmount: data.reimbursedAmount || 0,
           liquidationRemarks: data.liquidationRemarks,
+          liquidationTo: data.liquidationTo,
+          liquidationFrom: data.liquidationFrom,
+          liquidationDate: data.liquidationDate,
+          budgetSources: data.budgetSources || [],
+          liquidationExpenses: data.liquidationExpenses || [],
           liquidatedByUid: data.liquidatedByUid,
           liquidatedByName: data.liquidatedByName,
           liquidatedAt: data.liquidatedAt,
@@ -148,6 +161,11 @@ export const fundRequestService = {
       requestedByName, 
       dateNeeded, 
       description,
+      fromMinistry,
+      venue,
+      participants,
+      assembly,
+      expectedExpenses,
       targetEventId,
       targetEventName
     } = requestData
@@ -171,6 +189,13 @@ export const fundRequestService = {
         status,
         referenceNumber,
         periodId,
+        fromMinistry: fromMinistry || 'The MINISTRY OF ALTAR SERVERS',
+        venue: venue || 'N/A',
+        participants: participants || 'N/A',
+        assembly: assembly || 'N/A',
+        expectedExpenses: expectedExpenses 
+          ? expectedExpenses.map(item => ({ ...item, amount: Number(String(item.amount).replace(/,/g, '')) || 0 }))
+          : [],
         targetEventId: targetEventId || null,
         targetEventName: targetEventName || null,
         isArchived: false,
@@ -515,11 +540,33 @@ export const fundRequestService = {
    */
   async submitLiquidation(
     id: string,
-    liquidationData: { totalSpent: number; remainingAmount: number; returnedAmount: number; remarks: string },
+    liquidationData: { 
+      totalSpent: number
+      remainingAmount: number
+      returnedAmount: number
+      reimbursedAmount?: number
+      remarks: string
+      liquidationTo?: string
+      liquidationFrom?: string
+      liquidationDate?: string
+      budgetSources?: import('@/types/finance').LiquidationBudgetSource[]
+      liquidationExpenses?: import('@/types/finance').LiquidationExpenseItem[]
+    },
     liquidatedByUid: string,
     liquidatedByName: string
   ): Promise<void> {
-    const { totalSpent, remainingAmount, returnedAmount, remarks } = liquidationData
+    const { 
+      totalSpent, 
+      remainingAmount, 
+      returnedAmount, 
+      reimbursedAmount = 0,
+      remarks,
+      liquidationTo = 'Rev. Fr. ILDEFONSO DE GUZMAN JR., Parish Priest',
+      liquidationFrom = 'MINISTRY OF ALTAR SERVERS',
+      liquidationDate = new Date().toISOString().slice(0, 10),
+      budgetSources = [],
+      liquidationExpenses = []
+    } = liquidationData
 
     try {
       const docRef = doc(db, REQUEST_COLLECTION, id)
@@ -539,7 +586,13 @@ export const fundRequestService = {
         totalSpent: Number(totalSpent),
         remainingAmount: Number(remainingAmount),
         returnedAmount: Number(returnedAmount),
+        reimbursedAmount: Number(reimbursedAmount),
         liquidationRemarks: remarks || '',
+        liquidationTo,
+        liquidationFrom,
+        liquidationDate,
+        budgetSources: budgetSources.map(b => ({ ...b, amount: Number(String(b.amount).replace(/,/g, '')) || 0 })),
+        liquidationExpenses: liquidationExpenses.map(e => ({ ...e, amount: Number(String(e.amount).replace(/,/g, '')) || 0 })),
         liquidatedByUid,
         liquidatedByName,
         liquidatedAt: serverTimestamp(),
