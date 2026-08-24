@@ -32,7 +32,8 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   attendanceState = 'none',
   session = null,
 }) => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, canAction } = useAuth()
+  const canManage = isAdmin || canAction('canManageSchedules')
   const computedStatus = getScheduleStatus(schedule)
   const [menuOpen, setMenuOpen] = React.useState(false)
 
@@ -204,7 +205,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
       {/* Bottom Action Footer */}
       <div className="pt-4 mt-4 border-t border-slate-100 flex items-center justify-between gap-2 relative">
-        {isAdmin && !isLocked && (
+        {canManage && !isLocked && (
           <button
             onClick={() => onManageAssignments(schedule)}
             className="flex-1 px-3 py-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-extrabold border border-slate-200/80 transition-all cursor-pointer text-center"
@@ -220,8 +221,8 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           {isLocked ? 'View Attendance' : 'Attendance'}
         </Link>
 
-        {/* Admin Ellipsis Menu */}
-        {isAdmin && (
+        {/* Management Ellipsis Menu */}
+        {canManage && (
           <div className="relative">
             <button
               type="button"

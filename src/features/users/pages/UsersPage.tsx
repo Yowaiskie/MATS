@@ -20,6 +20,7 @@ const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'finance', label: 'Finance Management', description: 'Record income/expense, request funds and generate reports' },
   { key: 'events', label: 'Events & Projects', description: 'Manage parish events, tasks, and event finances' },
   { key: 'inventory', label: 'Ministry Inventory', description: 'Track sports gear, games, robes, and equipment' },
+  { key: 'excuses', label: 'Excuse Requests', description: 'Review and approve altar server excuse submissions' },
   { key: 'users', label: 'User Management', description: 'Manage system accounts and access permissions' },
   { key: 'settings', label: 'Settings', description: 'Configure system policies and templates' },
   { key: 'audit', label: 'Audit Trail', description: 'View system security and activity logs' },
@@ -72,6 +73,7 @@ const MODULE_LABELS: Record<string, string> = {
   finance: 'Finance',
   events: 'Events',
   inventory: 'Inventory',
+  excuses: 'Excuse Requests',
   users: 'Users',
   settings: 'Settings',
   audit: 'Audit Trail',
@@ -103,6 +105,23 @@ export const UsersPage: React.FC = () => {
   const [presetFormManageSchedules, setPresetFormManageSchedules] = useState(false)
   const [presetFormViewReports, setPresetFormViewReports] = useState(false)
   const [presetFormExportReports, setPresetFormExportReports] = useState(false)
+
+  // Main Finance Preset state
+  const [presetFormViewFinanceDashboard, setPresetFormViewFinanceDashboard] = useState(false)
+  const [presetFormAddIncome, setPresetFormAddIncome] = useState(false)
+  const [presetFormEditIncome, setPresetFormEditIncome] = useState(false)
+  const [presetFormDeleteIncome, setPresetFormDeleteIncome] = useState(false)
+  const [presetFormCreateFundRequest, setPresetFormCreateFundRequest] = useState(false)
+  const [presetFormApproveFundRequest, setPresetFormApproveFundRequest] = useState(false)
+  const [presetFormRejectFundRequest, setPresetFormRejectFundRequest] = useState(false)
+  const [presetFormReleaseFunds, setPresetFormReleaseFunds] = useState(false)
+  const [presetFormSubmitLiquidation, setPresetFormSubmitLiquidation] = useState(false)
+  const [presetFormReviewLiquidation, setPresetFormReviewLiquidation] = useState(false)
+  const [presetFormViewFinanceReports, setPresetFormViewFinanceReports] = useState(false)
+  const [presetFormExportFinanceReports, setPresetFormExportFinanceReports] = useState(false)
+  const [presetFormManageFinanceCategories, setPresetFormManageFinanceCategories] = useState(false)
+  const [presetFormCloseFinancePeriod, setPresetFormCloseFinancePeriod] = useState(false)
+  const [presetFormReopenFinancePeriod, setPresetFormReopenFinancePeriod] = useState(false)
 
   // Events Preset state
   const [presetFormViewProjects, setPresetFormViewProjects] = useState(false)
@@ -145,6 +164,19 @@ export const UsersPage: React.FC = () => {
   const [presetFormVoidEventContributions, setPresetFormVoidEventContributions] = useState(false)
   const [presetFormManageEventContributionPurposes, setPresetFormManageEventContributionPurposes] = useState(false)
   const [presetFormExportEventContributions, setPresetFormExportEventContributions] = useState(false)
+
+  // Inventory Preset state
+  const [presetFormViewInventory, setPresetFormViewInventory] = useState(false)
+  const [presetFormManageInventory, setPresetFormManageInventory] = useState(false)
+
+  // Member Directory Preset state
+  const [presetFormViewMembers, setPresetFormViewMembers] = useState(true)
+  const [presetFormManageMembers, setPresetFormManageMembers] = useState(false)
+  const [presetFormDeleteMembers, setPresetFormDeleteMembers] = useState(false)
+
+  // Excuses Preset state
+  const [presetFormReviewExcuses, setPresetFormReviewExcuses] = useState(false)
+  const [presetFormApproveExcuses, setPresetFormApproveExcuses] = useState(false)
 
   // Register / Edit User Form state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -224,6 +256,19 @@ export const UsersPage: React.FC = () => {
   const [canVoidEventContributions, setCanVoidEventContributions] = useState(false)
   const [canManageEventContributionPurposes, setCanManageEventContributionPurposes] = useState(false)
   const [canExportEventContributions, setCanExportEventContributions] = useState(false)
+
+  // Inventory permissions state
+  const [canViewInventory, setCanViewInventory] = useState(false)
+  const [canManageInventory, setCanManageInventory] = useState(false)
+
+  // Member Directory permissions state
+  const [canViewMembers, setCanViewMembers] = useState(true)
+  const [canManageMembers, setCanManageMembers] = useState(false)
+  const [canDeleteMembers, setCanDeleteMembers] = useState(false)
+
+  // Excuses permissions state
+  const [canReviewExcuses, setCanReviewExcuses] = useState(false)
+  const [canApproveExcuses, setCanApproveExcuses] = useState(false)
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -320,6 +365,16 @@ export const UsersPage: React.FC = () => {
     setCanManageEventContributionPurposes(p.canManageEventContributionPurposes ?? false)
     setCanExportEventContributions(p.canExportEventContributions ?? false)
 
+    setCanViewInventory(p.canViewInventory ?? false)
+    setCanManageInventory(p.canManageInventory ?? false)
+
+    setCanViewMembers(p.canViewMembers ?? true)
+    setCanManageMembers(p.canManageMembers ?? false)
+    setCanDeleteMembers(p.canDeleteMembers ?? false)
+
+    setCanReviewExcuses(p.canReviewExcuses ?? false)
+    setCanApproveExcuses(p.canApproveExcuses ?? false)
+
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
     } else {
@@ -340,6 +395,22 @@ export const UsersPage: React.FC = () => {
     setPresetFormManageSchedules(false)
     setPresetFormViewReports(false)
     setPresetFormExportReports(false)
+
+    setPresetFormViewFinanceDashboard(false)
+    setPresetFormAddIncome(false)
+    setPresetFormEditIncome(false)
+    setPresetFormDeleteIncome(false)
+    setPresetFormCreateFundRequest(false)
+    setPresetFormApproveFundRequest(false)
+    setPresetFormRejectFundRequest(false)
+    setPresetFormReleaseFunds(false)
+    setPresetFormSubmitLiquidation(false)
+    setPresetFormReviewLiquidation(false)
+    setPresetFormViewFinanceReports(false)
+    setPresetFormExportFinanceReports(false)
+    setPresetFormManageFinanceCategories(false)
+    setPresetFormCloseFinancePeriod(false)
+    setPresetFormReopenFinancePeriod(false)
 
     setPresetFormViewProjects(false)
     setPresetFormCreateProjects(false)
@@ -378,6 +449,16 @@ export const UsersPage: React.FC = () => {
     setPresetFormVoidEventContributions(false)
     setPresetFormManageEventContributionPurposes(false)
     setPresetFormExportEventContributions(false)
+
+    setPresetFormViewInventory(false)
+    setPresetFormManageInventory(false)
+
+    setPresetFormViewMembers(true)
+    setPresetFormManageMembers(false)
+    setPresetFormDeleteMembers(false)
+
+    setPresetFormReviewExcuses(false)
+    setPresetFormApproveExcuses(false)
   }
 
   const handleOpenEditPreset = (p: PermissionPreset) => {
@@ -393,6 +474,22 @@ export const UsersPage: React.FC = () => {
     setPresetFormManageSchedules(p.canManageSchedules)
     setPresetFormViewReports(p.canViewReports)
     setPresetFormExportReports(p.canExportReports)
+
+    setPresetFormViewFinanceDashboard(p.canViewFinanceDashboard ?? false)
+    setPresetFormAddIncome(p.canAddIncome ?? false)
+    setPresetFormEditIncome(p.canEditIncome ?? false)
+    setPresetFormDeleteIncome(p.canDeleteIncome ?? false)
+    setPresetFormCreateFundRequest(p.canCreateFundRequest ?? false)
+    setPresetFormApproveFundRequest(p.canApproveFundRequest ?? false)
+    setPresetFormRejectFundRequest(p.canRejectFundRequest ?? false)
+    setPresetFormReleaseFunds(p.canReleaseFunds ?? false)
+    setPresetFormSubmitLiquidation(p.canSubmitLiquidation ?? false)
+    setPresetFormReviewLiquidation(p.canReviewLiquidation ?? false)
+    setPresetFormViewFinanceReports(p.canViewFinanceReports ?? false)
+    setPresetFormExportFinanceReports(p.canExportFinanceReports ?? false)
+    setPresetFormManageFinanceCategories(p.canManageFinanceCategories ?? false)
+    setPresetFormCloseFinancePeriod(p.canCloseFinancePeriod ?? false)
+    setPresetFormReopenFinancePeriod(p.canReopenFinancePeriod ?? false)
 
     setPresetFormViewProjects(p.canViewProjects ?? false)
     setPresetFormCreateProjects(p.canCreateProjects ?? false)
@@ -431,6 +528,16 @@ export const UsersPage: React.FC = () => {
     setPresetFormVoidEventContributions(p.canVoidEventContributions ?? false)
     setPresetFormManageEventContributionPurposes(p.canManageEventContributionPurposes ?? false)
     setPresetFormExportEventContributions(p.canExportEventContributions ?? false)
+
+    setPresetFormViewInventory(p.canViewInventory ?? false)
+    setPresetFormManageInventory(p.canManageInventory ?? false)
+
+    setPresetFormViewMembers(p.canViewMembers ?? true)
+    setPresetFormManageMembers(p.canManageMembers ?? false)
+    setPresetFormDeleteMembers(p.canDeleteMembers ?? false)
+
+    setPresetFormReviewExcuses(p.canReviewExcuses ?? false)
+    setPresetFormApproveExcuses(p.canApproveExcuses ?? false)
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -455,6 +562,22 @@ export const UsersPage: React.FC = () => {
         canManageSchedules: presetFormManageSchedules,
         canViewReports: presetFormViewReports,
         canExportReports: presetFormExportReports,
+
+        canViewFinanceDashboard: presetFormViewFinanceDashboard,
+        canAddIncome: presetFormAddIncome,
+        canEditIncome: presetFormEditIncome,
+        canDeleteIncome: presetFormDeleteIncome,
+        canCreateFundRequest: presetFormCreateFundRequest,
+        canApproveFundRequest: presetFormApproveFundRequest,
+        canRejectFundRequest: presetFormRejectFundRequest,
+        canReleaseFunds: presetFormReleaseFunds,
+        canSubmitLiquidation: presetFormSubmitLiquidation,
+        canReviewLiquidation: presetFormReviewLiquidation,
+        canViewFinanceReports: presetFormViewFinanceReports,
+        canExportFinanceReports: presetFormExportFinanceReports,
+        canManageFinanceCategories: presetFormManageFinanceCategories,
+        canCloseFinancePeriod: presetFormCloseFinancePeriod,
+        canReopenFinancePeriod: presetFormReopenFinancePeriod,
 
         canViewProjects: presetFormViewProjects,
         canCreateProjects: presetFormCreateProjects,
@@ -492,7 +615,17 @@ export const UsersPage: React.FC = () => {
         canEditEventContributions: presetFormEditEventContributions,
         canVoidEventContributions: presetFormVoidEventContributions,
         canManageEventContributionPurposes: presetFormManageEventContributionPurposes,
-        canExportEventContributions: presetFormExportEventContributions
+        canExportEventContributions: presetFormExportEventContributions,
+
+        canViewInventory: presetFormViewInventory,
+        canManageInventory: presetFormManageInventory,
+
+        canViewMembers: presetFormViewMembers,
+        canManageMembers: presetFormManageMembers,
+        canDeleteMembers: presetFormDeleteMembers,
+
+        canReviewExcuses: presetFormReviewExcuses,
+        canApproveExcuses: presetFormApproveExcuses
       }
 
       let updatedPresets: PermissionPreset[] = []
@@ -618,6 +751,16 @@ export const UsersPage: React.FC = () => {
       setCanVoidEventContributions(perms.canVoidEventContributions ?? false)
       setCanManageEventContributionPurposes(perms.canManageEventContributionPurposes ?? false)
       setCanExportEventContributions(perms.canExportEventContributions ?? false)
+
+      setCanViewInventory(perms.canViewInventory ?? false)
+      setCanManageInventory(perms.canManageInventory ?? false)
+
+      setCanViewMembers(perms.canViewMembers ?? true)
+      setCanManageMembers(perms.canManageMembers ?? false)
+      setCanDeleteMembers(perms.canDeleteMembers ?? false)
+
+      setCanReviewExcuses(perms.canReviewExcuses ?? false)
+      setCanApproveExcuses(perms.canApproveExcuses ?? false)
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
@@ -724,6 +867,16 @@ export const UsersPage: React.FC = () => {
       canVoidEventContributions,
       canManageEventContributionPurposes,
       canExportEventContributions,
+
+      canViewInventory,
+      canManageInventory,
+
+      canViewMembers,
+      canManageMembers,
+      canDeleteMembers,
+
+      canReviewExcuses,
+      canApproveExcuses,
 
       ...(assignedOrder ? { assignedOrder } : {}),
       ...(activePresetName ? { presetName: activePresetName } : {})
@@ -1477,6 +1630,160 @@ export const UsersPage: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Main Finance Permissions */}
+                <div className="p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-950">Main Finance Management</span>
+                    <button type="button" onClick={() => {
+                      const val = !(canViewFinanceDashboard && canAddIncome && canEditIncome && canDeleteIncome && canCreateFundRequest && canApproveFundRequest && canRejectFundRequest && canReleaseFunds && canSubmitLiquidation && canReviewLiquidation && canViewFinanceReports && canExportFinanceReports && canManageFinanceCategories && canCloseFinancePeriod && canReopenFinancePeriod)
+                      setCanViewFinanceDashboard(val)
+                      setCanAddIncome(val)
+                      setCanEditIncome(val)
+                      setCanDeleteIncome(val)
+                      setCanCreateFundRequest(val)
+                      setCanApproveFundRequest(val)
+                      setCanRejectFundRequest(val)
+                      setCanReleaseFunds(val)
+                      setCanSubmitLiquidation(val)
+                      setCanReviewLiquidation(val)
+                      setCanViewFinanceReports(val)
+                      setCanExportFinanceReports(val)
+                      setCanManageFinanceCategories(val)
+                      setCanCloseFinancePeriod(val)
+                      setCanReopenFinancePeriod(val)
+                    }} className="text-[10px] font-semibold text-emerald-700 hover:text-emerald-900 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewFinanceDashboard} onChange={e => setCanViewFinanceDashboard(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can View Finance Dashboard</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canAddIncome} onChange={e => setCanAddIncome(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Add Income Records</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canEditIncome} onChange={e => setCanEditIncome(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Edit Income Records</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canDeleteIncome} onChange={e => setCanDeleteIncome(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Delete Income Records</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canCreateFundRequest} onChange={e => setCanCreateFundRequest(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Create Fund Requests</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canApproveFundRequest} onChange={e => setCanApproveFundRequest(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Approve Fund Requests</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canRejectFundRequest} onChange={e => setCanRejectFundRequest(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Reject Fund Requests</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canReleaseFunds} onChange={e => setCanReleaseFunds(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Release / Disburse Funds</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canSubmitLiquidation} onChange={e => setCanSubmitLiquidation(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Submit Liquidations</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canReviewLiquidation} onChange={e => setCanReviewLiquidation(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Review & Accept Liquidations</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewFinanceReports} onChange={e => setCanViewFinanceReports(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can View Finance Reports</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canExportFinanceReports} onChange={e => setCanExportFinanceReports(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Export Finance CSV / PDF</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canManageFinanceCategories} onChange={e => setCanManageFinanceCategories(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Manage Finance Categories</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canCloseFinancePeriod} onChange={e => setCanCloseFinancePeriod(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Close Financial Periods</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canReopenFinancePeriod} onChange={e => setCanReopenFinancePeriod(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-4 w-4" />
+                      <span>Can Reopen Financial Periods</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {/* Inventory Permissions */}
+                  <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-indigo-950">Inventory</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canViewInventory && canManageInventory)
+                        setCanViewInventory(val)
+                        setCanManageInventory(val)
+                      }} className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewInventory} onChange={e => setCanViewInventory(e.target.checked)} className="rounded border-gray-300 text-indigo-600 h-4 w-4" />
+                      <span>Can View Inventory</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canManageInventory} onChange={e => setCanManageInventory(e.target.checked)} className="rounded border-gray-300 text-indigo-600 h-4 w-4" />
+                      <span>Can Add/Edit/Delete Items</span>
+                    </label>
+                  </div>
+
+                  {/* Members Directory Permissions */}
+                  <div className="p-3.5 rounded-xl border border-blue-200 bg-blue-50/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-blue-950">Member Directory</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canViewMembers && canManageMembers && canDeleteMembers)
+                        setCanViewMembers(val)
+                        setCanManageMembers(val)
+                        setCanDeleteMembers(val)
+                      }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewMembers} onChange={e => setCanViewMembers(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can View Directory</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canManageMembers} onChange={e => setCanManageMembers(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Add / Edit Members</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canDeleteMembers} onChange={e => setCanDeleteMembers(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Archive/Delete Members</span>
+                    </label>
+                  </div>
+
+                  {/* Excuse Requests Permissions */}
+                  <div className="p-3.5 rounded-xl border border-rose-200 bg-rose-50/40 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-rose-950">Excuse Requests</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canReviewExcuses && canApproveExcuses)
+                        setCanReviewExcuses(val)
+                        setCanApproveExcuses(val)
+                      }} className="text-[10px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canReviewExcuses} onChange={e => setCanReviewExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-4 w-4" />
+                      <span>Can View & Review Excuses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canApproveExcuses} onChange={e => setCanApproveExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-4 w-4" />
+                      <span>Can Approve/Reject Excuses</span>
+                    </label>
+                  </div>
+                </div>
+
               </div>
             </form>
 
@@ -1839,6 +2146,164 @@ export const UsersPage: React.FC = () => {
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={presetFormArchiveEventForms} onChange={e => setPresetFormArchiveEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
                       <span>Can Archive / Delete Event Forms</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Main Finance (Preset) */}
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-emerald-700">Main Finance (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewFinanceDashboard && presetFormAddIncome && presetFormEditIncome && presetFormDeleteIncome && presetFormCreateFundRequest && presetFormApproveFundRequest && presetFormRejectFundRequest && presetFormReleaseFunds && presetFormSubmitLiquidation && presetFormReviewLiquidation && presetFormViewFinanceReports && presetFormExportFinanceReports && presetFormManageFinanceCategories && presetFormCloseFinancePeriod && presetFormReopenFinancePeriod)
+                      setPresetFormViewFinanceDashboard(val)
+                      setPresetFormAddIncome(val)
+                      setPresetFormEditIncome(val)
+                      setPresetFormDeleteIncome(val)
+                      setPresetFormCreateFundRequest(val)
+                      setPresetFormApproveFundRequest(val)
+                      setPresetFormRejectFundRequest(val)
+                      setPresetFormReleaseFunds(val)
+                      setPresetFormSubmitLiquidation(val)
+                      setPresetFormReviewLiquidation(val)
+                      setPresetFormViewFinanceReports(val)
+                      setPresetFormExportFinanceReports(val)
+                      setPresetFormManageFinanceCategories(val)
+                      setPresetFormCloseFinancePeriod(val)
+                      setPresetFormReopenFinancePeriod(val)
+                    }} className="text-[10px] font-semibold text-emerald-600 hover:text-emerald-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewFinanceDashboard} onChange={e => setPresetFormViewFinanceDashboard(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can View Finance Dashboard</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormAddIncome} onChange={e => setPresetFormAddIncome(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Add Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormEditIncome} onChange={e => setPresetFormEditIncome(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Edit Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormDeleteIncome} onChange={e => setPresetFormDeleteIncome(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Delete Income</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormCreateFundRequest} onChange={e => setPresetFormCreateFundRequest(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Create Fund Request</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormApproveFundRequest} onChange={e => setPresetFormApproveFundRequest(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Approve Fund Request</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormRejectFundRequest} onChange={e => setPresetFormRejectFundRequest(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Reject Fund Request</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormReleaseFunds} onChange={e => setPresetFormReleaseFunds(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Release Funds</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormSubmitLiquidation} onChange={e => setPresetFormSubmitLiquidation(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Submit Liquidation</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormReviewLiquidation} onChange={e => setPresetFormReviewLiquidation(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Review Liquidation</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewFinanceReports} onChange={e => setPresetFormViewFinanceReports(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can View Finance Reports</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormExportFinanceReports} onChange={e => setPresetFormExportFinanceReports(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Export Reports</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormManageFinanceCategories} onChange={e => setPresetFormManageFinanceCategories(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Manage Categories</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormCloseFinancePeriod} onChange={e => setPresetFormCloseFinancePeriod(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Close Periods</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormReopenFinancePeriod} onChange={e => setPresetFormReopenFinancePeriod(e.target.checked)} className="rounded border-gray-300 text-emerald-600 h-3.5 w-3.5" />
+                      <span>Can Reopen Periods</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Inventory (Preset) */}
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700">Inventory (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewInventory && presetFormManageInventory)
+                      setPresetFormViewInventory(val)
+                      setPresetFormManageInventory(val)
+                    }} className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewInventory} onChange={e => setPresetFormViewInventory(e.target.checked)} className="rounded border-gray-300 text-indigo-600 h-3.5 w-3.5" />
+                      <span>Can View Inventory</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormManageInventory} onChange={e => setPresetFormManageInventory(e.target.checked)} className="rounded border-gray-300 text-indigo-600 h-3.5 w-3.5" />
+                      <span>Can Add/Edit/Delete Items</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Member Directory (Preset) */}
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-blue-700">Member Directory (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewMembers && presetFormManageMembers && presetFormDeleteMembers)
+                      setPresetFormViewMembers(val)
+                      setPresetFormManageMembers(val)
+                      setPresetFormDeleteMembers(val)
+                    }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewMembers} onChange={e => setPresetFormViewMembers(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can View Directory</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormManageMembers} onChange={e => setPresetFormManageMembers(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Add / Edit Members</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormDeleteMembers} onChange={e => setPresetFormDeleteMembers(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Archive/Delete Members</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Excuse Requests (Preset) */}
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700">Excuse Requests (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormReviewExcuses && presetFormApproveExcuses)
+                      setPresetFormReviewExcuses(val)
+                      setPresetFormApproveExcuses(val)
+                    }} className="text-[10px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormReviewExcuses} onChange={e => setPresetFormReviewExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-3.5 w-3.5" />
+                      <span>Can View & Review Excuses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormApproveExcuses} onChange={e => setPresetFormApproveExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-3.5 w-3.5" />
+                      <span>Can Approve/Reject Excuses</span>
                     </label>
                   </div>
                 </div>

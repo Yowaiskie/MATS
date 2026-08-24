@@ -97,6 +97,15 @@ export interface UserPermissions {
   // Inventory actions
   canViewInventory?: boolean
   canManageInventory?: boolean
+
+  // Member Directory actions
+  canViewMembers?: boolean
+  canManageMembers?: boolean
+  canDeleteMembers?: boolean
+
+  // Excuse actions
+  canReviewExcuses?: boolean
+  canApproveExcuses?: boolean
 }
 
 export interface PermissionPreset {
@@ -173,6 +182,19 @@ export interface PermissionPreset {
   canVoidEventContributions?: boolean
   canManageEventContributionPurposes?: boolean
   canExportEventContributions?: boolean
+
+  // Inventory actions
+  canViewInventory?: boolean
+  canManageInventory?: boolean
+
+  // Member Directory actions
+  canViewMembers?: boolean
+  canManageMembers?: boolean
+  canDeleteMembers?: boolean
+
+  // Excuse actions
+  canReviewExcuses?: boolean
+  canApproveExcuses?: boolean
 }
 
 export interface UserProfile {

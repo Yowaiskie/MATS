@@ -4,6 +4,9 @@ export interface ExcuseRequest {
   id?: string
   trackingNumber: string
   memberId: string
+  memberName?: string
+  memberOrder?: string
+  memberRank?: string
   schedules: string[]
   reason: string
   additionalNotes?: string

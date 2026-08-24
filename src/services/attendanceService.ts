@@ -12,7 +12,7 @@ import {
   deleteDoc
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-import type { AttendanceSession, AttendanceRecord, AttendanceInput } from '@/types/attendance'
+import type { AttendanceSession, AttendanceRecord, AttendanceInput, AttendanceStatus } from '@/types/attendance'
 import { auditService } from '@/services/auditService'
 
 const SESSIONS_COLLECTION = 'attendanceSessions'
@@ -199,5 +199,72 @@ export const attendanceService = {
   async deleteAttendanceRecord(recordId: string): Promise<void> {
     const docRef = doc(db, ATTENDANCE_COLLECTION, recordId)
     await deleteDoc(docRef)
+  },
+
+  /**
+   * Automatically marks a member as excused for an array of schedules following an approved excuse request.
+   */
+  async markExcuseForSchedules(
+    scheduleIds: string[],
+    memberId: string,
+    reason: string,
+    adminRemarks?: string,
+    performedBy = 'Officer'
+  ): Promise<void> {
+    for (const scheduleId of scheduleIds) {
+      try {
+        // 1. Get schedule details (date)
+        const schedDoc = await getDoc(doc(db, 'schedules', scheduleId))
+        const schedData = schedDoc.exists() ? schedDoc.data() : null
+        const date = schedData?.date || new Date().toISOString().split('T')[0]
+
+        // 2. Get or create attendance session
+        const session = await this.getOrCreateSession(scheduleId)
+
+        // 3. Find if attendance record already exists for this member in this session
+        const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
+        const q = query(
+          attendanceRef,
+          where('sessionId', '==', session.id),
+          where('memberId', '==', memberId)
+        )
+        const snap = await getDocs(q)
+
+        const remarksText = `Excused: ${reason}${adminRemarks ? ` | Remarks: ${adminRemarks}` : ''}`
+
+        if (!snap.empty) {
+          // Update existing record to excused
+          const existingDoc = snap.docs[0]
+          await updateDoc(doc(db, ATTENDANCE_COLLECTION, existingDoc.id), {
+            status: 'excused' as AttendanceStatus,
+            remarks: remarksText,
+            updatedAt: serverTimestamp()
+          })
+        } else {
+          // Create new attendance record marked as excused
+          await addDoc(attendanceRef, {
+            sessionId: session.id,
+            scheduleId,
+            memberId,
+            status: 'excused' as AttendanceStatus,
+            remarks: remarksText,
+            attendanceDate: date,
+            isOtherServer: false,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          })
+        }
+
+        // Mark session hasRecords
+        await updateDoc(doc(db, SESSIONS_COLLECTION, session.id), {
+          hasRecords: true,
+          lastUpdatedBy: performedBy,
+          lastUpdatedAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        })
+      } catch (err) {
+        console.error(`Failed to automatically mark schedule ${scheduleId} as excused for member ${memberId}:`, err)
+      }
+    }
   }
 }

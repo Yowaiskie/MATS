@@ -78,7 +78,7 @@ service cloud.firestore {
     // members collection
     match /members/{memberId} {
       allow read: if true; // Public excuse form lists members
-      allow write: if isSuperAdmin();
+      allow write: if isSuperAdmin() || hasPermission('canManageMembers');
     }
     
     // schedules collection
@@ -143,10 +143,9 @@ service cloud.firestore {
 
     // excuseRequests collection
     match /excuseRequests/{excuseId} {
-      allow create: if true &&
-                    isValidString(request.resource.data.reason, 1, 1000) &&
-                    isValidString(request.resource.data.memberId, 1, 100);
-      allow read: if isAuthenticated();
+      allow read: if true; // Allows public track status by member selection
+      allow create: if true;
+      allow update: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
       allow delete: if isSuperAdmin();
     }
 
@@ -154,16 +153,8 @@ service cloud.firestore {
     match /excuseStatus/{trackingNumber} {
       allow get: if true;
       allow list: if isAuthenticated();
-      allow create: if true &&
-                    request.resource.data.status in ['pending', 'approved', 'rejected'] &&
-                    isValidString(request.resource.data.reason, 1, 1000) &&
-                    (!('adminRemarks' in request.resource.data) || isValidString(request.resource.data.adminRemarks, 0, 1000)) &&
-                    (!('rejectionReason' in request.resource.data) || isValidString(request.resource.data.rejectionReason, 0, 1000));
-      allow update: if isAuthenticated() &&
-                    request.resource.data.status in ['pending', 'approved', 'rejected'] &&
-                    isValidString(request.resource.data.reason, 1, 1000) &&
-                    (!('adminRemarks' in request.resource.data) || isValidString(request.resource.data.adminRemarks, 0, 1000)) &&
-                    (!('rejectionReason' in request.resource.data) || isValidString(request.resource.data.rejectionReason, 0, 1000));
+      allow create: if true;
+      allow update: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
       allow delete: if isSuperAdmin();
     }
 

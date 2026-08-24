@@ -172,7 +172,7 @@ function App() {
               <Route 
                 path="/excuses" 
                 element={
-                  <ProtectedRoute adminOnly>
+                  <ProtectedRoute moduleKey="excuses">
                     <AdminExcusePage />
                   </ProtectedRoute>
                 } 

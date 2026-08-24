@@ -14,7 +14,8 @@ import type { Member, MemberInput } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 
 export const MembersPage: React.FC = () => {
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, canAction } = useAuth()
+  const canManage = isAdmin || canAction('canManageMembers')
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -268,7 +269,7 @@ export const MembersPage: React.FC = () => {
         </div>
 
         {/* Buttons */}
-        {isAdmin && (
+        {canManage && (
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => {

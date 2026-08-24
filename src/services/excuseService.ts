@@ -7,11 +7,11 @@ import {
   serverTimestamp,
   runTransaction,
   query,
-  where,
-  orderBy
+  where
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
+import { attendanceService } from '@/services/attendanceService'
 import type { ExcuseRequest, ExcuseStatus } from '@/types/excuse'
 
 const EXCUSES_COLLECTION = 'excuseRequests'
@@ -90,7 +90,7 @@ export const excuseService = {
    */
   async getExcuseRequests(filters?: { status?: ExcuseStatus; memberId?: string }): Promise<ExcuseRequest[]> {
     try {
-      let q = query(collection(db, EXCUSES_COLLECTION), orderBy('submittedAt', 'desc'))
+      let q = query(collection(db, EXCUSES_COLLECTION))
 
       if (filters?.status) {
         q = query(q, where('status', '==', filters.status))
@@ -100,14 +100,28 @@ export const excuseService = {
       }
 
       const snapshot = await getDocs(q)
-      return snapshot.docs.map(doc => ({
+      const list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ExcuseRequest[]
+
+      // Client-side in-memory sorting to prevent composite index errors
+      return list.sort((a, b) => {
+        const timeA = a.submittedAt?.toDate?.() ? a.submittedAt.toDate().getTime() : 0
+        const timeB = b.submittedAt?.toDate?.() ? b.submittedAt.toDate().getTime() : 0
+        return timeB - timeA
+      })
     } catch (error) {
       console.error('Error fetching excuse requests:', error)
       throw new Error('Failed to fetch excuse requests.')
     }
+  },
+
+  /**
+   * Fetch all excuse requests filed by a specific member.
+   */
+  async getExcuseRequestsByMemberId(memberId: string): Promise<ExcuseRequest[]> {
+    return this.getExcuseRequests({ memberId })
   },
 
   /**
@@ -139,6 +153,9 @@ export const excuseService = {
   ): Promise<void> {
     try {
       const ref = doc(db, EXCUSES_COLLECTION, id)
+      const snap = await getDoc(ref)
+      const excuseData = snap.exists() ? (snap.data() as ExcuseRequest) : null
+
       await updateDoc(ref, {
         status: 'approved' as ExcuseStatus,
         adminRemarks,
@@ -154,10 +171,21 @@ export const excuseService = {
         adminRemarks
       })
 
+      // Automatically sync and mark attendance records for all approved schedules
+      if (excuseData?.schedules && excuseData.schedules.length > 0 && excuseData.memberId) {
+        await attendanceService.markExcuseForSchedules(
+          excuseData.schedules,
+          excuseData.memberId,
+          excuseData.reason || '',
+          adminRemarks,
+          adminName
+        )
+      }
+
       await auditService.logAction(
         'EXCUSE_APPROVED',
         'excuse',
-        `Approved excuse request ${trackingNumber}`,
+        `Approved excuse request ${trackingNumber} and marked attendance records as Excused`,
         adminName,
         { trackingNumber, excuseId: id }
       )

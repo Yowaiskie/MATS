@@ -30,7 +30,8 @@ const getTodayString = () => {
 
 export const SchedulesPage: React.FC = () => {
   const queryClient = useQueryClient()
-  const { profile, isAdmin } = useAuth()
+  const { profile, isAdmin, canAction } = useAuth()
+  const canManage = isAdmin || canAction('canManageSchedules')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -407,7 +408,7 @@ export const SchedulesPage: React.FC = () => {
                 </button>
               </div>
 
-              {isAdmin && (
+              {canManage && (
                 <>
                   <button
                     onClick={() => setTemplatesOpen(true)}
@@ -571,7 +572,7 @@ export const SchedulesPage: React.FC = () => {
             setDetailsOpen(true)
           }}
           onDateClick={(dateStr) => {
-            if (!isAdmin) return
+            if (!canManage) return
             setSelectedSchedule(null)
             setSelectedDate(dateStr)
             setFormOpen(true)
@@ -581,7 +582,7 @@ export const SchedulesPage: React.FC = () => {
       ) : filteredSchedules.length > 0 ? (
         <>
           {/* Bulk actions toolbar */}
-          {isAdmin && (
+          {canManage && (
             <div className="flex items-center justify-between gap-3 px-1">
               <div className="flex items-center gap-3">
                 {/* Bulk select toggle */}
@@ -681,7 +682,7 @@ export const SchedulesPage: React.FC = () => {
               ? 'There are no schedules scheduled for today.'
               : 'No schedules match the selected date. Try a different date.'}
           </p>
-          {isAdmin && dateFilter === getTodayString() && (
+          {canManage && dateFilter === getTodayString() && (
             <button
               onClick={() => {
                 setSelectedSchedule(null)

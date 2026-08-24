@@ -39,7 +39,9 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onBulkEditOrder,
   onClearSelection,
 }) => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, canAction } = useAuth()
+  const canManage = isAdmin || canAction('canManageMembers')
+  const canDelete = isAdmin || canAction('canDeleteMembers')
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
   const [orderFilter, setOrderFilter] = useState<string>('all')
@@ -410,7 +412,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                         {member.phoneNumber || '--'}
                       </td>
                       <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
-                        {isAdmin ? (
+                        {canManage ? (
                           member.status !== 'archived' ? (
                             <>
                               <button
@@ -419,12 +421,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                               >
                                 Edit
                               </button>
-                              <button
-                                onClick={() => onArchive(member.id)}
-                                className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
-                              >
-                                Delete
-                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => onArchive(member.id)}
+                                  className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </>
                           ) : (
                             <>
@@ -434,12 +438,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                               >
                                 Restore
                               </button>
-                              <button
-                                onClick={() => onDelete(member.id)}
-                                className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
-                              >
-                                Delete
-                              </button>
+                              {canDelete && (
+                                <button
+                                  onClick={() => onDelete(member.id)}
+                                  className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                                >
+                                  Delete
+                                </button>
+                              )}
                             </>
                           )
                         ) : (

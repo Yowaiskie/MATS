@@ -29,7 +29,8 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
   onManageAssignments,
   attendanceState = 'none',
 }) => {
-  const { isAdmin } = useAuth()
+  const { isAdmin, canAction } = useAuth()
+  const canManage = isAdmin || canAction('canManageSchedules')
   const [loadingAttendance, setLoadingAttendance] = useState(false)
   const [records, setRecords] = useState<AttendanceRecord[]>([])
 
@@ -235,7 +236,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4 flex-wrap gap-2 bg-white">
           <div className="flex items-center space-x-1.5">
-            {isAdmin && (
+            {canManage && (
               <>
                 <button
                   onClick={handleEditClick}
@@ -254,7 +255,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
           </div>
           
           <div className="flex items-center space-x-1.5">
-            {isAdmin && (
+            {canManage && (
               <button
                 onClick={handleManageClick}
                 className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3 py-1.5 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors cursor-pointer shadow-sm"
