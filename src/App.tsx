@@ -23,6 +23,7 @@ import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
 import { FinancePage } from '@/features/finance/pages/FinancePage'
 import { EventsPage } from '@/features/events/pages/EventsPage'
 import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
+import { InventoryPage } from '@/features/inventory/pages/InventoryPage'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 
 function App() {
@@ -191,6 +192,15 @@ function App() {
                 element={
                   <ProtectedRoute moduleKey="events">
                     <EventDetailsPage />
+                  </ProtectedRoute>
+                } 
+              />
+
+              <Route 
+                path="/inventory" 
+                element={
+                  <ProtectedRoute moduleKey="inventory">
+                    <InventoryPage />
                   </ProtectedRoute>
                 } 
               />

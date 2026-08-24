@@ -76,6 +76,11 @@ const icons: { [key: string]: React.ReactNode } = {
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
     </svg>
+  ),
+  Inventory: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>
   )
 }
 
@@ -194,6 +199,7 @@ export const DashboardLayout: React.FC = () => {
     if (path.startsWith('/attendance')) return 'Attendance Tracking'
     if (path.startsWith('/reports')) return 'Reports & Analytics'
     if (path.startsWith('/events')) return 'Event Workspace'
+    if (path.startsWith('/inventory')) return 'Ministry Inventory'
     if (path.startsWith('/finance')) return 'Finance Management'
     if (path.startsWith('/users')) return 'User Management'
     if (path.startsWith('/settings')) return 'System Settings'
@@ -362,6 +368,7 @@ export const DashboardLayout: React.FC = () => {
                 section: 'OPERATIONS',
                 items: [
                   { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
+                  { name: 'Inventory', href: '/inventory', moduleKey: 'inventory' as ModuleKey },
                   { name: 'Finance', href: '/finance', moduleKey: 'finance' },
                   { name: 'Reports', href: '/reports', moduleKey: 'reports' },
                   { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
@@ -490,6 +497,7 @@ export const DashboardLayout: React.FC = () => {
                     section: 'OPERATIONS',
                     items: [
                       { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
+                      { name: 'Inventory', href: '/inventory', moduleKey: 'inventory' as ModuleKey },
                       { name: 'Finance', href: '/finance', moduleKey: 'finance' },
                       { name: 'Reports', href: '/reports', moduleKey: 'reports' },
                       { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },

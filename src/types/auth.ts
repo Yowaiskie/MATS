@@ -15,6 +15,7 @@ export type ModuleKey =
   | 'excuses'
   | 'finance'
   | 'events'
+  | 'inventory'
 
 export interface UserPermissions {
   allowedModules: ModuleKey[]
@@ -92,6 +93,10 @@ export interface UserPermissions {
   canVoidEventContributions?: boolean
   canManageEventContributionPurposes?: boolean
   canExportEventContributions?: boolean
+
+  // Inventory actions
+  canViewInventory?: boolean
+  canManageInventory?: boolean
 }
 
 export interface PermissionPreset {
