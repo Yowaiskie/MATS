@@ -33,6 +33,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
   // Dialog / Modal states
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false)
+  const [editingContribution, setEditingContribution] = useState<EventContribution | null>(null)
   const [isPurposeModalOpen, setIsPurposeModalOpen] = useState(false)
   const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [alertTitle, setAlertTitle] = useState('Contribution Tracker')
@@ -88,6 +89,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
   const [endDate, setEndDate] = useState('')
 
   const canAdd = canAction('canAddEventContributions') || isHeadOrCreator || profile?.role === 'admin' || profile?.role === 'coordinator'
+  const canEdit = canAction('canEditEventContributions') || canAction('canAddEventContributions') || isHeadOrCreator || profile?.role === 'admin' || profile?.role === 'coordinator' || canAction('canManageEvents')
   const canVoid = canAction('canVoidEventContributions') || isHeadOrCreator || profile?.role === 'admin' || profile?.role === 'coordinator'
   const canManagePurposes = canAction('canManageEventContributionPurposes') || isHeadOrCreator || profile?.role === 'admin' || profile?.role === 'coordinator'
   const canExport = canAction('canExportEventContributions') || isHeadOrCreator || profile?.role === 'admin' || profile?.role === 'coordinator'
@@ -641,7 +643,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
           )}
           {canAdd && (
             <button
-              onClick={() => setIsRecordModalOpen(true)}
+              onClick={() => {
+                setEditingContribution(null)
+                setIsRecordModalOpen(true)
+              }}
               className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer"
             >
               <span>+ Record Contribution</span>
@@ -1117,6 +1122,22 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                                   {summary.totalLinked > 0 ? `Link Balance (₱${summary.remainingToLink.toLocaleString()})` : 'Record as Income'}
                                 </button>
                               )}
+                              {c.status === 'recorded' && canEdit && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setEditingContribution(c)
+                                    setIsRecordModalOpen(true)
+                                  }}
+                                  className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
+                                  title="Edit contribution details"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  <span>Edit</span>
+                                </button>
+                              )}
                               {summary.totalLinked > 0 && canLinkFinance && (
                                 <>
                                   {summary.allocations.length === 1 ? (
@@ -1207,9 +1228,13 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
       {/* Modals */}
       <EventContributionModal
         isOpen={isRecordModalOpen}
-        onClose={() => setIsRecordModalOpen(false)}
+        onClose={() => {
+          setIsRecordModalOpen(false)
+          setEditingContribution(null)
+        }}
         eventId={eventId}
         onSuccess={fetchData}
+        contributionToEdit={editingContribution}
       />
 
       <ContributionPurposeModal

@@ -3,7 +3,8 @@ import { Modal } from '@/components/Modal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventContributionService } from '@/services/eventContributionService'
 import { memberService } from '@/services/memberService'
-import type { EventContributionPurpose, ContributionPaymentMethod } from '@/types/eventContribution'
+import type { EventContribution, EventContributionPurpose, ContributionPaymentMethod } from '@/types/eventContribution'
+import { getContributionLinkSummary } from '@/types/eventContribution'
 import type { Member } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import { Timestamp } from 'firebase/firestore'
@@ -13,9 +14,16 @@ interface Props {
   onClose: () => void
   eventId: string
   onSuccess: () => void
+  contributionToEdit?: EventContribution | null
 }
 
-export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, eventId, onSuccess }) => {
+export const EventContributionModal: React.FC<Props> = ({
+  isOpen,
+  onClose,
+  eventId,
+  onSuccess,
+  contributionToEdit
+}) => {
   const { profile } = useAuth()
   const [purposes, setPurposes] = useState<EventContributionPurpose[]>([])
   const [members, setMembers] = useState<Member[]>([])
@@ -41,9 +49,37 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
   useEffect(() => {
     if (isOpen) {
       fetchInitialData()
-      resetForm()
+      if (contributionToEdit) {
+        setContributorUid(contributionToEdit.contributorUid || '')
+        setContributorName(contributionToEdit.contributorName || '')
+        setSearchQuery(contributionToEdit.contributorName || '')
+        setPurposeId(contributionToEdit.purposeId || '')
+        setAmount(contributionToEdit.amount !== undefined ? String(contributionToEdit.amount) : '')
+        setPaymentMethod(contributionToEdit.paymentMethod || 'cash')
+        setReferenceNumber(contributionToEdit.referenceNumber || '')
+
+        let dateStr = new Date().toISOString().split('T')[0]
+        if (contributionToEdit.contributedAt) {
+          const d = contributionToEdit.contributedAt.toDate
+            ? contributionToEdit.contributedAt.toDate()
+            : new Date(contributionToEdit.contributedAt as any)
+          if (!isNaN(d.getTime())) {
+            const year = d.getFullYear()
+            const month = String(d.getMonth() + 1).padStart(2, '0')
+            const day = String(d.getDate()).padStart(2, '0')
+            dateStr = `${year}-${month}-${day}`
+          }
+        }
+        setContributedDate(dateStr)
+        setCollectedByName(contributionToEdit.collectedByName || '')
+        setNotes(contributionToEdit.notes || '')
+        setShowMemberDropdown(false)
+        setError(null)
+      } else {
+        resetForm()
+      }
     }
-  }, [isOpen])
+  }, [isOpen, contributionToEdit])
 
   const fetchInitialData = async () => {
     try {
@@ -52,7 +88,7 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
         eventContributionService.getPurposesByEventId(eventId),
         memberService.getMembers(false) // active members only
       ])
-      setPurposes(purposesData.filter(p => !p.isArchived))
+      setPurposes(purposesData.filter(p => !p.isArchived || (contributionToEdit && p.id === contributionToEdit.purposeId)))
       setMembers(membersData)
     } catch (err) {
       console.error('Failed to load modal data:', err)
@@ -101,6 +137,14 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
       return
     }
 
+    if (contributionToEdit) {
+      const summary = getContributionLinkSummary(contributionToEdit)
+      if (summary.totalLinked > 0 && numAmount < summary.totalLinked) {
+        setError(`Amount cannot be less than the already linked amount of ₱${summary.totalLinked.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Please unlink portions first if needed.`)
+        return
+      }
+    }
+
     const finalContributorName = contributorName || searchQuery.trim()
     if (!finalContributorName) {
       setError('Contributor name is required.')
@@ -125,23 +169,43 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
       const contributedAtDate = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0)
       const contributedAt = Timestamp.fromDate(contributedAtDate)
 
-      await eventContributionService.addContribution(
-        {
-          eventId,
-          contributorUid: contributorUid || null,
-          contributorName: finalContributorName,
-          purposeId,
-          purposeName: selectedPurpose.name,
-          amount: numAmount,
-          paymentMethod,
-          referenceNumber: (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') ? referenceNumber.trim() : '',
-          collectedByName: collectedByName.trim() || profile.displayName || profile.email || 'N/A',
-          notes: notes.trim(),
-          contributedAt
-        },
-        profile.uid,
-        profile.displayName || profile.email
-      )
+      if (contributionToEdit) {
+        await eventContributionService.updateContribution(
+          contributionToEdit.id,
+          {
+            contributorUid: contributorUid || null,
+            contributorName: finalContributorName,
+            purposeId,
+            purposeName: selectedPurpose.name,
+            amount: numAmount,
+            paymentMethod,
+            referenceNumber: (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') ? referenceNumber.trim() : '',
+            collectedByName: collectedByName.trim() || profile.displayName || profile.email || 'N/A',
+            notes: notes.trim(),
+            contributedAt
+          },
+          profile.uid,
+          profile.displayName || profile.email
+        )
+      } else {
+        await eventContributionService.addContribution(
+          {
+            eventId,
+            contributorUid: contributorUid || null,
+            contributorName: finalContributorName,
+            purposeId,
+            purposeName: selectedPurpose.name,
+            amount: numAmount,
+            paymentMethod,
+            referenceNumber: (paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') ? referenceNumber.trim() : '',
+            collectedByName: collectedByName.trim() || profile.displayName || profile.email || 'N/A',
+            notes: notes.trim(),
+            contributedAt
+          },
+          profile.uid,
+          profile.displayName || profile.email
+        )
+      }
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -151,8 +215,15 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
     }
   }
 
+  const linkSummary = contributionToEdit ? getContributionLinkSummary(contributionToEdit) : null
+
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Record Event Contribution" maxWidth="md">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={contributionToEdit ? 'Edit Event Contribution' : 'Record Event Contribution'}
+      maxWidth="md"
+    >
       {loading ? (
         <div className="py-12 text-center text-xs text-slate-500">Loading form parameters...</div>
       ) : (
@@ -160,6 +231,17 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
           {error && (
             <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
               {error}
+            </div>
+          )}
+
+          {linkSummary && linkSummary.totalLinked > 0 && (
+            <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-xl flex items-start gap-2">
+              <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <strong>Finance Link Notice:</strong> This contribution has ₱{linkSummary.totalLinked.toLocaleString('en-US', { minimumFractionDigits: 2 })} linked to Finance. The amount cannot be reduced below this total.
+              </div>
             </div>
           )}
 
@@ -321,7 +403,9 @@ export const EventContributionModal: React.FC<Props> = ({ isOpen, onClose, event
               disabled={submitting}
               className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 cursor-pointer"
             >
-              {submitting ? 'Saving...' : 'Save Contribution'}
+              {submitting
+                ? (contributionToEdit ? 'Updating...' : 'Saving...')
+                : (contributionToEdit ? 'Update Contribution' : 'Save Contribution')}
             </button>
           </div>
         </form>

@@ -13,7 +13,7 @@ import {
   runTransaction
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-import type { EventContribution, EventContributionPurpose, ContributionLinkAllocation } from '@/types/eventContribution'
+import type { EventContribution, EventContributionPurpose, ContributionLinkAllocation, ContributionPaymentMethod } from '@/types/eventContribution'
 import { getContributionLinkSummary } from '@/types/eventContribution'
 import type { EventIncome } from '@/types/eventFinance'
 import { auditService } from './auditService'
@@ -193,6 +193,75 @@ export const eventContributionService = {
       { eventId: contribution.eventId, contributionId: docRef.id, amount: contribution.amount }
     )
     return docRef.id
+  },
+
+  async updateContribution(
+    id: string,
+    updates: {
+      contributorUid?: string | null
+      contributorName: string
+      purposeId: string
+      purposeName: string
+      amount: number
+      paymentMethod: ContributionPaymentMethod
+      referenceNumber?: string
+      collectedByName?: string
+      notes?: string
+      contributedAt: any
+    },
+    _performedByUid: string,
+    performedByName: string
+  ): Promise<void> {
+    if (!id) throw new Error('Contribution ID is required.')
+    const docRef = doc(db, CONTRIBUTIONS_COL, id)
+    const docSnap = await getDoc(docRef)
+    if (!docSnap.exists()) throw new Error('Contribution record not found.')
+
+    const existingData = docSnap.data() as EventContribution
+    if (existingData.status === 'voided') {
+      throw new Error('Cannot edit a voided contribution.')
+    }
+
+    if (!updates.contributorName || !updates.contributorName.trim()) {
+      throw new Error('Contributor name is required.')
+    }
+    if (!updates.purposeId) {
+      throw new Error('Contribution purpose is required.')
+    }
+    if (typeof updates.amount !== 'number' || updates.amount <= 0) {
+      throw new Error('Valid contribution amount is required.')
+    }
+
+    const summary = getContributionLinkSummary(existingData)
+    if (summary.totalLinked > 0 && updates.amount < summary.totalLinked) {
+      throw new Error(
+        `Cannot reduce amount below already linked total of ₱${summary.totalLinked.toLocaleString('en-US', { minimumFractionDigits: 2 })}. Please unlink finance portions first.`
+      )
+    }
+
+    const payload = sanitizeForFirestore({
+      contributorUid: updates.contributorUid || null,
+      contributorName: updates.contributorName.trim(),
+      purposeId: updates.purposeId,
+      purposeName: updates.purposeName,
+      amount: updates.amount,
+      paymentMethod: updates.paymentMethod,
+      referenceNumber: (updates.paymentMethod === 'gcash' || updates.paymentMethod === 'bank_transfer') ? (updates.referenceNumber?.trim() || '') : '',
+      collectedByName: updates.collectedByName ? updates.collectedByName.trim() : '',
+      notes: updates.notes ? updates.notes.trim() : '',
+      contributedAt: updates.contributedAt,
+      updatedAt: serverTimestamp()
+    })
+
+    await updateDoc(docRef, payload)
+
+    await auditService.logAction(
+      'EVENT_CONTRIBUTION_UPDATE',
+      'events',
+      `Updated contribution record ${id} of ₱${updates.amount} from '${updates.contributorName}' for purpose '${updates.purposeName}'`,
+      performedByName,
+      { eventId: existingData.eventId, contributionId: id, amount: updates.amount }
+    )
   },
 
   async voidContribution(

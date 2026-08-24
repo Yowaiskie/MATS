@@ -136,6 +136,14 @@ export const UsersPage: React.FC = () => {
   const [presetFormExportEventFormResponses, setPresetFormExportEventFormResponses] = useState(false)
   const [presetFormArchiveEventForms, setPresetFormArchiveEventForms] = useState(false)
 
+  // Event Contributions Preset state
+  const [presetFormViewEventContributions, setPresetFormViewEventContributions] = useState(false)
+  const [presetFormAddEventContributions, setPresetFormAddEventContributions] = useState(false)
+  const [presetFormEditEventContributions, setPresetFormEditEventContributions] = useState(false)
+  const [presetFormVoidEventContributions, setPresetFormVoidEventContributions] = useState(false)
+  const [presetFormManageEventContributionPurposes, setPresetFormManageEventContributionPurposes] = useState(false)
+  const [presetFormExportEventContributions, setPresetFormExportEventContributions] = useState(false)
+
   // Register / Edit User Form state
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
@@ -199,13 +207,21 @@ export const UsersPage: React.FC = () => {
   const [canManageEventFinanceCategories, setCanManageEventFinanceCategories] = useState(false)
 
   // Event Forms permissions state
-  const [_canViewEventForms, setCanViewEventForms] = useState(false)
-  const [_canCreateEventForms, setCanCreateEventForms] = useState(false)
-  const [_canEditEventForms, setCanEditEventForms] = useState(false)
-  const [_canPublishEventForms, setCanPublishEventForms] = useState(false)
-  const [_canViewEventFormResponses, setCanViewEventFormResponses] = useState(false)
-  const [_canExportEventFormResponses, setCanExportEventFormResponses] = useState(false)
-  const [_canArchiveEventForms, setCanArchiveEventForms] = useState(false)
+  const [canViewEventForms, setCanViewEventForms] = useState(false)
+  const [canCreateEventForms, setCanCreateEventForms] = useState(false)
+  const [canEditEventForms, setCanEditEventForms] = useState(false)
+  const [canPublishEventForms, setCanPublishEventForms] = useState(false)
+  const [canViewEventFormResponses, setCanViewEventFormResponses] = useState(false)
+  const [canExportEventFormResponses, setCanExportEventFormResponses] = useState(false)
+  const [canArchiveEventForms, setCanArchiveEventForms] = useState(false)
+
+  // Event Contributions permissions state
+  const [canViewEventContributions, setCanViewEventContributions] = useState(false)
+  const [canAddEventContributions, setCanAddEventContributions] = useState(false)
+  const [canEditEventContributions, setCanEditEventContributions] = useState(false)
+  const [canVoidEventContributions, setCanVoidEventContributions] = useState(false)
+  const [canManageEventContributionPurposes, setCanManageEventContributionPurposes] = useState(false)
+  const [canExportEventContributions, setCanExportEventContributions] = useState(false)
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -295,6 +311,13 @@ export const UsersPage: React.FC = () => {
     setCanExportEventFormResponses(p.canExportEventFormResponses ?? false)
     setCanArchiveEventForms(p.canArchiveEventForms ?? false)
 
+    setCanViewEventContributions(p.canViewEventContributions ?? false)
+    setCanAddEventContributions(p.canAddEventContributions ?? false)
+    setCanEditEventContributions(p.canEditEventContributions ?? false)
+    setCanVoidEventContributions(p.canVoidEventContributions ?? false)
+    setCanManageEventContributionPurposes(p.canManageEventContributionPurposes ?? false)
+    setCanExportEventContributions(p.canExportEventContributions ?? false)
+
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
     } else {
@@ -332,7 +355,6 @@ export const UsersPage: React.FC = () => {
     setPresetFormArchiveProjects(false)
 
     setPresetFormViewEventFinance(false)
-    setPresetFormViewEventFinance(false)
     setPresetFormAddEventIncome(false)
     setPresetFormAddEventExpense(false)
     setPresetFormEditEventFinance(false)
@@ -347,6 +369,13 @@ export const UsersPage: React.FC = () => {
     setPresetFormViewEventFormResponses(false)
     setPresetFormExportEventFormResponses(false)
     setPresetFormArchiveEventForms(false)
+
+    setPresetFormViewEventContributions(false)
+    setPresetFormAddEventContributions(false)
+    setPresetFormEditEventContributions(false)
+    setPresetFormVoidEventContributions(false)
+    setPresetFormManageEventContributionPurposes(false)
+    setPresetFormExportEventContributions(false)
   }
 
   const handleOpenEditPreset = (p: PermissionPreset) => {
@@ -393,6 +422,13 @@ export const UsersPage: React.FC = () => {
     setPresetFormViewEventFormResponses(p.canViewEventFormResponses ?? false)
     setPresetFormExportEventFormResponses(p.canExportEventFormResponses ?? false)
     setPresetFormArchiveEventForms(p.canArchiveEventForms ?? false)
+
+    setPresetFormViewEventContributions(p.canViewEventContributions ?? false)
+    setPresetFormAddEventContributions(p.canAddEventContributions ?? false)
+    setPresetFormEditEventContributions(p.canEditEventContributions ?? false)
+    setPresetFormVoidEventContributions(p.canVoidEventContributions ?? false)
+    setPresetFormManageEventContributionPurposes(p.canManageEventContributionPurposes ?? false)
+    setPresetFormExportEventContributions(p.canExportEventContributions ?? false)
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -447,7 +483,14 @@ export const UsersPage: React.FC = () => {
         canPublishEventForms: presetFormPublishEventForms,
         canViewEventFormResponses: presetFormViewEventFormResponses,
         canExportEventFormResponses: presetFormExportEventFormResponses,
-        canArchiveEventForms: presetFormArchiveEventForms
+        canArchiveEventForms: presetFormArchiveEventForms,
+
+        canViewEventContributions: presetFormViewEventContributions,
+        canAddEventContributions: presetFormAddEventContributions,
+        canEditEventContributions: presetFormEditEventContributions,
+        canVoidEventContributions: presetFormVoidEventContributions,
+        canManageEventContributionPurposes: presetFormManageEventContributionPurposes,
+        canExportEventContributions: presetFormExportEventContributions
       }
 
       let updatedPresets: PermissionPreset[] = []
@@ -558,6 +601,21 @@ export const UsersPage: React.FC = () => {
       setCanVoidEventFinance(perms.canVoidEventFinance ?? false)
       setCanTransferEventFunds(perms.canTransferEventFunds ?? false)
       setCanManageEventFinanceCategories(perms.canManageEventFinanceCategories ?? false)
+
+      setCanViewEventForms(perms.canViewEventForms ?? false)
+      setCanCreateEventForms(perms.canCreateEventForms ?? false)
+      setCanEditEventForms(perms.canEditEventForms ?? false)
+      setCanPublishEventForms(perms.canPublishEventForms ?? false)
+      setCanViewEventFormResponses(perms.canViewEventFormResponses ?? false)
+      setCanExportEventFormResponses(perms.canExportEventFormResponses ?? false)
+      setCanArchiveEventForms(perms.canArchiveEventForms ?? false)
+
+      setCanViewEventContributions(perms.canViewEventContributions ?? false)
+      setCanAddEventContributions(perms.canAddEventContributions ?? false)
+      setCanEditEventContributions(perms.canEditEventContributions ?? false)
+      setCanVoidEventContributions(perms.canVoidEventContributions ?? false)
+      setCanManageEventContributionPurposes(perms.canManageEventContributionPurposes ?? false)
+      setCanExportEventContributions(perms.canExportEventContributions ?? false)
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
@@ -649,6 +707,21 @@ export const UsersPage: React.FC = () => {
       canVoidEventFinance,
       canTransferEventFunds,
       canManageEventFinanceCategories,
+
+      canViewEventForms,
+      canCreateEventForms,
+      canEditEventForms,
+      canPublishEventForms,
+      canViewEventFormResponses,
+      canExportEventFormResponses,
+      canArchiveEventForms,
+
+      canViewEventContributions,
+      canAddEventContributions,
+      canEditEventContributions,
+      canVoidEventContributions,
+      canManageEventContributionPurposes,
+      canExportEventContributions,
 
       ...(assignedOrder ? { assignedOrder } : {}),
       ...(activePresetName ? { presetName: activePresetName } : {})
@@ -1317,6 +1390,89 @@ export const UsersPage: React.FC = () => {
                       <span>Can Manage Event Finance Categories</span>
                     </label>
                   </div>
+
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-900">Event Contributions</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canViewEventContributions && canAddEventContributions && canEditEventContributions && canVoidEventContributions && canManageEventContributionPurposes && canExportEventContributions)
+                        setCanViewEventContributions(val)
+                        setCanAddEventContributions(val)
+                        setCanEditEventContributions(val)
+                        setCanVoidEventContributions(val)
+                        setCanManageEventContributionPurposes(val)
+                        setCanExportEventContributions(val)
+                      }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewEventContributions} onChange={e => setCanViewEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can View Event Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canAddEventContributions} onChange={e => setCanAddEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Add / Record Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canEditEventContributions} onChange={e => setCanEditEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Edit Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canVoidEventContributions} onChange={e => setCanVoidEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Void / Archive Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canManageEventContributionPurposes} onChange={e => setCanManageEventContributionPurposes(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Manage Contribution Purposes</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canExportEventContributions} onChange={e => setCanExportEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Export Contribution PDF / CSV</span>
+                    </label>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-gray-200 bg-gray-50/50 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-gray-900">Event Forms</span>
+                      <button type="button" onClick={() => {
+                        const val = !(canViewEventForms && canCreateEventForms && canEditEventForms && canPublishEventForms && canViewEventFormResponses && canExportEventFormResponses && canArchiveEventForms)
+                        setCanViewEventForms(val)
+                        setCanCreateEventForms(val)
+                        setCanEditEventForms(val)
+                        setCanPublishEventForms(val)
+                        setCanViewEventFormResponses(val)
+                        setCanExportEventFormResponses(val)
+                        setCanArchiveEventForms(val)
+                      }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                    </div>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewEventForms} onChange={e => setCanViewEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can View Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canCreateEventForms} onChange={e => setCanCreateEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Create Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canEditEventForms} onChange={e => setCanEditEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Edit Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canPublishEventForms} onChange={e => setCanPublishEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Publish Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canViewEventFormResponses} onChange={e => setCanViewEventFormResponses(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can View Form Responses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canExportEventFormResponses} onChange={e => setCanExportEventFormResponses(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Export Form Responses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canArchiveEventForms} onChange={e => setCanArchiveEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-4 w-4" />
+                      <span>Can Archive / Delete Event Forms</span>
+                    </label>
+                  </div>
                 </div>
 
               </div>
@@ -1594,6 +1750,93 @@ export const UsersPage: React.FC = () => {
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={presetFormManageEventFinanceCategories} onChange={e => setPresetFormManageEventFinanceCategories(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
                       <span>Can Manage Event Finance Categories</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">Event Contributions (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewEventContributions && presetFormAddEventContributions && presetFormEditEventContributions && presetFormVoidEventContributions && presetFormManageEventContributionPurposes && presetFormExportEventContributions)
+                      setPresetFormViewEventContributions(val)
+                      setPresetFormAddEventContributions(val)
+                      setPresetFormEditEventContributions(val)
+                      setPresetFormVoidEventContributions(val)
+                      setPresetFormManageEventContributionPurposes(val)
+                      setPresetFormExportEventContributions(val)
+                    }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewEventContributions} onChange={e => setPresetFormViewEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can View Event Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormAddEventContributions} onChange={e => setPresetFormAddEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Add / Record Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormEditEventContributions} onChange={e => setPresetFormEditEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Edit Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormVoidEventContributions} onChange={e => setPresetFormVoidEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Void / Archive Contributions</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormManageEventContributionPurposes} onChange={e => setPresetFormManageEventContributionPurposes(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Manage Contribution Purposes</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormExportEventContributions} onChange={e => setPresetFormExportEventContributions(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Export Contribution PDF / CSV</span>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600">Event Forms (Preset)</h4>
+                    <button type="button" onClick={() => {
+                      const val = !(presetFormViewEventForms && presetFormCreateEventForms && presetFormEditEventForms && presetFormPublishEventForms && presetFormViewEventFormResponses && presetFormExportEventFormResponses && presetFormArchiveEventForms)
+                      setPresetFormViewEventForms(val)
+                      setPresetFormCreateEventForms(val)
+                      setPresetFormEditEventForms(val)
+                      setPresetFormPublishEventForms(val)
+                      setPresetFormViewEventFormResponses(val)
+                      setPresetFormExportEventFormResponses(val)
+                      setPresetFormArchiveEventForms(val)
+                    }} className="text-[10px] font-semibold text-blue-600 hover:text-blue-800 cursor-pointer">Toggle All</button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewEventForms} onChange={e => setPresetFormViewEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can View Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormCreateEventForms} onChange={e => setPresetFormCreateEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Create Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormEditEventForms} onChange={e => setPresetFormEditEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Edit Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormPublishEventForms} onChange={e => setPresetFormPublishEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Publish Event Forms</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormViewEventFormResponses} onChange={e => setPresetFormViewEventFormResponses(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can View Form Responses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormExportEventFormResponses} onChange={e => setPresetFormExportEventFormResponses(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Export Form Responses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormArchiveEventForms} onChange={e => setPresetFormArchiveEventForms(e.target.checked)} className="rounded border-gray-300 text-blue-600 h-3.5 w-3.5" />
+                      <span>Can Archive / Delete Event Forms</span>
                     </label>
                   </div>
                 </div>

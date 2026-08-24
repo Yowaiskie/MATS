@@ -231,44 +231,87 @@ service cloud.firestore {
       allow read, create, update, delete: if isAuthenticated();
     }
 
+    function isEventHeadOrCreator(eventId) {
+      return isAuthenticated() &&
+             eventId != null &&
+             eventId != '' &&
+             exists(/databases/$(database)/documents/events/$(eventId)) &&
+             (
+               get(/databases/$(database)/documents/events/$(eventId)).data.get('headUid', '') == request.auth.uid ||
+               get(/databases/$(database)/documents/events/$(eventId)).data.get('createdByUid', '') == request.auth.uid
+             );
+    }
+
     // ==========================================
     // Event Finance Module Collections
     // ==========================================
     match /eventIncome/{docId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canAddEventIncome') ||
         hasPermission('canManageEvents') ||
-        hasPermission('canAddIncome')
+        hasPermission('canAddIncome') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventIncome') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddIncome') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
     }
     
     match /eventExpenses/{docId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
+        hasPermission('canAddEventExpense') ||
         hasPermission('canAddEventExpenses') ||
         hasPermission('canManageEvents') ||
-        hasPermission('canAddExpense')
+        hasPermission('canAddExpense') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventExpense') ||
+        hasPermission('canAddEventExpenses') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddExpense') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
     }
 
     match /eventFundTransfers/{docId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canTransferEventFunds') ||
-        hasPermission('canManageEvents')
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canTransferEventFunds') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
     }
 
     match /eventFinanceCategories/{docId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canManageEventFinanceCategories') ||
-        hasPermission('canManageEvents')
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventFinanceCategories') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
     }
 
@@ -277,10 +320,17 @@ service cloud.firestore {
     // ==========================================
     match /eventContributionPurposes/{purposeId} {
       allow read: if isAuthenticated();
-      allow create, update, delete: if isAuthenticated() && (
+      allow create: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canManageEventContributionPurposes') ||
-        hasPermission('canManageEvents')
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventContributionPurposes') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
     }
 
@@ -289,7 +339,8 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canAddEventContributions') ||
-        hasPermission('canManageEvents')
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
       );
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
@@ -297,12 +348,14 @@ service cloud.firestore {
         hasPermission('canVoidEventContributions') ||
         hasPermission('canAddEventIncome') ||
         hasPermission('canAddIncome') ||
-        hasPermission('canManageEvents')
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
       allow delete: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canVoidEventContributions') ||
-        hasPermission('canManageEvents')
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
       );
     }
 
