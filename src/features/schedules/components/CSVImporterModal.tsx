@@ -233,14 +233,21 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">Import Assigned Servers via CSV</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Extract and assign altar servers for mass time slots directly from CSV.</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2 sm:p-2.5 bg-emerald-50 border border-emerald-200/80 rounded-xl text-emerald-600 shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm sm:text-base font-bold text-gray-900">Import Assigned Servers via CSV</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Extract and assign altar servers for mass time slots directly from CSV.</p>
+            </div>
           </div>
           <button 
             type="button"
             onClick={(e) => { e.stopPropagation(); handleClose(); }} 
-            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1.5 rounded-lg hover:bg-gray-100"
             aria-label="Close"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -322,9 +322,16 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
           
           {/* Header */}
           <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-            <div>
-              <h3 className="text-sm font-bold text-gray-900">Schedule Templates Manager</h3>
-              <p className="text-xs text-gray-500 mt-0.5 font-medium">Manage recurring schedule templates and bulk-generate schedules.</p>
+            <div className="flex items-center gap-3">
+              <div className="p-2 sm:p-2.5 bg-purple-50 border border-purple-200/80 rounded-xl text-purple-600 shrink-0">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-bold text-gray-900">Schedule Templates Manager</h3>
+                <p className="text-xs text-gray-500 mt-0.5 font-medium">Manage recurring schedule templates and bulk-generate schedules.</p>
+              </div>
             </div>
             <button 
               type="button"

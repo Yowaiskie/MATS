@@ -146,13 +146,20 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       <div className="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Assign Servers</h3>
-            <p className="text-xs text-gray-500 mt-0.5 font-medium">
-              Select members for "{schedule.title}" ({formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)})
-            </p>
+          <div className="flex items-center gap-3">
+            <div className="p-2 sm:p-2.5 bg-purple-50 border border-purple-200/80 rounded-xl text-purple-600 shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Assign Servers</h3>
+              <p className="text-xs text-gray-500 mt-0.5 font-medium">
+                Select members for "{schedule.title}" ({formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)})
+              </p>
+            </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none p-1.5 rounded-lg hover:bg-gray-100">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -182,10 +189,10 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                     key={grp}
                     type="button"
                     onClick={() => handleToggleOrderGroup(grp)}
-                    className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-colors cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
                       allSelected
-                        ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                        : 'bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100'
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                        : 'bg-indigo-50/50 border-indigo-200/80 text-indigo-800 hover:bg-indigo-100'
                     }`}
                   >
                     {allSelected ? '✓ ' : '+ '} {grp} ({groupMembers.length})
@@ -221,25 +228,34 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 type="button"
                 onClick={handleAssignAll}
                 disabled={loading || activeMembers.length === 0}
-                className="rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-blue-700 transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50/80 hover:bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
               >
-                Assign All Active
+                <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                <span>Assign All Active</span>
               </button>
               <button
                 type="button"
                 onClick={handleSelectAllVisible}
                 disabled={loading || filteredMembers.length === 0}
-                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1 text-[10px] font-bold text-gray-700 transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
               >
-                Select All Visible
+                <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Select All Visible</span>
               </button>
               <button
                 type="button"
                 onClick={handleClearAll}
                 disabled={loading || selectedIds.length === 0}
-                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-2.5 py-1 text-[10px] font-bold text-gray-500 transition-colors disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 px-2.5 py-1 text-[10px] font-bold text-gray-500 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
               >
-                Clear All
+                <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                <span>Clear All</span>
               </button>
             </div>
           </div>
@@ -320,7 +336,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+              className="rounded-xl border border-gray-200 bg-white hover:bg-gray-100 px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
               disabled={loading}
             >
               Cancel
@@ -328,10 +344,13 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-blue-600/20"
               disabled={loading}
             >
-              {loading ? 'Saving...' : 'Save Assignments'}
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              <span>{loading ? 'Saving...' : 'Save Assignments'}</span>
             </button>
           </div>
         </div>

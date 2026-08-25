@@ -360,8 +360,24 @@ export const SchedulesPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Schedule Management</h1>
           <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 mt-3 w-fit">
             {[
-              { key: 'schedules', label: 'Schedules' },
-              { key: 'publications', label: 'Publications' }
+              { 
+                key: 'schedules', 
+                label: 'Schedules',
+                icon: (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                )
+              },
+              { 
+                key: 'publications', 
+                label: 'Publications',
+                icon: (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )
+              }
             ].map((t) => {
               const isActive = activeTab === t.key
               return (
@@ -375,6 +391,7 @@ export const SchedulesPage: React.FC = () => {
                       : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
                   }`}
                 >
+                  {t.icon}
                   <span className="whitespace-nowrap">{t.label}</span>
                 </button>
               )
@@ -385,26 +402,32 @@ export const SchedulesPage: React.FC = () => {
           {activeTab === 'schedules' && (
             <>
               {/* Segmented View Mode Toggle */}
-              <div className="flex border border-gray-200 bg-white rounded-lg p-1 shadow-xs">
+              <div className="flex border border-gray-200 bg-white rounded-xl p-1 shadow-2xs">
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                     viewMode === 'list'
-                      ? 'bg-blue-600 text-white font-bold'
+                      ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-gray-500 hover:text-gray-900'
                   }`}
                 >
-                  List View
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span>List</span>
                 </button>
                 <button
                   onClick={() => setViewMode('calendar')}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
                     viewMode === 'calendar'
-                      ? 'bg-blue-600 text-white font-bold'
+                      ? 'bg-blue-600 text-white shadow-xs'
                       : 'text-gray-500 hover:text-gray-900'
                   }`}
                 >
-                  Calendar View
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>Calendar</span>
                 </button>
               </div>
 
@@ -412,24 +435,33 @@ export const SchedulesPage: React.FC = () => {
                 <>
                   <button
                     onClick={() => setTemplatesOpen(true)}
-                    className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                   >
-                    Templates
+                    <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                    </svg>
+                    <span>Templates</span>
                   </button>
 
                   <button
                     onClick={() => setCsvImportOpen(true)}
-                    className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                   >
-                    Import CSV
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <span>Import CSV</span>
                   </button>
 
                   <button
                     onClick={() => setBulkDeleteMonthOpen(true)}
-                    className="rounded-lg border border-red-200 bg-white hover:bg-red-50 px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:text-red-700 transition-colors cursor-pointer shadow-sm"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                     title="Delete all schedules for a specific month"
                   >
-                    Bulk Delete Month
+                    <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Bulk Delete Month</span>
                   </button>
 
                   <button
@@ -438,9 +470,12 @@ export const SchedulesPage: React.FC = () => {
                       setSelectedDate('')
                       setFormOpen(true)
                     }}
-                    className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all w-full sm:w-auto cursor-pointer shadow-md shadow-blue-600/20"
                   >
-                    Create Schedule
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Create Schedule</span>
                   </button>
                 </>
               )}
@@ -490,9 +525,12 @@ export const SchedulesPage: React.FC = () => {
                 setSelectedMonthDate(today)
                 setDateFilter(getTodayString())
               }}
-              className="shrink-0 rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 transition-colors cursor-pointer min-h-[36px]"
+              className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[36px] shadow-2xs"
             >
-              Today
+              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <span>Today</span>
             </button>
           </div>
         </div>
@@ -548,9 +586,12 @@ export const SchedulesPage: React.FC = () => {
                 setSearchQuery('')
                 setAttendanceFilter('all')
               }}
-              className="text-xs text-blue-600 hover:text-blue-700 font-bold py-2 px-3 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-800 font-bold py-2 px-3 bg-blue-50/60 hover:bg-blue-100/80 border border-blue-200/80 rounded-xl transition-all cursor-pointer shadow-2xs"
             >
-              Clear Filters
+              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Clear Filters</span>
             </button>
           </div>
         )}
@@ -584,17 +625,20 @@ export const SchedulesPage: React.FC = () => {
           {/* Bulk actions toolbar */}
           {canManage && (
             <div className="flex items-center justify-between gap-3 px-1">
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2.5 flex-wrap">
                 {/* Bulk select toggle */}
                 <button
                   onClick={() => setBulkSelectMode(v => !v)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     bulkSelectMode
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                      : 'border-slate-200 bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50'
                   }`}
                 >
-                  {bulkSelectMode ? 'Cancel Selection' : 'Select'}
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <span>{bulkSelectMode ? 'Cancel Selection' : 'Select'}</span>
                 </button>
 
                 {bulkSelectMode && (
@@ -602,13 +646,16 @@ export const SchedulesPage: React.FC = () => {
                     {/* Select / deselect all across ALL pages */}
                     <button
                       onClick={handleSelectAll}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer transition-colors"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 px-3 py-1.5 rounded-xl cursor-pointer transition-all shadow-2xs"
                     >
-                      {allFilteredSelected ? 'Deselect All' : 'Select All'}
+                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>{allFilteredSelected ? 'Deselect All' : 'Select All'}</span>
                     </button>
 
                     {someSelected && (
-                      <span className="text-xs text-gray-500">
+                      <span className="text-xs font-bold text-slate-600 px-2 py-1 bg-slate-100 rounded-lg">
                         {selectedIds.size}{totalPages > 1 ? ` / ${filteredSchedules.length}` : ''} selected
                       </span>
                     )}
@@ -620,12 +667,12 @@ export const SchedulesPage: React.FC = () => {
               {bulkSelectMode && selectedIds.size > 0 && (
                 <button
                   onClick={() => setBulkDeleteOpen(true)}
-                  className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-rose-600/20"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
-                  Delete {selectedIds.size} Selected
+                  <span>Delete {selectedIds.size} Selected</span>
                 </button>
               )}
             </div>

@@ -451,31 +451,59 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
+  const selectedSundayCount = useMemo(() => {
+    return sundayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+  }, [sundayPatterns, selectedScheduleIds])
+
+  const selectedWeekdayCount = useMemo(() => {
+    return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+  }, [weekdayPatterns, selectedScheduleIds])
+
   const renderTable = (patterns: SchedulePattern[], maxRows: number, isSunday: boolean, title: string, subtitle: string, icon: React.ReactNode) => {
     if (patterns.length === 0) return null
 
+    const maxPerServer = isSunday ? (publication?.maxSundaysPerServer ?? 4) : (publication?.maxWeekdaysPerServer ?? 8)
+    const currentCount = isSunday ? selectedSundayCount : selectedWeekdayCount
+
     return (
-      <div className="mb-10">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="w-12 h-12 rounded-2xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center shadow-xs">
-            {icon}
+      <div className="mb-8 sm:mb-10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+              {icon}
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{title}</h2>
+              <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
+            </div>
           </div>
-          <div>
-            <h2 className="text-2xl font-black text-slate-900 tracking-tight">{title}</h2>
-            <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
-          </div>
+
+          {selectedMemberId && !hasSubmitted && (
+            <div className="inline-flex items-center gap-2 self-start sm:self-auto bg-indigo-50 border border-indigo-200/80 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-900">
+              <span>Your Limit:</span>
+              <span className={`px-2 py-0.5 rounded-md font-extrabold ${currentCount >= maxPerServer ? 'bg-amber-100 text-amber-900' : 'bg-white text-indigo-700 shadow-xs'}`}>
+                {currentCount} / {maxPerServer} Selected
+              </span>
+            </div>
+          )}
         </div>
 
-        <div className="bg-white rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto">
+        {/* Horizontal scroll hint on mobile */}
+        <div className="sm:hidden mb-2 flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1">
+          <span>👈 Swipe horizontally to view all times 👉</span>
+          <span>{patterns.length} slots</span>
+        </div>
+
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
             <table className="w-full border-collapse text-left min-w-max">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/50">
-                  <th className="px-6 py-5 font-extrabold text-xs text-slate-400 uppercase tracking-widest w-24 sticky left-0 bg-slate-50/90 z-10">
+                <tr className="border-b border-slate-100 bg-slate-50/70">
+                  <th className="px-3 sm:px-6 py-3.5 sm:py-5 font-extrabold text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest w-16 sm:w-24 sticky left-0 bg-slate-100 sm:bg-slate-50/95 z-20 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
                     ROLE
                   </th>
                   {patterns.map(p => (
-                    <th key={p.id} className="px-6 py-5 text-center min-w-[170px]">
+                    <th key={p.id} className="px-3 sm:px-6 py-3.5 sm:py-5 text-center min-w-[130px] sm:min-w-[170px]">
                       <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{p.dayName}</div>
                       <div className="font-extrabold text-xs text-indigo-600 mt-0.5">{formatTime12Hour(p.startTime)}</div>
                     </th>
@@ -485,7 +513,7 @@ export const PublicSchedulePage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {Array.from({ length: maxRows }).map((_, rowIndex) => (
                   <tr key={rowIndex} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="px-6 py-4 font-bold text-xs text-slate-400 uppercase sticky left-0 bg-white/90 z-10">
+                    <td className="px-3 sm:px-6 py-3 sm:py-4 font-bold text-xs text-slate-400 uppercase sticky left-0 bg-white sm:bg-white/95 z-10 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
                       S-{rowIndex + 1}
                     </td>
                     {patterns.map(pattern => {
@@ -533,29 +561,29 @@ export const PublicSchedulePage: React.FC = () => {
                       }
 
                       return (
-                        <td key={pattern.id} className="px-3 py-3 text-center align-middle">
+                        <td key={pattern.id} className="px-2 sm:px-3 py-2.5 sm:py-3 text-center align-middle">
                           {displayMemberName ? (
                             <div
                               onClick={() => !isOtherUserCell && handleCellClick(pattern.id, isSunday)}
-                              className={`inline-flex items-center justify-center px-4 py-3 rounded-2xl border text-xs font-bold transition-all select-none min-w-[140px] max-w-[160px] text-center ${
+                              className={`inline-flex items-center justify-center px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[120px] sm:min-w-[140px] max-w-[145px] sm:max-w-[160px] text-center ${
                                 isMyCell
-                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300 scale-[1.02] cursor-pointer hover:bg-indigo-700'
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300 scale-[1.02] cursor-pointer hover:bg-indigo-700 active:scale-95'
                                   : 'bg-slate-50 border-slate-200 text-slate-800 cursor-not-allowed opacity-85 shadow-xs'
                               }`}
                             >
-                              <span className={`w-1.5 h-1.5 rounded-full mr-2 shrink-0 ${isMyCell ? 'bg-white' : 'bg-indigo-500'}`} />
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 shrink-0 ${isMyCell ? 'bg-white' : 'bg-indigo-500'}`} />
                               <span className="truncate">{displayMemberName}</span>
                             </div>
                           ) : (
                             <div
                               onClick={() => handleCellClick(pattern.id, isSunday)}
-                              className={`w-full h-full min-h-[44px] rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
+                              className={`w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
                                 !isFinalized && !hasSubmitted
-                                  ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50'
+                                  ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 active:bg-indigo-100/50'
                                   : 'cursor-not-allowed opacity-50'
                               }`}
                             >
-                              <span className="text-slate-300 text-lg font-light">+</span>
+                              <span className="text-slate-300 text-base sm:text-lg font-light">+</span>
                             </div>
                           )}
                         </td>
@@ -571,43 +599,53 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
-
+  const selectedMemberName = useMemo(() => {
+    if (!selectedMemberId) return ''
+    const m = members.find(mem => mem.id === selectedMemberId)
+    return m ? `${m.lastName}, ${m.firstName}` : ''
+  }, [members, selectedMemberId])
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800">
+    <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0">
       {/* LEFT FORM PANEL */}
-      <div className="w-full lg:w-[360px] bg-white border-r border-slate-200 p-8 flex flex-col shrink-0 shadow-xs justify-between">
+      <div className="w-full lg:w-[360px] bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col shrink-0 shadow-xs justify-between">
         <div>
           {/* Header Actions */}
-          <div className="flex items-center mb-8">
-            <div className="w-16 h-16 rounded-full overflow-hidden border border-indigo-100 shadow-xs flex items-center justify-center bg-white">
+          <div className="flex items-center gap-3.5 mb-5 sm:mb-8">
+            <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-full overflow-hidden border border-indigo-100 shadow-xs flex items-center justify-center bg-white shrink-0">
               <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover" />
+            </div>
+            <div className="lg:hidden">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Schedule Selection</h1>
+              <p className="text-xs font-bold text-indigo-600 truncate">{publication?.name}</p>
             </div>
           </div>
 
-          <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Schedule Selection</h1>
-          <div className="mb-6 space-y-1">
-            <p className="text-sm font-bold text-indigo-600">{publication?.name}</p>
-            <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
-              {publication?.startDate} to {publication?.endDate}
-            </p>
-            {publication?.description && (
-              <p className="text-xs text-slate-500 mt-2">{publication.description}</p>
-            )}
+          <div className="hidden lg:block">
+            <h1 className="text-3xl font-black text-slate-900 tracking-tight mb-2">Schedule Selection</h1>
+            <div className="mb-6 space-y-1">
+              <p className="text-sm font-bold text-indigo-600">{publication?.name}</p>
+              <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+                {publication?.startDate} to {publication?.endDate}
+              </p>
+              {publication?.description && (
+                <p className="text-xs text-slate-500 mt-2">{publication.description}</p>
+              )}
+            </div>
           </div>
 
           {isFinalized ? (
-            <div className="bg-amber-50 border border-amber-200 p-6 rounded-2xl text-center shadow-xs mt-4">
-              <div className="text-3xl mb-3">🔒</div>
-              <h3 className="text-amber-900 font-black mb-2 text-lg">Scheduling Closed</h3>
-              <p className="text-amber-800 text-sm leading-relaxed">
+            <div className="bg-amber-50 border border-amber-200 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
+              <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">🔒</div>
+              <h3 className="text-amber-900 font-black mb-1 sm:mb-2 text-base sm:text-lg">Scheduling Closed</h3>
+              <p className="text-amber-800 text-xs sm:text-sm leading-relaxed">
                 This schedule period has been finalized by the administrator. No further selections can be made.
               </p>
             </div>
           ) : (
-            <form onSubmit={handleOpenConfirmModal} className="space-y-6">
-              {/* Member Picker Component matched from PublicEventFormPage */}
-              <div className="space-y-2">
+            <form onSubmit={handleOpenConfirmModal} className="space-y-4 sm:space-y-6">
+              {/* Member Picker Component */}
+              <div className="space-y-2" id="member-picker-section">
                 <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                   1. SELECT YOUR NAME
                 </label>
@@ -626,16 +664,16 @@ export const PublicSchedulePage: React.FC = () => {
                           setIsMemberPickerOpen(true)
                           setNameSearchQuery('')
                         }}
-                        className={`w-full p-4 border rounded-2xl flex items-center justify-between text-left transition-all cursor-pointer ${
+                        className={`w-full p-3.5 sm:p-4 border rounded-2xl flex items-center justify-between text-left transition-all cursor-pointer ${
                           selectedMemberId
                             ? 'bg-indigo-50/80 border-indigo-400 text-indigo-900 shadow-xs'
                             : 'bg-slate-50 border-slate-200 hover:border-indigo-400 text-slate-600'
                         }`}
                       >
                         {selectedMemberId ? (
-                          <div className="flex items-center justify-between w-full">
-                            <div>
-                              <span className="block text-xs font-black text-slate-900">
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <div className="truncate">
+                              <span className="block text-xs font-black text-slate-900 truncate">
                                 {members.find(m => m.id === selectedMemberId)?.lastName}, {members.find(m => m.id === selectedMemberId)?.firstName}
                               </span>
                               {members.find(m => m.id === selectedMemberId)?.order && (
@@ -644,8 +682,8 @@ export const PublicSchedulePage: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            <span className="text-[10px] font-extrabold text-indigo-600 bg-white px-3 py-1.5 rounded-xl border border-indigo-200 shadow-xs">
-                              Change Name
+                            <span className="text-[10px] font-extrabold text-indigo-600 bg-white px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl border border-indigo-200 shadow-xs shrink-0">
+                              Change
                             </span>
                           </div>
                         ) : (
@@ -659,7 +697,7 @@ export const PublicSchedulePage: React.FC = () => {
                       </button>
                     ) : (
                       /* Expanded Picker Card with Search Input */
-                      <div className="p-4 bg-white border-2 border-indigo-600 rounded-2xl shadow-xl space-y-3">
+                      <div className="p-3.5 sm:p-4 bg-white border-2 border-indigo-600 rounded-2xl shadow-xl space-y-3">
                         <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                           <span className="text-xs font-black text-slate-900">Select Your Name</span>
                           <button
@@ -677,10 +715,10 @@ export const PublicSchedulePage: React.FC = () => {
                           value={nameSearchQuery}
                           onChange={e => setNameSearchQuery(e.target.value)}
                           placeholder="Type to search name or order..."
-                          className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
+                          className="w-full p-2.5 sm:p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none font-medium"
                         />
 
-                        <div className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                        <div className="space-y-1.5 max-h-52 sm:max-h-60 overflow-y-auto pr-1">
                           {filteredAvailableMembers.length === 0 ? (
                             <div className="p-3 text-center text-xs text-slate-400 italic">
                               No matching active members found.
@@ -695,7 +733,7 @@ export const PublicSchedulePage: React.FC = () => {
                                     setSelectedMemberId(m.id)
                                     setIsMemberPickerOpen(false)
                                   }}
-                                  className={`flex items-center justify-between p-3 border rounded-xl cursor-pointer transition-all ${
+                                  className={`flex items-center justify-between p-2.5 sm:p-3 border rounded-xl cursor-pointer transition-all ${
                                     isSelected
                                       ? 'bg-indigo-50 border-indigo-500 text-indigo-950 font-bold shadow-xs'
                                       : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800'
@@ -720,28 +758,34 @@ export const PublicSchedulePage: React.FC = () => {
               </div>
 
               {hasSubmitted ? (
-                <div className="bg-amber-50/80 border border-amber-200 p-4 rounded-2xl text-xs text-amber-900 leading-relaxed shadow-xs mt-4">
+                <div className="bg-amber-50/80 border border-amber-200 p-3.5 sm:p-4 rounded-2xl text-xs text-amber-900 leading-relaxed shadow-xs">
                   <strong className="block mb-1 text-amber-950 font-extrabold">Finalized</strong>
                   You have already saved your schedule for this publication. If you need to make changes, please contact your administrator.
                 </div>
               ) : (
-                <div className="bg-indigo-50/80 border border-indigo-100 p-4 rounded-2xl text-xs text-indigo-900 leading-relaxed shadow-xs">
-                  <strong className="block mb-1 text-indigo-950 font-extrabold">2. Click Directly on the Table Slots</strong>
-                  After selecting your name, simply click/tap any mass time slot card or empty slot on the table matrix to choose your serving time!
+                <div className="bg-indigo-50/80 border border-indigo-100 p-3.5 sm:p-4 rounded-2xl text-xs text-indigo-900 leading-relaxed shadow-xs">
+                  <strong className="block mb-1 text-indigo-950 font-extrabold">2. Select Slots in the Table</strong>
+                  Tap any slot below to choose your serving time. When done, tap Save Schedule.
+                  {selectedMemberId && (
+                    <div className="mt-2.5 pt-2 border-t border-indigo-200/60 flex items-center justify-between font-bold text-[11px]">
+                      <span>Sunday: {selectedSundayCount}/{publication?.maxSundaysPerServer ?? 4}</span>
+                      <span>Weekday: {selectedWeekdayCount}/{publication?.maxWeekdaysPerServer ?? 8}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
               {message && !hasSubmitted && (
-                <div className={`p-4 rounded-2xl text-xs font-bold ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
+                <div className={`p-3.5 sm:p-4 rounded-2xl text-xs font-bold ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
                   {message.text}
                 </div>
               )}
 
-              {/* Save Button */}
+              {/* Desktop Save Button (hidden on mobile, visible on lg+) */}
               <button
                 type="submit"
                 disabled={submitting || !selectedMemberId || hasSubmitted}
-                className={`w-full py-4 font-extrabold text-sm rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 mt-4 ${
+                className={`hidden lg:flex w-full py-4 font-extrabold text-sm rounded-2xl shadow-lg transition-all items-center justify-center gap-2 mt-4 ${
                   hasSubmitted 
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
                     : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white shadow-indigo-600/30 cursor-pointer disabled:opacity-50'
@@ -754,20 +798,20 @@ export const PublicSchedulePage: React.FC = () => {
           )}
         </div>
 
-        <div className="pt-8 text-center text-[11px] font-bold text-slate-400">
+        <div className="hidden lg:block pt-8 text-center text-[11px] font-bold text-slate-400">
           © {new Date().getFullYear()} Ministry of Altar Servers
         </div>
       </div>
 
       {/* RIGHT MATRIX TABLE PANEL */}
-      <div className="flex-1 p-6 md:p-10 overflow-x-auto overflow-y-auto">
+      <div className="flex-1 p-3.5 sm:p-6 md:p-10 overflow-x-auto overflow-y-auto">
         {publicationSchedules.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center p-10 bg-white rounded-3xl border border-slate-200/80 shadow-xs">
-            <div className="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4 text-2xl">
+          <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-10 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs">
+            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4 text-2xl">
               📅
             </div>
-            <h2 className="text-xl font-bold text-slate-800 mb-2">No Mass Schedules Yet</h2>
-            <p className="text-sm text-slate-500 max-w-md">
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">No Mass Schedules Yet</h2>
+            <p className="text-xs sm:text-sm text-slate-500 max-w-md">
               There are currently no generated schedules within this publication's date range ({publication?.startDate} to {publication?.endDate}). 
               <br/><br/>
               <strong>Admin Instruction:</strong> Go to the Schedule Management page and use the "Templates" button to generate the schedules for this date range.
@@ -776,23 +820,26 @@ export const PublicSchedulePage: React.FC = () => {
         ) : (
           <>
             {/* SCHEDULE MONTH BANNER ABOVE SUNDAY MASSES */}
-            <div className="mb-6 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 text-white p-6 rounded-3xl shadow-lg border border-indigo-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 shadow-xs">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-7 h-7 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="mb-4 sm:mb-6 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg border border-indigo-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
+                <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 shadow-xs">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-7 sm:h-7 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
                 <div>
-                  <span className="text-[11px] font-extrabold text-indigo-300 uppercase tracking-widest block mb-0.5">
-                    SCHEDULE MONTH / PERIOD
+                  <span className="text-[10px] sm:text-[11px] font-extrabold text-indigo-300 uppercase tracking-widest block mb-0.5">
+                    SCHEDULE PERIOD
                   </span>
-                  <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-white">
+                  <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white">
                     {publication?.name || 'Schedule Period'}
                   </h2>
+                  <p className="text-[11px] text-indigo-200 font-semibold sm:hidden mt-0.5">
+                    {publication?.startDate} to {publication?.endDate}
+                  </p>
                 </div>
               </div>
-              <div className="bg-white/10 px-4 py-2 rounded-2xl text-xs font-bold text-indigo-200 border border-white/10 backdrop-blur-xs self-stretch sm:self-auto text-center">
+              <div className="bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl text-xs font-bold text-indigo-200 border border-white/10 backdrop-blur-xs self-stretch sm:self-auto text-center">
                 Public Schedule
               </div>
             </div>
@@ -803,7 +850,7 @@ export const PublicSchedulePage: React.FC = () => {
               true, 
               'Sunday Masses', 
               `Recurring Sunday Schedules`, 
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             )}
@@ -813,13 +860,66 @@ export const PublicSchedulePage: React.FC = () => {
               false, 
               'Weekday Masses', 
               `Recurring Weekday Schedules`, 
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
             )}
+
+            <div className="lg:hidden text-center text-[11px] font-bold text-slate-400 py-6">
+              © {new Date().getFullYear()} Ministry of Altar Servers
+            </div>
           </>
         )}
       </div>
+
+      {/* MOBILE FLOATING BOTTOM ACTION BAR (< lg) */}
+      {!isFinalized && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-3 sm:p-4 animate-in slide-in-from-bottom duration-200">
+          <div className="max-w-md mx-auto flex items-center justify-between gap-3">
+            {!selectedMemberId ? (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('member-picker-section')
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' })
+                    setIsMemberPickerOpen(true)
+                  }
+                }}
+                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-98 transition-all"
+              >
+                <span>👆 Tap to Select Your Name First</span>
+              </button>
+            ) : hasSubmitted ? (
+              <div className="w-full text-center py-2 text-xs font-bold text-amber-800 bg-amber-50 rounded-xl border border-amber-200">
+                ✅ Schedule Already Saved
+              </div>
+            ) : (
+              <>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] uppercase font-extrabold text-slate-400 truncate">
+                    {selectedMemberName}
+                  </div>
+                  <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                    <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span>{selectedSundayCount} Sun, {selectedWeekdayCount} Wkday</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleOpenConfirmModal}
+                  disabled={submitting || selectedScheduleIds.size === 0}
+                  className="py-3 px-5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-md shadow-indigo-600/20 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+                >
+                  <span>{submitting ? 'Saving...' : 'Save Schedule'}</span>
+                  <span>▹</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Save Confirmation Modal Popup */}
       <ConfirmModal
@@ -846,3 +946,4 @@ export const PublicSchedulePage: React.FC = () => {
     </div>
   )
 }
+

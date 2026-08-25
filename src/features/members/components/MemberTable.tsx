@@ -239,58 +239,58 @@ export const MemberTable: React.FC<MemberTableProps> = ({
 
           {/* Bulk action buttons */}
           {showArchived ? (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={onBulkDelete} // triggers bulk permanent delete in parent
-                className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-rose-600/20"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                 </svg>
-                Permanent Delete {selectedIds.size} Selected
+                <span>Permanent Delete {selectedIds.size} Selected</span>
               </button>
               <button
                 onClick={onSelectAll}   // triggers bulk restore in parent
-                className="flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-emerald-600/20"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Restore {selectedIds.size} Selected
+                <span>Restore {selectedIds.size} Selected</span>
               </button>
             </div>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               {onBulkEditRank && (
                 <button
                   onClick={onBulkEditRank}
-                  className="flex items-center gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-blue-600/20"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  Change Rank ({selectedIds.size})
+                  <span>Change Rank ({selectedIds.size})</span>
                 </button>
               )}
               {onBulkEditOrder && (
                 <button
                   onClick={onBulkEditOrder}
-                  className="flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-indigo-600/20"
                 >
                   <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                   </svg>
-                  Change Order ({selectedIds.size})
+                  <span>Change Order ({selectedIds.size})</span>
                 </button>
               )}
               <button
                 onClick={onSelectAll}   // triggers bulk archive in parent
-                className="flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 px-3 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-amber-500/20"
               >
                 <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                 </svg>
-                Archive {selectedIds.size} Selected
+                <span>Archive {selectedIds.size} Selected</span>
               </button>
             </div>
           )}
@@ -414,39 +414,51 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
                         {canManage ? (
                           member.status !== 'archived' ? (
-                            <>
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => onEdit(member)}
-                                className="text-xs text-blue-600 hover:text-blue-700 font-semibold px-2.5 py-1 bg-blue-50 hover:bg-blue-100/70 rounded-md transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Edit
+                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span>Edit</span>
                               </button>
                               {canDelete && (
                                 <button
                                   onClick={() => onArchive(member.id)}
-                                  className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                                 >
-                                  Delete
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  <span>Delete</span>
                                 </button>
                               )}
-                            </>
+                            </div>
                           ) : (
-                            <>
+                            <div className="flex items-center justify-end gap-1.5">
                               <button
                                 onClick={() => onRestore(member.id)}
-                                className="text-xs text-green-600 hover:text-green-700 font-semibold px-2.5 py-1 bg-green-50 hover:bg-green-100/70 rounded-md transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Restore
+                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Restore</span>
                               </button>
                               {canDelete && (
                                 <button
                                   onClick={() => onDelete(member.id)}
-                                  className="text-xs text-red-600 hover:text-red-700 font-semibold px-2.5 py-1 bg-red-50 hover:bg-red-100/70 rounded-md transition-colors cursor-pointer"
+                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                                 >
-                                  Delete
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  <span>Delete</span>
                                 </button>
                               )}
-                            </>
+                            </div>
                           )
                         ) : (
                           <span className="text-[11px] text-gray-400 font-medium italic">Read-only</span>

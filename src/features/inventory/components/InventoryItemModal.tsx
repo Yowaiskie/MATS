@@ -112,8 +112,8 @@ export const InventoryItemModal: React.FC<Props> = ({
             unit: unit.trim() || 'pcs',
             condition,
             storageLocation: storageLocation.trim() || 'Ministry Storage',
-            donorOrSource: donorOrSource.trim() || undefined,
-            notes: notes.trim() || undefined
+            donorOrSource: donorOrSource.trim() || '',
+            notes: notes.trim() || ''
           },
           userUid,
           userName
@@ -128,8 +128,8 @@ export const InventoryItemModal: React.FC<Props> = ({
           condition,
           status: 'In Stock',
           storageLocation: storageLocation.trim() || 'Ministry Storage',
-          donorOrSource: donorOrSource.trim() || undefined,
-          notes: notes.trim() || undefined,
+          donorOrSource: donorOrSource.trim() || '',
+          notes: notes.trim() || '',
           createdByUid: userUid,
           createdByName: userName
         })

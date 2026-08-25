@@ -15,6 +15,17 @@ import type { InventoryItem, ItemStatus } from '@/types/inventory'
 
 const COLLECTION_NAME = 'inventory_items'
 
+// Helper to remove undefined properties before saving to Firestore
+const cleanData = <T extends Record<string, any>>(obj: T): T => {
+  const cleaned: any = {}
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      cleaned[key] = obj[key]
+    }
+  })
+  return cleaned
+}
+
 export const inventoryService = {
   // Real-time listener for inventory items
   subscribeItems: (
@@ -106,7 +117,7 @@ export const inventoryService = {
       status = 'In Stock'
     }
 
-    const newDoc = await addDoc(colRef, {
+    const payload = cleanData({
       ...data,
       quantity: Number(data.quantity) || 0,
       status,
@@ -114,6 +125,8 @@ export const inventoryService = {
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
+
+    const newDoc = await addDoc(colRef, payload)
 
     return newDoc.id
   },
@@ -127,12 +140,12 @@ export const inventoryService = {
   ): Promise<void> => {
     const docRef = doc(db, COLLECTION_NAME, id)
     
-    const updatePayload: any = {
+    const updatePayload: any = cleanData({
       ...data,
       updatedByUid,
       updatedByName,
       updatedAt: serverTimestamp()
-    }
+    })
 
     if (data.quantity !== undefined) {
       updatePayload.quantity = Number(data.quantity) || 0

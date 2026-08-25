@@ -324,7 +324,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         </div>
 
         <div className="flex space-x-2 items-center flex-wrap gap-2">
-          <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-2 rounded-xl border border-slate-200 shadow-2xs text-xs font-semibold text-slate-600 hover:bg-slate-50">
+          <label className="flex items-center gap-2 cursor-pointer bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs text-xs font-bold text-slate-600 hover:bg-slate-50 transition-colors">
             <input 
               type="checkbox" 
               checked={showArchived}
@@ -339,11 +339,12 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
               onClick={() => setIsFundRequestModalOpen(true)}
               title="Request Funds from Main Ministry"
               aria-label="Request Funds from Main Ministry"
-              className="p-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 hover:text-indigo-900 border border-indigo-200 rounded-lg transition-all cursor-pointer flex items-center justify-center shadow-2xs mr-2 active:scale-95"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs active:scale-95"
             >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
               </svg>
+              <span className="hidden sm:inline">Request Funds</span>
             </button>
           )}
 
@@ -368,32 +369,41 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
             <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
             </svg>
-            <span>Liquidation Report (PDF)</span>
+            <span>Liquidation PDF</span>
           </button>
 
           {(activeTab === 'income' && (isHeadOrCreator || canAction('canAddEventIncome'))) && (
             <button
               onClick={() => handleOpenIncomeModal()}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition-all cursor-pointer"
             >
-              + Add Income
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add Income</span>
             </button>
           )}
           {(activeTab === 'expenses' && (isHeadOrCreator || canAction('canAddEventExpense'))) && (
             <button
               onClick={() => handleOpenExpenseModal()}
-              className="px-4 py-2 bg-red-600 text-white rounded-md text-sm font-medium hover:bg-red-700 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md shadow-rose-600/20 transition-all cursor-pointer"
             >
-              + Add Expense
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add Expense</span>
             </button>
           )}
           {(activeTab === 'transfers' && (isHeadOrCreator || canAction('canTransferEventFunds'))) && (
             <button
               onClick={() => setIsTransferModalOpen(true)}
               disabled={balance <= 0}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md text-sm font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
             >
-              Transfer to Main Funds
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+              </svg>
+              <span>Transfer to Main Funds</span>
             </button>
           )}
         </div>
@@ -484,16 +494,42 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {(isHeadOrCreator || canAction('canEditEventFinance')) && !inc.isArchived && (
-                      <button onClick={() => handleOpenIncomeModal(inc)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer">Edit</button>
-                    )}
-                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && !inc.isArchived && (
-                      <button onClick={() => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded cursor-pointer">Archive</button>
-                    )}
-                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && inc.isArchived && (
-                      <button onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded cursor-pointer">Delete</button>
-                    )}
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-xs font-bold">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {(isHeadOrCreator || canAction('canEditEventFinance')) && !inc.isArchived && (
+                        <button 
+                          onClick={() => handleOpenIncomeModal(inc)} 
+                          className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span>Edit</span>
+                        </button>
+                      )}
+                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && !inc.isArchived && (
+                        <button 
+                          onClick={() => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' })} 
+                          className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                          <span>Archive</span>
+                        </button>
+                      )}
+                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && inc.isArchived && (
+                        <button 
+                          onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })} 
+                          className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -538,16 +574,42 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                    {(isHeadOrCreator || canAction('canEditEventFinance')) && !exp.isArchived && (
-                      <button onClick={() => handleOpenExpenseModal(exp)} className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded cursor-pointer">Edit</button>
-                    )}
-                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && !exp.isArchived && (
-                      <button onClick={() => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-amber-600 hover:text-amber-900 bg-amber-50 hover:bg-amber-100 px-2 py-1 rounded cursor-pointer">Archive</button>
-                    )}
-                    {(isHeadOrCreator || canAction('canVoidEventFinance')) && exp.isArchived && (
-                      <button onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })} className="text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-2 py-1 rounded cursor-pointer">Delete</button>
-                    )}
+                  <td className="px-4 py-3 whitespace-nowrap text-right text-xs font-bold">
+                    <div className="flex items-center justify-end gap-1.5">
+                      {(isHeadOrCreator || canAction('canEditEventFinance')) && !exp.isArchived && (
+                        <button 
+                          onClick={() => handleOpenExpenseModal(exp)} 
+                          className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          <span>Edit</span>
+                        </button>
+                      )}
+                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && !exp.isArchived && (
+                        <button 
+                          onClick={() => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' })} 
+                          className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                          <span>Archive</span>
+                        </button>
+                      )}
+                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && exp.isArchived && (
+                        <button 
+                          onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })} 
+                          className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -629,24 +629,26 @@ export const AttendancePage: React.FC = () => {
               </button>
             )}
           </div>
-
           {/* Quick Assign Action */}
           {!(session?.locked ?? false) && (
-            <div className="w-full sm:w-auto flex items-center gap-2">
+            <div className="w-full sm:w-auto flex items-center gap-2 flex-wrap sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => setAssignmentOpen(true)}
-                className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors cursor-pointer shadow-sm"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 px-3.5 py-2 text-xs font-bold text-purple-700 transition-all cursor-pointer shadow-2xs"
               >
-                Edit Assigned Servers
+                <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                <span>Edit Assigned Servers</span>
               </button>
               <button
                 type="button"
                 onClick={handleAssignAll}
-                className="w-full sm:w-auto rounded-lg border border-blue-200 bg-blue-50 hover:bg-blue-100 px-4 py-2 text-xs font-semibold text-blue-700 transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3.5 py-2 text-xs font-bold text-blue-700 transition-all cursor-pointer shadow-2xs"
               >
-                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                 </svg>
                 <span>Assign All Active Servers</span>
               </button>
@@ -762,9 +764,12 @@ export const AttendancePage: React.FC = () => {
                   type="button"
                   onClick={() => setAddOtherServerOpen(true)}
                   disabled={saving}
-                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2.5 text-xs font-semibold text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 px-4 py-2.5 text-xs font-bold text-emerald-700 transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
                 >
-                  + Add Other Server
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                  </svg>
+                  <span>Add Other Server</span>
                 </button>
               )}
             </div>
@@ -779,9 +784,12 @@ export const AttendancePage: React.FC = () => {
                 <button
                   onClick={handleSave}
                   disabled={saving || !isDirty}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed px-5 py-2.5 text-xs font-semibold text-white transition-colors shadow-sm cursor-pointer"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed px-5 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-blue-600/20 cursor-pointer"
                 >
-                  {saving ? 'Saving changes...' : 'Save Attendance Records'}
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>{saving ? 'Saving changes...' : 'Save Attendance Records'}</span>
                 </button>
               )}
             </div>

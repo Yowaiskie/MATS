@@ -66,24 +66,41 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
 
         {/* Lock/Unlock & Report triggers */}
         {canFinalize && (
-          <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+          <div className="flex items-center gap-2.5 flex-wrap w-full md:w-auto">
             <button
               onClick={onGenerateReport}
               disabled={isDirty || isSaving}
-              className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2 text-xs font-semibold text-white transition-colors w-full md:w-auto cursor-pointer shadow-sm"
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-4 py-2.5 text-xs font-bold text-white transition-all w-full md:w-auto cursor-pointer shadow-md shadow-blue-600/20"
             >
-              Generate Community Report
+              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <span>Generate Community Report</span>
             </button>
             <button
               onClick={onToggleLock}
               disabled={isSaving}
-              className={`rounded-lg px-4 py-2 text-xs font-semibold transition-colors disabled:opacity-40 w-full md:w-auto cursor-pointer ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-40 w-full md:w-auto cursor-pointer shadow-sm ${
                 session.locked
-                  ? 'border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-800 shadow-sm'
-                  : 'bg-red-600 hover:bg-red-700 text-white shadow-sm'
+                  ? 'border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700'
+                  : 'border border-rose-200 bg-rose-50/70 hover:bg-rose-100 text-rose-700'
               }`}
             >
-              {session.locked ? 'Unlock Attendance Session' : 'Finalize & Lock Session'}
+              {session.locked ? (
+                <>
+                  <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  <span>Unlock Attendance Session</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span>Finalize & Lock Session</span>
+                </>
+              )}
             </button>
           </div>
         )}
@@ -137,27 +154,36 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
       {/* Bulk actions menu (only available if unlocked) */}
       {!session.locked && (
         <div className="flex items-center justify-start gap-2 flex-wrap w-full">
-          <span className="text-xs text-gray-500 font-semibold mr-1">Bulk Actions:</span>
+          <span className="text-xs text-gray-500 font-bold mr-1">Bulk Actions:</span>
           <button
             onClick={() => onBulkAction('present')}
             disabled={isSaving || summary.total === 0}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-green-50 hover:border-green-200 px-3 py-1.5 text-[11px] font-semibold text-green-600 hover:text-green-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 px-3 py-1.5 text-xs font-bold text-emerald-700 transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
           >
-            Mark All Present
+            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Mark All Present</span>
           </button>
           <button
             onClick={() => onBulkAction('absent')}
             disabled={isSaving || summary.total === 0}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-red-50 hover:border-red-200 px-3 py-1.5 text-[11px] font-semibold text-red-600 hover:text-red-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 px-3 py-1.5 text-xs font-bold text-rose-700 transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
           >
-            Mark All Absent
+            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+            <span>Mark All Absent</span>
           </button>
           <button
             onClick={() => onBulkAction('clear')}
             disabled={isSaving || summary.total === 0}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-55 px-3 py-1.5 text-[11px] font-semibold text-gray-500 hover:text-gray-700 transition-colors disabled:opacity-40 cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 px-3 py-1.5 text-xs font-bold text-slate-600 transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
           >
-            Clear All Statuses
+            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>Clear All Statuses</span>
           </button>
         </div>
       )}

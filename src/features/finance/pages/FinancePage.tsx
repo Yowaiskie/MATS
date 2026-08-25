@@ -1694,9 +1694,12 @@ export const FinancePage: React.FC = () => {
                 <h3 className="text-sm font-bold text-gray-900">Recorded Income Receipts</h3>
                 <button
                   onClick={handleOpenAddIncome}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all"
                 >
-                  + Record Income
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Record Income</span>
                 </button>
               </div>
 
@@ -1711,9 +1714,9 @@ export const FinancePage: React.FC = () => {
                     {showArchived ? (
                       <button
                         onClick={() => handleTriggerBulkRestore('income')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-emerald-600/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <span>Restore Selected ({selectedIds.size})</span>
@@ -1721,9 +1724,9 @@ export const FinancePage: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleTriggerBulkArchive('income')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-amber-500/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
                         <span>Archive Selected ({selectedIds.size})</span>
@@ -1731,16 +1734,16 @@ export const FinancePage: React.FC = () => {
                     )}
                     <button
                       onClick={() => handleTriggerBulkDelete('income')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-rose-600/20"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                       <span>Delete Permanently ({selectedIds.size})</span>
                     </button>
                     <button
                       onClick={() => setSelectedIds(new Set())}
-                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
                     >
                       Clear
                     </button>
@@ -1797,33 +1800,45 @@ export const FinancePage: React.FC = () => {
                         <td className="p-3 font-black text-emerald-600">₱{inc.amount.toLocaleString()}</td>
                         <td className="p-3 whitespace-nowrap">
                           {inc.isArchived ? (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => handleRestoreIncome(inc.id)}
-                                className="text-emerald-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Restore
+                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Restore</span>
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })}
-                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Delete
+                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete</span>
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => handleOpenEditIncome(inc)}
-                                className="text-blue-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Edit
+                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span>Edit</span>
                               </button>
                               <button
                                 onClick={() => handleArchiveIncome(inc.id)}
-                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Archive
+                                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                                <span>Archive</span>
                               </button>
                             </div>
                           )}
@@ -1850,9 +1865,12 @@ export const FinancePage: React.FC = () => {
                 <h3 className="text-sm font-bold text-gray-900">Direct Expense Payments</h3>
                 <button
                   onClick={handleOpenAddExpense}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all"
                 >
-                  + Record Expense
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Record Expense</span>
                 </button>
               </div>
 
@@ -1867,9 +1885,9 @@ export const FinancePage: React.FC = () => {
                     {showArchived ? (
                       <button
                         onClick={() => handleTriggerBulkRestore('expense')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-emerald-600/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <span>Restore Selected ({selectedIds.size})</span>
@@ -1877,9 +1895,9 @@ export const FinancePage: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleTriggerBulkArchive('expense')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-amber-500/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
                         <span>Archive Selected ({selectedIds.size})</span>
@@ -1887,16 +1905,16 @@ export const FinancePage: React.FC = () => {
                     )}
                     <button
                       onClick={() => handleTriggerBulkDelete('expense')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-rose-600/20"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                       <span>Delete Permanently ({selectedIds.size})</span>
                     </button>
                     <button
                       onClick={() => setSelectedIds(new Set())}
-                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
                     >
                       Clear
                     </button>
@@ -1958,33 +1976,45 @@ export const FinancePage: React.FC = () => {
                         <td className="p-3 font-black text-red-600">₱{exp.amount.toLocaleString()}</td>
                         <td className="p-3 whitespace-nowrap">
                           {exp.isArchived ? (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => handleRestoreExpense(exp.id)}
-                                className="text-emerald-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Restore
+                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>Restore</span>
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })}
-                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Delete
+                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <span>Delete</span>
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => handleOpenEditExpense(exp)}
-                                className="text-blue-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Edit
+                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span>Edit</span>
                               </button>
                               <button
                                 onClick={() => handleArchiveExpense(exp.id)}
-                                className="text-red-600 hover:underline cursor-pointer font-bold"
+                                className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                Archive
+                                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                                <span>Archive</span>
                               </button>
                             </div>
                           )}
@@ -2014,17 +2044,23 @@ export const FinancePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => handleSelectAll(categories.map(c => c.id))}
-                      className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 px-2.5 py-1 rounded-lg cursor-pointer shadow-2xs transition-all"
                     >
-                      {selectedIds.size === categories.length ? 'Deselect All' : 'Select All'}
+                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>{selectedIds.size === categories.length ? 'Deselect All' : 'Select All'}</span>
                     </button>
                   )}
                 </div>
                 <button
                   onClick={handleOpenAddCategory}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all"
                 >
-                  + Add Category
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Add Category</span>
                 </button>
               </div>
 
@@ -2039,9 +2075,9 @@ export const FinancePage: React.FC = () => {
                     {showArchived ? (
                       <button
                         onClick={() => handleTriggerBulkRestore('category')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-emerald-600/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <span>Restore Selected ({selectedIds.size})</span>
@@ -2049,9 +2085,9 @@ export const FinancePage: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleTriggerBulkArchive('category')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-amber-500/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
                         <span>Archive Selected ({selectedIds.size})</span>
@@ -2059,16 +2095,16 @@ export const FinancePage: React.FC = () => {
                     )}
                     <button
                       onClick={() => handleTriggerBulkDelete('category')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-rose-600/20"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                       <span>Delete Permanently ({selectedIds.size})</span>
                     </button>
                     <button
                       onClick={() => setSelectedIds(new Set())}
-                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
                     >
                       Clear
                     </button>
@@ -2078,7 +2114,7 @@ export const FinancePage: React.FC = () => {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {categories.map((cat) => (
-                  <div key={cat.id} className={`p-4 bg-white border rounded-xl shadow-2xs flex justify-between items-center ${cat.isArchived ? 'border-amber-200 bg-amber-50/30 opacity-75' : 'border-gray-200'} ${selectedIds.has(cat.id) ? 'ring-2 ring-blue-500 bg-blue-50/30' : ''}`}>
+                  <div key={cat.id} className={`p-4 bg-white border rounded-2xl shadow-2xs flex justify-between items-center ${cat.isArchived ? 'border-amber-200 bg-amber-50/30 opacity-75' : 'border-gray-200'} ${selectedIds.has(cat.id) ? 'ring-2 ring-blue-500 bg-blue-50/30' : ''}`}>
                     <div className="flex items-center gap-2.5">
                       <input
                         type="checkbox"
@@ -2098,35 +2134,47 @@ export const FinancePage: React.FC = () => {
                         <span className={`text-[10px] text-${cat.color}-600 capitalize font-bold`}>{cat.color || 'blue'} theme</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1.5">
                       {cat.isArchived ? (
                         <>
                           <button
                             onClick={() => handleRestoreCategory(cat.id, cat.name)}
-                            className="text-emerald-600 hover:underline text-xs font-bold cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2 py-1 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                           >
-                            Restore
+                            <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                            <span>Restore</span>
                           </button>
                           <button
                             onClick={() => setDeleteConfirm({ isOpen: true, id: cat.id, name: cat.name, type: 'category' })}
-                            className="text-red-600 hover:underline text-xs font-bold cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2 py-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                           >
-                            Delete
+                            <svg className="w-3 h-3 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                            <span>Delete</span>
                           </button>
                         </>
                       ) : (
                         <>
                           <button
                             onClick={() => handleOpenEditCategory(cat)}
-                            className="text-blue-600 hover:underline text-xs font-bold cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2 py-1 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                           >
-                            Edit
+                            <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            <span>Edit</span>
                           </button>
                           <button
                             onClick={() => handleArchiveCategory(cat.id, cat.name)}
-                            className="text-red-600 hover:underline text-xs font-bold cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2 py-1 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                           >
-                            Archive
+                            <svg className="w-3 h-3 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                            <span>Archive</span>
                           </button>
                         </>
                       )}
@@ -2149,9 +2197,12 @@ export const FinancePage: React.FC = () => {
                 <h3 className="text-sm font-bold text-gray-900">Fund Requests Workflow</h3>
                 <button
                   onClick={() => setIsRequestModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all"
                 >
-                  + Create Fund Request
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Create Fund Request</span>
                 </button>
               </div>
 
@@ -2166,9 +2217,9 @@ export const FinancePage: React.FC = () => {
                     {showArchived ? (
                       <button
                         onClick={() => handleTriggerBulkRestore('request')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-emerald-600/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                         </svg>
                         <span>Restore Selected ({selectedIds.size})</span>
@@ -2176,9 +2227,9 @@ export const FinancePage: React.FC = () => {
                     ) : (
                       <button
                         onClick={() => handleTriggerBulkArchive('request')}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-amber-500/20"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                         </svg>
                         <span>Archive Selected ({selectedIds.size})</span>
@@ -2186,16 +2237,16 @@ export const FinancePage: React.FC = () => {
                     )}
                     <button
                       onClick={() => handleTriggerBulkDelete('request')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md shadow-rose-600/20"
                     >
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                       </svg>
                       <span>Delete Permanently ({selectedIds.size})</span>
                     </button>
                     <button
                       onClick={() => setSelectedIds(new Set())}
-                      className="px-2.5 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg text-xs font-bold transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs"
                     >
                       Clear
                     </button>
@@ -2253,9 +2304,12 @@ export const FinancePage: React.FC = () => {
                             <button
                               type="button"
                               onClick={() => setHistoryRequest(req)}
-                              className="text-blue-600 hover:text-blue-800 font-bold text-[9px] px-2 py-0.5 rounded-sm bg-blue-50 border border-blue-100 hover:bg-blue-100 transition-colors cursor-pointer"
+                              className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-[10px] px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/80 hover:bg-blue-100 transition-colors cursor-pointer shadow-2xs"
                             >
-                              View History
+                              <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span>History</span>
                             </button>
                           </div>
                           <div className="text-[10px] text-gray-400 mt-0.5">{req.purpose}</div>
@@ -2281,18 +2335,18 @@ export const FinancePage: React.FC = () => {
                             <div className="flex items-center gap-1.5">
                               <button
                                 onClick={() => handleRestoreRequest(req.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                 </svg>
                                 <span>Restore</span>
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-red-700 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors cursor-pointer"
+                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                               >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                                 <span>Delete</span>
@@ -2304,7 +2358,7 @@ export const FinancePage: React.FC = () => {
                               {req.status === 'pending' && (
                                 <button
                                   onClick={() => handleApproveRequest(req.id)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -2316,7 +2370,7 @@ export const FinancePage: React.FC = () => {
                               {req.status === 'approved' && (
                                 <button
                                   onClick={() => handleReleaseOpen(req)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-lg shadow-xs transition cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition cursor-pointer"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -2328,7 +2382,7 @@ export const FinancePage: React.FC = () => {
                               {req.status === 'released' && (
                                 <button
                                   onClick={() => handleLiquidationOpen(req)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-xs transition cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
@@ -2340,7 +2394,7 @@ export const FinancePage: React.FC = () => {
                               {req.status === 'liquidated' && (
                                 <button
                                   onClick={() => handleReviewLiquidation(req.id)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg shadow-xs transition cursor-pointer"
+                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -2357,9 +2411,9 @@ export const FinancePage: React.FC = () => {
                                     e.stopPropagation()
                                     setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
                                   }}
-                                  className={`inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold border rounded-lg transition-colors cursor-pointer ${
+                                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all cursor-pointer shadow-2xs ${
                                     actionMenuReqId === req.id
-                                      ? 'bg-slate-100 border-slate-300 text-slate-900 shadow-2xs'
+                                      ? 'bg-slate-100 border-slate-300 text-slate-900'
                                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                                   }`}
                                 >
@@ -2569,24 +2623,40 @@ export const FinancePage: React.FC = () => {
           {activeTab === 'reports' && reportData && (
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-2xs">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   <input
                     type="date"
                     value={reportStartDate}
                     onChange={(e) => setReportStartDate(e.target.value)}
-                    className="p-1.5 border border-gray-300 rounded text-xs"
+                    className="p-2 border border-gray-300 rounded-xl text-xs font-bold bg-white"
                   />
-                  <span className="text-gray-400">to</span>
+                  <span className="text-gray-400 font-bold text-xs">to</span>
                   <input
                     type="date"
                     value={reportEndDate}
                     onChange={(e) => setReportEndDate(e.target.value)}
-                    className="p-1.5 border border-gray-300 rounded text-xs"
+                    className="p-2 border border-gray-300 rounded-xl text-xs font-bold bg-white"
                   />
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={handleExportCSV} className="px-3.5 py-1.5 border border-gray-300 rounded-lg text-xs font-bold hover:bg-gray-50 bg-white cursor-pointer">Export CSV</button>
-                  <button onClick={handleExportPDF} className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold cursor-pointer">Download PDF</button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button 
+                    onClick={handleExportCSV} 
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold shadow-2xs transition cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Export CSV</span>
+                  </button>
+                  <button 
+                    onClick={handleExportPDF} 
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer"
+                  >
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Download PDF</span>
+                  </button>
                 </div>
               </div>
 
@@ -2664,16 +2734,22 @@ export const FinancePage: React.FC = () => {
                           {p.status === 'closed' ? (
                             <button
                               onClick={() => handleReopenPeriod(p.id)}
-                              className="text-emerald-600 font-bold hover:underline cursor-pointer"
+                              className="inline-flex items-center gap-1 text-xs text-indigo-700 hover:text-indigo-800 font-bold px-2.5 py-1 bg-indigo-50/80 hover:bg-indigo-100 border border-indigo-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                             >
-                              Reopen Period
+                              <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                              </svg>
+                              <span>Reopen Period</span>
                             </button>
                           ) : (
                             <button
                               onClick={() => handleClosePeriod(p.id)}
-                              className="text-red-600 font-bold hover:underline cursor-pointer"
+                              className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                             >
-                              Close Period (Lock Month)
+                              <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                              <span>Lock Period</span>
                             </button>
                           )}
                         </td>
@@ -2688,9 +2764,12 @@ export const FinancePage: React.FC = () => {
                         <td className="p-3">
                           <button
                             onClick={() => handleClosePeriod(currentMonthStr)}
-                            className="text-red-600 font-bold hover:underline cursor-pointer"
+                            className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
                           >
-                            Close Period (Lock Month)
+                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            </svg>
+                            <span>Lock Period</span>
                           </button>
                         </td>
                       </tr>

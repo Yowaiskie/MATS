@@ -99,11 +99,16 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         
         {/* Header */}
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900">Manage Submissions</h2>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-0.5">{publication.name}</p>
+          <div className="flex items-center gap-3">
+            <div className="p-2 sm:p-2.5 bg-purple-50 border border-purple-200/80 rounded-xl text-purple-600 shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div>
+              <h2 className="text-base sm:text-lg font-bold text-slate-900">Manage Submissions</h2>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-0.5">{publication.name}</p>
+            </div>
           </div>
-          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
           </button>
         </div>
