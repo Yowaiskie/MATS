@@ -19,6 +19,7 @@ export const PublicationFormModal: React.FC<Props> = ({
   const [name, setName] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
+  const [submissionDeadline, setSubmissionDeadline] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<'draft' | 'published' | 'archived'>('draft')
   const [maxSundaysPerServer, setMaxSundaysPerServer] = useState<number>(4)
@@ -37,6 +38,7 @@ export const PublicationFormModal: React.FC<Props> = ({
         setName(publication.name)
         setStartDate(publication.startDate)
         setEndDate(publication.endDate)
+        setSubmissionDeadline(publication.submissionDeadline || '')
         setDescription(publication.description || '')
         setStatus(publication.status)
         setMaxSundaysPerServer(publication.maxSundaysPerServer ?? 4)
@@ -48,6 +50,7 @@ export const PublicationFormModal: React.FC<Props> = ({
         setName('')
         setStartDate('')
         setEndDate('')
+        setSubmissionDeadline('')
         setDescription('')
         setStatus('draft')
         setMaxSundaysPerServer(4)
@@ -91,6 +94,7 @@ export const PublicationFormModal: React.FC<Props> = ({
     try {
       await onSubmit({ 
         name, startDate, endDate, description, status,
+        submissionDeadline: submissionDeadline || undefined,
         maxSundaysPerServer, maxWeekdaysPerServer,
         maxServersPerSundaySlot, maxServersPerWeekdaySlot
       }, generateSchedules, selectedTemplateIds)
@@ -173,6 +177,21 @@ export const PublicationFormModal: React.FC<Props> = ({
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
+                Submission Deadline (Optional)
+              </label>
+              <input
+                type="datetime-local"
+                value={submissionDeadline}
+                onChange={(e) => setSubmissionDeadline(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium text-gray-800"
+              />
+              <span className="text-[10px] text-gray-400 font-medium block mt-1">
+                Members who do not submit by this deadline can be automatically assigned via &quot;Auto-Assign Randomly&quot;.
+              </span>
             </div>
 
             <div>

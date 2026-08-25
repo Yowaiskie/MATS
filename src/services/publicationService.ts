@@ -53,6 +53,7 @@ export const publicationService = {
       endDate: input.endDate,
       status: input.status || 'draft',
       description: input.description?.trim() || '',
+      submissionDeadline: input.submissionDeadline || '',
       maxSundaysPerServer: input.maxSundaysPerServer ?? 4,
       maxWeekdaysPerServer: input.maxWeekdaysPerServer ?? 8,
       maxServersPerSundaySlot: input.maxServersPerSundaySlot ?? 5,
@@ -86,6 +87,7 @@ export const publicationService = {
     if (input.endDate !== undefined) updateData.endDate = input.endDate
     if (input.status !== undefined) updateData.status = input.status
     if (input.description !== undefined) updateData.description = input.description.trim()
+    if (input.submissionDeadline !== undefined) updateData.submissionDeadline = input.submissionDeadline
     if (input.maxSundaysPerServer !== undefined) updateData.maxSundaysPerServer = input.maxSundaysPerServer
     if (input.maxWeekdaysPerServer !== undefined) updateData.maxWeekdaysPerServer = input.maxWeekdaysPerServer
     if (input.maxServersPerSundaySlot !== undefined) updateData.maxServersPerSundaySlot = input.maxServersPerSundaySlot
@@ -130,9 +132,23 @@ export const publicationService = {
   },
 
   /**
+   * Marks multiple members as having submitted their schedules for this publication.
+   */
+  async markMembersSubmitted(publicationId: string, memberIds: string[]): Promise<void> {
+    if (memberIds.length === 0) return
+    const docRef = doc(db, PUBLICATIONS_COLLECTION, publicationId)
+    await updateDoc(docRef, {
+      // @ts-ignore - Firestore arrayUnion accepts multiple arguments via spread
+      submittedMembers: arrayUnion(...memberIds),
+      updatedAt: serverTimestamp()
+    })
+  },
+
+  /**
    * Resets submission status for multiple members, allowing them to submit again.
    */
   async resetMembersSubmission(publicationId: string, memberIds: string[]): Promise<void> {
+    if (memberIds.length === 0) return
     const docRef = doc(db, PUBLICATIONS_COLLECTION, publicationId)
     await updateDoc(docRef, {
       // @ts-ignore - Firestore arrayRemove accepts multiple arguments via spread

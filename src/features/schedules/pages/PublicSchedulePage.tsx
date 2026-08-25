@@ -618,6 +618,11 @@ export const PublicSchedulePage: React.FC = () => {
             <div className="lg:hidden">
               <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Schedule Selection</h1>
               <p className="text-xs font-bold text-indigo-600 truncate">{publication?.name}</p>
+              {publication?.submissionDeadline && (
+                <p className="text-[11px] font-bold text-purple-700 mt-0.5">
+                  ⏰ Deadline: {new Date(publication.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                </p>
+              )}
             </div>
           </div>
 
@@ -628,6 +633,15 @@ export const PublicSchedulePage: React.FC = () => {
               <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
                 {publication?.startDate} to {publication?.endDate}
               </p>
+              {publication?.submissionDeadline && (
+                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs font-bold mt-2 flex items-center gap-2">
+                  <span className="text-purple-600">⏰</span>
+                  <div>
+                    <span className="block text-[10px] text-purple-500 uppercase font-black">Submission Deadline</span>
+                    <span>{new Date(publication.submissionDeadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                  </div>
+                </div>
+              )}
               {publication?.description && (
                 <p className="text-xs text-slate-500 mt-2">{publication.description}</p>
               )}
