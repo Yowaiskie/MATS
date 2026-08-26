@@ -229,6 +229,40 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }, [availableMembers, nameSearchQuery])
 
+  const selectedSundayCount = useMemo(() => {
+    return sundayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+  }, [sundayPatterns, selectedScheduleIds])
+
+  const selectedWeekdayCount = useMemo(() => {
+    return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+  }, [weekdayPatterns, selectedScheduleIds])
+
+  const selectedMemberName = useMemo(() => {
+    if (!selectedMemberId) return ''
+    const m = members.find(mem => mem.id === selectedMemberId)
+    return m ? `${m.lastName}, ${m.firstName}` : ''
+  }, [members, selectedMemberId])
+
+  const { isQuotaMaxed, confirmModalMessage } = useMemo(() => {
+    const maxSun = publication?.maxSundaysPerServer ?? 4
+    const maxWk = publication?.maxWeekdaysPerServer ?? 8
+    const hasSun = sundayPatterns.length > 0
+    const hasWk = weekdayPatterns.length > 0
+
+    const sunMaxed = !hasSun || selectedSundayCount >= maxSun
+    const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
+    const maxed = sunMaxed && wkMaxed
+
+    let msg = ''
+    if (maxed) {
+      msg = `You have selected ${selectedSundayCount} Sunday(s) and ${selectedWeekdayCount} Weekday(s), reaching your maximum quota. Once saved, your submission will be finalized.`
+    } else {
+      msg = `You have currently selected ${selectedSundayCount}/${maxSun} Sunday(s) and ${selectedWeekdayCount}/${maxWk} Weekday(s). Since you haven't reached the full quota yet, your chosen slots will be saved and locked, and you can still select more slots later.`
+    }
+
+    return { isQuotaMaxed: maxed, confirmModalMessage: msg }
+  }, [publication, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
+
   const handleCellClick = (patternId: string, isSunday: boolean) => {
     if (isFinalized) return
     if (hasSubmitted) return
@@ -337,11 +371,28 @@ export const PublicSchedulePage: React.FC = () => {
       }))
 
       await scheduleService.submitPublicScheduleSelections(selectedMemberId, selections)
-      if (publication) {
-        await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
-      }
       
-      setMessage({ type: 'success', text: 'Your schedule response has been saved successfully!' })
+      const maxSun = publication?.maxSundaysPerServer ?? 4
+      const maxWk = publication?.maxWeekdaysPerServer ?? 8
+      const hasSun = sundayPatterns.length > 0
+      const hasWk = weekdayPatterns.length > 0
+
+      const sunMaxed = !hasSun || selectedSundayCount >= maxSun
+      const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
+      const fullyCompleted = sunMaxed && wkMaxed
+
+      if (publication && fullyCompleted) {
+        await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
+        setMessage({ 
+          type: 'success', 
+          text: `Awesome! You have reached your quota (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) and your submission is now finalized.` 
+        })
+      } else {
+        setMessage({ 
+          type: 'success', 
+          text: `Your selections (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) have been saved! Since you haven't reached the full quota yet, your name remains in the list so you can select the remaining slots later.` 
+        })
+      }
 
       // Refresh schedules and publication from backend
       await queryClient.invalidateQueries({ queryKey: ['publication', publicationId] })
@@ -355,16 +406,22 @@ export const PublicSchedulePage: React.FC = () => {
       await queryClient.invalidateQueries({
         queryKey: ['public-schedules', updatedPub.id, updatedPub.startDate, updatedPub.endDate]
       })
-      const updatedSchedules = await queryClient.fetchQuery({
+      const updatedScheds = await queryClient.fetchQuery({
         queryKey: ['public-schedules', updatedPub.id, updatedPub.startDate, updatedPub.endDate],
         queryFn: () => scheduleService.getSchedulesByDateRange(updatedPub.startDate, updatedPub.endDate),
         staleTime: 0
       })
-      setSchedules(updatedSchedules)
+
       setPublication(updatedPub)
-    } catch (err) {
+      setSchedules(updatedScheds)
+
+      if (fullyCompleted) {
+        setSelectedMemberId('')
+        setSelectedScheduleIds(new Set())
+      }
+    } catch (err: any) {
       console.error(err)
-      setMessage({ type: 'error', text: 'Failed to save schedule. Please try again.' })
+      setMessage({ type: 'error', text: err.message || 'Failed to save schedule.' })
     } finally {
       setSubmitting(false)
     }
@@ -450,14 +507,6 @@ export const PublicSchedulePage: React.FC = () => {
       </div>
     )
   }
-
-  const selectedSundayCount = useMemo(() => {
-    return sundayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
-  }, [sundayPatterns, selectedScheduleIds])
-
-  const selectedWeekdayCount = useMemo(() => {
-    return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
-  }, [weekdayPatterns, selectedScheduleIds])
 
   const renderTable = (patterns: SchedulePattern[], maxRows: number, isSunday: boolean, title: string, subtitle: string, icon: React.ReactNode) => {
     if (patterns.length === 0) return null
@@ -598,12 +647,6 @@ export const PublicSchedulePage: React.FC = () => {
       </div>
     )
   }
-
-  const selectedMemberName = useMemo(() => {
-    if (!selectedMemberId) return ''
-    const m = members.find(mem => mem.id === selectedMemberId)
-    return m ? `${m.lastName}, ${m.firstName}` : ''
-  }, [members, selectedMemberId])
 
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0">
@@ -805,7 +848,13 @@ export const PublicSchedulePage: React.FC = () => {
                     : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white shadow-indigo-600/30 cursor-pointer disabled:opacity-50'
                 }`}
               >
-                <span>{submitting ? 'Saving...' : 'Save Schedule'}</span>
+                <span>
+                  {submitting 
+                    ? 'Saving...' 
+                    : isQuotaMaxed 
+                      ? 'Submit & Finalize Schedule' 
+                      : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
+                </span>
                 <span className="text-base">▹</span>
               </button>
             </form>
@@ -926,7 +975,7 @@ export const PublicSchedulePage: React.FC = () => {
                   disabled={submitting || selectedScheduleIds.size === 0}
                   className="py-3 px-5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-md shadow-indigo-600/20 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
                 >
-                  <span>{submitting ? 'Saving...' : 'Save Schedule'}</span>
+                  <span>{submitting ? 'Saving...' : isQuotaMaxed ? 'Finalize' : 'Save'}</span>
                   <span>▹</span>
                 </button>
               </>
@@ -941,9 +990,9 @@ export const PublicSchedulePage: React.FC = () => {
         onClose={() => setConfirmSubmitOpen(false)}
         onConfirm={handleConfirmedSave}
         variant="info"
-        title="Confirm Schedule Submission"
-        message={`Are you sure you want to save your selected serving schedules for ${members.find(m => m.id === selectedMemberId)?.firstName || 'this server'}?`}
-        confirmLabel={submitting ? 'Saving...' : 'Yes, Save Schedule'}
+        title={isQuotaMaxed ? 'Confirm Final Schedule Submission' : 'Save Schedule Selections'}
+        message={confirmModalMessage}
+        confirmLabel={submitting ? 'Saving...' : isQuotaMaxed ? 'Submit & Finalize' : 'Yes, Save Selections'}
         cancelLabel="Review Selections"
         loading={submitting}
       />
