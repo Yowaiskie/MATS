@@ -30,22 +30,22 @@ export const renderPdfSignatures = (
   const pageHeight = doc.internal.pageSize.getHeight()
   const leftMargin = options.leftMargin ?? 14
   const rightMargin = options.rightMargin ?? 14
-  const bottomMargin = options.bottomMargin ?? 18
-  const topMarginOnNewPage = options.topMarginOnNewPage ?? 48
+  const bottomMargin = options.bottomMargin ?? 10
+  const topMarginOnNewPage = options.topMarginOnNewPage ?? 42
   const contentWidth = pageWidth - leftMargin - rightMargin
 
   // Split into columns
   const col1Signatories = signatories.filter(s => s.column === 1 || !s.column)
   const col2Signatories = signatories.filter(s => s.column === 2)
 
-  // Block metrics
-  const sigBlockHeight = 34 // Height per signature block in mm
-  const sigGap = 6 // Vertical gap between stacked signatures in the same column
+  // Block metrics - compact & proportional
+  const sigBlockHeight = 22 // Height per signature block in mm
+  const sigGap = 4 // Vertical gap between stacked signatures in the same column
 
   const maxColCount = Math.max(col1Signatories.length, col2Signatories.length)
-  const totalRequiredHeight = maxColCount * sigBlockHeight + Math.max(0, maxColCount - 1) * sigGap + 6
+  const totalRequiredHeight = maxColCount * sigBlockHeight + Math.max(0, maxColCount - 1) * sigGap + 2
 
-  let currentY = startY + 4
+  let currentY = startY + 2
 
   // Check if signatures fit on current page
   if (currentY + totalRequiredHeight > pageHeight - bottomMargin) {
@@ -66,17 +66,17 @@ export const renderPdfSignatures = (
   const drawSignatory = (sig: SignatoryItem, x: number, y: number) => {
     let blockY = y
 
-    // 1. Role Label (e.g. "Requesting officer:", "Approved by:")
+    // 1. Role Label (e.g. "Prepared by:", "Approved by:")
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(9)
+    doc.setFontSize(8.5)
     doc.setTextColor(30, 41, 59)
     doc.text(sig.label || 'Authorized Signature:', x, blockY)
 
     // 2. Space for Signature (optional image, or clear writing area)
-    const signAreaY = blockY + 12
+    const signAreaY = blockY + 9
     if (sig.signatureImageUrl) {
       try {
-        doc.addImage(sig.signatureImageUrl, 'PNG', x + 4, blockY + 2, 40, 10)
+        doc.addImage(sig.signatureImageUrl, 'PNG', x + 4, blockY + 1, 40, 8)
       } catch (err) {
         console.warn('Failed to draw signature image in PDF:', err)
       }
@@ -89,25 +89,25 @@ export const renderPdfSignatures = (
 
     // 4. Signatory Full Name (Bold Uppercase)
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(9.5)
+    doc.setFontSize(9)
     doc.setTextColor(15, 23, 42)
     const formattedName = sig.name?.trim() ? sig.name.trim().toUpperCase() : 'NAME / SIGNATURE'
-    doc.text(formattedName, x, signAreaY + 4.5)
+    doc.text(formattedName, x, signAreaY + 3.8)
 
     // 5. Title / Position
-    let nextTextY = signAreaY + 8.5
+    let nextTextY = signAreaY + 7.2
     if (sig.title?.trim()) {
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
+      doc.setFontSize(7.5)
       doc.setTextColor(51, 65, 85)
       doc.text(sig.title.trim(), x, nextTextY)
-      nextTextY += 3.8
+      nextTextY += 3.2
     }
 
     // 6. Organization / Parish
     if (sig.organization?.trim()) {
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(8)
+      doc.setFontSize(7.5)
       doc.setTextColor(71, 85, 105)
       doc.text(sig.organization.trim(), x, nextTextY)
     }

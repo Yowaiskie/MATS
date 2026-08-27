@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import type { Member } from '@/types/member'
-import { getOrderBadgeStyle } from '@/types/member'
+import { getOrderBadgeStyle, getMemberOrders } from '@/types/member'
 import type { AttendanceStatus } from '@/types/attendance'
 import { getFullName } from '@/utils/member'
 
@@ -55,15 +55,18 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
             </span>
           )}
         </span>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           <span className="text-[11px] text-blue-600 uppercase tracking-wider font-medium">
             {member.rank}
           </span>
-          {member.order && (
-            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(member.order)}`}>
-              {member.order}
+          {getMemberOrders(member.order).map((ord) => (
+            <span
+              key={ord}
+              className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
+            >
+              {ord}
             </span>
-          )}
+          ))}
         </div>
       </div>
 

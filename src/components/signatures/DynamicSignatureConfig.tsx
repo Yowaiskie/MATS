@@ -46,6 +46,15 @@ export const DynamicSignatureConfig: React.FC<DynamicSignatureConfigProps> = ({
           const matched = presetsList.find(p => p.name.toLowerCase() === defaultPresetName.toLowerCase())
           if (matched) {
             setSelectedPresetId(matched.id)
+            if (!value.signatories || value.signatories.length === 0) {
+              onChange({
+                enabled: true,
+                signatories: matched.signatories.map(s => ({
+                  ...s,
+                  id: `sig-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`
+                }))
+              })
+            }
           }
         }
       } catch (err) {

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS, getOrderBadgeStyle, MEMBER_RANKS } from '@/types/member'
+import { ORDER_GROUPS, getOrderBadgeStyle, MEMBER_RANKS, getMemberOrders } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import { Pagination } from '@/components/Pagination'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -20,6 +20,7 @@ interface MemberTableProps {
   onBulkEditRank?: () => void
   onBulkEditOrder?: () => void
   onClearSelection: () => void
+  onExportSelected?: () => void
 }
 
 type SortField = 'name' | 'rank' | 'status'
@@ -38,6 +39,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onBulkEditRank,
   onBulkEditOrder,
   onClearSelection,
+  onExportSelected,
 }) => {
   const { isAdmin, canAction } = useAuth()
   const canManage = isAdmin || canAction('canManageMembers')
@@ -81,9 +83,10 @@ export const MemberTable: React.FC<MemberTableProps> = ({
         statusFilter === 'all' ||
         member.status === statusFilter
 
+      const memberOrders = getMemberOrders(member.order)
       const matchesOrder =
         orderFilter === 'all' ||
-        (orderFilter === 'none' ? !member.order : member.order === orderFilter)
+        (orderFilter === 'none' ? memberOrders.length === 0 : memberOrders.includes(orderFilter))
 
       const matchesRank = 
         rankFilter === 'all' ||
@@ -240,6 +243,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
           {/* Bulk action buttons */}
           {showArchived ? (
             <div className="flex items-center gap-2 flex-wrap">
+              {onExportSelected && (
+                <button
+                  onClick={onExportSelected}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-slate-700/20"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Export ({selectedIds.size})</span>
+                </button>
+              )}
               <button
                 onClick={onBulkDelete} // triggers bulk permanent delete in parent
                 className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-rose-600/20"
@@ -261,6 +275,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             </div>
           ) : (
             <div className="flex items-center gap-2 flex-wrap">
+              {onExportSelected && (
+                <button
+                  onClick={onExportSelected}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-slate-800/20"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Export ({selectedIds.size})</span>
+                </button>
+              )}
               {onBulkEditRank && (
                 <button
                   onClick={onBulkEditRank}
@@ -357,7 +382,6 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               {paginatedMembers.length > 0 ? (
                 paginatedMembers.map((member) => {
                   const isSelected = selectedIds.has(member.id)
-                  const orderBadgeStyle = member.order ? getOrderBadgeStyle(member.order) : ''
                   return (
                     <tr
                       key={member.id}
@@ -389,10 +413,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                         {member.rank}
                       </td>
                       <td className="p-4 whitespace-nowrap">
-                        {member.order ? (
-                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${orderBadgeStyle}`}>
-                            {member.order}
-                          </span>
+                        {getMemberOrders(member.order).length > 0 ? (
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {getMemberOrders(member.order).map((ord) => (
+                              <span
+                                key={ord}
+                                className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
+                              >
+                                {ord}
+                              </span>
+                            ))}
+                          </div>
                         ) : (
                           <span className="text-[10px] text-gray-400 italic">--</span>
                         )}

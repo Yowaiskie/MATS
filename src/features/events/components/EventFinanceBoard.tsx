@@ -1,15 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/Card'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
 import type { EventIncome, EventExpense, EventFundTransfer } from '@/types/eventFinance'
-import type { FinanceFundRequest } from '@/types/finance'
 import { EventIncomeModal } from './EventIncomeModal'
 import { EventExpenseModal } from './EventExpenseModal'
 import { EventFundRequestModal } from './EventFundRequestModal'
 import { TransferToMainFundsModal } from './TransferToMainFundsModal'
 import { EventFinanceReportModal } from './EventFinanceReportModal'
-import { LiquidationExportModal } from '@/features/finance/components/LiquidationExportModal'
+import { EventLiquidationModal } from './EventLiquidationModal'
 import { PasswordConfirmModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
 import { authService } from '@/services/authService'
@@ -92,51 +91,6 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
     ...incomes.filter(i => !i.isArchived && i.allocation).map(i => i.allocation!),
     ...expenses.filter(e => !e.isArchived && e.allocation).map(e => e.allocation!)
   ])).sort()
-
-  // Pre-generate event liquidation voucher data for modal
-  const eventLiquidationRequest = useMemo<FinanceFundRequest>(() => {
-    const validIncomes = incomes.filter(i => !i.isArchived)
-    const validExpenses = expenses.filter(e => !e.isArchived)
-    const totalInc = validIncomes.reduce((s, i) => s + (Number(i.amount) || 0), 0)
-    const totalExp = validExpenses.reduce((s, e) => s + (Number(e.amount) || 0), 0)
-    const today = new Date().toISOString().slice(0, 10)
-
-    return {
-      id: eventId,
-      referenceNumber: `EVT-${eventId.slice(0, 6).toUpperCase()}`,
-      title: eventName,
-      purpose: `Official Liquidation of Event Expenditures for ${eventName}`,
-      description: `Official Liquidation Report for event: ${eventName}`,
-      requestedAmount: totalInc,
-      releasedAmount: totalInc,
-      totalSpent: totalExp,
-      status: 'liquidated',
-      periodId: today.slice(0, 7),
-      dateNeeded: today,
-      requestedByUid: user?.uid || 'event-head',
-      requestedByName: profile?.displayName || 'Event Head',
-      createdByUid: user?.uid || 'event-head',
-      createdByName: profile?.displayName || 'Event Head',
-      liquidatedByName: profile?.displayName || 'Event Head',
-      approvedByName: 'Bro. KYLE VINCENT MADRIAGA',
-      liquidationTo: 'Rev. Fr. ILDEFONSO DE GUZMAN JR.',
-      liquidationFrom: `MINISTRY OF ALTAR SERVERS - ${eventName}`,
-      isArchived: false,
-      budgetSources: validIncomes.map(inc => ({
-        id: inc.id,
-        description: inc.receivedFrom ? `${inc.description || 'Income'} (${inc.receivedFrom})` : (inc.description || 'Event Income Source'),
-        amount: inc.amount
-      })),
-      liquidationExpenses: validExpenses.map(exp => ({
-        id: exp.id,
-        orNumber: 'NO O.R',
-        description: exp.spentOn ? `${exp.description || 'Expense'} - ${exp.spentOn}` : (exp.description || 'Event Expenditure'),
-        amount: exp.amount
-      })),
-      createdAt: new Date() as any,
-      updatedAt: new Date() as any
-    }
-  }, [eventId, eventName, incomes, expenses, profile, user])
 
   const handleConfirmDelete = async (password: string) => {
     if (!user || !profile || !deleteConfirm.id) return
@@ -427,6 +381,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
               {activeTab === 'expenses' && (
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Date</th>
+                  <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">O.R. No.</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Spent On</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Fund Source</th>
                   <th className="px-4 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Spent By</th>
@@ -536,6 +491,11 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
               {activeTab === 'expenses' && activeExpenses.map(exp => (
                 <tr key={exp.id} className={exp.isArchived ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{exp.date}</td>
+                  <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-slate-600">
+                    <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 uppercase text-[10px]">
+                      {exp.orNumber || 'NO O.R'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-sm text-gray-900 min-w-[120px]">
                     <div className="flex flex-col">
                       <span className="font-bold text-gray-900">{exp.spentOn}</span>
@@ -546,8 +506,11 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">
                     {exp.fundSource === 'main_funds' ? (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                        🏛️ Main Funds
+                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        <svg className="w-3 h-3 text-indigo-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                        </svg>
+                        <span>Main Funds</span>
                       </span>
                     ) : (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
@@ -683,10 +646,13 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         expenses={expenses}
         transfers={transfers}
       />
-      <LiquidationExportModal
+      <EventLiquidationModal
         isOpen={isLiquidationModalOpen}
         onClose={() => setIsLiquidationModalOpen(false)}
-        request={eventLiquidationRequest}
+        eventId={eventId}
+        eventName={eventName}
+        incomes={incomes}
+        expenses={expenses}
       />
       <PasswordConfirmModal
         isOpen={deleteConfirm.isOpen}

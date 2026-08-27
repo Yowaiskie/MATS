@@ -3,7 +3,7 @@ import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS } from '@/types/member'
+import { ORDER_GROUPS, getMemberOrders } from '@/types/member'
 import type { EventRole, EventAssignment } from '@/types/event'
 
 interface Props {
@@ -147,7 +147,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
 
   const handleBulkSelect = (groupName: string) => {
     // Find members belonging to this order/group or rank
-    const membersToSelect = members.filter(m => m.order === groupName || m.rank === groupName || (groupName === 'Officers' && m.order === 'Officers'))
+    const membersToSelect = members.filter(m => getMemberOrders(m.order).includes(groupName) || m.rank === groupName)
     
     if (membersToSelect.length === 0) {
       setError(`No active members found for category: ${groupName}`)

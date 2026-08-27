@@ -32,12 +32,15 @@ export interface LiquidationReportPdfOptions {
   liquidationSubject?: string
   liquidationDate?: string
   signatureConfig?: SignatureConfig
+  tablePadding?: number
+  sectionSpacing?: number
+  signatureTopMargin?: number
 }
 
-export const downloadLiquidationReportPdf = async (
+export const generateLiquidationReportPdfDoc = async (
   request: FinanceFundRequest,
   options?: LiquidationReportPdfOptions
-): Promise<void> => {
+): Promise<jsPDF> => {
   const doc = new jsPDF({
     orientation: 'portrait',
     unit: 'mm',
@@ -46,6 +49,10 @@ export const downloadLiquidationReportPdf = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
+
+  const tablePadding = options?.tablePadding ?? 1.4
+  const sectionSpacing = options?.sectionSpacing ?? 4.0
+  const signatureTopMargin = options?.signatureTopMargin ?? 5.0
 
   // 1. Load Logo
   let logoImg: HTMLImageElement | null = null
@@ -100,18 +107,18 @@ export const downloadLiquidationReportPdf = async (
 
   drawUniformHeaderAndFooter(1, 1)
 
-  let cursorY = 35
+  let cursorY = 32
 
   // Top Right: Date
   const rawDate = options?.liquidationDate || request.liquidationDate || (request.liquidatedAt ? new Date() : new Date())
   const repDateStr = formatDateUpper(rawDate)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(10)
   doc.setTextColor(15, 23, 42)
   doc.text(repDateStr, pageWidth - 14, cursorY, { align: 'right' })
 
   // Spacing between Date and To: header block
-  cursorY += 9
+  cursorY += 5
 
   // Header Lines: To, From, Re
   const toName = options?.liquidationTo?.trim() || request.liquidationTo?.trim() || 'Rev. Fr. ILDEFONSO DE GUZMAN JR.'
@@ -121,40 +128,40 @@ export const downloadLiquidationReportPdf = async (
 
   // To:
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
+  doc.setFontSize(9.5)
   doc.text('To:', 14, cursorY)
   doc.setFont('helvetica', 'bold')
-  doc.text(toName, 32, cursorY)
-  cursorY += 5
+  doc.text(toName, 30, cursorY)
+  cursorY += 4.5
   doc.setFont('helvetica', 'normal')
-  doc.text(toTitle, 32, cursorY)
-  cursorY += 7
+  doc.text(toTitle, 30, cursorY)
+  cursorY += 5
 
   // From:
   doc.setFont('helvetica', 'normal')
   doc.text('From:', 14, cursorY)
   doc.setFont('helvetica', 'bold')
-  doc.text(fromName, 32, cursorY)
-  cursorY += 7
+  doc.text(fromName, 30, cursorY)
+  cursorY += 5
 
   // Re:
   doc.setFont('helvetica', 'normal')
   doc.text('Re:', 14, cursorY)
   doc.setFont('helvetica', 'normal')
-  doc.text(reSubject, 32, cursorY)
-  cursorY += 6
+  doc.text(reSubject, 30, cursorY)
+  cursorY += 4.5
 
   // Horizontal separator line under memo header
   doc.setDrawColor(15, 23, 42)
-  doc.setLineWidth(0.8)
+  doc.setLineWidth(0.6)
   doc.line(14, cursorY, pageWidth - 14, cursorY)
-  cursorY += 5
+  cursorY += 4
 
   // 1. Section: BUDGET INFO | SPONSORS
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.text('BUDGET INFO | SPONSORS', 14, cursorY)
-  cursorY += 2
+  cursorY += 1.5
 
   const budgetSources = request.budgetSources !== undefined
     ? request.budgetSources
@@ -178,47 +185,47 @@ export const downloadLiquidationReportPdf = async (
       ]
 
   budgetTableBody.push([
-    { content: 'TOTAL AMOUNT RECEIVED', styles: { fontStyle: 'bold', fontSize: 9.5, halign: 'center' } } as any,
-    { content: `P ${totalBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fontSize: 9.5, halign: 'right' } } as any
+    { content: 'TOTAL AMOUNT RECEIVED', styles: { fontStyle: 'bold', fontSize: 9, halign: 'center' } } as any,
+    { content: `P ${totalBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fontSize: 9, halign: 'right' } } as any
   ])
 
   autoTable(doc, {
     startY: cursorY,
-    head: [['EXPENSE DESCRIPTION', 'AMOUNT']],
+    head: [['BUDGET / SOURCE DESCRIPTION', 'AMOUNT']],
     body: budgetTableBody,
     theme: 'grid',
     headStyles: {
       fillColor: [255, 255, 255],
       textColor: [15, 23, 42],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: 8.5,
       halign: 'center',
       lineColor: [15, 23, 42],
-      lineWidth: 0.3
+      lineWidth: 0.25
     },
     bodyStyles: {
       textColor: [15, 23, 42],
-      fontSize: 8.5,
+      fontSize: 8,
       lineColor: [15, 23, 42],
       lineWidth: 0.2,
-      cellPadding: 1.8
+      cellPadding: tablePadding
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 130 },
+      0: { halign: 'left', cellWidth: 130 },
       1: { halign: 'right', cellWidth: 52 }
     },
     styles: { font: 'helvetica', overflow: 'linebreak' },
     margin: { left: 14, right: 14 }
   })
 
-  let table1Y = (doc as any).lastAutoTable?.finalY || cursorY + 25
+  let table1Y = (doc as any).lastAutoTable?.finalY || cursorY + 20
 
   // 2. Section: EXPENSES
-  cursorY = table1Y + 5
+  cursorY = table1Y + sectionSpacing
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.text('EXPENSES', 14, cursorY)
-  cursorY += 2
+  cursorY += 1.5
 
   const expenses = request.liquidationExpenses !== undefined
     ? request.liquidationExpenses
@@ -253,8 +260,8 @@ export const downloadLiquidationReportPdf = async (
       ]
 
   expenseTableBody.push([
-    { content: 'TOTAL', colSpan: 2, styles: { fontStyle: 'bold', fontSize: 9.5, halign: 'center' } } as any,
-    { content: `P ${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fontSize: 9.5, halign: 'right' } } as any
+    { content: 'TOTAL', colSpan: 2, styles: { fontStyle: 'bold', fontSize: 9, halign: 'center' } } as any,
+    { content: `P ${totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fontSize: 9, halign: 'right' } } as any
   ])
 
   autoTable(doc, {
@@ -266,17 +273,17 @@ export const downloadLiquidationReportPdf = async (
       fillColor: [255, 255, 255],
       textColor: [15, 23, 42],
       fontStyle: 'bold',
-      fontSize: 9,
+      fontSize: 8.5,
       halign: 'center',
       lineColor: [15, 23, 42],
-      lineWidth: 0.3
+      lineWidth: 0.25
     },
     bodyStyles: {
       textColor: [15, 23, 42],
-      fontSize: 8.5,
+      fontSize: 8,
       lineColor: [15, 23, 42],
       lineWidth: 0.2,
-      cellPadding: 1.8
+      cellPadding: tablePadding
     },
     columnStyles: {
       0: { halign: 'center', cellWidth: 40 },
@@ -287,14 +294,14 @@ export const downloadLiquidationReportPdf = async (
     margin: { left: 14, right: 14 }
   })
 
-  let table2Y = (doc as any).lastAutoTable?.finalY || cursorY + 30
+  let table2Y = (doc as any).lastAutoTable?.finalY || cursorY + 20
 
   // 3. Section: SUMMARY Table
-  cursorY = table2Y + 5
+  cursorY = table2Y + sectionSpacing
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.text('SUMMARY', 14, cursorY)
-  cursorY += 2
+  cursorY += 1.5
 
   const returnedVal = Math.max(0, totalBudget - totalExpenses)
   const reimbursedVal = Math.max(0, totalExpenses - totalBudget)
@@ -324,10 +331,10 @@ export const downloadLiquidationReportPdf = async (
     theme: 'grid',
     bodyStyles: {
       textColor: [15, 23, 42],
-      fontSize: 9,
+      fontSize: 8.5,
       lineColor: [15, 23, 42],
       lineWidth: 0.2,
-      cellPadding: 1.8
+      cellPadding: tablePadding
     },
     columnStyles: {
       0: { cellWidth: 55 },
@@ -337,7 +344,7 @@ export const downloadLiquidationReportPdf = async (
     margin: { left: 14, right: 14 }
   })
 
-  let table3Y = (doc as any).lastAutoTable?.finalY || cursorY + 25
+  let table3Y = (doc as any).lastAutoTable?.finalY || cursorY + 20
 
   // 4. Signatures
   const signatories = options?.signatureConfig?.enabled && options.signatureConfig.signatories?.length > 0
@@ -369,10 +376,11 @@ export const downloadLiquidationReportPdf = async (
         }
       ]
 
-  renderPdfSignatures(doc, signatories, table3Y + 8, {
+  renderPdfSignatures(doc, signatories, table3Y + signatureTopMargin, {
     leftMargin: 14,
     rightMargin: 14,
     lineWidth: 70,
+    bottomMargin: 10,
     onNewPageRequired: () => {
       const pageCount = doc.getNumberOfPages()
       drawUniformHeaderAndFooter(pageCount, pageCount)
@@ -393,6 +401,23 @@ export const downloadLiquidationReportPdf = async (
     )
   }
 
+  return doc
+}
+
+export const downloadLiquidationReportPdf = async (
+  request: FinanceFundRequest,
+  options?: LiquidationReportPdfOptions
+): Promise<void> => {
+  const doc = await generateLiquidationReportPdfDoc(request, options)
   const safeFilename = `Liquidation_Report_${request.referenceNumber || 'Report'}_${request.dateNeeded || 'Date'}.pdf`
   doc.save(safeFilename)
+}
+
+export const getLiquidationReportPdfBlobUrl = async (
+  request: FinanceFundRequest,
+  options?: LiquidationReportPdfOptions
+): Promise<string> => {
+  const doc = await generateLiquidationReportPdfDoc(request, options)
+  const blob = doc.output('blob')
+  return URL.createObjectURL(blob)
 }

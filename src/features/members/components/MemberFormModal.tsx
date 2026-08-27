@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import type { Member, MemberInput } from '@/types/member'
-import { ORDER_GROUPS, MEMBER_RANKS } from '@/types/member'
+import { ORDER_GROUPS, MEMBER_RANKS, ORDER_COLORS, getMemberOrders, formatMemberOrders } from '@/types/member'
 import { isDuplicateName } from '@/utils/member'
 
 interface MemberFormModalProps {
@@ -24,7 +24,8 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [suffix, setSuffix] = useState('')
   const [nickname, setNickname] = useState('')
   const [rank, setRank] = useState('')
-  const [order, setOrder] = useState('')
+  const [selectedOrders, setSelectedOrders] = useState<string[]>([])
+  const [customOrderInput, setCustomOrderInput] = useState('')
   const [status, setStatus] = useState<'active' | 'inactive'>('active')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
@@ -39,7 +40,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setSuffix(member.suffix || '')
       setNickname(member.nickname || '')
       setRank(member.rank)
-      setOrder(member.order || '')
+      const parsedOrders = getMemberOrders(member.order)
+      setSelectedOrders(parsedOrders)
+      // Any custom order that is not in ORDER_GROUPS?
+      const customOnes = parsedOrders.filter(o => !ORDER_GROUPS.includes(o as any))
+      setCustomOrderInput(customOnes.join(', '))
       setStatus(member.status === 'archived' ? 'active' : member.status)
       setPhoneNumber(member.phoneNumber || '')
       setDateOfBirth(member.dateOfBirth || '')
@@ -50,7 +55,8 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setSuffix('')
       setNickname('')
       setRank('')
-      setOrder('')
+      setSelectedOrders([])
+      setCustomOrderInput('')
       setStatus('active')
       setPhoneNumber('')
       setDateOfBirth('')
@@ -103,6 +109,14 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 
     setLoading(true)
     try {
+      const standardSelected = selectedOrders.filter(o => ORDER_GROUPS.includes(o as any))
+      const customOnes = customOrderInput
+        .split(/[,/]+/)
+        .map(s => s.trim())
+        .filter(Boolean)
+      const allOrdersCombined = Array.from(new Set([...standardSelected, ...customOnes]))
+      const finalOrder = formatMemberOrders(allOrdersCombined) || undefined
+
       await onSubmit({
         firstName: firstName.trim(),
         middleName: middleName.trim() || undefined,
@@ -110,7 +124,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         suffix: suffix.trim() || undefined,
         nickname: nickname.trim() || undefined,
         rank: rank.trim(),
-        order: order.trim() || undefined,
+        order: finalOrder,
         status,
         phoneNumber: phoneNumber.trim() || undefined,
         dateOfBirth: dateOfBirth.trim(),
@@ -282,43 +296,72 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             {errors.rank && <p className="mt-1 text-xs text-red-600 font-medium">{errors.rank}</p>}
           </div>
 
-          {/* Order / Group (Optional) */}
+          {/* Order / Group (Multi-select) */}
           <div>
-            <label htmlFor="modal-order" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Order / Group <span className="text-gray-400 font-normal lowercase">(optional)</span>
-            </label>
-            <select
-              id="modal-order"
-              value={ORDER_GROUPS.includes(order as any) ? order : (order ? 'custom' : '')}
-              onChange={(e) => {
-                if (e.target.value !== 'custom') {
-                  setOrder(e.target.value)
-                } else if (!ORDER_GROUPS.includes(order as any)) {
-                  // Keep current custom value
-                } else {
-                  setOrder('')
-                }
-              }}
-              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              disabled={loading}
-            >
-              <option value="">-- No Order / Unassigned --</option>
-              {ORDER_GROUPS.map((grp) => (
-                <option key={grp} value={grp}>{grp}</option>
-              ))}
-              <option value="custom">Other / Custom Order Name...</option>
-            </select>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                Order / Group <span className="text-gray-400 font-normal lowercase">(pwedeng pumili ng 2 o higit pa, e.g. San Pedro + Officers)</span>
+              </label>
+              {(selectedOrders.length > 0 || customOrderInput.trim()) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedOrders([])
+                    setCustomOrderInput('')
+                  }}
+                  className="text-[10px] font-semibold text-gray-400 hover:text-gray-600 transition cursor-pointer"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
 
-            {(!ORDER_GROUPS.includes(order as any) && order !== '') && (
+            {/* Toggleable Order Pills */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {ORDER_GROUPS.map((grp) => {
+                const isSelected = selectedOrders.includes(grp)
+                const theme = ORDER_COLORS[grp]
+                return (
+                  <button
+                    key={grp}
+                    type="button"
+                    onClick={() => {
+                      setSelectedOrders(prev =>
+                        prev.includes(grp)
+                          ? prev.filter(o => o !== grp)
+                          : [...prev, grp]
+                      )
+                    }}
+                    className={`flex items-center justify-between p-2 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none ${
+                      isSelected
+                        ? `${theme?.bg || 'bg-blue-50'} ${theme?.border || 'border-blue-300'} ${theme?.text || 'text-blue-700'} shadow-2xs ring-1 ring-blue-300/60`
+                        : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="truncate">{grp}</span>
+                    {isSelected ? (
+                      <svg className="w-3.5 h-3.5 shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <span className="w-3.5 h-3.5 shrink-0 border border-gray-300 rounded-sm ml-1" />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* Optional Custom Group Input */}
+            <div className="mt-2">
               <input
                 type="text"
-                value={order}
-                onChange={(e) => setOrder(e.target.value)}
-                placeholder="Enter custom order or group name"
-                className="mt-2 block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:border-blue-500 focus:outline-none transition-shadow"
+                value={customOrderInput}
+                onChange={(e) => setCustomOrderInput(e.target.value)}
+                placeholder="Other / Custom Group name (e.g. Master of Ceremony)"
+                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:border-blue-500 focus:outline-none transition-shadow"
                 disabled={loading}
               />
-            )}
+            </div>
           </div>
 
           {/* Date of Birth */}

@@ -16,7 +16,7 @@ import { generateCommunityReport } from '@/utils/communityReport'
 import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS, ORDER_COLORS } from '@/types/member'
+import { ORDER_GROUPS, ORDER_COLORS, getMemberOrders } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary } from '@/utils/attendance'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
@@ -74,9 +74,10 @@ export const AttendancePage: React.FC = () => {
     return combined.filter(m => {
       // 1. Group Filter
       if (selectedOrderGroup !== 'all') {
+        const orders = getMemberOrders(m.order)
         if (selectedOrderGroup === 'none') {
-          if (m.order) return false
-        } else if (m.order !== selectedOrderGroup) {
+          if (orders.length > 0) return false
+        } else if (!orders.includes(selectedOrderGroup)) {
           return false
         }
       }
@@ -108,12 +109,17 @@ export const AttendancePage: React.FC = () => {
       none: 0
     }
     combined.forEach(m => {
-      if (m.order && counts[m.order] !== undefined) {
-        counts[m.order]++
-      } else if (m.order) {
-        counts[m.order] = (counts[m.order] || 0) + 1
-      } else {
+      const orders = getMemberOrders(m.order)
+      if (orders.length === 0) {
         counts.none++
+      } else {
+        orders.forEach(ord => {
+          if (counts[ord] !== undefined) {
+            counts[ord]++
+          } else {
+            counts[ord] = (counts[ord] || 0) + 1
+          }
+        })
       }
     })
     return counts

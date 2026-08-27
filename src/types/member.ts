@@ -88,6 +88,24 @@ export const getOrderBadgeStyle = (order?: string): string => {
   return 'bg-gray-50 border-gray-200 text-gray-700'
 }
 
+/**
+ * Returns an array of order groups for a member (splitting comma/slash-separated values).
+ */
+export const getMemberOrders = (order?: string): string[] => {
+  if (!order) return []
+  return order
+    .split(/[,/|]+/)
+    .map((o) => o.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Formats multiple order groups into a standard comma-separated string.
+ */
+export const formatMemberOrders = (orders: string[]): string => {
+  return orders.filter(Boolean).join(', ')
+}
+
 export interface Member {
   id: string
   firstName: string

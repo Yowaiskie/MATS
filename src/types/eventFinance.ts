@@ -62,6 +62,7 @@ export interface EventExpense {
   archivedAt?: string
   encashmentStatus?: 'pending' | 'encashed'
   fundSource?: 'event' | 'main_funds'
+  orNumber?: string
   mainFinanceExpenseId?: string
   mainFinanceCategoryId?: string
 }

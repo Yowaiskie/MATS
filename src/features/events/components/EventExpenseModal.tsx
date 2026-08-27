@@ -39,6 +39,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('Cash')
   const [encashmentStatus, setEncashmentStatus] = useState<'pending' | 'encashed'>('pending')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
+  const [orNumber, setOrNumber] = useState('')
   const [description, setDescription] = useState('')
   const [newCategoryName, setNewCategoryName] = useState('')
   const [allocation, setAllocation] = useState('')
@@ -59,6 +60,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         setPaymentMethod(editItem.paymentMethod || 'Cash')
         setEncashmentStatus(editItem.encashmentStatus || 'pending')
         setDate(editItem.date || new Date().toISOString().split('T')[0])
+        setOrNumber(editItem.orNumber || '')
         setDescription(editItem.description || '')
         setAllocation(editItem.allocation || '')
         setNewCategoryName('')
@@ -117,6 +119,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
     setPaymentMethod('Cash')
     setEncashmentStatus('pending')
     setDate(new Date().toISOString().split('T')[0])
+    setOrNumber('')
     setDescription('')
     setAllocation('')
     setNewCategoryName('')
@@ -218,6 +221,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           mainFinanceCategoryId: fundSource === 'main_funds' ? mainFinanceCategoryId : null,
           allocation: allocation.trim() || null,
           date,
+          orNumber: orNumber.trim() || 'NO O.R',
           description: description.trim()
         }
         if (paymentMethod === 'Cheque') {
@@ -246,6 +250,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           mainFinanceCategoryId: fundSource === 'main_funds' ? mainFinanceCategoryId : null,
           allocation: allocation.trim() || null,
           date,
+          orNumber: orNumber.trim() || 'NO O.R',
           description: description.trim()
         }
         if (paymentMethod === 'Cheque') {
@@ -330,8 +335,10 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         </div>
 
         {fundSource === 'main_funds' && (
-          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-800 flex items-start gap-2">
-            <span className="font-bold text-indigo-600 mt-0.5">ℹ️</span>
+          <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-800 flex items-start gap-2.5">
+            <svg className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
             <div>
               <span className="font-bold">Main Funds Synchronization:</span> This expense will automatically be recorded as a Direct Expense in the Main Finance module and deducted from the general ministry balance.
             </div>
@@ -555,22 +562,35 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           </div>
         )}
 
-        <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Fund Allocation (Optional)</label>
-          <input
-            type="text"
-            list="allocations-list"
-            maxLength={50}
-            value={allocation}
-            onChange={(e) => setAllocation(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
-            placeholder="e.g. AGAPE, Pilgrimage, General"
-          />
-          <datalist id="allocations-list">
-            {allocations.map(a => (
-              <option key={a} value={a} />
-            ))}
-          </datalist>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Official Receipt / O.R. #</label>
+            <input
+              type="text"
+              maxLength={50}
+              value={orNumber}
+              onChange={(e) => setOrNumber(e.target.value)}
+              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-sm"
+              placeholder="e.g. OR #12345 or NO O.R"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Fund Allocation (Optional)</label>
+            <input
+              type="text"
+              list="allocations-list"
+              maxLength={50}
+              value={allocation}
+              onChange={(e) => setAllocation(e.target.value)}
+              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-sm"
+              placeholder="e.g. AGAPE, Pilgrimage, General"
+            />
+            <datalist id="allocations-list">
+              {allocations.map(a => (
+                <option key={a} value={a} />
+              ))}
+            </datalist>
+          </div>
         </div>
 
         {paymentMethod === 'Cheque' && (
