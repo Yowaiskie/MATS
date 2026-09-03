@@ -3,11 +3,215 @@ import { Modal } from '@/components/Modal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
 import type { SignatureConfig, SignatoryItem } from '@/types/signature'
 import { DEFAULT_SIGNATURE_PRESETS } from '@/types/signature'
-import type { EventIncome, EventExpense } from '@/types/eventFinance'
+import type { EventIncome, EventExpense, EventFinanceCategory } from '@/types/eventFinance'
 import type { FinanceFundRequest, LiquidationBudgetSource, LiquidationExpenseItem } from '@/types/finance'
+import type { Member } from '@/types/member'
 import { downloadLiquidationReportPdf, getLiquidationReportPdfBlobUrl } from '@/utils/liquidationReportPdf'
 import { settingsService } from '@/services/settingsService'
+import { memberService } from '@/services/memberService'
+import { eventFinanceService } from '@/services/eventFinanceService'
 import { useAuth } from '@/features/authentication/AuthContext'
+
+export type BudgetGroupingMode = 
+  | 'summarized'
+  | 'by_category'
+  | 'members_vs_non_members'
+  | 'itemized_members_first'
+  | 'itemized_original'
+  | 'single_total'
+
+const normalizeName = (name: string): string => {
+  return name
+    .toLowerCase()
+    .replace(/\b(bro|sis|brother|sister|fr|father|rev|reverend|dr|mr|ms|mrs)\b\.?/gi, '')
+    .replace(/[^a-z0-9\s]/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+const isMemberMatch = (name: string, membersList: Member[]): boolean => {
+  if (!name || membersList.length === 0) return false
+  const cleanInput = normalizeName(name)
+  if (!cleanInput) return false
+
+  return membersList.some(m => {
+    const first = normalizeName(m.firstName || '')
+    const last = normalizeName(m.lastName || '')
+    const full = `${first} ${last}`.trim()
+    const reverseFull = `${last} ${first}`.trim()
+
+    if (cleanInput === full || cleanInput === reverseFull) return true
+    if (first && last && cleanInput.includes(first) && cleanInput.includes(last)) return true
+    if (m.nickname && cleanInput === normalizeName(m.nickname)) return true
+    return false
+  })
+}
+
+const generateBudgetSourcesFromIncomes = (
+  incomesList: EventIncome[],
+  mode: BudgetGroupingMode,
+  membersList: Member[],
+  categoriesList: EventFinanceCategory[],
+  eventName: string
+): LiquidationBudgetSource[] => {
+  const validIncomes = incomesList.filter(i => !i.isArchived)
+  if (validIncomes.length === 0) {
+    return [
+      {
+        id: 'b-default',
+        description: `EVENT BUDGET / ALLOCATION FOR ${eventName.toUpperCase()}`,
+        amount: 0
+      }
+    ]
+  }
+
+  if (mode === 'single_total') {
+    const total = validIncomes.reduce((sum, inc) => sum + (Number(inc.amount) || 0), 0)
+    return [
+      {
+        id: 'b-single-total',
+        description: `TOTAL EVENT BUDGET & CONTRIBUTIONS COLLECTED FOR ${eventName.toUpperCase()}`,
+        amount: total
+      }
+    ]
+  }
+
+  if (mode === 'summarized') {
+    const categoryMap: Record<string, number> = {}
+
+    validIncomes.forEach(inc => {
+      let catName = 'OTHER EVENT INCOME'
+      if (inc.categoryId) {
+        const cat = categoriesList.find(c => c.id === inc.categoryId)
+        if (cat?.name) catName = cat.name.toUpperCase()
+      } else if (inc.description && inc.description.startsWith('Linked contribution:')) {
+        const purposeMatch = inc.description.replace('Linked contribution:', '').split('.')[0].trim()
+        if (purposeMatch) catName = purposeMatch.toUpperCase()
+      }
+
+      categoryMap[catName] = (categoryMap[catName] || 0) + (Number(inc.amount) || 0)
+    })
+
+    return Object.entries(categoryMap).map(([catName, total], idx) => ({
+      id: `b-sum-${idx}`,
+      description: catName,
+      amount: total
+    }))
+  }
+
+  if (mode === 'by_category') {
+    const categoryMap: Record<string, { count: number; total: number }> = {}
+
+    validIncomes.forEach(inc => {
+      let catName = 'OTHER INCOME / CONTRIBUTIONS'
+      if (inc.categoryId) {
+        const cat = categoriesList.find(c => c.id === inc.categoryId)
+        if (cat?.name) catName = cat.name.toUpperCase()
+      } else if (inc.description && inc.description.startsWith('Linked contribution:')) {
+        const purposeMatch = inc.description.replace('Linked contribution:', '').split('.')[0].trim()
+        if (purposeMatch) catName = purposeMatch.toUpperCase()
+      }
+
+      if (!categoryMap[catName]) {
+        categoryMap[catName] = { count: 0, total: 0 }
+      }
+      categoryMap[catName].count += 1
+      categoryMap[catName].total += Number(inc.amount) || 0
+    })
+
+    return Object.entries(categoryMap).map(([catName, data], idx) => {
+      const countSuffix = data.count > 1 ? ` (${data.count} PAX / ENTRIES)` : ''
+      return {
+        id: `b-cat-${idx}`,
+        description: `${catName}${countSuffix}`,
+        amount: data.total
+      }
+    })
+  }
+
+  if (mode === 'members_vs_non_members') {
+    const memberIncomes: EventIncome[] = []
+    const nonMemberIncomes: EventIncome[] = []
+
+    validIncomes.forEach(inc => {
+      const rec = (inc.receivedFrom || '').trim()
+      if (isMemberMatch(rec, membersList)) {
+        memberIncomes.push(inc)
+      } else {
+        nonMemberIncomes.push(inc)
+      }
+    })
+
+    const rows: LiquidationBudgetSource[] = []
+    if (memberIncomes.length > 0) {
+      const memberTotal = memberIncomes.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+      rows.push({
+        id: 'b-members-group',
+        description: `MEMBER CONTRIBUTIONS & REGISTRATIONS (${memberIncomes.length} MEMBERS)`,
+        amount: memberTotal
+      })
+    }
+    if (nonMemberIncomes.length > 0) {
+      const nonMemberTotal = nonMemberIncomes.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+      rows.push({
+        id: 'b-non-members-group',
+        description: `NON-MEMBER / GUEST / DONOR CONTRIBUTIONS (${nonMemberIncomes.length} GUESTS / DONORS)`,
+        amount: nonMemberTotal
+      })
+    }
+    return rows.length > 0 ? rows : [
+      {
+        id: 'b-default',
+        description: `EVENT BUDGET / ALLOCATION FOR ${eventName.toUpperCase()}`,
+        amount: 0
+      }
+    ]
+  }
+
+  if (mode === 'itemized_members_first') {
+    const memberItems: { inc: EventIncome; name: string }[] = []
+    const nonMemberItems: { inc: EventIncome; name: string }[] = []
+
+    validIncomes.forEach(inc => {
+      const rawName = (inc.receivedFrom || inc.description || 'EVENT INCOME').trim()
+      if (isMemberMatch(rawName, membersList)) {
+        memberItems.push({ inc, name: rawName })
+      } else {
+        nonMemberItems.push({ inc, name: rawName })
+      }
+    })
+
+    memberItems.sort((a, b) => a.name.localeCompare(b.name))
+    nonMemberItems.sort((a, b) => a.name.localeCompare(b.name))
+
+    const mappedMembers: LiquidationBudgetSource[] = memberItems.map((item, idx) => ({
+      id: `b-mem-${idx}-${item.inc.id || idx}`,
+      description: `[MEMBER] ${item.name.toUpperCase()}`,
+      amount: item.inc.amount
+    }))
+
+    const mappedNonMembers: LiquidationBudgetSource[] = nonMemberItems.map((item, idx) => ({
+      id: `b-nonmem-${idx}-${item.inc.id || idx}`,
+      description: `${item.name.toUpperCase()} (GUEST / SPONSOR)`,
+      amount: item.inc.amount
+    }))
+
+    return [...mappedMembers, ...mappedNonMembers]
+  }
+
+  // mode === 'itemized_original' (or default)
+  return validIncomes.map((inc, idx) => {
+    const recFrom = (inc.receivedFrom || '').trim()
+    const rawDesc = (inc.description || '').trim()
+    const cleanDesc = (recFrom || rawDesc || 'EVENT INCOME').toUpperCase()
+
+    return {
+      id: inc.id || `b-${idx}`,
+      description: cleanDesc,
+      amount: inc.amount
+    }
+  })
+}
 
 interface Props {
   isOpen: boolean
@@ -35,6 +239,11 @@ export const EventLiquidationModal: React.FC<Props> = ({
   const [fromName, setFromName] = useState(`MINISTRY OF ALTAR SERVERS - ${eventName}`)
   const [subject, setSubject] = useState(`Liquidation Report - ${eventName}`)
   const [remarks, setRemarks] = useState('')
+
+  // Members & Categories metadata
+  const [membersList, setMembersList] = useState<Member[]>([])
+  const [categoriesList, setCategoriesList] = useState<EventFinanceCategory[]>([])
+  const [budgetGroupMode, setBudgetGroupMode] = useState<BudgetGroupingMode>('by_category')
 
   // Tables
   const [budgetSources, setBudgetSources] = useState<LiquidationBudgetSource[]>([])
@@ -73,28 +282,40 @@ export const EventLiquidationModal: React.FC<Props> = ({
       setSectionSpacing(6.0)
       setSignatureTopMargin(10.0)
 
-      // 1. Map valid Incomes to Budget Sources
       const validIncomes = incomes.filter(i => !i.isArchived)
-      const mappedBudgets: LiquidationBudgetSource[] = validIncomes.length > 0
-        ? validIncomes.map((inc, idx) => {
-            const recFrom = (inc.receivedFrom || '').trim()
-            const rawDesc = (inc.description || '').trim()
-            const cleanDesc = (recFrom || rawDesc || 'EVENT INCOME').toUpperCase()
+      const defaultMode: BudgetGroupingMode = validIncomes.length > 5 ? 'by_category' : 'itemized_original'
+      setBudgetGroupMode(defaultMode)
 
-            return {
-              id: inc.id || `b-${idx}`,
-              description: cleanDesc,
-              amount: inc.amount
-            }
-          })
-        : [
-            {
-              id: 'b-default',
-              description: `EVENT BUDGET / ALLOCATION FOR ${eventName.toUpperCase()}`,
-              amount: 0
-            }
-          ]
-      setBudgetSources(mappedBudgets)
+      // Load members, categories, and signature presets
+      const loadModalData = async () => {
+        let loadedMembers: Member[] = []
+        let loadedCategories: EventFinanceCategory[] = []
+
+        try {
+          const [mems, cats] = await Promise.all([
+            memberService.getMembers(false),
+            eventFinanceService.getEventFinanceCategories(eventId, 'income')
+          ])
+          loadedMembers = mems || []
+          loadedCategories = cats || []
+          setMembersList(loadedMembers)
+          setCategoriesList(loadedCategories)
+        } catch (err) {
+          console.warn('Failed to load members or categories for liquidation modal:', err)
+        }
+
+        // Initialize budget sources with loaded metadata
+        const initialBudgets = generateBudgetSourcesFromIncomes(
+          incomes,
+          defaultMode,
+          loadedMembers,
+          loadedCategories,
+          eventName
+        )
+        setBudgetSources(initialBudgets)
+      }
+
+      loadModalData()
 
       // 2. Map valid Expenses to Liquidated Expenditures
       const validExpenses = expenses.filter(e => !e.isArchived)
@@ -196,6 +417,18 @@ export const EventLiquidationModal: React.FC<Props> = ({
   const netBalance = totalBudget - totalSpent
 
   // Budget Row Handlers
+  const handleSelectBudgetGrouping = (mode: BudgetGroupingMode) => {
+    setBudgetGroupMode(mode)
+    const newBudgets = generateBudgetSourcesFromIncomes(
+      incomes,
+      mode,
+      membersList,
+      categoriesList,
+      eventName
+    )
+    setBudgetSources(newBudgets)
+  }
+
   const handleAddBudgetSource = () => {
     setBudgetSources(prev => [
       ...prev,
@@ -476,7 +709,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
 
             {/* SECTION 1: BUDGET SOURCES */}
             <div className="p-4 bg-emerald-50/40 border border-emerald-200/80 rounded-2xl space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
                   <h4 className="text-xs font-black text-emerald-950 uppercase tracking-wider">
                     I. Budget Sources / Incomes Received
@@ -488,13 +721,117 @@ export const EventLiquidationModal: React.FC<Props> = ({
                 <button
                   type="button"
                   onClick={handleAddBudgetSource}
-                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-2xs transition-all cursor-pointer self-start sm:self-auto"
                 >
                   + Add Source
                 </button>
               </div>
 
-              <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+              {/* Quick Grouping & Formatting Toolbar */}
+              <div className="p-2 bg-emerald-100/60 rounded-xl border border-emerald-200/60 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-extrabold text-emerald-900 uppercase tracking-wider">
+                    Grouping & Sorting Presets:
+                  </span>
+                  <span className="text-[10px] text-emerald-700 italic">
+                    (Click to auto-format rows; fully editable below)
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBudgetGrouping('summarized')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      budgetGroupMode === 'summarized'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200/60'
+                    }`}
+                    title="Clean high-level category summary without pax counts"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h10M4 18h7" />
+                    </svg>
+                    <span>Summarize</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBudgetGrouping('by_category')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      budgetGroupMode === 'by_category'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200/60'
+                    }`}
+                    title="Group all contributions by category/source with pax counts"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                    </svg>
+                    <span>By Category</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBudgetGrouping('members_vs_non_members')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      budgetGroupMode === 'members_vs_non_members'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200/60'
+                    }`}
+                    title="Consolidated into Member total vs Non-Member / Guest total"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                    </svg>
+                    <span>Members vs Non-Members</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBudgetGrouping('itemized_members_first')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      budgetGroupMode === 'itemized_members_first'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200/60'
+                    }`}
+                    title="Itemize all individual names with Members listed first (A-Z), followed by Non-Members (A-Z)"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+                    </svg>
+                    <span>Members First</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBudgetGrouping('single_total')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      budgetGroupMode === 'single_total'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200/60'
+                    }`}
+                    title="Single consolidated total row for entire event budget"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>Total Only</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectBudgetGrouping('itemized_original')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer inline-flex items-center gap-1.5 ${
+                      budgetGroupMode === 'itemized_original'
+                        ? 'bg-emerald-700 text-white shadow-2xs'
+                        : 'bg-white text-emerald-800 hover:bg-emerald-50 border border-emerald-200/60'
+                    }`}
+                    title="Original raw itemized list as recorded"
+                  >
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Itemized (All)</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
                 {budgetSources.map((item, idx) => (
                   <div key={item.id || idx} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-emerald-100 shadow-2xs">
                     <input
@@ -530,7 +867,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
               </div>
 
               <div className="flex justify-between items-center pt-2 border-t border-emerald-200/60 text-xs font-black text-emerald-950">
-                <span>Total Budget Received:</span>
+                <span>Total Budget Received ({budgetSources.length} row{budgetSources.length === 1 ? '' : 's'}):</span>
                 <span>₱{totalBudget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
               </div>
             </div>

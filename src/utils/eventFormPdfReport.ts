@@ -1,8 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
-import type { SignatureConfig } from '@/types/signature'
-import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -29,6 +27,10 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
     img.src = url
   })
 }
+
+import type { SignatureConfig } from '@/types/signature'
+import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
+import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
 
 export interface EventFormPdfOptions {
   documentTitle: string
@@ -59,7 +61,6 @@ export const downloadEventFormPdf = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
 
   // 1. Prepare Logo for Header on Every Page
   let logoImg: HTMLImageElement | null = null
@@ -190,7 +191,7 @@ export const downloadEventFormPdf = async (
   const bodyFontSize = isDense ? 9.5 : 10.5
   const cellPadding = isDense ? 3 : 3.8
 
-  const drawUniformHeaderAndFooter = (pageNumber: number, totalPageCount: number) => {
+  const drawUniformHeader = () => {
     // 1. Draw Official Header (Single Ministry Logo on Right Side) on EVERY page
     if (logoImg) {
       doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
@@ -231,16 +232,6 @@ export const downloadEventFormPdf = async (
     doc.text(`Generated: ${dateStr} at ${timeStr}`, 14, 45)
     doc.text(`Total Records: ${filteredResponses.length}`, pageWidth - 14, 45, { align: 'right' })
 
-    // Footer page numbers
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${pageNumber} of ${totalPageCount} - MATS Official Event Form Report`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
   }
 
   // 5. Draw AutoTable
@@ -285,12 +276,16 @@ export const downloadEventFormPdf = async (
     })
   }
 
-  // 7. Draw uniform headers and footers across all generated pages
+  // 7. Draw uniform headers across all generated pages
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
-    drawUniformHeaderAndFooter(i, totalPages)
+    drawUniformHeader()
   }
+
+  // Apply uniform standard footer across all pages
+  const docCode = formatDocCodeWithDate('EFRM', now)
+  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
 
   // Save PDF
   const safeTitle = form.title.toLowerCase().replace(/[^a-z0-9]/g, '_')

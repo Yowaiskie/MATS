@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import type { FinanceFundRequest } from '@/types/finance'
 import type { SignatureConfig } from '@/types/signature'
 import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
+import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
 
 const formatDateUpper = (d: Date | string): string => {
   if (!d) return ''
@@ -48,7 +49,6 @@ export const generateLiquidationReportPdfDoc = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
 
   const tablePadding = options?.tablePadding ?? 1.4
   const sectionSpacing = options?.sectionSpacing ?? 4.0
@@ -70,8 +70,8 @@ export const generateLiquidationReportPdfDoc = async (
     }
   }
 
-  // 2. Uniform Header & Footer Helper
-  const drawUniformHeaderAndFooter = (pageNumber: number, totalPages: number) => {
+  // 2. Uniform Header Helper
+  const drawUniformHeader = () => {
     if (logoImg) {
       doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
     }
@@ -92,20 +92,9 @@ export const generateLiquidationReportPdfDoc = async (
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
     doc.line(14, 28, pageWidth - 14, 28)
-
-    // Footer
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${pageNumber} of ${totalPages} - MATS Official Liquidation Report (Ref: ${request.referenceNumber})`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
   }
 
-  drawUniformHeaderAndFooter(1, 1)
+  drawUniformHeader()
 
   let cursorY = 32
 
@@ -380,26 +369,15 @@ export const generateLiquidationReportPdfDoc = async (
     leftMargin: 14,
     rightMargin: 14,
     lineWidth: 70,
-    bottomMargin: 10,
+    bottomMargin: 14,
     onNewPageRequired: () => {
-      const pageCount = doc.getNumberOfPages()
-      drawUniformHeaderAndFooter(pageCount, pageCount)
+      drawUniformHeader()
     }
   })
 
-  const totalPages = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${i} of ${totalPages} - MATS Official Liquidation Report (Ref: ${request.referenceNumber})`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
-  }
+  // Apply uniform standard footer across all pages
+  const docCode = formatDocCodeWithDate('LQR', options?.liquidationDate || request.liquidationDate || request.dateNeeded)
+  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
 
   return doc
 }

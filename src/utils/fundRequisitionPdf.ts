@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable'
 import type { FinanceFundRequest } from '@/types/finance'
 import type { SignatureConfig } from '@/types/signature'
 import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
+import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
 
 const formatDateUpper = (d: Date | string): string => {
   if (!d) return ''
@@ -47,7 +48,6 @@ export const downloadFundRequisitionPdf = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
 
   // 1. Prepare Logo for Header
   let logoImg: HTMLImageElement | null = null
@@ -65,8 +65,8 @@ export const downloadFundRequisitionPdf = async (
     }
   }
 
-  // 2. Uniform Header & Footer Helper
-  const drawUniformHeaderAndFooter = (pageNumber: number, totalPages: number) => {
+  // 2. Uniform Header Helper
+  const drawUniformHeader = () => {
     if (logoImg) {
       doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
     }
@@ -87,21 +87,10 @@ export const downloadFundRequisitionPdf = async (
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
     doc.line(14, 28, pageWidth - 14, 28)
-
-    // Footer
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${pageNumber} of ${totalPages} - MATS Official Fund Requisition Voucher (Ref: ${request.referenceNumber})`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
   }
 
   // Draw Page 1 header
-  drawUniformHeaderAndFooter(1, 1)
+  drawUniformHeader()
 
   let cursorY = 35
 
@@ -282,26 +271,15 @@ export const downloadFundRequisitionPdf = async (
     leftMargin: 14,
     rightMargin: 14,
     lineWidth: 70,
+    bottomMargin: 14,
     onNewPageRequired: () => {
-      const pageCount = doc.getNumberOfPages()
-      drawUniformHeaderAndFooter(pageCount, pageCount)
+      drawUniformHeader()
     }
   })
 
-  // Update total page counts in footer across all pages
-  const totalPages = doc.getNumberOfPages()
-  for (let i = 1; i <= totalPages; i++) {
-    doc.setPage(i)
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${i} of ${totalPages} - MATS Official Fund Requisition Voucher (Ref: ${request.referenceNumber})`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
-  }
+  // Apply uniform standard footer across all pages
+  const docCode = formatDocCodeWithDate('FRQ', options?.documentDate || request.dateNeeded || request.createdAt)
+  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
 
   // Trigger download
   const safeFilename = `Fund_Requisition_${request.referenceNumber || 'Voucher'}_${request.dateNeeded || 'Date'}.pdf`

@@ -1,8 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { MemberReportRow } from '@/services/reportService'
-import type { SignatureConfig } from '@/types/signature'
-import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -29,6 +27,10 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
     img.src = url
   })
 }
+
+import type { SignatureConfig } from '@/types/signature'
+import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
+import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
 
 export interface MemberPdfOptions {
   dateRange?: { start?: string; end?: string }
@@ -61,7 +63,6 @@ export const downloadMembersReportPdf = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
 
   // 1. Prepare Logo for Header
   let logoImg: HTMLImageElement | null = null
@@ -79,8 +80,8 @@ export const downloadMembersReportPdf = async (
     }
   }
 
-  // 2. Helper to draw Uniform Header & Footer across all pages
-  const drawUniformHeader = (pageNumber: number, totalPages: number) => {
+  // 2. Helper to draw Uniform Header across all pages
+  const drawUniformHeader = () => {
     // Single Ministry Logo on Right Side
     if (logoImg) {
       doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
@@ -102,17 +103,6 @@ export const downloadMembersReportPdf = async (
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
     doc.line(14, 28, pageWidth - 14, 28)
-
-    // Footer on bottom of page
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8.5)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${pageNumber} of ${totalPages} - MATS Official Member Masterlist & Attendance Report`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
   }
 
   // 3. Document Title (Centered & Bold Underline Style matching Finance)
@@ -269,12 +259,16 @@ export const downloadMembersReportPdf = async (
     })
   }
 
-  // 8. Draw uniform header and footer across all generated pages
+  // 8. Draw uniform header across all generated pages
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
-    drawUniformHeader(i, totalPages)
+    drawUniformHeader()
   }
+
+  // Apply uniform standard footer across all pages
+  const docCode = formatDocCodeWithDate('MEM', now)
+  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
 
   const filename = `Ministry_Members_Report_${now.toISOString().split('T')[0]}.pdf`
   doc.save(filename)

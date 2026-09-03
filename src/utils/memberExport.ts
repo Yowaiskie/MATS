@@ -4,6 +4,7 @@ import type { Member } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import type { SignatureConfig } from '@/types/signature'
 import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
+import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
 
 export type ExportPreset = 'all' | 'names_only' | 'summary' | 'custom'
 
@@ -293,7 +294,6 @@ export const exportMembersToPdf = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const pageHeight = doc.internal.pageSize.getHeight()
 
   // 1. Prepare Logo
   let logoImg: HTMLImageElement | null = null
@@ -307,8 +307,8 @@ export const exportMembersToPdf = async (
     }
   }
 
-  // 2. Uniform Header & Footer across all pages
-  const drawUniformHeader = (pageNumber: number, totalPages: number) => {
+  // 2. Uniform Header across all pages
+  const drawUniformHeader = () => {
     // Ministry Logo on Right
     if (logoImg) {
       doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
@@ -330,17 +330,6 @@ export const exportMembersToPdf = async (
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
     doc.line(14, 28, pageWidth - 14, 28)
-
-    // Footer
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(8)
-    doc.setTextColor(148, 163, 184)
-    doc.text(
-      `Page ${pageNumber} of ${totalPages} - MATS Official Member Masterlist Report`,
-      pageWidth / 2,
-      pageHeight - 8,
-      { align: 'center' }
-    )
   }
 
   // 3. Document Title
@@ -444,12 +433,16 @@ export const exportMembersToPdf = async (
     })
   }
 
-  // 8. Uniform header and footer across all pages
+  // 8. Uniform header across all pages
   const totalPages = (doc as any).internal.getNumberOfPages()
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i)
-    drawUniformHeader(i, totalPages)
+    drawUniformHeader()
   }
+
+  // Apply uniform standard footer across all pages
+  const docCode = formatDocCodeWithDate('MEM', now)
+  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
 
   const prefix = options?.filenamePrefix || 'MATS_Members_Report'
   const filename = `${prefix}_${now.toISOString().split('T')[0]}.pdf`
