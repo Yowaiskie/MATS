@@ -3,7 +3,8 @@ import {
   signOut,
   EmailAuthProvider,
   reauthenticateWithCredential,
-  updatePassword
+  updatePassword,
+  sendPasswordResetEmail
 } from 'firebase/auth'
 import { doc, getDoc, collection, query, where, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
@@ -39,7 +40,36 @@ export const authService = {
   },
 
   /**
-   * Changes the password for the currently logged-in user.
+   * Updates password directly for currently logged-in user (from User Management or profile).
+   * Re-authenticates if currentPassword is provided to satisfy Firebase recent login requirements.
+   */
+  async updateCurrentUserPassword(newPassword: string, currentPassword?: string): Promise<void> {
+    const currentUser = auth.currentUser
+    if (!currentUser || !currentUser.email) {
+      throw new Error('No active user session found. Please log in again.')
+    }
+
+    if (newPassword.length < 6) {
+      throw new Error('New password must be at least 6 characters long.')
+    }
+
+    if (currentPassword && currentPassword.trim()) {
+      const credential = EmailAuthProvider.credential(currentUser.email, currentPassword.trim())
+      await reauthenticateWithCredential(currentUser, credential)
+    }
+
+    await updatePassword(currentUser, newPassword)
+
+    await auditService.logAction(
+      'USER_PASSWORD_CHANGE',
+      'system',
+      `User ${currentUser.email} updated their account password.`,
+      currentUser.email
+    )
+  },
+
+  /**
+   * Changes the password for the currently logged-in user requiring current password re-auth.
    */
   async changePassword(currentPassword: string, newPassword: string): Promise<void> {
     const currentUser = auth.currentUser
@@ -64,6 +94,25 @@ export const authService = {
       'system',
       `User ${currentUser.email} changed their account password.`,
       currentUser.email
+    )
+  },
+
+  /**
+   * Sends a password reset email to a specified user.
+   */
+  async sendPasswordReset(email: string, performedBy = 'System'): Promise<void> {
+    if (!email || !email.trim()) {
+      throw new Error('Email address is required to send password reset.')
+    }
+
+    await sendPasswordResetEmail(auth, email.trim())
+
+    await auditService.logAction(
+      'USER_PASSWORD_CHANGE',
+      'system',
+      `Sent password reset link to '${email.trim()}'`,
+      performedBy,
+      { email: email.trim() }
     )
   },
 

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { userService } from '@/services/userService'
+import { authService } from '@/services/authService'
 import { settingsService } from '@/services/settingsService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -182,6 +183,7 @@ export const UsersPage: React.FC = () => {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null)
   const [email, setEmail] = useState('')
+  const [currentPassword, setCurrentPassword] = useState('')
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
@@ -667,6 +669,7 @@ export const UsersPage: React.FC = () => {
   const handleOpenAddModal = () => {
     setEditingUser(null)
     setEmail('')
+    setCurrentPassword('')
     setPassword('')
     setConfirmPassword('')
     setDisplayName('')
@@ -680,6 +683,7 @@ export const UsersPage: React.FC = () => {
   const handleOpenEditModal = (userToEdit: UserProfile) => {
     setEditingUser(userToEdit)
     setEmail(userToEdit.email)
+    setCurrentPassword('')
     setPassword('')
     setConfirmPassword('')
     setDisplayName(userToEdit.displayName || '')
@@ -902,6 +906,11 @@ export const UsersPage: React.FC = () => {
           return
         }
 
+        // If editing own account and password is provided, update password directly
+        if (editingUser.uid === currentAdmin?.uid && password.trim()) {
+          await authService.updateCurrentUserPassword(password.trim(), currentPassword.trim() || undefined)
+        }
+
         const selectedOrder = assignedOrder ? (assignedOrder as OrderGroup) : undefined
 
         await userService.saveUserProfile(
@@ -916,7 +925,7 @@ export const UsersPage: React.FC = () => {
           currentAdmin?.email || 'Admin'
         )
 
-        setSuccessMsg(`User profile '${email.trim()}' successfully updated with custom permissions!`)
+        setSuccessMsg(`User profile '${email.trim()}' successfully updated!`)
       } else {
         const selectedOrder = assignedOrder ? (assignedOrder as OrderGroup) : undefined
 
@@ -940,7 +949,11 @@ export const UsersPage: React.FC = () => {
     } catch (err: any) {
       console.error(err)
       let msg = err.message || 'Failed to save user profile.'
-      if (err.code === 'auth/weak-password') {
+      if (err.code === 'auth/requires-recent-login') {
+        msg = 'For security, changing your password requires your Current Password or a recent login. Please enter your Current Password and try again.'
+      } else if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        msg = 'Current password is incorrect. Please verify and try again.'
+      } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters long.'
       }
       setError(msg)
@@ -1245,37 +1258,123 @@ export const UsersPage: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Password Fields */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-                      {editingUser ? 'New Password (Optional)' : 'Password *'}
-                    </label>
-                    <input
-                      type="password"
-                      required={!editingUser}
-                      minLength={6}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      placeholder={editingUser ? 'Leave blank to keep...' : '••••••••'}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
-                    />
+                {/* Password Fields / Reset Email Action */}
+                {!editingUser && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                        Password *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="••••••••"
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                        Confirm Password *
+                      </label>
+                      <input
+                        type="password"
+                        required
+                        minLength={6}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm password..."
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
-                      {editingUser ? 'Confirm Password' : 'Confirm Password *'}
-                    </label>
-                    <input
-                      type="password"
-                      required={!editingUser || password.length > 0}
-                      minLength={6}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="Confirm password..."
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
-                    />
+                )}
+
+                {editingUser && editingUser.uid === currentAdmin?.uid && (
+                  <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl space-y-2.5">
+                    <div>
+                      <span className="text-xs font-bold text-blue-950 block">Update Account Password</span>
+                      <span className="text-[10px] text-blue-700">Leave blank if you don't wish to change your current login password.</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
+                          Current Password {password.length > 0 && <span className="text-rose-500">*</span>}
+                        </label>
+                        <input
+                          type="password"
+                          required={password.length > 0}
+                          value={currentPassword}
+                          onChange={(e) => setCurrentPassword(e.target.value)}
+                          placeholder="Current password"
+                          className="block w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
+                          New Password (Optional)
+                        </label>
+                        <input
+                          type="password"
+                          minLength={6}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="New password"
+                          className="block w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
+                          Confirm New Password
+                        </label>
+                        <input
+                          type="password"
+                          required={password.length > 0}
+                          minLength={6}
+                          value={confirmPassword}
+                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          placeholder="Confirm new password"
+                          className="block w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                        />
+                      </div>
+                    </div>
                   </div>
-                </div>
+                )}
+
+                {editingUser && editingUser.uid !== currentAdmin?.uid && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                        New Password (Optional)
+                      </label>
+                      <input
+                        type="password"
+                        minLength={6}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="Leave blank to keep current..."
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+                        Confirm New Password
+                      </label>
+                      <input
+                        type="password"
+                        required={password.length > 0}
+                        minLength={6}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="Confirm new password..."
+                        className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500 font-mono"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Quick Role Presets */}

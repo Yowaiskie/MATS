@@ -47,26 +47,33 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
   const activeSchedules = activeTab === 'missed' ? memberRow.missedSchedules : memberRow.otherServerSchedules || []
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 font-sans overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 font-sans overflow-y-auto animate-in fade-in duration-200">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={onClose}></div>
 
       {/* Modal Container */}
-      <div className="relative w-full max-w-xl max-h-[90vh] flex flex-col rounded-xl border border-gray-200 bg-white p-4 sm:p-5 shadow-xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150 my-auto">
+      <div className="relative w-full max-w-3xl max-h-[90vh] flex flex-col rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 animate-in fade-in zoom-in-95 duration-150 my-auto overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100 shrink-0">
-          <div className="flex items-center space-x-2.5">
-            <span className="p-2 bg-blue-50 text-blue-600 rounded-lg border border-blue-100">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0 bg-white">
+          <div className="flex items-center space-x-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
               </svg>
-            </span>
+            </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900 leading-tight">{memberRow.name}</h3>
-              <p className="text-[11px] text-gray-500 font-medium">Rank: {memberRow.rank} • Attendance Breakdown</p>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Attendance Audit
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight leading-tight">{memberRow.name}</h3>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">Rank: {memberRow.rank} • Detailed Record Audit</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-700 cursor-pointer rounded-lg hover:bg-gray-100 transition-colors">✕</button>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-slate-600 cursor-pointer rounded-xl hover:bg-slate-100 transition-colors focus:outline-none">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Scrollable Content Body */}
@@ -243,10 +250,10 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex justify-end pt-2.5 border-t border-gray-100 shrink-0">
+        <div className="flex justify-end pt-3 border-t border-slate-100 shrink-0 bg-white sticky bottom-0">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer transition-colors shadow-2xs"
+            className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 cursor-pointer transition-all shadow-2xs"
           >
             Close
           </button>

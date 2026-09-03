@@ -112,34 +112,48 @@ export const EventFinanceReportModal: React.FC<Props> = ({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Event Financial Statement" maxWidth="2xl">
-        <div className="p-4 bg-white print:p-0 space-y-6 max-h-[75vh] overflow-y-auto pr-1 text-xs" id="finance-report">
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Event Financial Statement"
+        subtitle={`Complete financial summary and statements for ${eventName}`}
+        badge="Financial Report"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        }
+        maxWidth="2xl"
+      >
+        <div className="p-1 space-y-5 max-h-[75vh] overflow-y-auto pr-1 text-xs" id="finance-report">
           
-          <div className="text-center border-b border-gray-200 pb-4">
-            <h1 className="text-xl font-black text-slate-900 tracking-tight uppercase">{eventName}</h1>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mt-0.5">Comprehensive Financial Statement</p>
-            <p className="text-[11px] text-slate-400 mt-1">Generated on {new Date().toLocaleString()}</p>
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 text-center">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-1">
+              Official Event Statement
+            </span>
+            <h1 className="text-base font-black text-slate-900 tracking-tight uppercase">{eventName}</h1>
+            <p className="text-[11px] font-mono text-slate-400 mt-0.5">Generated on {new Date().toLocaleString()}</p>
           </div>
 
           {/* Executive Summary */}
-          <div className={`grid gap-3 ${totalTransfer > 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Income</p>
-              <p className="text-lg font-black text-green-600">₱{totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+          <div className={`grid gap-2.5 p-3 rounded-2xl bg-indigo-50/50 border border-indigo-100 ${totalTransfer > 0 ? 'grid-cols-2 md:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'}`}>
+            <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total Income</p>
+              <p className="text-base font-black text-emerald-700 font-mono">₱{totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
             </div>
-            <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Total Expenses</p>
-              <p className="text-lg font-black text-red-600">₱{totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+            <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs">
+              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Total Expenses</p>
+              <p className="text-base font-black text-rose-700 font-mono">₱{totalExpense.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
             </div>
             {totalTransfer > 0 && (
-              <div className="bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Transfer to Fund</p>
-                <p className="text-lg font-black text-blue-600">₱{totalTransfer.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+              <div className="bg-white p-3 rounded-xl border border-indigo-100 shadow-2xs">
+                <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Transfer to Fund</p>
+                <p className="text-base font-black text-blue-700 font-mono">₱{totalTransfer.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
               </div>
             )}
-            <div className={`p-3.5 rounded-2xl border ${balance >= 0 ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-              <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Remaining Balance</p>
-              <p className={`text-lg font-black ${balance >= 0 ? 'text-green-700' : 'text-red-700'}`}>₱{balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
+            <div className={`p-3 rounded-xl border shadow-2xs ${balance >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-rose-50 border-rose-200'}`}>
+              <p className="text-[10px] font-bold text-slate-600 uppercase tracking-wider mb-0.5">Remaining Balance</p>
+              <p className={`text-base font-black font-mono ${balance >= 0 ? 'text-emerald-800' : 'text-rose-800'}`}>₱{balance.toLocaleString('en-US', { minimumFractionDigits: 2 })}</p>
             </div>
           </div>
 

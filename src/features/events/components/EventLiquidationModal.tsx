@@ -357,10 +357,22 @@ export const EventLiquidationModal: React.FC<Props> = ({
   if (!isOpen) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Event Financial Liquidation Report" maxWidth={activeViewTab === 'preview' ? "2xl" : "2xl"}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Event Financial Liquidation Report"
+      subtitle={`Liquidation breakdown, disbursements and live preview for ${eventName}`}
+      badge="Event Liquidation"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+        </svg>
+      }
+      maxWidth="3xl"
+    >
       <div className="space-y-5 p-1">
         {errorMsg && (
-          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-xl text-xs font-bold animate-fade-in">
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-bold animate-fade-in">
             {errorMsg}
           </div>
         )}

@@ -161,18 +161,26 @@ export const InventoryItemModal: React.FC<Props> = ({
       isOpen={isOpen}
       onClose={onClose}
       title={item ? 'Edit Inventory Item' : 'Add New Equipment / Item'}
+      subtitle="Track parish and ministry assets, condition, and storage location"
+      badge="Asset Masterlist"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+        </svg>
+      }
+      maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} className="space-y-4 text-xs">
         {error && (
-          <div className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl border border-red-200">
+          <div className="p-3.5 bg-rose-50 text-rose-800 text-xs font-bold rounded-2xl border border-rose-200 animate-fade-in">
             {error}
           </div>
         )}
 
         {/* Item Name */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Item Name <span className="text-red-500">*</span>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+            Item Name *
           </label>
           <input
             type="text"
@@ -363,19 +371,19 @@ export const InventoryItemModal: React.FC<Props> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
           <button
             type="button"
             onClick={onClose}
             disabled={saving}
-            className="px-4 py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
+            className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={saving}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-sm shadow-blue-500/20 transition-all cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
           >
             {saving ? (
               <>

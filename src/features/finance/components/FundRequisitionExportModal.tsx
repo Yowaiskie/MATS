@@ -107,121 +107,133 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Export Fund Requisition Voucher PDF" maxWidth="2xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Export Fund Requisition Voucher PDF"
+      subtitle="Generate official voucher for requested ministry funds"
+      badge="Requisition Voucher"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      }
+      maxWidth="2xl"
+    >
       <div className="space-y-5 max-h-[78vh] overflow-y-auto pr-1 text-xs">
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs">
+          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs">
             {errorMsg}
           </div>
         )}
 
         {/* Voucher Header Details Card */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200">
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200/80">
             <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
                 Official Requisition
               </span>
               <h4 className="text-sm font-black text-slate-900 mt-1">{request.title}</h4>
               <p className="text-[11px] font-mono text-slate-500">Ref: {request.referenceNumber}</p>
             </div>
-            <div className="text-right">
-              <span className="text-[10px] text-slate-500 font-medium block">Total Expected Allocation</span>
-              <span className="text-base font-black text-blue-700">₱{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+            <div className="text-right p-2.5 bg-white border border-indigo-100 rounded-xl shadow-2xs">
+              <span className="text-[10px] text-slate-500 font-bold block uppercase">Total Expected Allocation</span>
+              <span className="text-sm font-black text-indigo-900 font-mono">₱{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 From (Requester Unit)
               </label>
               <input
                 type="text"
                 value={fromMinistry}
                 onChange={e => setFromMinistry(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Voucher Date
               </label>
               <input
                 type="date"
                 value={docDate}
                 onChange={e => setDocDate(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Purpose
               </label>
               <input
                 type="text"
                 value={purpose}
                 onChange={e => setPurpose(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Date Needed
               </label>
               <input
                 type="date"
                 value={dateNeeded}
                 onChange={e => setDateNeeded(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Venue
               </label>
               <input
                 type="text"
                 value={venue}
                 onChange={e => setVenue(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
             <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Participants
               </label>
               <input
                 type="text"
                 value={participants}
                 onChange={e => setParticipants(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
             <div className="sm:col-span-2">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Assembly / Gathering Time
               </label>
               <input
                 type="text"
                 value={assembly}
                 onChange={e => setAssembly(e.target.value)}
-                className="w-full p-2.5 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500"
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
               />
             </div>
           </div>
         </div>
 
         {/* Expected Expenses Preview Table */}
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
+        <div className="p-3.5 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-2">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
-              <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight flex items-center gap-1.5">
+              <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               <span>Expected Expenses ({items.length} items)</span>
             </h4>
-            <span className="text-xs font-black text-slate-800">
+            <span className="text-xs font-black text-slate-900 font-mono">
               Total: ₱{totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
           </div>
@@ -229,7 +241,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
           <div className="border border-slate-200 rounded-xl overflow-hidden overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
                   <th className="p-2.5 text-left">Intended Use</th>
                   <th className="p-2.5 text-center">Unit Price</th>
                   <th className="p-2.5 text-center">Quantity</th>
@@ -238,11 +250,11 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {items.map((item, idx) => (
-                  <tr key={item.id || idx} className="hover:bg-slate-50">
-                    <td className="p-2.5 font-medium text-slate-900">{item.intendedUse}</td>
+                  <tr key={item.id || idx} className="hover:bg-slate-50/50">
+                    <td className="p-2.5 font-semibold text-slate-900">{item.intendedUse}</td>
                     <td className="p-2.5 text-center text-slate-600 font-mono text-[11px]">{item.unitPrice}</td>
-                    <td className="p-2.5 text-center text-slate-600">{item.quantity}</td>
-                    <td className="p-2.5 text-right font-bold text-slate-900 font-mono">
+                    <td className="p-2.5 text-center text-slate-600 font-medium">{item.quantity}</td>
+                    <td className="p-2.5 text-right font-black text-slate-900 font-mono">
                       ₱{Number(item.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </td>
                   </tr>
@@ -273,12 +285,12 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
             type="button"
             onClick={handleDownload}
             disabled={isGenerating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition cursor-pointer"
           >
             {isGenerating ? (
               <>
                 <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4} />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
                 <span>Generating Document...</span>

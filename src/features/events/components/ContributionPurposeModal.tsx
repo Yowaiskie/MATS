@@ -107,37 +107,54 @@ export const ContributionPurposeModal: React.FC<Props> = ({ isOpen, onClose, eve
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Manage Contribution Purposes" maxWidth="md">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Manage Contribution Purposes"
+      subtitle="Categorize and configure event contributions categories"
+      badge="Purpose Categories"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+        </svg>
+      }
+      maxWidth="xl"
+    >
       <div className="space-y-4">
         {error && (
-          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl">
+          <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-2xl animate-fade-in">
             {error}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-          <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-            {editingId ? 'Edit Purpose' : 'Create New Purpose'}
-          </h4>
+        <form onSubmit={handleSubmit} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between pb-1">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+              {editingId ? 'Edit Mode' : 'New Entry'}
+            </span>
+            <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">
+              {editingId ? 'Edit Purpose' : 'Create New Purpose'}
+            </h4>
+          </div>
           <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Name *</label>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Name *</label>
             <input
               type="text"
               required
               placeholder="e.g. Food Contribution"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-500"
+              className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Description (Optional)</label>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Description (Optional)</label>
             <input
               type="text"
               placeholder="e.g. Budget contribution from parents"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-500"
+              className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3.5 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
           </div>
           <div className="flex justify-end gap-2 pt-1">
@@ -145,7 +162,7 @@ export const ContributionPurposeModal: React.FC<Props> = ({ isOpen, onClose, eve
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-3 py-1.5 border border-slate-200 hover:bg-slate-100 rounded-lg text-[11px] font-bold text-slate-600 cursor-pointer"
+                className="px-3.5 py-2 border border-slate-200 hover:bg-slate-100 rounded-xl text-xs font-bold text-slate-600 transition cursor-pointer"
               >
                 Cancel Edit
               </button>
@@ -153,7 +170,7 @@ export const ContributionPurposeModal: React.FC<Props> = ({ isOpen, onClose, eve
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-[11px] font-bold disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition disabled:opacity-50 cursor-pointer"
             >
               {submitting ? 'Saving...' : editingId ? 'Update Purpose' : 'Add Purpose'}
             </button>

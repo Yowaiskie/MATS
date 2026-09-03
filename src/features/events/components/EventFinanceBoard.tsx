@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/Card'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
@@ -25,6 +25,11 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
   const { user, profile, canAction } = useAuth()
   const [activeTab, setActiveTab] = useState<TabType>('income')
   const [showArchived, setShowArchived] = useState(false)
+  const [selectedHeldBy, setSelectedHeldBy] = useState('all')
+  const [incomeSearchQuery, setIncomeSearchQuery] = useState('')
+  const [expenseSearchQuery, setExpenseSearchQuery] = useState('')
+  const [startDate, setStartDate] = useState('')
+  const [endDate, setEndDate] = useState('')
   
   const [incomes, setIncomes] = useState<EventIncome[]>([])
   const [expenses, setExpenses] = useState<EventExpense[]>([])
@@ -91,6 +96,71 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
     ...incomes.filter(i => !i.isArchived && i.allocation).map(i => i.allocation!),
     ...expenses.filter(e => !e.isArchived && e.allocation).map(e => e.allocation!)
   ])).sort()
+
+  const uniqueCustodians = useMemo(() => {
+    const set = new Set<string>()
+    incomes.forEach(i => {
+      if (!i.isArchived && i.heldBy?.trim()) {
+        set.add(i.heldBy.trim())
+      }
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [incomes])
+
+  const filteredIncomes = useMemo(() => {
+    return activeIncomes.filter(i => {
+      // Filter by Held By
+      if (selectedHeldBy !== 'all') {
+        if (selectedHeldBy === 'unassigned') {
+          if (i.heldBy?.trim()) return false
+        } else {
+          if ((i.heldBy || '').trim().toLowerCase() !== selectedHeldBy.trim().toLowerCase()) {
+            return false
+          }
+        }
+      }
+
+      // Filter by search query
+      if (incomeSearchQuery.trim()) {
+        const q = incomeSearchQuery.trim().toLowerCase()
+        const matchFrom = (i.receivedFrom || '').toLowerCase().includes(q)
+        const matchDesc = (i.description || '').toLowerCase().includes(q)
+        const matchHeld = (i.heldBy || '').toLowerCase().includes(q)
+        const matchAlloc = (i.allocation || '').toLowerCase().includes(q)
+        if (!matchFrom && !matchDesc && !matchHeld && !matchAlloc) {
+          return false
+        }
+      }
+
+      // Filter by date range
+      if (startDate && i.date && i.date < startDate) return false
+      if (endDate && i.date && i.date > endDate) return false
+
+      return true
+    })
+  }, [activeIncomes, selectedHeldBy, incomeSearchQuery, startDate, endDate])
+
+  const filteredExpenses = useMemo(() => {
+    return activeExpenses.filter(e => {
+      // Filter by search query
+      if (expenseSearchQuery.trim()) {
+        const q = expenseSearchQuery.trim().toLowerCase()
+        const matchSpentOn = (e.spentOn || '').toLowerCase().includes(q)
+        const matchSpentBy = (e.spentByName || '').toLowerCase().includes(q)
+        const matchOr = (e.orNumber || '').toLowerCase().includes(q)
+        const matchAlloc = (e.allocation || '').toLowerCase().includes(q)
+        if (!matchSpentOn && !matchSpentBy && !matchOr && !matchAlloc) {
+          return false
+        }
+      }
+
+      // Filter by date range
+      if (startDate && e.date && e.date < startDate) return false
+      if (endDate && e.date && e.date > endDate) return false
+
+      return true
+    })
+  }, [activeExpenses, expenseSearchQuery, startDate, endDate])
 
   const handleConfirmDelete = async (password: string) => {
     if (!user || !profile || !deleteConfirm.id) return
@@ -363,6 +433,166 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         </div>
       </div>
 
+      {/* Income Filter Toolbar */}
+      {activeTab === 'income' && (
+        <div className="bg-slate-50/80 p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+            {/* Search Input */}
+            <div className="sm:col-span-2 lg:col-span-5 relative">
+              <input
+                type="text"
+                placeholder="Search received from, description, custodian..."
+                value={incomeSearchQuery}
+                onChange={(e) => setIncomeSearchQuery(e.target.value)}
+                className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2 pl-8.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+              />
+              <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {incomeSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setIncomeSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Held By Filter Dropdown */}
+            <div className="lg:col-span-3">
+              <select
+                value={selectedHeldBy}
+                onChange={(e) => setSelectedHeldBy(e.target.value)}
+                className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs cursor-pointer truncate"
+              >
+                <option value="all">All Custodians (Lahat ng may hawak)</option>
+                <option value="unassigned">Not Specified (Walang nakatalaga)</option>
+                {uniqueCustodians.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Date Range Filter */}
+            <div className="lg:col-span-4 flex items-center gap-1.5 sm:gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-1/2 min-w-0 text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                title="Start Date"
+              />
+              <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-1/2 min-w-0 text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                title="End Date"
+              />
+            </div>
+          </div>
+
+          {/* Reset / Count Display */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs border-t border-slate-200/60">
+            <span className="text-[11px] font-bold text-slate-500">
+              Showing <strong className="text-slate-900">{filteredIncomes.length}</strong> of {activeIncomes.length} income entries
+            </span>
+            {(selectedHeldBy !== 'all' || incomeSearchQuery.trim() || startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedHeldBy('all')
+                  setIncomeSearchQuery('')
+                  setStartDate('')
+                  setEndDate('')
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Expense Filter Toolbar */}
+      {activeTab === 'expenses' && (
+        <div className="bg-slate-50/80 p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3 items-center">
+            {/* Search Input */}
+            <div className="sm:col-span-2 lg:col-span-7 relative">
+              <input
+                type="text"
+                placeholder="Search spent on, spent by, O.R. #, allocation..."
+                value={expenseSearchQuery}
+                onChange={(e) => setExpenseSearchQuery(e.target.value)}
+                className="w-full text-xs font-semibold border border-slate-200 rounded-xl px-3 py-2 pl-8.5 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+              />
+              <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              {expenseSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setExpenseSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                  title="Clear search"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Date Range Filter */}
+            <div className="lg:col-span-5 flex items-center gap-1.5 sm:gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-1/2 min-w-0 text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                title="Start Date"
+              />
+              <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-1/2 min-w-0 text-xs font-semibold border border-slate-200 rounded-xl px-2.5 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs"
+                title="End Date"
+              />
+            </div>
+          </div>
+
+          {/* Reset & Summary Status */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1 text-xs border-t border-slate-200/60">
+            <span className="text-[11px] font-bold text-slate-500">
+              Showing <strong className="text-slate-900">{filteredExpenses.length}</strong> of {activeExpenses.length} expense entries
+            </span>
+            {(expenseSearchQuery.trim() || startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseSearchQuery('')
+                  setStartDate('')
+                  setEndDate('')
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Tables */}
       <Card className="overflow-hidden border border-gray-200">
         <div className="overflow-x-auto">
@@ -402,7 +632,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
               )}
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {activeTab === 'income' && activeIncomes.map(inc => (
+              {activeTab === 'income' && filteredIncomes.map(inc => (
                 <tr key={inc.id} className={inc.isArchived ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{inc.date}</td>
                   <td className="px-4 py-3 text-sm text-gray-500 min-w-[120px]">
@@ -488,7 +718,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                   </td>
                 </tr>
               ))}
-              {activeTab === 'expenses' && activeExpenses.map(exp => (
+              {activeTab === 'expenses' && filteredExpenses.map(exp => (
                 <tr key={exp.id} className={exp.isArchived ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{exp.date}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-slate-600">
@@ -592,11 +822,19 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 </tr>
               ))}
               
-              {activeTab === 'income' && activeIncomes.length === 0 && (
-                <tr><td colSpan={7} className="px-6 py-8 text-center text-gray-500">No income records found.</td></tr>
+              {activeTab === 'income' && filteredIncomes.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-xs font-semibold italic">
+                    {activeIncomes.length === 0 ? 'No income records found.' : 'No income records match your search or filter.'}
+                  </td>
+                </tr>
               )}
-              {activeTab === 'expenses' && activeExpenses.length === 0 && (
-                <tr><td colSpan={8} className="px-6 py-8 text-center text-gray-500">No expense records found.</td></tr>
+              {activeTab === 'expenses' && filteredExpenses.length === 0 && (
+                <tr>
+                  <td colSpan={9} className="px-6 py-12 text-center text-slate-400 text-xs font-semibold italic">
+                    {activeExpenses.length === 0 ? 'No expense records found.' : 'No expense records match your search or filter.'}
+                  </td>
+                </tr>
               )}
               {activeTab === 'transfers' && transfers.length === 0 && (
                 <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No transfers found.</td></tr>

@@ -290,22 +290,32 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
   const totalCount = previewRows.length
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={handleClose}></div>
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={handleClose}></div>
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-5xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-5xl rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Bulk Import Members</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Upload a CSV file based on the Master List template.</p>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Batch Processing
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Bulk Import Members</h3>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">Upload a CSV file based on the Master List template.</p>
+            </div>
           </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -313,26 +323,26 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
         {/* Content */}
         <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
           {errorMsg && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 font-bold animate-fade-in">
               {errorMsg}
             </div>
           )}
 
           {successMsg && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-600">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800 font-bold animate-fade-in">
               {successMsg}
             </div>
           )}
 
           {/* Setup controls */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-lg border border-gray-200 bg-gray-50/50">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-2xl border border-slate-200/80 bg-slate-50">
             <div>
-              <span className="block text-xs font-bold text-gray-700">CSV Layout Guidelines</span>
-              <span className="text-[10px] text-gray-500 block mt-0.5 leading-tight">Supports Master List format (NAME, NICKNAME, ADDRESS, etc.)</span>
+              <span className="block text-xs font-black text-slate-800 uppercase tracking-tight">CSV Layout Guidelines</span>
+              <span className="text-[11px] text-slate-500 block mt-0.5 leading-tight">Supports Master List format (NAME, NICKNAME, ADDRESS, etc.)</span>
             </div>
             <button
               onClick={handleDownloadTemplate}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-3.5 py-2 text-xs font-semibold text-blue-600 hover:text-blue-700 transition-colors shadow-sm cursor-pointer whitespace-nowrap"
+              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-100 px-3.5 py-2 text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-all shadow-2xs cursor-pointer whitespace-nowrap"
             >
               Download Template (.csv)
             </button>
@@ -422,11 +432,11 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
         </div>
 
         {/* Actions Footer */}
-        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100 mt-4 bg-white">
+        <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-sm animate-none"
+            className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
             disabled={importing}
           >
             Cancel
@@ -434,7 +444,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
           <button
             type="button"
             onClick={handleImportSubmit}
-            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
             disabled={importing || previewRows.length === 0 || validCount === 0}
           >
             {importing ? 'Importing...' : `Import (${validCount} Valid Rows)`}

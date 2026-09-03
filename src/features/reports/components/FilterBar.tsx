@@ -1,7 +1,7 @@
 import React from 'react'
 
 interface FilterBarProps {
-  activeTab: 'summary' | 'member' | 'schedule' | 'monthly'
+  activeTab: 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour'
   startDate: string
   endDate: string
   onStartDateChange: (val: string) => void

@@ -120,27 +120,38 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
   const sortedQuestions = [...questions].sort((a, b) => a.order - b.order)
 
   return (
-    <div className="fixed inset-0 z-70 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white max-w-2xl w-full rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-200 h-[85vh]">
+    <div className="fixed inset-0 z-70 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="bg-white max-w-2xl w-full rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 h-[88vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Admin Action</span>
-            <h3 className="text-base font-black text-slate-900">Edit Form Response</h3>
+        <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Admin Response Editor
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Edit Form Response</h3>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 font-bold px-2 py-1 rounded-md cursor-pointer"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer"
           >
-            ✕
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
           {error && (
-            <div className="p-3 bg-red-50 text-red-700 rounded-xl font-bold border border-red-200">
+            <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-bold animate-fade-in">
               {error}
             </div>
           )}
@@ -404,18 +415,18 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
           </div>
 
           {/* Footer buttons inside form for submit */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-end space-x-3">
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3 sticky bottom-0 bg-white">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={saving}
-              className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
             >
               {saving ? 'Saving Changes...' : 'Save Changes'}
             </button>

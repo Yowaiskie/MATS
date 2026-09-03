@@ -17,6 +17,7 @@ import { db, firebaseConfig } from '@/firebase/config'
 import type { UserProfile, UserRole, UserPermissions } from '@/types/auth'
 import type { OrderGroup } from '@/types/member'
 import { auditService } from '@/services/auditService'
+import { authService } from '@/services/authService'
 
 const USERS_COLLECTION = 'users'
 
@@ -169,6 +170,13 @@ export const userService = {
       performedBy,
       { uid, email, role: newRole }
     )
+  },
+
+  /**
+   * Sends a password reset email to a user.
+   */
+  async sendPasswordReset(email: string, performedBy = 'System'): Promise<void> {
+    await authService.sendPasswordReset(email, performedBy)
   },
 
   /**

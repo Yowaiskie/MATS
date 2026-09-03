@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
+import { MemberCombobox } from '@/components/MemberCombobox'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
-import { eventAssignmentService } from '@/services/eventAssignmentService'
 import type { EventFinanceCategory, PaymentMethod, EventIncome } from '@/types/eventFinance'
 
 interface Props {
@@ -17,7 +17,6 @@ interface Props {
 export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, onSuccess, editItem, allocations }) => {
   const { user, profile } = useAuth()
   const [categories, setCategories] = useState<EventFinanceCategory[]>([])
-  const [eventMembers, setEventMembers] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -35,7 +34,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
 
   useEffect(() => {
     if (isOpen) {
-      fetchCategoriesAndMembers()
+      fetchCategories()
       if (editItem) {
         const parts = editItem.amount.toString().split('.')
         if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
@@ -56,17 +55,11 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
     }
   }, [isOpen, editItem])
 
-  const fetchCategoriesAndMembers = async () => {
+  const fetchCategories = async () => {
     try {
       setLoading(true)
-      const [catsData, assignmentsData] = await Promise.all([
-        eventFinanceService.getEventFinanceCategories(eventId, 'income'),
-        eventAssignmentService.getAssignmentsByEventId(eventId)
-      ])
+      const catsData = await eventFinanceService.getEventFinanceCategories(eventId, 'income')
       setCategories(catsData.filter(c => !c.isArchived))
-      
-      const uniqueMembers = Array.from(new Set(assignmentsData.map(a => a.memberName))).sort()
-      setEventMembers(uniqueMembers)
     } catch (err) {
       console.error('Failed to load data:', err)
     } finally {
@@ -186,10 +179,22 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={editItem ? "Edit Event Income" : "Add Event Income"} maxWidth="md">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={editItem ? "Edit Event Income" : "Add Event Income"}
+      subtitle={editItem ? "Update event collection or sponsor revenue" : "Record funds received for this event"}
+      badge="Event Income"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      }
+      maxWidth="2xl"
+    >
       <form onSubmit={handleSubmit} className="space-y-5 p-1">
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-bold animate-fade-in">
             {error}
           </div>
         )}
@@ -239,21 +244,14 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Held By (Optional)</label>
-          <input
-            type="text"
-            list="event-members-list"
-            maxLength={100}
+          <MemberCombobox
+            label="Held By (Hawak ni / Custodian)"
+            placeholder="Search masterlist officer or enter custom name..."
             value={heldBy}
-            onChange={(e) => setHeldBy(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
-            placeholder="e.g. Bro. Juan (Type or select from team)"
+            officersOnly
+            onChange={(name) => setHeldBy(name)}
+            helperText="Select active officer holding the funds, or type a custom name if external."
           />
-          <datalist id="event-members-list">
-            {eventMembers.map(member => (
-              <option key={member} value={member} />
-            ))}
-          </datalist>
         </div>
 
         <div>
@@ -368,19 +366,19 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
           />
         </div>
 
-        <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100">
+        <div className="mt-8 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm shadow-blue-500/30 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all active:scale-95"
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
           >
             {submitting ? 'Saving...' : editItem ? 'Update Income' : 'Save Income'}
           </button>

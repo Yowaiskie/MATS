@@ -124,32 +124,45 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Manage Inventory Categories"
+      subtitle="Categorize and configure equipment and item categories"
+      badge="Category Settings"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+        </svg>
+      }
+      maxWidth="xl"
     >
-      <div className="space-y-5">
+      <div className="space-y-5 text-xs">
         {error && (
-          <div className="p-3 bg-red-50 text-red-700 text-xs font-semibold rounded-xl border border-red-200">
+          <div className="p-3.5 bg-rose-50 text-rose-800 text-xs font-bold rounded-2xl border border-rose-200 animate-fade-in">
             {error}
           </div>
         )}
 
         {/* Add New Category Card */}
-        <form onSubmit={handleAddCategory} className="p-3.5 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
-          <span className="text-xs font-extrabold text-slate-800 uppercase tracking-wider block">
-            + Add New Category
-          </span>
-          <div className="flex flex-col sm:flex-row gap-2">
+        <form onSubmit={handleAddCategory} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+              New Classification
+            </span>
+            <span className="text-xs font-black text-slate-800 uppercase tracking-tight">
+              Create Category
+            </span>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2 pt-1">
             <input
               type="text"
               required
               value={newCatName}
               onChange={(e) => setNewCatName(e.target.value)}
               placeholder="Category Name (e.g. Board Games, Outdoor Gear)..."
-              className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
             <button
               type="submit"
               disabled={adding}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 flex items-center justify-center gap-1"
+              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-indigo-500/20 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 flex items-center justify-center gap-1"
             >
               {adding ? 'Adding...' : 'Add Category'}
             </button>
@@ -159,7 +172,7 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
         {/* Category List */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider block">
+            <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
               Configured Categories ({categories.length})
             </span>
             {categories.length === 0 && (

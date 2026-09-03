@@ -133,28 +133,37 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" 
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" 
         onClick={onClose}
       />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-xl rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 flex flex-col max-h-[88vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Service Details</h3>
-            <p className="text-xs text-gray-500 mt-0.5 font-medium">Schedule details and assigned server profiles.</p>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Mass Service Profile
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Service Details</h3>
+            </div>
           </div>
           <button 
             onClick={onClose} 
-            className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -162,38 +171,42 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
         {/* Content */}
         <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
           {/* Main Info */}
-          <div>
-            <div className="flex items-center space-x-2">
-              <h4 className="text-base font-bold text-gray-900 leading-tight">{schedule.title}</h4>
-              <span className={`inline-block px-1.5 py-0.5 rounded-md text-[9px] font-bold uppercase border ${statusConfig.badge}`}>
+          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-2">
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-sm font-black text-slate-900 leading-tight">{schedule.title}</h4>
+              <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-black uppercase border ${statusConfig.badge}`}>
                 {statusConfig.label}
               </span>
             </div>
-            <p className="text-xs text-gray-500 mt-1.5 font-medium">
-              📅 {formatHeaderDate(schedule.date)}
-            </p>
-            <p className="text-xs text-gray-500 mt-0.5 font-medium">
-              🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
-            </p>
+            <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-600 pt-1">
+              <span className="inline-flex items-center gap-1.5">
+                📅 {formatHeaderDate(schedule.date)}
+              </span>
+              <span className="inline-flex items-center gap-1.5 text-indigo-600 font-mono">
+                🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
+              </span>
+            </div>
           </div>
 
           {/* Assigned Members */}
-          <div className="border-t border-gray-100 pt-3">
-            <div className="flex items-center justify-between">
-              <h5 className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Assigned Altar Servers ({assignedProfiles.length})</h5>
-              {loadingAttendance && <span className="text-[10px] text-blue-600 animate-pulse">Loading attendance...</span>}
+          <div className="pt-1">
+            <div className="flex items-center justify-between pb-1.5">
+              <h5 className="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Assigned Altar Servers ({assignedProfiles.length})</h5>
+              {loadingAttendance && <span className="text-[10px] font-bold text-indigo-600 animate-pulse">Loading attendance...</span>}
             </div>
-            <div className="mt-2 space-y-1.5 max-h-48 overflow-y-auto">
+            <div className="mt-1 space-y-1.5 max-h-48 overflow-y-auto">
               {assignedProfiles.length === 0 ? (
-                <p className="text-xs text-gray-400 italic">No servers assigned to this schedule yet.</p>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center">
+                  <p className="text-xs text-slate-400 italic">No servers assigned to this schedule yet.</p>
+                </div>
               ) : (
                 assignedProfiles.map((m) => {
                   const rec = records.find(r => r.memberId === m.id)
                   return (
-                    <div key={m.id} className="flex items-center justify-between text-xs p-2.5 rounded-lg bg-gray-50/70 border border-gray-200">
+                    <div key={m.id} className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-50/80 border border-slate-200">
                       <div>
-                        <div className="font-semibold text-gray-900">{getFullName(m)}</div>
-                        {m.rank && <div className="text-[10px] text-gray-400">{m.rank}</div>}
+                        <div className="font-extrabold text-slate-900">{getFullName(m)}</div>
+                        {m.rank && <div className="text-[10px] font-semibold text-slate-500">{m.rank}</div>}
                       </div>
                       <div className="flex items-center gap-2">
                         {getStatusBadge(rec?.status)}

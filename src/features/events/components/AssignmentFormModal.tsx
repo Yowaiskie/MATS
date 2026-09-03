@@ -171,32 +171,44 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={loading ? undefined : onClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={loading ? undefined : onClose} />
       
-      <div className="relative w-full max-w-sm max-h-[85vh] rounded-2xl border border-gray-200 bg-white shadow-xl z-10 flex flex-col">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h3 className="text-lg font-bold text-gray-900">{editItem ? 'Edit Assignment' : 'Assign Team Member'}</h3>
-          <button onClick={onClose} disabled={loading} className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-lg hover:bg-gray-100 disabled:opacity-50 cursor-pointer">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+      <div className="relative w-full max-w-xl max-h-[88vh] rounded-3xl border border-slate-200/80 bg-white shadow-2xl z-10 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Committee & Roles
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">{editItem ? 'Edit Assignment' : 'Assign Team Member'}</h3>
+            </div>
+          </div>
+          <button onClick={onClose} disabled={loading} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors disabled:opacity-50 cursor-pointer">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1">
+        <div className="p-6 overflow-y-auto flex-1 text-xs">
           {error && (
-            <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-md text-sm mb-4">
+            <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl font-bold mb-4 animate-fade-in">
               {error}
             </div>
           )}
 
           <form id="assignmentForm" onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1 flex justify-between">
+              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 flex justify-between">
                 <span>Select Members ({selectedMemberIds.length} selected)</span>
                 {!editItem && selectedMemberIds.length > 0 && (
-                  <button type="button" onClick={() => setSelectedMemberIds([])} className="text-xs text-blue-600 hover:underline">Clear</button>
+                  <button type="button" onClick={() => setSelectedMemberIds([])} className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer">Clear</button>
                 )}
               </label>
 
@@ -207,11 +219,11 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                   placeholder="Search member name or order..."
                   value={memberSearchTerm}
                   onChange={e => setMemberSearchTerm(e.target.value)}
-                  className="w-full p-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-white"
+                  className="w-full px-3.5 py-2 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all"
                 />
               </div>
 
-              <div className="border border-gray-300 rounded-md h-40 overflow-y-auto p-2 bg-gray-50 space-y-1">
+              <div className="border border-slate-200 rounded-2xl h-44 overflow-y-auto p-2 bg-slate-50 space-y-1">
                 {(() => {
                   const filteredMembers = members.filter(m => {
                     if (!memberSearchTerm.trim()) return true
@@ -223,33 +235,45 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                   })
 
                   if (filteredMembers.length === 0) {
-                    return (
-                      <div className="text-xs text-gray-500 text-center py-4">
-                        {memberSearchTerm.trim() ? 'No members matching search.' : 'No active members found.'}
-                      </div>
-                    )
+                    return <div className="text-center py-6 text-slate-400 italic">No members found matching "{memberSearchTerm}".</div>
                   }
 
                   return filteredMembers.map(m => {
-                    const isAssigned = existingAssignments.some(a => a.memberUid === m.id && (!editItem || a.id !== editItem.id))
+                    const isSelected = selectedMemberIds.includes(m.id)
+                    const isAssigned = !editItem && existingAssignments.some(a => a.memberUid === m.id)
                     return (
-                      <label key={m.id} className={`flex items-center space-x-2 p-1.5 rounded cursor-pointer transition-colors ${isAssigned ? 'opacity-50 grayscale' : 'hover:bg-gray-100'}`}>
-                        <input 
+                      <label 
+                        key={m.id} 
+                        className={`flex items-center gap-2 p-2 rounded-xl text-xs font-bold cursor-pointer transition-colors border ${
+                          isAssigned 
+                            ? 'opacity-40 bg-slate-100 border-transparent cursor-not-allowed' 
+                            : isSelected 
+                            ? 'bg-indigo-50/80 border-indigo-200 text-indigo-900 shadow-2xs' 
+                            : 'hover:bg-white border-transparent text-slate-700'
+                        }`}
+                      >
+                        <input
                           type="checkbox"
-                          disabled={isAssigned || !!editItem}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
-                          checked={selectedMemberIds.includes(m.id)}
+                          disabled={isAssigned || loading}
+                          checked={isSelected}
                           onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedMemberIds(prev => [...prev, m.id])
+                            if (editItem) {
+                              setSelectedMemberIds([m.id])
                             } else {
-                              setSelectedMemberIds(prev => prev.filter(id => id !== m.id))
+                              if (e.target.checked) {
+                                setSelectedMemberIds(prev => [...prev, m.id])
+                              } else {
+                                setSelectedMemberIds(prev => prev.filter(id => id !== m.id))
+                              }
                             }
                           }}
+                          className="h-4 w-4 rounded-md border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
                         />
-                        <span className="text-sm font-bold text-gray-700">{m.lastName}, {m.firstName}</span>
-                        {m.order && <span className="text-[10px] text-gray-400 font-medium">({m.order})</span>}
-                        {isAssigned && <span className="text-[10px] text-red-500 italic ml-auto">Already assigned</span>}
+                        <div className="flex-1 truncate">
+                          <span className="font-extrabold text-slate-900">{m.lastName}, {m.firstName}</span>
+                          {m.order && <span className="ml-1 text-[10px] text-slate-400 font-mono">({m.order})</span>}
+                          {isAssigned && <span className="ml-1.5 text-[9px] font-black uppercase text-amber-600 bg-amber-50 px-1 py-0.5 rounded border border-amber-200">Already Assigned</span>}
+                        </div>
                       </label>
                     )
                   })
@@ -258,82 +282,74 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Committee / Team (Optional)</label>
+              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Committee / Group</label>
               <input
                 type="text"
-                className="w-full border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 mb-4"
                 value={committeeInput}
-                onChange={(e) => setCommitteeInput(e.target.value)}
-                placeholder="e.g. Logistics, Liturgy, Secretariat"
+                onChange={e => setCommitteeInput(e.target.value)}
+                placeholder="e.g. Program & Liturgy, Logistics"
+                className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Role in Committee</label>
+              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Event Role Name *</label>
               <input
                 type="text"
                 required
-                list="roles-list"
-                className="w-full border border-gray-300 rounded-md shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2"
                 value={roleInput}
-                onChange={(e) => setRoleInput(e.target.value)}
-                placeholder="e.g. Lead, Member, Usher"
+                onChange={e => setRoleInput(e.target.value)}
+                placeholder="e.g. Committee Head, Member"
+                className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all"
               />
-              <datalist id="roles-list">
-                {roles.map(r => (
-                  <option key={r.id} value={r.name} />
-                ))}
-              </datalist>
             </div>
 
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center">
+            <div className="grid grid-cols-2 gap-3 pt-1">
+              <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                isOverallHead ? 'bg-indigo-50 border-indigo-200 text-indigo-900 shadow-2xs font-black' : 'bg-slate-50 border-slate-200 text-slate-600 font-bold'
+              }`}>
                 <input
                   type="checkbox"
-                  id="isOverallHead"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   checked={isOverallHead}
-                  onChange={(e) => {
+                  onChange={e => {
                     setIsOverallHead(e.target.checked)
                     if (e.target.checked) setIsSubLeader(false)
                   }}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
                 />
-                <label htmlFor="isOverallHead" className="ml-2 block text-sm text-gray-900 font-medium cursor-pointer">
-                  Is Overall Event Head
-                </label>
-              </div>
-              <div className="flex items-center">
+                <span className="text-[11px]">Overall Head</span>
+              </label>
+
+              <label className={`flex items-center gap-2 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                isSubLeader ? 'bg-indigo-50 border-indigo-200 text-indigo-900 shadow-2xs font-black' : 'bg-slate-50 border-slate-200 text-slate-600 font-bold'
+              }`}>
                 <input
                   type="checkbox"
-                  id="isSubLeader"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                   checked={isSubLeader}
-                  onChange={(e) => {
+                  onChange={e => {
                     setIsSubLeader(e.target.checked)
                     if (e.target.checked) setIsOverallHead(false)
                   }}
+                  className="rounded text-indigo-600 focus:ring-indigo-500 accent-indigo-600"
                 />
-                <label htmlFor="isSubLeader" className="ml-2 block text-sm text-gray-900 font-medium cursor-pointer">
-                  Is Sub-Team Leader (e.g., Head of Logistics)
-                </label>
-              </div>
+                <span className="text-[11px]">Sub-Leader</span>
+              </label>
             </div>
           </form>
 
           {!editItem && (
-            <div className="mt-6 pt-4 border-t border-gray-100">
-              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3">Quick Bulk Assign</h4>
-              <p className="text-[11px] text-gray-400 mb-2">Click a category to instantly check all its members.</p>
-              <div className="flex flex-wrap gap-2">
+            <div className="mt-6 pt-4 border-t border-slate-100">
+              <h4 className="text-[10px] font-black text-slate-500 uppercase tracking-wider mb-2">Quick Bulk Select</h4>
+              <div className="flex flex-wrap gap-1.5">
                 {ORDER_GROUPS.map(group => (
                   <button
                     key={group}
                     type="button"
                     disabled={loading}
                     onClick={() => handleBulkSelect(group)}
-                    className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-[11px] font-bold rounded-full transition-colors border border-indigo-200 disabled:opacity-50 cursor-pointer shadow-xs active:scale-95"
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-[10px] font-bold rounded-lg transition-all border border-slate-200 disabled:opacity-50 cursor-pointer active:scale-95"
                   >
-                    + Select All {group}
+                    + {group}
                   </button>
                 ))}
               </div>
@@ -341,11 +357,11 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
           )}
         </div>
 
-        <div className="p-4 border-t border-gray-100 flex justify-end gap-2 bg-gray-50 rounded-b-2xl">
+        <div className="p-4 border-t border-slate-100 flex justify-end gap-2.5 bg-white sticky bottom-0">
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 focus:outline-none disabled:opacity-50 shadow-sm transition-colors cursor-pointer"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer shadow-2xs"
             disabled={loading}
           >
             Cancel
@@ -353,7 +369,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
           <button
             type="submit"
             form="assignmentForm"
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 focus:outline-none disabled:opacity-50 flex items-center shadow-sm transition-colors cursor-pointer"
+            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
             disabled={loading}
           >
             {loading ? 'Saving...' : (editItem ? 'Save Changes' : `Assign ${selectedMemberIds.length > 0 ? selectedMemberIds.length : ''} Members`)}

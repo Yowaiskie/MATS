@@ -389,29 +389,30 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
   const totalCount = previewRows.length
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={handleClose} />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={handleClose} />
 
-      <div className="relative w-full max-w-5xl rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-5xl rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
 
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="inline-flex items-center justify-center h-7 w-7 rounded-lg bg-red-50 border border-red-100 flex-shrink-0">
-                <svg className="h-4 w-4 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              </span>
-              <h3 className="text-sm font-bold text-gray-900">Import Members from PDF</h3>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
             </div>
-            <p className="text-[10px] text-gray-400 mt-1 leading-relaxed ml-9">
-              Accepts PDFs with headers: <span className="font-semibold text-gray-600">NAME · NICK NAME · HOME ADDRESS · DATE OF BIRTH · CONTACT NUMBER · MONTH JOINED · DATE OF INVESTITURE · POSITION · ORDER · RANK</span>
-            </p>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                PDF Document Extraction
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Import Members from PDF</h3>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">Extract and parse tabular member data directly from PDF rosters.</p>
+            </div>
           </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none ml-4 flex-shrink-0">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -420,7 +421,7 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
         <div className="mt-4 flex-1 space-y-4 overflow-y-auto pr-1">
 
           {errorMsg && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600 flex items-start gap-2">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 font-bold flex items-start gap-2 animate-fade-in">
               <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -429,7 +430,7 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
           )}
 
           {successMsg && (
-            <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-xs text-green-600 flex items-start gap-2">
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800 font-bold flex items-start gap-2 animate-fade-in">
               <svg className="h-4 w-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -530,8 +531,8 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4 bg-white">
-          <span className="text-[10px] text-gray-400">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+          <span className="text-[10px] font-bold text-slate-400">
             {totalCount > 0 && `${totalCount} record${totalCount !== 1 ? 's' : ''} detected · ${validCount} valid`}
           </span>
           <div className="flex items-center space-x-3">
@@ -539,7 +540,7 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
               type="button"
               onClick={handleClose}
               disabled={importing || parsing}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
             >
               Cancel
             </button>
@@ -547,7 +548,7 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
               type="button"
               onClick={handleImportSubmit}
               disabled={importing || parsing || validCount === 0}
-              className="rounded-lg bg-red-600 hover:bg-red-500 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
             >
               {importing ? 'Importing…' : `Import PDF (${validCount} Valid)`}
             </button>

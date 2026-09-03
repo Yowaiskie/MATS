@@ -163,7 +163,11 @@ service cloud.firestore {
     // ==========================================
     match /financeIncome/{incomeId} {
       allow read: if hasPermission('canViewFinanceDashboard') || hasPermission('canViewFinanceReports');
-      allow create: if hasPermission('canAddIncome');
+      allow create: if isSuperAdmin() || 
+                    hasPermission('canAddIncome') || 
+                    hasPermission('canAddEventIncome') || 
+                    hasPermission('canAddEventContributions') || 
+                    hasPermission('canManageEvents');
       allow update: if hasPermission('canEditIncome');
       allow delete: if hasPermission('canDeleteIncome');
     }
@@ -176,7 +180,7 @@ service cloud.firestore {
     }
 
     match /financeCategories/{categoryId} {
-      allow read: if hasPermission('canViewFinanceDashboard');
+      allow read: if isAuthenticated();
       allow write: if hasPermission('canManageFinanceCategories');
     }
 
@@ -193,7 +197,7 @@ service cloud.firestore {
     }
 
     match /financePeriods/{periodId} {
-      allow read: if hasPermission('canViewFinanceDashboard');
+      allow read: if isAuthenticated();
       allow create: if hasPermission('canCloseFinancePeriod');
       allow update: if hasPermission('canCloseFinancePeriod') || hasPermission('canReopenFinancePeriod');
       allow delete: if isSuperAdmin();
@@ -241,6 +245,7 @@ service cloud.firestore {
       allow create: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canAddEventIncome') ||
+        hasPermission('canAddEventContributions') ||
         hasPermission('canManageEvents') ||
         hasPermission('canAddIncome') ||
         (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
@@ -248,6 +253,8 @@ service cloud.firestore {
       allow update, delete: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canAddEventIncome') ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canEditEventContributions') ||
         hasPermission('canManageEvents') ||
         hasPermission('canAddIncome') ||
         (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
@@ -336,6 +343,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() && (
         isSuperAdmin() ||
         hasPermission('canAddEventContributions') ||
+        hasPermission('canEditEventContributions') ||
         hasPermission('canVoidEventContributions') ||
         hasPermission('canAddEventIncome') ||
         hasPermission('canAddIncome') ||

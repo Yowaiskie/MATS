@@ -60,42 +60,48 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={handleClose}></div>
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={handleClose}></div>
 
       {/* Modal */}
-      <div className="relative w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-lg rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 animate-in fade-in zoom-in-95 duration-150 overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-          <div className="flex items-center space-x-2">
-            <span className="p-2 bg-amber-50 rounded-lg text-amber-600 border border-amber-100">
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
               </svg>
-            </span>
+            </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Unlock Attendance Session</h3>
-              <p className="text-[11px] text-gray-500 font-medium">Security Password Required</p>
+              <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100 inline-block mb-0.5">
+                Security Authorization
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Unlock Attendance Session</h3>
             </div>
           </div>
-          <button onClick={handleClose} className="text-gray-400 hover:text-gray-700 cursor-pointer">✕</button>
+          <button onClick={handleClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
-          <p className="text-xs text-gray-600">
-            You are about to unlock attendance for <strong className="text-gray-900">"{scheduleTitle}"</strong>. Please enter your account password to confirm:
+        <form onSubmit={handleSubmit} className="mt-4 space-y-4 text-xs">
+          <p className="text-slate-600 font-medium leading-relaxed">
+            You are about to unlock attendance for <strong className="text-slate-900">"{scheduleTitle}"</strong>. Please enter your account password to confirm:
           </p>
 
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold text-red-600">
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs font-bold text-rose-800 animate-fade-in">
               {error}
             </div>
           )}
 
           <div>
-            <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Your Account Password *
             </label>
             <div className="relative">
@@ -106,13 +112,13 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter password..."
-                className="block w-full rounded-lg border border-gray-200 px-3 py-2 pr-10 text-xs text-gray-800 focus:outline-none focus:border-amber-500 transition-colors"
+                className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 pr-12 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-amber-500 transition-all"
                 disabled={verifying}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(v => !v)}
-                className="absolute inset-y-0 right-0 pr-3 flex items-center text-xs text-gray-400 hover:text-gray-600 cursor-pointer"
+                className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 {showPassword ? 'Hide' : 'Show'}
               </button>
@@ -120,19 +126,19 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex justify-end space-x-2.5 pt-3 border-t border-gray-100">
+          <div className="flex justify-end space-x-2.5 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
             <button
               type="button"
               onClick={handleClose}
               disabled={verifying}
-              className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={verifying}
-              className="rounded-lg bg-amber-600 hover:bg-amber-700 px-4 py-2 text-xs font-bold text-white transition-colors disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5"
+              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-amber-500/20 active:scale-95"
             >
               {verifying ? (
                 <>

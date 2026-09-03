@@ -10,7 +10,8 @@ import {
   getDoc,
   deleteDoc,
   deleteField,
-  runTransaction
+  runTransaction,
+  writeBatch
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { EventContribution, EventContributionPurpose, ContributionLinkAllocation, ContributionPaymentMethod } from '@/types/eventContribution'
@@ -193,6 +194,59 @@ export const eventContributionService = {
       { eventId: contribution.eventId, contributionId: docRef.id, amount: contribution.amount }
     )
     return docRef.id
+  },
+
+  async addBatchContributions(
+    contributions: Array<Omit<EventContribution, 'id' | 'createdAt' | 'updatedAt' | 'createdByUid' | 'createdByName' | 'status' | 'linkedFinanceIncomeId'>>,
+    performedByUid: string,
+    performedByName: string
+  ): Promise<string[]> {
+    if (!contributions || contributions.length === 0) return []
+    const batch = writeBatch(db)
+    const docIds: string[] = []
+
+    for (const contribution of contributions) {
+      if (!contribution.eventId) throw new Error('Event ID is required.')
+      if (!contribution.contributorName || !contribution.contributorName.trim()) {
+        throw new Error('Contributor name is required for all entries.')
+      }
+      if (!contribution.purposeId) throw new Error('Contribution purpose is required.')
+      if (typeof contribution.amount !== 'number' || contribution.amount <= 0) {
+        throw new Error('Valid contribution amount is required.')
+      }
+
+      const docRef = doc(collection(db, CONTRIBUTIONS_COL))
+      docIds.push(docRef.id)
+
+      const payload = sanitizeForFirestore({
+        ...contribution,
+        contributorName: contribution.contributorName.trim(),
+        notes: contribution.notes ? contribution.notes.trim() : '',
+        referenceNumber: contribution.referenceNumber ? contribution.referenceNumber.trim() : '',
+        collectedByName: contribution.collectedByName ? contribution.collectedByName.trim() : '',
+        status: 'recorded',
+        isArchived: false,
+        createdByUid: performedByUid,
+        createdByName: performedByName,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+
+      batch.set(docRef, payload)
+    }
+
+    await batch.commit()
+
+    const totalAmt = contributions.reduce((sum, c) => sum + c.amount, 0)
+    await auditService.logAction(
+      'EVENT_CONTRIBUTION_ADD',
+      'events',
+      `Recorded batch group contributions of ₱${totalAmt.toLocaleString()} for ${contributions.length} members`,
+      performedByName,
+      { count: contributions.length, totalAmount: totalAmt }
+    )
+
+    return docIds
   },
 
   async updateContribution(

@@ -82,6 +82,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
   // Filtering states
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedPurposeId, setSelectedPurposeId] = useState('all')
+  const [selectedHeldBy, setSelectedHeldBy] = useState('all')
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('all')
   const [selectedStatus, setSelectedStatus] = useState('recorded') // default active
   const [selectedLinkStatus, setSelectedLinkStatus] = useState('all') // all | linked | unlinked
@@ -151,6 +152,17 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     }
   }, [activeContributions])
 
+  // Unique custodians / collectors for filtering
+  const uniqueCustodians = useMemo(() => {
+    const set = new Set<string>()
+    contributions.forEach(c => {
+      if (!c.isArchived && c.collectedByName?.trim()) {
+        set.add(c.collectedByName.trim())
+      }
+    })
+    return Array.from(set).sort((a, b) => a.localeCompare(b))
+  }, [contributions])
+
   // Filtered List
   const filteredContributions = useMemo(() => {
     return contributions.filter(c => {
@@ -171,22 +183,33 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         return false
       }
 
-      // 3. Payment Method Filter
+      // 3. Held By Filter
+      if (selectedHeldBy !== 'all') {
+        if (selectedHeldBy === 'unassigned') {
+          if (c.collectedByName?.trim()) return false
+        } else {
+          if ((c.collectedByName || '').trim().toLowerCase() !== selectedHeldBy.trim().toLowerCase()) {
+            return false
+          }
+        }
+      }
+
+      // 4. Payment Method Filter
       if (selectedPaymentMethod !== 'all' && c.paymentMethod !== selectedPaymentMethod) {
         return false
       }
 
-      // 4. Status Filter
+      // 5. Status Filter
       if (selectedStatus !== 'all' && c.status !== selectedStatus) {
         return false
       }
 
-      // 5. Finance Link Filter
+      // 6. Finance Link Filter
       const summary = getContributionLinkSummary(c)
       if (selectedLinkStatus === 'linked' && summary.status === 'unlinked') return false
       if (selectedLinkStatus === 'unlinked' && summary.status !== 'unlinked') return false
 
-      // 6. Date Range Filter
+      // 7. Date Range Filter
       const contribDate = c.contributedAt?.toDate ? c.contributedAt.toDate() : new Date(c.contributedAt as any)
       const dateStr = contribDate.toISOString().split('T')[0]
       if (startDate && dateStr < startDate) return false
@@ -194,7 +217,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
       return true
     })
-  }, [contributions, showArchived, searchQuery, selectedPurposeId, selectedPaymentMethod, selectedStatus, selectedLinkStatus, startDate, endDate])
+  }, [contributions, showArchived, searchQuery, selectedPurposeId, selectedHeldBy, selectedPaymentMethod, selectedStatus, selectedLinkStatus, startDate, endDate])
 
   // Eligible unlinked items for bulk actions
   const eligibleUnlinkedItems = useMemo(() => {
@@ -720,7 +743,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
       {/* Filter Toolbar Card */}
       <Card className="p-4 sm:p-5 border border-gray-200 shadow-xs bg-gray-50/50 space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 sm:gap-4">
           {/* Search Box */}
           <div className="sm:col-span-2 lg:col-span-1">
             <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Search Contributor / Ref</label>
@@ -736,6 +759,22 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
             </div>
+          </div>
+
+          {/* Held By Filter */}
+          <div>
+            <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Held By (Hawak ni)</label>
+            <select
+              value={selectedHeldBy}
+              onChange={(e) => setSelectedHeldBy(e.target.value)}
+              className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs truncate"
+            >
+              <option value="all">All Custodians</option>
+              <option value="unassigned">Not Specified</option>
+              {uniqueCustodians.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
           </div>
 
           {/* Purpose Filter */}
@@ -858,8 +897,28 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
             </label>
           </div>
 
-          <div className="text-xs font-semibold text-gray-500 shrink-0">
-            Showing <strong className="text-gray-900">{filteredContributions.length}</strong> of {contributions.length} entries
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-xs font-semibold text-gray-500">
+              Showing <strong className="text-gray-900">{filteredContributions.length}</strong> of {contributions.length} entries
+            </div>
+            {(searchQuery.trim() || selectedPurposeId !== 'all' || selectedHeldBy !== 'all' || selectedPaymentMethod !== 'all' || selectedStatus !== 'recorded' || selectedLinkStatus !== 'all' || startDate || endDate) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchQuery('')
+                  setSelectedPurposeId('all')
+                  setSelectedHeldBy('all')
+                  setSelectedPaymentMethod('all')
+                  setSelectedStatus('recorded')
+                  setSelectedLinkStatus('all')
+                  setStartDate('')
+                  setEndDate('')
+                }}
+                className="text-xs font-bold text-blue-600 hover:text-blue-800 hover:underline transition cursor-pointer"
+              >
+                Reset Filters
+              </button>
+            )}
           </div>
         </div>
       </Card>

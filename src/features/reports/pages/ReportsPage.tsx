@@ -11,8 +11,9 @@ import { useAuth } from '@/features/authentication/AuthContext'
 
 import { Pagination } from '@/components/Pagination'
 import { MemberReportExportModal } from '../components/MemberReportExportModal'
+import { HolyHourAnalyticsTab } from '../components/HolyHourAnalyticsTab'
 
-type TabType = 'summary' | 'member' | 'schedule' | 'monthly'
+type TabType = 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour'
 
 export const ReportsPage: React.FC = () => {
   const { profile, canAction } = useAuth()
@@ -205,6 +206,7 @@ export const ReportsPage: React.FC = () => {
           { key: 'member', label: 'Member Reports' },
           { key: 'schedule', label: 'Schedule Reports' },
           { key: 'monthly', label: 'Monthly Analytics' },
+          { key: 'holyhour', label: 'Frequent Servers & Participation' },
         ].map((tab) => {
           const isActive = activeTab === tab.key
           return (
@@ -264,11 +266,17 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Overall Summary cards (Persists on the top of report tables) */}
-      {!loading && rawData && <SummaryCards summary={overallSummary} />}
+      {/* Holy Hour Analytics Tab View */}
+      {activeTab === 'holyhour' && (
+        <HolyHourAnalyticsTab data={scopedData} loading={loading} />
+      )}
 
-      {/* Content layout tables */}
-      <Card className="p-0 overflow-hidden">
+      {/* Overall Summary cards (Persists on the top of report tables for non-Holy Hour tabs) */}
+      {activeTab !== 'holyhour' && !loading && rawData && <SummaryCards summary={overallSummary} />}
+
+      {/* Content layout tables for non-Holy Hour tabs */}
+      {activeTab !== 'holyhour' && (
+        <Card className="p-0 overflow-hidden">
         {loading ? (
           <div className="py-16">
             <Loading variant="spinner" label="Compiling report statistics..." />
@@ -532,6 +540,7 @@ export const ReportsPage: React.FC = () => {
           </div>
         )}
       </Card>
+      )}
 
       {/* Absence Breakdown Modal */}
       <AbsenceBreakdownModal

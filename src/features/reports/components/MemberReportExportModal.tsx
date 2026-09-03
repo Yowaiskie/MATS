@@ -65,33 +65,45 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Export Member Masterlist & Attendance PDF" maxWidth="2xl">
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Export Member Masterlist & Attendance PDF"
+      subtitle="Configure signatories, date range, and export official printable PDF document"
+      badge="PDF Export"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+        </svg>
+      }
+      maxWidth="2xl"
+    >
       <div className="space-y-5 max-h-[75vh] overflow-y-auto pr-1 text-xs">
         {errorMsg && (
-          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs">
+          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 font-bold text-xs animate-fade-in">
             {errorMsg}
           </div>
         )}
 
         {/* Report Overview Settings */}
-        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+        <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">Report Details</h4>
-              <p className="text-[11px] font-medium text-slate-500">
+              <h4 className="text-xs font-black text-slate-900 uppercase tracking-tight">Report Details</h4>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">
                 Period: <span className="font-bold text-slate-700">{dateRange?.start || 'Start'}</span> to{' '}
                 <span className="font-bold text-slate-700">{dateRange?.end || 'Present'}</span>
               </p>
             </div>
             <div>
-              <span className="px-2.5 py-1 rounded-lg bg-blue-100 text-blue-800 text-[11px] font-extrabold">
+              <span className="px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-black">
                 {rows.length} Members Listed
               </span>
             </div>
           </div>
 
           <div>
-            <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Custom Document Header Title
             </label>
             <input
@@ -99,7 +111,7 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
               value={documentTitle}
               onChange={e => setDocumentTitle(e.target.value)}
               placeholder="Ministry of Altar Servers"
-              className="w-full p-2.5 text-xs font-bold border border-slate-300 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-blue-500"
+              className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
             />
           </div>
         </div>
@@ -117,7 +129,7 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
             type="button"
             onClick={onClose}
             disabled={isGenerating}
-            className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+            className="px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer shadow-2xs"
           >
             Cancel
           </button>
@@ -125,7 +137,7 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
             type="button"
             onClick={handleDownload}
             disabled={isGenerating || rows.length === 0}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-xl shadow-md shadow-blue-500/20 active:scale-95 transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
           >
             {isGenerating ? (
               <>

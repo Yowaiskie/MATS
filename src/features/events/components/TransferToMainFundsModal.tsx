@@ -120,36 +120,45 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Transfer to Main Funds" maxWidth="md">
-      <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
-        <div className="flex">
-          <div className="flex-shrink-0">
-            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <div className="ml-3">
-            <p className="text-sm text-blue-700">
-              This will atomically move money from this event's ledger to the main ministry funds. A corresponding Income record will be created in the main finance module.
-            </p>
-          </div>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Transfer to Main Funds"
+      subtitle="Atomically transfer event surplus/proceeds to Main Treasury"
+      badge="Treasury Transfer"
+      icon={
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+        </svg>
+      }
+      maxWidth="xl"
+    >
+      <div className="p-4 mb-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-start gap-3">
+        <div className="h-8 w-8 rounded-xl bg-white border border-indigo-200 flex items-center justify-center text-indigo-600 font-bold shrink-0 shadow-2xs">
+          🏛️
+        </div>
+        <div>
+          <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider">Treasury Transfer Notice</h4>
+          <p className="text-xs text-indigo-700/90 font-medium mt-0.5">
+            This will atomically move money from this event's ledger to the main ministry funds. A corresponding Income record will be created in the main finance module.
+          </p>
         </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm">
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-bold animate-fade-in">
             {error}
           </div>
         )}
 
-        <div className="flex justify-between items-center py-2 px-4 bg-slate-50 rounded-xl border border-slate-200">
-          <span className="text-sm font-bold text-slate-500 uppercase tracking-wider">Available Balance</span>
-          <span className="text-xl font-black text-slate-900">₱{availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        <div className="flex justify-between items-center py-3 px-4 bg-slate-50 rounded-2xl border border-slate-200/80">
+          <span className="text-xs font-black text-slate-600 uppercase tracking-wider">Available Balance</span>
+          <span className="text-lg font-black text-indigo-900 font-mono">₱{availableBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Transfer Amount (₱) *</label>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Transfer Amount (₱) *</label>
           <input
             type="text"
             required
@@ -162,18 +171,18 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
               if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
               setAmount(parts.join('.'))
             }}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
             placeholder="0.00"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Destination Main Category *</label>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Destination Main Category *</label>
           <select
             required
             value={categoryId}
             onChange={(e) => setCategoryId(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
           >
             <option value="">Select Main Finance Category</option>
             {loading ? (
@@ -187,43 +196,43 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Date *</label>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Date *</label>
           <input
             type="date"
             required
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Remarks (Optional)</label>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Remarks (Optional)</label>
           <textarea
             rows={2}
             maxLength={250}
             value={remarks}
             onChange={(e) => setRemarks(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
             placeholder="Additional notes for the main ledger..."
           />
         </div>
 
-        <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100">
+        <div className="mt-8 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
           <button
             type="button"
             onClick={onClose}
             disabled={submitting}
-            className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none"
+            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             Cancel
           </button>
           <button
             type="submit"
-            disabled={submitting || availableBalance <= 0}
-            className="px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold shadow-sm shadow-blue-500/30 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 transition-all active:scale-95"
+            disabled={submitting}
+            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
           >
-            {submitting ? 'Executing...' : 'Execute Transfer'}
+            {submitting ? 'Transferring...' : 'Transfer to Main Funds'}
           </button>
         </div>
       </form>

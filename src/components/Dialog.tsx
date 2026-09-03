@@ -197,35 +197,35 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
-      {/* Backdrop — no click-to-dismiss for destructive actions */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" />
+      {/* Backdrop */}
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" />
 
       {/* Modal Card */}
-      <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl z-10 animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-150">
         {/* Icon */}
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${confirmIconBg[variant]}`}>
+        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl ${confirmIconBg[variant]}`}>
           {confirmIcons[variant]}
         </div>
 
         {/* Content */}
         <div className="mt-4">
-          <h3 id="confirm-title" className="text-sm font-bold text-gray-900">{title}</h3>
-          <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{message}</p>
+          <h3 id="confirm-title" className="text-base font-black text-slate-900 tracking-tight">{title}</h3>
+          <p className="mt-1.5 text-xs font-medium text-slate-600 leading-relaxed">{message}</p>
         </div>
 
         {/* Actions */}
-        <div className="mt-6 flex items-center justify-end gap-2">
+        <div className="mt-6 flex items-center justify-end gap-2.5">
           <button
             onClick={onClose}
             disabled={loading}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors cursor-pointer disabled:opacity-40"
+            className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer disabled:opacity-40 shadow-2xs"
           >
             {cancelLabel}
           </button>
           <button
             onClick={onConfirm}
             disabled={loading}
-            className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50 ${confirmBtnClass[variant]}`}
+            className={`rounded-xl px-5 py-2.5 text-xs font-black transition-all cursor-pointer shadow-md active:scale-95 disabled:opacity-50 ${confirmBtnClass[variant]}`}
             autoFocus
           >
             {loading ? 'Processing...' : confirmLabel}
@@ -296,42 +296,44 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" />
-      <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-6 shadow-xl z-10 animate-in fade-in zoom-in-95 duration-150">
-        <div className={`flex h-11 w-11 items-center justify-center rounded-xl bg-red-50 border border-red-100`}>
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" />
+      <div className="relative w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-150">
+        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-red-50 border border-red-100`}>
           <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8V7z" />
           </svg>
         </div>
         <div className="mt-4">
-          <h3 id="password-confirm-title" className="text-sm font-bold text-gray-900">{title}</h3>
-          <p className="mt-1.5 text-sm text-gray-600 leading-relaxed">{message}</p>
+          <h3 id="password-confirm-title" className="text-base font-black text-slate-900 tracking-tight">{title}</h3>
+          <p className="mt-1.5 text-xs font-medium text-slate-600 leading-relaxed">{message}</p>
         </div>
-        <form onSubmit={handleSubmit} className="mt-4">
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Enter Password to Continue</label>
-          <input
-            type="password"
-            autoFocus
-            required
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full border-gray-200 rounded-xl shadow-xs focus:ring-2 focus:ring-red-500/20 focus:border-red-500 px-4 py-2 bg-gray-50 text-sm font-medium"
-            placeholder="Your password..."
-          />
-          {error && <p className="mt-2 text-xs font-semibold text-red-600">{error}</p>}
-          <div className="mt-6 flex items-center justify-end gap-2">
+        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+          <div>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Enter Password to Continue</label>
+            <input
+              type="password"
+              autoFocus
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-slate-200 rounded-xl focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500 px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 outline-none transition-all"
+              placeholder="Your password..."
+            />
+          </div>
+          {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
+          <div className="mt-6 flex items-center justify-end gap-2.5 pt-2">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors cursor-pointer disabled:opacity-40"
+              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer disabled:opacity-40 shadow-2xs"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={loading || !password}
-              className={`rounded-lg px-4 py-2 text-xs font-bold transition-colors cursor-pointer shadow-sm disabled:opacity-50 bg-red-600 hover:bg-red-700 text-white`}
+              className={`rounded-xl px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-rose-500/20 active:scale-95 disabled:opacity-50 bg-rose-600 hover:bg-rose-700`}
             >
               {loading ? 'Verifying...' : confirmLabel}
             </button>

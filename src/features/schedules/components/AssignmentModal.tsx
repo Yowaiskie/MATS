@@ -138,30 +138,33 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" onClick={onClose}></div>
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={onClose}></div>
 
       {/* Modal */}
-      <div className="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-2xl rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 flex flex-col max-h-[88vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-gray-100">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
           <div className="flex items-center gap-3">
-            <div className="p-2 sm:p-2.5 bg-purple-50 border border-purple-200/80 rounded-xl text-purple-600 shrink-0">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </div>
             <div>
-              <h3 className="text-sm font-bold text-gray-900">Assign Servers</h3>
-              <p className="text-xs text-gray-500 mt-0.5 font-medium">
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Roster Assignment
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Assign Servers</h3>
+              <p className="text-xs font-semibold text-slate-500 mt-0.5">
                 Select members for "{schedule.title}" ({formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)})
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 transition-colors cursor-pointer focus:outline-none p-1.5 rounded-lg hover:bg-gray-100">
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -320,15 +323,15 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex flex-col space-y-3 pt-4 border-t border-gray-100 mt-4 bg-white">
-          <label className="flex items-center space-x-2 cursor-pointer bg-blue-50/50 p-2.5 rounded-lg border border-blue-100 hover:bg-blue-50 transition-colors">
+        <div className="flex flex-col space-y-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+          <label className="flex items-center space-x-2 cursor-pointer bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-colors">
             <input
               type="checkbox"
               checked={applyToMonth}
               onChange={(e) => setApplyToMonth(e.target.checked)}
-              className="h-4 w-4 rounded border-blue-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
             />
-            <span className="text-xs font-semibold text-blue-900">
+            <span className="text-xs font-extrabold text-indigo-950">
               Apply to all "{schedule.title}" schedules in this month
             </span>
           </label>
@@ -336,7 +339,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-gray-200 bg-white hover:bg-gray-100 px-4 py-2 text-xs font-bold text-gray-600 hover:text-gray-900 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
               disabled={loading}
             >
               Cancel
@@ -344,7 +347,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-bold text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-blue-600/20"
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               disabled={loading}
             >
               <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

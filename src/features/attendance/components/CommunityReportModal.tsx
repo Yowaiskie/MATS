@@ -26,27 +26,36 @@ export const CommunityReportModal: React.FC<CommunityReportModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity" 
+        className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" 
         onClick={onClose}
       />
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+      <div className="relative w-full max-w-lg rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 flex flex-col max-h-[88vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-gray-100">
-          <div>
-            <h3 className="text-base font-bold text-gray-900">Facebook Community Attendance Report</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Copy formatted attendance text for group chat sharing.</p>
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+              </svg>
+            </div>
+            <div>
+              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
+                Social Bulletin
+              </span>
+              <h3 className="text-base font-black text-slate-900 tracking-tight">Community Attendance Report</h3>
+            </div>
           </div>
           <button 
             onClick={onClose} 
-            className="text-gray-400 hover:text-gray-600 transition-colors cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none"
           >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
@@ -57,23 +66,23 @@ export const CommunityReportModal: React.FC<CommunityReportModalProps> = ({
             readOnly
             value={reportText}
             onClick={(e) => (e.target as HTMLTextAreaElement).select()}
-            className="flex-1 w-full rounded-lg border border-gray-200 bg-gray-50 p-4 text-xs font-mono text-gray-700 focus:outline-none resize-none min-h-[250px] overflow-y-auto"
+            className="flex-1 w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs font-mono font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[250px] overflow-y-auto"
           />
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-100 mt-4">
+        <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
           <button
             onClick={onClose}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold hover:bg-gray-50 text-gray-600 hover:text-gray-800 transition-colors cursor-pointer"
+            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs"
           >
             Close
           </button>
           <button
             onClick={handleCopy}
-            className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white transition-colors cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
           >
-            {copied ? '✓ Copied!' : 'Copy to Clipboard'}
+            {copied ? '✓ Copied to Clipboard!' : 'Copy to Clipboard'}
           </button>
         </div>
       </div>

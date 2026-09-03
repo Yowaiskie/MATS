@@ -7,7 +7,7 @@ import {
 import { db } from '@/firebase/config'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
-import type { AttendanceRecord } from '@/types/attendance'
+import type { AttendanceRecord, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary, calculateAttendanceRate } from '@/utils/attendance'
 import { getFullName } from '@/utils/member'
 import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
@@ -92,6 +92,92 @@ export interface MonthlyReportRow {
   excused: number
   rate: number
 }
+
+export type ScheduleCategoryType = 'all' | 'holyhour' | 'sunday' | 'weekday' | 'meeting' | 'custom'
+
+export interface ScheduleCategorySelection {
+  includeSundays: boolean
+  includeWeekdays: boolean
+  includeHolyHour: boolean
+  includeMeetings: boolean
+}
+
+export const isHolyHourSchedule = (title?: string): boolean => {
+  if (!title) return false
+  const lower = title.toLowerCase().trim()
+  return (
+    lower.includes('holy hour') ||
+    lower.includes('holyhour') ||
+    lower.includes('hora santa') ||
+    lower.includes('adoration') ||
+    lower.includes('benediction') ||
+    lower.includes('santissimo') ||
+    lower.includes('santissmo')
+  )
+}
+
+export const isMeetingSchedule = (title?: string): boolean => {
+  if (!title) return false
+  const lower = title.toLowerCase().trim()
+  return (
+    lower.includes('meeting') ||
+    lower.includes('formation') ||
+    lower.includes('assembly') ||
+    lower.includes('practice') ||
+    lower.includes('rehearsal') ||
+    lower.includes('orientation') ||
+    lower.includes('pulong') ||
+    lower.includes('workshop')
+  )
+}
+
+export interface ServiceHistoryItem {
+  scheduleId: string
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  status: AttendanceStatus
+  remarks?: string
+  isOtherServer?: boolean
+}
+
+export interface ServiceServerStat {
+  memberId: string
+  name: string
+  rank: string
+  status: string
+  order?: string
+  totalAssigned: number
+  present: number
+  late: number
+  absent: number
+  excused: number
+  otherServerCount: number
+  totalServed: number // present + late
+  rate: number
+  serviceHistory: ServiceHistoryItem[]
+}
+
+export interface ServiceLeaderboardSummary {
+  category: ScheduleCategoryType
+  categoryLabel: string
+  totalSchedules: number
+  totalAssigned: number
+  totalServed: number
+  totalPresent: number
+  totalLate: number
+  totalAbsent: number
+  totalExcused: number
+  overallRate: number
+  uniqueServersCount: number
+  servers: ServiceServerStat[]
+}
+
+// Backward-compatible aliases
+export type HolyHourServiceItem = ServiceHistoryItem
+export type HolyHourServerStat = ServiceServerStat
+export type HolyHourReportSummary = ServiceLeaderboardSummary
 
 export const reportService = {
   /**
@@ -432,5 +518,244 @@ export const reportService = {
         rate
       }
     })
+  },
+
+  /**
+   * Generates comprehensive attendance leaderboard & frequent server metrics
+   * across any schedule category (Holy Hour, Sunday Mass, Weekdays, Meetings, All).
+   */
+  generateServiceLeaderboardReport(
+    data: ReportRawData,
+    category: ScheduleCategoryType | ScheduleCategorySelection = 'all',
+    customFilterKeyword?: string
+  ): ServiceLeaderboardSummary {
+    const { members, schedules, attendance } = data
+
+    // 1. Identify category label & matching schedules
+    let categoryLabel = 'All Services'
+    let effectiveCategory: ScheduleCategoryType = 'all'
+    const keyword = customFilterKeyword?.toLowerCase().trim()
+    const isSelectionObj = typeof category === 'object' && category !== null
+
+    if (isSelectionObj) {
+      const sel = category as ScheduleCategorySelection
+      const activeLabels: string[] = []
+      if (sel.includeSundays) activeLabels.push('Sundays')
+      if (sel.includeWeekdays) activeLabels.push('Weekdays')
+      if (sel.includeHolyHour) activeLabels.push('Holy Hour')
+      if (sel.includeMeetings) activeLabels.push('Meetings')
+
+      categoryLabel = activeLabels.length === 4
+        ? 'All Schedules'
+        : activeLabels.length > 0
+        ? activeLabels.join(' + ')
+        : 'No Category Selected'
+
+      if (activeLabels.length === 1) {
+        if (sel.includeSundays) effectiveCategory = 'sunday'
+        else if (sel.includeWeekdays) effectiveCategory = 'weekday'
+        else if (sel.includeHolyHour) effectiveCategory = 'holyhour'
+        else if (sel.includeMeetings) effectiveCategory = 'meeting'
+      } else if (activeLabels.length === 4) {
+        effectiveCategory = 'all'
+      } else {
+        effectiveCategory = 'custom'
+      }
+    } else {
+      effectiveCategory = category as ScheduleCategoryType
+    }
+
+    const targetSchedules = schedules.filter(s => {
+      if (keyword) {
+        return s.title.toLowerCase().includes(keyword)
+      }
+
+      if (isSelectionObj) {
+        const sel = category as ScheduleCategorySelection
+        if (isHolyHourSchedule(s.title)) return !!sel.includeHolyHour
+        if (isSundayOrAnticipatedMass(s.title, s.date, s.startTime)) return !!sel.includeSundays
+        if (isMeetingSchedule(s.title)) return !!sel.includeMeetings
+        return !!sel.includeWeekdays
+      }
+
+      switch (category) {
+        case 'holyhour':
+          categoryLabel = 'Holy Hour & Eucharistic Adoration'
+          return isHolyHourSchedule(s.title)
+
+        case 'sunday':
+          categoryLabel = 'Sunday & Anticipated Masses'
+          return isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
+
+        case 'weekday':
+          categoryLabel = 'Weekday Masses'
+          return (
+            !isSundayOrAnticipatedMass(s.title, s.date, s.startTime) &&
+            !isHolyHourSchedule(s.title) &&
+            !isMeetingSchedule(s.title)
+          )
+
+        case 'meeting':
+          categoryLabel = 'Meetings, Formation & Practices'
+          return isMeetingSchedule(s.title)
+
+        case 'custom':
+          categoryLabel = customFilterKeyword ? `Custom Filter: "${customFilterKeyword}"` : 'Custom Filter'
+          return true
+
+        case 'all':
+        default:
+          categoryLabel = 'All Ministry Schedules'
+          return true
+      }
+    })
+
+    const targetScheduleMap = new Map(targetSchedules.map(s => [s.id, s]))
+    const targetScheduleIds = new Set(targetSchedules.map(s => s.id))
+
+    // 2. Filter attendance records belonging to target schedules
+    const targetRecords = attendance.filter(r => targetScheduleIds.has(r.scheduleId))
+
+    // 3. Map member stats
+    const memberStatsMap = new Map<string, ServiceServerStat>()
+
+    // Initialize all active members
+    for (const member of members) {
+      memberStatsMap.set(member.id, {
+        memberId: member.id,
+        name: getFullName(member),
+        rank: member.rank || 'N/A',
+        status: member.status || 'active',
+        order: member.order || undefined,
+        totalAssigned: 0,
+        present: 0,
+        late: 0,
+        absent: 0,
+        excused: 0,
+        otherServerCount: 0,
+        totalServed: 0,
+        rate: 0,
+        serviceHistory: []
+      })
+    }
+
+    // Process attendance records
+    for (const record of targetRecords) {
+      const schedule = targetScheduleMap.get(record.scheduleId)
+      if (!schedule) continue
+
+      let stat = memberStatsMap.get(record.memberId)
+      if (!stat) {
+        const m = members.find(mem => mem.id === record.memberId)
+        stat = {
+          memberId: record.memberId,
+          name: m ? getFullName(m) : 'Unknown Member',
+          rank: m?.rank || 'N/A',
+          status: m?.status || 'active',
+          order: m?.order || undefined,
+          totalAssigned: 0,
+          present: 0,
+          late: 0,
+          absent: 0,
+          excused: 0,
+          otherServerCount: 0,
+          totalServed: 0,
+          rate: 0,
+          serviceHistory: []
+        }
+        memberStatsMap.set(record.memberId, stat)
+      }
+
+      stat.totalAssigned += 1
+      if (record.status === 'present') stat.present += 1
+      else if (record.status === 'late') stat.late += 1
+      else if (record.status === 'absent') stat.absent += 1
+      else if (record.status === 'excused') stat.excused += 1
+
+      if (record.isOtherServer) {
+        stat.otherServerCount += 1
+      }
+
+      stat.serviceHistory.push({
+        scheduleId: schedule.id,
+        title: schedule.title,
+        date: schedule.date,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        status: record.status,
+        remarks: record.remarks,
+        isOtherServer: record.isOtherServer
+      })
+    }
+
+    // Calculate rates and totalServed for each member
+    const allStats: ServiceServerStat[] = []
+    let totalPresent = 0
+    let totalLate = 0
+    let totalAbsent = 0
+    let totalExcused = 0
+    let totalAssigned = 0
+
+    for (const stat of memberStatsMap.values()) {
+      stat.totalServed = stat.present + stat.late
+      const validForRate = stat.present + stat.late + stat.absent
+      stat.rate = validForRate > 0 ? Math.round(((stat.present + stat.late) / validForRate) * 100) : 0
+
+      // Sort service history by date descending
+      stat.serviceHistory.sort((a, b) => b.date.localeCompare(a.date))
+
+      totalPresent += stat.present
+      totalLate += stat.late
+      totalAbsent += stat.absent
+      totalExcused += stat.excused
+      totalAssigned += stat.totalAssigned
+
+      allStats.push(stat)
+    }
+
+    // Sort servers:
+    // 1st Priority: Most served (totalServed descending)
+    // 2nd Priority: Higher attendance rate (rate descending)
+    // 3rd Priority: Alphabetical name
+    allStats.sort((a, b) => {
+      if (b.totalServed !== a.totalServed) {
+        return b.totalServed - a.totalServed
+      }
+      if (b.rate !== a.rate) {
+        return b.rate - a.rate
+      }
+      return a.name.localeCompare(b.name)
+    })
+
+    const totalServed = totalPresent + totalLate
+    const totalValidAttendance = totalPresent + totalLate + totalAbsent
+    const overallRate = totalValidAttendance > 0 ? Math.round((totalServed / totalValidAttendance) * 100) : 0
+    const uniqueServersCount = allStats.filter(s => s.totalServed > 0).length
+
+    return {
+      category: effectiveCategory,
+      categoryLabel,
+      totalSchedules: targetSchedules.length,
+      totalAssigned,
+      totalServed,
+      totalPresent,
+      totalLate,
+      totalAbsent,
+      totalExcused,
+      overallRate,
+      uniqueServersCount,
+      servers: allStats
+    }
+  },
+
+  /**
+   * Backward-compatible helper specifically for Holy Hour.
+   */
+  generateHolyHourReport(data: ReportRawData, customFilterKeyword?: string): HolyHourReportSummary {
+    return this.generateServiceLeaderboardReport(
+      data,
+      customFilterKeyword ? 'custom' : 'holyhour',
+      customFilterKeyword
+    )
   }
 }

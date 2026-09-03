@@ -28,6 +28,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
   const { profile } = useAuth()
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [isAlertOpen, setIsAlertOpen] = useState(false)
   const [alertMsg, setAlertMsg] = useState('')
 
@@ -79,8 +80,6 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
     }
   }
 
-  const [isDeleting, setIsDeleting] = useState(false)
-
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to permanently delete this excuse request?')) return
     setIsDeleting(true)
@@ -107,8 +106,20 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} title="Review & Process Excuse Request" maxWidth="lg">
-        <div className="space-y-5 p-1">
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Review & Process Excuse Request"
+        subtitle="Validate reasons, view supporting documents, and approve or reject"
+        badge="Excuse Processing"
+        icon={
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        }
+        maxWidth="2xl"
+      >
+        <div className="space-y-5 p-1 text-xs">
           {/* Member Card */}
           <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
             <div className="flex items-center justify-between flex-wrap gap-2">
@@ -175,11 +186,23 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 ) : ''
 
                 return (
-                  <div key={sId} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-0.5">
+                  <div key={sId} className="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs space-y-1">
                     <div className="text-xs font-black text-slate-900">{sched.title || 'Church Service'}</div>
-                    <div className="text-[11px] font-semibold text-indigo-600 flex items-center gap-1.5 flex-wrap">
-                      <span>📅 {sched.date}</span>
-                      {formattedTime && <span>⏰ {formattedTime}</span>}
+                    <div className="text-[11px] font-semibold text-indigo-600 flex items-center gap-3 flex-wrap">
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{sched.date}</span>
+                      </span>
+                      {formattedTime && (
+                        <span className="inline-flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5 text-indigo-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{formattedTime}</span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 )
@@ -212,21 +235,24 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
           </div>
 
           {/* Modal Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2">
+          <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2 sticky bottom-0 bg-white">
             <button 
               type="button"
               disabled={loading || isDeleting}
               onClick={handleDelete}
-              className="px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-extrabold transition cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-bold transition-all cursor-pointer disabled:opacity-50 active:scale-95"
             >
-              {isDeleting ? 'Deleting...' : '🗑️ Delete Request'}
+              <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span>{isDeleting ? 'Deleting...' : 'Delete Request'}</span>
             </button>
 
-            <div className="flex gap-2 justify-end flex-wrap">
+            <div className="flex gap-2.5 justify-end flex-wrap">
               <button 
                 type="button"
                 onClick={onClose} 
-                className="px-4 py-2.5 text-slate-700 font-extrabold bg-slate-100 hover:bg-slate-200 rounded-xl text-xs transition cursor-pointer"
+                className="px-4 py-2.5 text-slate-700 font-bold bg-white border border-slate-200 hover:bg-slate-50 rounded-xl text-xs transition-all cursor-pointer shadow-2xs"
               >
                 Cancel
               </button>
@@ -234,7 +260,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 type="button"
                 disabled={loading || isDeleting} 
                 onClick={() => handleUpdate('rejected')} 
-                className="px-5 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 font-extrabold hover:bg-rose-100 rounded-xl text-xs transition cursor-pointer disabled:opacity-50"
+                className="px-5 py-2.5 bg-rose-50 border border-rose-200 text-rose-700 font-black hover:bg-rose-100 rounded-xl text-xs transition-all cursor-pointer disabled:opacity-50 active:scale-95"
               >
                 {loading ? 'Processing...' : 'Reject Request'}
               </button>
@@ -242,7 +268,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 type="button"
                 disabled={loading || isDeleting} 
                 onClick={() => handleUpdate('approved')} 
-                className="px-6 py-2.5 bg-emerald-600 text-white font-extrabold hover:bg-emerald-700 rounded-xl text-xs transition cursor-pointer shadow-sm disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-emerald-600 text-white font-black hover:bg-emerald-700 rounded-xl text-xs transition-all cursor-pointer shadow-md shadow-emerald-500/20 active:scale-95 disabled:opacity-50"
               >
                 {loading ? 'Processing...' : 'Approve Excuse'}
               </button>
