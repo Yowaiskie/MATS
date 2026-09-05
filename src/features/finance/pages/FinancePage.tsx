@@ -2193,11 +2193,14 @@ export const FinancePage: React.FC = () => {
           {/* Fund Requests Tab */}
           {activeTab === 'requests' && (
             <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <h3 className="text-sm font-bold text-gray-900">Fund Requests Workflow</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900">Fund Requests Workflow</h3>
+                  <p className="text-[11px] text-gray-500">Manage ministry fund requisition, approvals, disbursements, and liquidations.</p>
+                </div>
                 <button
                   onClick={() => setIsRequestModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all"
+                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all w-full sm:w-auto shrink-0"
                 >
                   <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -2254,8 +2257,399 @@ export const FinancePage: React.FC = () => {
                 </div>
               )}
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs">
-                <table className="w-full text-left text-xs border-separate border-spacing-0 [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
+              {/* Mobile Card List View (< md) */}
+              <div className="md:hidden space-y-3">
+                {requests.length > 0 && (
+                  <div className="flex items-center justify-between px-1 text-xs text-gray-500">
+                    <label className="flex items-center gap-2 cursor-pointer font-medium">
+                      <input
+                        type="checkbox"
+                        checked={requests.length > 0 && selectedIds.size === requests.length}
+                        onChange={() => handleSelectAll(requests.map(r => r.id))}
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                      />
+                      <span>Select All ({requests.length})</span>
+                    </label>
+                    <span className="text-[11px] font-bold text-gray-400">{requests.length} Requests</span>
+                  </div>
+                )}
+
+                {requests.length === 0 ? (
+                  <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
+                    No fund requests found.
+                  </div>
+                ) : (
+                  requests.map((req, idx) => (
+                    <div
+                      key={req.id}
+                      className={`bg-white rounded-2xl border p-4 shadow-2xs space-y-3 transition-all ${
+                        req.isArchived ? 'opacity-70 bg-gray-50 border-gray-200' : 'border-gray-200'
+                      } ${selectedIds.has(req.id) ? 'ring-2 ring-blue-500/30 border-blue-300 bg-blue-50/20' : ''}`}
+                    >
+                      {/* Top Row: Select, Reference & Status */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(req.id)}
+                            onChange={() => handleToggleSelect(req.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                          />
+                          <span className="font-mono font-bold text-xs text-gray-950">
+                            {req.referenceNumber}
+                          </span>
+                          {req.isArchived && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                          req.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
+                          req.status === 'released' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                          req.status === 'closed' ? 'bg-gray-100 text-gray-700 border border-gray-200' :
+                          req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                          req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                          'bg-blue-50 text-blue-700 border border-blue-200'
+                        }`}>
+                          {req.status}
+                        </span>
+                      </div>
+
+                      {/* Request Details */}
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="font-bold text-sm text-gray-900 leading-snug">{req.title}</h4>
+                        </div>
+                        {req.targetEventName && (
+                          <div className="mt-1">
+                            <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-50 text-indigo-800 border border-indigo-200">
+                              Event: {req.targetEventName}
+                            </span>
+                          </div>
+                        )}
+                        {req.purpose && (
+                          <p className="text-xs text-gray-500 mt-1 line-clamp-2">{req.purpose}</p>
+                        )}
+                      </div>
+
+                      {/* Info & Amount Badges */}
+                      <div className="grid grid-cols-2 gap-2 text-xs pt-1 border-t border-gray-100">
+                        <div className="space-y-0.5">
+                          <span className="text-[10px] font-semibold text-gray-400 block uppercase">Requester</span>
+                          <span className="font-semibold text-gray-800 text-[11px] truncate block">
+                            👤 {req.requestedByName}
+                          </span>
+                        </div>
+                        <div className="space-y-0.5 text-right">
+                          <span className="text-[10px] font-semibold text-gray-400 block uppercase">Requested Amount</span>
+                          <span className="font-black text-blue-700 font-mono text-sm block">
+                            ₱{req.requestedAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                        {req.dateNeeded && (
+                          <div className="col-span-2 flex items-center justify-between text-[11px] text-gray-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
+                            <span>📅 Date Needed: <strong>{req.dateNeeded}</strong></span>
+                            {req.releasedAmount !== undefined && req.releasedAmount > 0 && (
+                              <span className="text-amber-800 font-semibold">
+                                Disbursed: ₱{req.releasedAmount.toLocaleString()}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Rejection input when triggered on mobile */}
+                      {showRejectionInput === req.id && (
+                        <div className="p-2.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-2 animate-fade-in">
+                          <label className="block text-[10px] font-bold uppercase text-rose-800">Rejection Reason</label>
+                          <input
+                            type="text"
+                            placeholder="Reason for rejection..."
+                            value={rejectionReason}
+                            onChange={(e) => setRejectionReason(e.target.value)}
+                            className="w-full text-xs p-2 border border-rose-300 rounded-lg bg-white focus:ring-2 focus:ring-rose-500"
+                          />
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => { setShowRejectionInput(null); setRejectionReason(''); }}
+                              className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleRejectRequest(req.id)}
+                              className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
+                            >
+                              Confirm Rejection
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Bar for Mobile */}
+                      <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2 flex-wrap">
+                        {req.isArchived ? (
+                          <div className="flex items-center gap-2 w-full">
+                            <button
+                              onClick={() => handleRestoreRequest(req.id)}
+                              className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                              </svg>
+                              <span>Restore</span>
+                            </button>
+                            <button
+                              onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
+                              className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition-colors cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            {/* Primary Lifecycle Button */}
+                            <div className="flex-1 min-w-[130px]">
+                              {req.status === 'pending' && (
+                                <button
+                                  onClick={() => handleApproveRequest(req.id)}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm shadow-emerald-600/20 transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span>Approve</span>
+                                </button>
+                              )}
+
+                              {req.status === 'approved' && (
+                                <button
+                                  onClick={() => handleReleaseOpen(req)}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-sm shadow-amber-600/20 transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  </svg>
+                                  <span>Release Funds</span>
+                                </button>
+                              )}
+
+                              {req.status === 'released' && (
+                                <button
+                                  onClick={() => handleLiquidationOpen(req)}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-600/20 transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                  </svg>
+                                  <span>Liquidate</span>
+                                </button>
+                              )}
+
+                              {req.status === 'liquidated' && (
+                                <button
+                                  onClick={() => handleReviewLiquidation(req.id)}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm shadow-emerald-600/20 transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>Review & Close</span>
+                                </button>
+                              )}
+
+                              {(req.status === 'closed' || req.status === 'cancelled' || req.status === 'voided' || req.status === 'rejected') && (
+                                <button
+                                  type="button"
+                                  onClick={() => setHistoryRequest(req)}
+                                  className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>Workflow History</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* History Icon Button */}
+                            {req.status !== 'closed' && req.status !== 'cancelled' && req.status !== 'voided' && req.status !== 'rejected' && (
+                              <button
+                                type="button"
+                                onClick={() => setHistoryRequest(req)}
+                                className="inline-flex items-center justify-center p-2 text-xs font-bold text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 rounded-xl transition cursor-pointer shadow-2xs"
+                                title="Workflow History"
+                              >
+                                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              </button>
+                            )}
+
+                            {/* Dropdown Menu Container */}
+                            <div className="relative action-menu-container">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
+                                }}
+                                className={`inline-flex items-center gap-1 px-3 py-2 text-xs font-bold border rounded-xl transition-all cursor-pointer shadow-2xs ${
+                                  actionMenuReqId === req.id
+                                    ? 'bg-slate-100 border-slate-300 text-slate-900'
+                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                }`}
+                              >
+                                <span>Actions</span>
+                                <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </button>
+
+                              {actionMenuReqId === req.id && (
+                                <div className={`absolute right-0 ${idx >= requests.length - 2 && requests.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'} w-52 max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
+                                  {/* Group: PDF Documents */}
+                                  <div className="py-1">
+                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                      Documents & Exports
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActionMenuReqId(null)
+                                        setRequisitionExportRequest(req)
+                                        setIsRequisitionExportOpen(true)
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-blue-50 text-blue-700 font-semibold cursor-pointer"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                      <span>Requisition PDF</span>
+                                    </button>
+
+                                    {(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          setLiquidationExportRequest(req)
+                                          setIsLiquidationExportOpen(true)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                        </svg>
+                                        <span>Liquidation PDF</span>
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Group: Workflow Operations */}
+                                  <div className="py-1">
+                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                      Management
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActionMenuReqId(null)
+                                        setHistoryRequest(req)
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
+                                    >
+                                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                      </svg>
+                                      <span>Workflow History</span>
+                                    </button>
+
+                                    {req.status === 'pending' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          setShowRejectionInput(req.id)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                        <span>Reject Request</span>
+                                      </button>
+                                    )}
+
+                                    {(req.status === 'pending' || req.status === 'approved') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          handleOpenCancelModal(req)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                        </svg>
+                                        <span>Cancel Request</span>
+                                      </button>
+                                    )}
+
+                                    {(req.status === 'released' || req.status === 'liquidated') && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          handleOpenVoidModal(req)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                        </svg>
+                                        <span>Void Transaction</span>
+                                      </button>
+                                    )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActionMenuReqId(null)
+                                        handleArchiveRequest(req.id)
+                                      }}
+                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-500 hover:text-red-600 font-medium cursor-pointer"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                      </svg>
+                                      <span>Archive</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* Desktop Table View (>= md) */}
+              <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
+                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[850px] [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
                       <th className="p-3 w-10 text-center">
@@ -2275,311 +2669,319 @@ export const FinancePage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {requests.map((req, idx) => (
-                      <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
-                        <td className="p-3 text-center">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(req.id)}
-                            onChange={() => handleToggleSelect(req.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                          />
+                    {requests.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                          No fund requests found.
                         </td>
-                        <td className="p-3 font-mono font-bold text-gray-950">
-                          {req.referenceNumber}
-                          {req.isArchived && (
-                            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              Archived
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-gray-800">{req.title}</span>
-                            {req.targetEventName && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                Event: {req.targetEventName}
+                      </tr>
+                    ) : (
+                      requests.map((req, idx) => (
+                        <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
+                          <td className="p-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(req.id)}
+                              onChange={() => handleToggleSelect(req.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-3 font-mono font-bold text-gray-950">
+                            {req.referenceNumber}
+                            {req.isArchived && (
+                              <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                Archived
                               </span>
                             )}
-                            <button
-                              type="button"
-                              onClick={() => setHistoryRequest(req)}
-                              className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-[10px] px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/80 hover:bg-blue-100 transition-colors cursor-pointer shadow-2xs"
-                            >
-                              <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <span>History</span>
-                            </button>
-                          </div>
-                          <div className="text-[10px] text-gray-400 mt-0.5">{req.purpose}</div>
-                        </td>
-                        <td className="p-3">{req.requestedByName}</td>
-                        <td className="p-3 font-bold">₱{req.requestedAmount.toLocaleString()}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            req.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
-                            req.status === 'rejected' ? 'bg-red-50 text-red-700' :
-                            req.status === 'released' ? 'bg-amber-50 text-amber-700' :
-                            req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700' :
-                            req.status === 'closed' ? 'bg-gray-100 text-gray-600' :
-                            req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
-                            req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                            'bg-gray-50 text-gray-600'
-                          }`}>
-                            {req.status}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          {req.isArchived ? (
-                            <div className="flex items-center gap-1.5">
+                          </td>
+                          <td className="p-3">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-gray-800">{req.title}</span>
+                              {req.targetEventName && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                  Event: {req.targetEventName}
+                                </span>
+                              )}
                               <button
-                                onClick={() => handleRestoreRequest(req.id)}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                type="button"
+                                onClick={() => setHistoryRequest(req)}
+                                className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-[10px] px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/80 hover:bg-blue-100 transition-colors cursor-pointer shadow-2xs"
                               >
-                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                 </svg>
-                                <span>Restore</span>
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                <span>Delete</span>
+                                <span>History</span>
                               </button>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-2">
-                              {/* 1. Primary Lifecycle Action Button */}
-                              {req.status === 'pending' && (
+                            <div className="text-[10px] text-gray-400 mt-0.5">{req.purpose}</div>
+                          </td>
+                          <td className="p-3">{req.requestedByName}</td>
+                          <td className="p-3 font-bold">₱{req.requestedAmount.toLocaleString()}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              req.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                              req.status === 'rejected' ? 'bg-red-50 text-red-700' :
+                              req.status === 'released' ? 'bg-amber-50 text-amber-700' :
+                              req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700' :
+                              req.status === 'closed' ? 'bg-gray-100 text-gray-600' :
+                              req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                              req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                              'bg-gray-50 text-gray-600'
+                            }`}>
+                              {req.status}
+                            </span>
+                          </td>
+                          <td className="p-3">
+                            {req.isArchived ? (
+                              <div className="flex items-center gap-1.5">
                                 <button
-                                  onClick={() => handleApproveRequest(req.id)}
-                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                                  onClick={() => handleRestoreRequest(req.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                   </svg>
-                                  <span>Approve</span>
+                                  <span>Restore</span>
                                 </button>
-                              )}
-
-                              {req.status === 'approved' && (
                                 <button
-                                  onClick={() => handleReleaseOpen(req)}
-                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition cursor-pointer"
+                                  onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
                                 >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
-                                  <span>Release Funds</span>
+                                  <span>Delete</span>
                                 </button>
-                              )}
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                {/* 1. Primary Lifecycle Action Button */}
+                                {req.status === 'pending' && (
+                                  <button
+                                    onClick={() => handleApproveRequest(req.id)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Approve</span>
+                                  </button>
+                                )}
 
-                              {req.status === 'released' && (
-                                <button
-                                  onClick={() => handleLiquidationOpen(req)}
-                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                  </svg>
-                                  <span>Liquidate</span>
-                                </button>
-                              )}
+                                {req.status === 'approved' && (
+                                  <button
+                                    onClick={() => handleReleaseOpen(req)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 rounded-xl shadow-md shadow-amber-600/20 transition cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                    </svg>
+                                    <span>Release Funds</span>
+                                  </button>
+                                )}
 
-                              {req.status === 'liquidated' && (
-                                <button
-                                  onClick={() => handleReviewLiquidation(req.id)}
-                                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  <span>Review & Close</span>
-                                </button>
-                              )}
+                                {req.status === 'released' && (
+                                  <button
+                                    onClick={() => handleLiquidationOpen(req)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                    </svg>
+                                    <span>Liquidate</span>
+                                  </button>
+                                )}
 
-                              {/* 2. Actions & PDF Menu Dropdown */}
-                              <div className="relative action-menu-container">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
-                                  }}
-                                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all cursor-pointer shadow-2xs ${
-                                    actionMenuReqId === req.id
-                                      ? 'bg-slate-100 border-slate-300 text-slate-900'
-                                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                  }`}
-                                >
-                                  <span>Actions</span>
-                                  <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                  </svg>
-                                </button>
+                                {req.status === 'liquidated' && (
+                                  <button
+                                    onClick={() => handleReviewLiquidation(req.id)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>Review & Close</span>
+                                  </button>
+                                )}
 
-                                {actionMenuReqId === req.id && (
-                                  <div className={`absolute right-0 ${idx >= requests.length - 2 && requests.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'} w-52 max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
-                                    {/* Group: PDF Documents */}
-                                    <div className="py-1">
-                                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        Documents & Exports
-                                      </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          setRequisitionExportRequest(req)
-                                          setIsRequisitionExportOpen(true)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-blue-50 text-blue-700 font-semibold cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                        </svg>
-                                        <span>Requisition PDF</span>
-                                      </button>
+                                {/* 2. Actions & PDF Menu Dropdown */}
+                                <div className="relative action-menu-container">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation()
+                                      setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
+                                    }}
+                                    className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all cursor-pointer shadow-2xs ${
+                                      actionMenuReqId === req.id
+                                        ? 'bg-slate-100 border-slate-300 text-slate-900'
+                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                    }`}
+                                  >
+                                    <span>Actions</span>
+                                    <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
 
-                                      {(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)) && (
+                                  {actionMenuReqId === req.id && (
+                                    <div className={`absolute right-0 ${idx >= requests.length - 2 && requests.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'} w-52 max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
+                                      {/* Group: PDF Documents */}
+                                      <div className="py-1">
+                                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                          Documents & Exports
+                                        </div>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             setActionMenuReqId(null)
-                                            setLiquidationExportRequest(req)
-                                            setIsLiquidationExportOpen(true)
+                                            setRequisitionExportRequest(req)
+                                            setIsRequisitionExportOpen(true)
                                           }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-blue-50 text-blue-700 font-semibold cursor-pointer"
                                         >
                                           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                           </svg>
-                                          <span>Liquidation PDF</span>
+                                          <span>Requisition PDF</span>
                                         </button>
-                                      )}
-                                    </div>
 
-                                    {/* Group: Workflow Operations */}
-                                    <div className="py-1">
-                                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                        Management
+                                        {(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActionMenuReqId(null)
+                                              setLiquidationExportRequest(req)
+                                              setIsLiquidationExportOpen(true)
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                                            </svg>
+                                            <span>Liquidation PDF</span>
+                                          </button>
+                                        )}
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          setHistoryRequest(req)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                        </svg>
-                                        <span>Workflow History</span>
-                                      </button>
 
-                                      {req.status === 'pending' && (
+                                      {/* Group: Workflow Operations */}
+                                      <div className="py-1">
+                                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                          Management
+                                        </div>
                                         <button
                                           type="button"
                                           onClick={() => {
                                             setActionMenuReqId(null)
-                                            setShowRejectionInput(req.id)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                          </svg>
-                                          <span>Reject Request</span>
-                                        </button>
-                                      )}
-
-                                      {(req.status === 'pending' || req.status === 'approved') && (
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            handleOpenCancelModal(req)
+                                            setHistoryRequest(req)
                                           }}
                                           className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
                                         >
                                           <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                                           </svg>
-                                          <span>Cancel Request</span>
+                                          <span>Workflow History</span>
                                         </button>
-                                      )}
 
-                                      {(req.status === 'released' || req.status === 'liquidated') && (
+                                        {req.status === 'pending' && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActionMenuReqId(null)
+                                              setShowRejectionInput(req.id)
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                          >
+                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                            </svg>
+                                            <span>Reject Request</span>
+                                          </button>
+                                        )}
+
+                                        {(req.status === 'pending' || req.status === 'approved') && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActionMenuReqId(null)
+                                              handleOpenCancelModal(req)
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
+                                          >
+                                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                            </svg>
+                                            <span>Cancel Request</span>
+                                          </button>
+                                        )}
+
+                                        {(req.status === 'released' || req.status === 'liquidated') && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActionMenuReqId(null)
+                                              handleOpenVoidModal(req)
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                          >
+                                            <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                            </svg>
+                                            <span>Void Transaction</span>
+                                          </button>
+                                        )}
+
                                         <button
                                           type="button"
                                           onClick={() => {
                                             setActionMenuReqId(null)
-                                            handleOpenVoidModal(req)
+                                            handleArchiveRequest(req.id)
                                           }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-500 hover:text-red-600 font-medium cursor-pointer"
                                         >
-                                          <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                           </svg>
-                                          <span>Void Transaction</span>
+                                          <span>Archive</span>
                                         </button>
-                                      )}
-
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          handleArchiveRequest(req.id)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-500 hover:text-red-600 font-medium cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                        </svg>
-                                        <span>Archive</span>
-                                      </button>
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            )}
 
-                          {showRejectionInput === req.id && (
-                            <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-2 animate-fade-in">
-                              <input
-                                type="text"
-                                placeholder="Reason for rejection..."
-                                value={rejectionReason}
-                                onChange={(e) => setRejectionReason(e.target.value)}
-                                className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-rose-500"
-                              />
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => { setShowRejectionInput(null); setRejectionReason(''); }}
-                                  className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleRejectRequest(req.id)}
-                                  className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
-                                >
-                                  Confirm Rejection
-                                </button>
+                            {showRejectionInput === req.id && (
+                              <div className="mt-2 p-2 bg-slate-50 border border-slate-200 rounded-xl space-y-2 animate-fade-in">
+                                <input
+                                  type="text"
+                                  placeholder="Reason for rejection..."
+                                  value={rejectionReason}
+                                  onChange={(e) => setRejectionReason(e.target.value)}
+                                  className="w-full text-xs p-2 border border-slate-300 rounded-lg bg-white focus:ring-2 focus:ring-rose-500"
+                                />
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => { setShowRejectionInput(null); setRejectionReason(''); }}
+                                    className="px-2.5 py-1 text-[11px] font-bold text-slate-600 hover:bg-slate-100 rounded-lg cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRejectRequest(req.id)}
+                                    className="px-3 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-[11px] font-bold shadow-xs cursor-pointer"
+                                  >
+                                    Confirm Rejection
+                                  </button>
+                                </div>
                               </div>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -2817,8 +3219,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Fund Request Workflow History Modal */}
       {historyRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
             <div className="flex justify-between items-start">
               <div>
                 <h4 className="text-sm font-bold text-gray-900">Fund Request Workflow History</h4>
@@ -2832,7 +3234,7 @@ export const FinancePage: React.FC = () => {
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+            <div className="space-y-4 max-h-[60vh] sm:max-h-[350px] overflow-y-auto pr-1">
               <div className="relative border-l-2 border-gray-100 pl-4 ml-2 space-y-5 py-2">
                 {/* 1. Request submission */}
                 <div className="relative">
@@ -2921,7 +3323,7 @@ export const FinancePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
+            <div className="flex justify-end pt-2 border-t border-gray-100">
               <button
                 type="button"
                 onClick={() => setHistoryRequest(null)}
@@ -2936,8 +3338,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Record / Edit Income Modal */}
       {isIncomeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h4 className="text-sm font-bold text-gray-900">
               {editIncomeItem ? 'Edit Income Transaction' : 'Record Inflow Receipt'}
             </h4>
@@ -2999,8 +3401,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Record / Edit Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h4 className="text-sm font-bold text-gray-900">
               {editExpenseItem ? 'Edit Direct Expense' : 'Record Direct Outflow'}
             </h4>
@@ -3058,8 +3460,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Add / Edit Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-sm p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-sm p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h4 className="text-sm font-bold text-gray-900">
               {editCategoryItem ? 'Edit Category' : 'Add Finance Category'}
             </h4>
@@ -3101,10 +3503,10 @@ export const FinancePage: React.FC = () => {
 
       {/* Create Request Modal */}
       {isRequestModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
                   Procurement & Requisition
@@ -3121,7 +3523,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleCreateRequest} className="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <form onSubmit={handleCreateRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Top Metadata Grid */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Request Details</h5>
@@ -3229,7 +3631,7 @@ export const FinancePage: React.FC = () => {
                 </div>
 
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse min-w-[500px]">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
                       <tr>
                         <th className="p-2 text-left min-w-[140px]">Intended Use</th>
@@ -3320,7 +3722,7 @@ export const FinancePage: React.FC = () => {
               </div>
 
               {/* Sticky Modal Footer */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button 
                   type="button" 
                   onClick={() => setIsRequestModalOpen(false)} 
@@ -3343,8 +3745,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Release Funds Modal */}
       {isReleaseModalOpen && selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <h4 className="text-sm font-bold text-gray-900">Release Approved Allocation</h4>
 
             {selectedRequest.targetEventName && (
@@ -3382,9 +3784,9 @@ export const FinancePage: React.FC = () => {
                 <label className="block text-[10px] font-bold text-gray-500 uppercase">Release Remarks</label>
                 <textarea value={relRemarks} onChange={(e) => setRelRemarks(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-2 flex-wrap">
                 <button type="button" onClick={() => { setIsReleaseModalOpen(false); setSelectedRequest(null); }} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-750">Execute Release</button>
+                <button type="submit" disabled={saving} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700">Execute Release</button>
               </div>
             </form>
           </div>
@@ -3393,10 +3795,10 @@ export const FinancePage: React.FC = () => {
 
       {/* Submit Liquidation Modal */}
       {isLiquidationModalOpen && selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
                 <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
                   Liquidation Statement
@@ -3414,7 +3816,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleLiquidationSubmit} className="p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <form onSubmit={handleLiquidationSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Header Info */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Liquidation Memo Header</h5>
@@ -3516,7 +3918,7 @@ export const FinancePage: React.FC = () => {
                 </div>
 
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse min-w-[420px]">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
                       <tr>
                         <th className="p-2 text-left">Expense / Source Description</th>
@@ -3584,7 +3986,7 @@ export const FinancePage: React.FC = () => {
                 </div>
 
                 <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse">
+                  <table className="w-full text-left text-xs border-collapse min-w-[480px]">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
                       <tr>
                         <th className="p-2 text-center w-36">O.R. Number</th>
@@ -3663,7 +4065,7 @@ export const FinancePage: React.FC = () => {
               </div>
 
               {/* Sticky Modal Footer */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button 
                   type="button" 
                   onClick={() => { setIsLiquidationModalOpen(false); setSelectedRequest(null); }} 
@@ -3686,8 +4088,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Cancel Fund Request Modal */}
       {cancelModalRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start">
               <div>
                 <h4 className="text-sm font-bold text-gray-900">Cancel Fund Request</h4>
@@ -3733,7 +4135,7 @@ export const FinancePage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
                 <button
                   type="button"
                   onClick={() => { setCancelModalRequest(null); setCancelReason(''); }}
@@ -3757,8 +4159,8 @@ export const FinancePage: React.FC = () => {
 
       {/* Void Fund Request Modal */}
       {voidModalRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-rose-200 w-full max-w-md p-6 space-y-4 shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-rose-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-start">
               <div>
                 <h4 className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
@@ -3801,7 +4203,7 @@ export const FinancePage: React.FC = () => {
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
+              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
                 <button
                   type="button"
                   onClick={() => { setVoidModalRequest(null); setVoidReason(''); }}
