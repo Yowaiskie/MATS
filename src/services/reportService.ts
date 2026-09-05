@@ -10,7 +10,7 @@ import type { Schedule } from '@/types/schedule'
 import type { AttendanceRecord, AttendanceStatus } from '@/types/attendance'
 import { calculateAttendanceSummary, calculateAttendanceRate } from '@/utils/attendance'
 import { getFullName } from '@/utils/member'
-import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isHolyHourSchedule, isMeetingSchedule } from '@/utils/scheduleUtils'
 import { settingsService, DEFAULT_POLICY_SETTINGS } from '@/services/settingsService'
 import type { SuspensionPolicySettings } from '@/services/settingsService'
 
@@ -102,34 +102,7 @@ export interface ScheduleCategorySelection {
   includeMeetings: boolean
 }
 
-export const isHolyHourSchedule = (title?: string): boolean => {
-  if (!title) return false
-  const lower = title.toLowerCase().trim()
-  return (
-    lower.includes('holy hour') ||
-    lower.includes('holyhour') ||
-    lower.includes('hora santa') ||
-    lower.includes('adoration') ||
-    lower.includes('benediction') ||
-    lower.includes('santissimo') ||
-    lower.includes('santissmo')
-  )
-}
-
-export const isMeetingSchedule = (title?: string): boolean => {
-  if (!title) return false
-  const lower = title.toLowerCase().trim()
-  return (
-    lower.includes('meeting') ||
-    lower.includes('formation') ||
-    lower.includes('assembly') ||
-    lower.includes('practice') ||
-    lower.includes('rehearsal') ||
-    lower.includes('orientation') ||
-    lower.includes('pulong') ||
-    lower.includes('workshop')
-  )
-}
+export { isHolyHourSchedule, isMeetingSchedule } from '@/utils/scheduleUtils'
 
 export interface ServiceHistoryItem {
   scheduleId: string

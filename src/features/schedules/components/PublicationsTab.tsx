@@ -2,18 +2,28 @@ import React, { useState, useEffect } from 'react'
 import { publicationService } from '@/services/publicationService'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
+import { memberService } from '@/services/memberService'
+import { isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { PublicationFormModal } from './PublicationFormModal'
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
+import { SchedulePdfExportModal } from './SchedulePdfExportModal'
+
+export interface PublicationMemberStats {
+  scheduled: number
+  total: number
+}
 
 export const PublicationsTab: React.FC = () => {
   const [publications, setPublications] = useState<SchedulePublication[]>([])
+  const [pubStatsById, setPubStatsById] = useState<Record<string, PublicationMemberStats>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<SchedulePublication | null>(null)
+  const [exportPdfPub, setExportPdfPub] = useState<SchedulePublication | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmStatusAction, setConfirmStatusAction] = useState<{
     pub: SchedulePublication;
@@ -29,8 +39,47 @@ export const PublicationsTab: React.FC = () => {
   const loadData = async () => {
     setLoading(true)
     try {
-      const data = await publicationService.getPublications()
+      const [data, allMembers] = await Promise.all([
+        publicationService.getPublications(),
+        memberService.getMembers()
+      ])
       setPublications(data)
+
+      // Compute actual scheduled and eligible members count per publication
+      const statsMap: Record<string, PublicationMemberStats> = {}
+      await Promise.all(
+        data.map(async pub => {
+          try {
+            const eligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, pub))
+            const eligibleIdSet = new Set(eligibleMembers.map(m => m.id))
+
+            const schedList = await scheduleService.getSchedulesByDateRange(pub.startDate, pub.endDate)
+            const validScheds = schedList.filter(s => isScheduleIncludedInPublication(s, pub))
+            
+            const assignedIds = new Set<string>()
+            validScheds.forEach(s => {
+              s.assignedMembers?.forEach(id => {
+                if (eligibleIdSet.has(id)) assignedIds.add(id)
+              })
+            })
+            pub.submittedMembers?.forEach(id => {
+              if (eligibleIdSet.has(id)) assignedIds.add(id)
+            })
+
+            statsMap[pub.id] = {
+              scheduled: assignedIds.size,
+              total: eligibleMembers.length
+            }
+          } catch {
+            const eligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, pub))
+            statsMap[pub.id] = {
+              scheduled: pub.submittedMembers?.length || 0,
+              total: eligibleMembers.length
+            }
+          }
+        })
+      )
+      setPubStatsById(statsMap)
     } catch (err: any) {
       console.error(err)
       setError('Failed to load publications.')
@@ -226,9 +275,21 @@ export const PublicationsTab: React.FC = () => {
                   }`}>
                     {pub.status}
                   </span>
-                  <span className="text-[10px] font-extrabold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
-                    {pub.submittedMembers?.length || 0} Submitted
-                  </span>
+                  {(() => {
+                    const stats = pubStatsById[pub.id]
+                    if (stats && stats.total > 0) {
+                      return (
+                        <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                          {stats.scheduled} / {stats.total} Scheduled
+                        </span>
+                      )
+                    }
+                    return (
+                      <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                        {pub.submittedMembers?.length || 0} Scheduled
+                      </span>
+                    )
+                  })()}
                 </div>
               </div>
 
@@ -254,6 +315,19 @@ export const PublicationsTab: React.FC = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                     <span>Preview</span>
                   </a>
+                  <button
+                    onClick={() => setExportPdfPub(pub)}
+                    title="Export Schedule PDF (Long Portrait)"
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                      <polyline points="14 2 14 8 20 8"/>
+                      <line x1="16" y1="13" x2="8" y2="13"/>
+                      <line x1="16" y1="17" x2="8" y2="17"/>
+                    </svg>
+                    <span>PDF</span>
+                  </button>
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -374,9 +448,28 @@ export const PublicationsTab: React.FC = () => {
                       {pub.startDate} to {pub.endDate}
                     </td>
                     <td className="px-6 py-4">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200">
-                        {pub.submittedMembers?.length || 0} Submitted
-                      </span>
+                      {(() => {
+                        const stats = pubStatsById[pub.id]
+                        if (stats && stats.total > 0) {
+                          const pct = Math.round((stats.scheduled / stats.total) * 100)
+                          return (
+                            <div className="flex items-center gap-2">
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+                                {stats.scheduled} / {stats.total} Scheduled
+                              </span>
+                              <span className="text-[11px] font-bold text-slate-500">
+                                ({pct}%)
+                              </span>
+                            </div>
+                          )
+                        }
+                        return (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-800 border border-purple-200">
+                            {pub.submittedMembers?.length || 0} Scheduled
+                          </span>
+                        )
+                      })()}
                     </td>
                     <td className="px-6 py-4">
                       <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${
@@ -410,6 +503,18 @@ export const PublicationsTab: React.FC = () => {
                           >
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                           </a>
+                          <button
+                            onClick={() => setExportPdfPub(pub)}
+                            title="Export Schedule PDF (Long 8.5x13)"
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                              <polyline points="14 2 14 8 20 8"/>
+                              <line x1="16" y1="13" x2="8" y2="13"/>
+                              <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                          </button>
                         </div>
 
                         {/* Status Actions */}
@@ -530,6 +635,12 @@ export const PublicationsTab: React.FC = () => {
           setManageSubmissionsPub(null)
           loadData()
         }}
+      />
+
+      <SchedulePdfExportModal
+        isOpen={!!exportPdfPub}
+        onClose={() => setExportPdfPub(null)}
+        publication={exportPdfPub}
       />
 
       <AlertModal

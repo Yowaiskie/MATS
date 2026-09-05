@@ -26,6 +26,12 @@ export const PublicationFormModal: React.FC<Props> = ({
   const [maxWeekdaysPerServer, setMaxWeekdaysPerServer] = useState<number>(8)
   const [maxServersPerSundaySlot, setMaxServersPerSundaySlot] = useState<number>(5)
   const [maxServersPerWeekdaySlot, setMaxServersPerWeekdaySlot] = useState<number>(5)
+  const [includeSundays, setIncludeSundays] = useState<boolean>(true)
+  const [includeWeekdays, setIncludeWeekdays] = useState<boolean>(true)
+  const [includeHolyHour, setIncludeHolyHour] = useState<boolean>(false)
+  const [includeMeetings, setIncludeMeetings] = useState<boolean>(false)
+  const [customExcludedKeywords, setCustomExcludedKeywords] = useState<string>('')
+  const [allowedRanks, setAllowedRanks] = useState<string[]>(['Chevaliers', 'Paladins'])
   const [generateSchedules, setGenerateSchedules] = useState<boolean>(true)
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
@@ -45,6 +51,12 @@ export const PublicationFormModal: React.FC<Props> = ({
         setMaxWeekdaysPerServer(publication.maxWeekdaysPerServer ?? 8)
         setMaxServersPerSundaySlot(publication.maxServersPerSundaySlot ?? 5)
         setMaxServersPerWeekdaySlot(publication.maxServersPerWeekdaySlot ?? 5)
+        setIncludeSundays(publication.includeSundays ?? true)
+        setIncludeWeekdays(publication.includeWeekdays ?? true)
+        setIncludeHolyHour(publication.includeHolyHour ?? false)
+        setIncludeMeetings(publication.includeMeetings ?? false)
+        setCustomExcludedKeywords((publication.customExcludedKeywords || []).join(', '))
+        setAllowedRanks(publication.allowedRanks ?? ['Chevaliers', 'Paladins'])
         setGenerateSchedules(false) // Default to false when editing
       } else {
         setName('')
@@ -57,6 +69,12 @@ export const PublicationFormModal: React.FC<Props> = ({
         setMaxWeekdaysPerServer(8)
         setMaxServersPerSundaySlot(5)
         setMaxServersPerWeekdaySlot(5)
+        setIncludeSundays(true)
+        setIncludeWeekdays(true)
+        setIncludeHolyHour(false)
+        setIncludeMeetings(false)
+        setCustomExcludedKeywords('')
+        setAllowedRanks(['Chevaliers', 'Paladins'])
         setGenerateSchedules(true) // Default to true when creating
       }
       const loadTemplates = async () => {
@@ -92,11 +110,20 @@ export const PublicationFormModal: React.FC<Props> = ({
     setIsSubmitting(true)
     setError('')
     try {
+      const excludedKwList = customExcludedKeywords
+        .split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0)
+
       await onSubmit({ 
         name, startDate, endDate, description, status,
         submissionDeadline: submissionDeadline || undefined,
         maxSundaysPerServer, maxWeekdaysPerServer,
-        maxServersPerSundaySlot, maxServersPerWeekdaySlot
+        maxServersPerSundaySlot, maxServersPerWeekdaySlot,
+        includeSundays, includeWeekdays,
+        includeHolyHour, includeMeetings,
+        customExcludedKeywords: excludedKwList,
+        allowedRanks
       }, generateSchedules, selectedTemplateIds)
       onClose()
     } catch (err: any) {
@@ -285,6 +312,134 @@ export const PublicationFormModal: React.FC<Props> = ({
                       className="w-full px-3 py-1.5 rounded-lg border border-indigo-200 text-xs bg-white focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 font-bold text-indigo-900"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Section 3: Included Schedule Types & Filter Settings */}
+              <div className="bg-amber-50/50 p-3.5 rounded-xl border border-amber-200/80 space-y-3">
+                <div>
+                  <span className="block text-xs font-black text-amber-950">3. Included Schedule Types & Filters</span>
+                  <span className="text-[10px] text-amber-700 font-medium leading-tight block mt-0.5">
+                    Configure which schedule categories are displayed in the public link and counted towards quotas.
+                  </span>
+                </div>
+
+                <div className="space-y-2 pt-1">
+                  <label className="flex items-start gap-2.5 p-2 rounded-lg bg-white border border-amber-200/60 hover:bg-amber-50/30 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={includeSundays}
+                      onChange={(e) => setIncludeSundays(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-800">Sunday & Anticipated Masses</span>
+                      <span className="text-[10px] text-slate-500 leading-tight">
+                        Saturday evening (5:00 PM onwards) and all Sunday Masses.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-2 rounded-lg bg-white border border-amber-200/60 hover:bg-amber-50/30 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={includeWeekdays}
+                      onChange={(e) => setIncludeWeekdays(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-800">Weekday Masses</span>
+                      <span className="text-[10px] text-slate-500 leading-tight">
+                        Regular daily morning and afternoon Masses (Mon–Sat).
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-2 rounded-lg bg-white border border-amber-200/60 hover:bg-amber-50/30 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={includeHolyHour}
+                      onChange={(e) => setIncludeHolyHour(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-800">Holy Hour & Eucharistic Adoration</span>
+                      <span className="text-[10px] text-slate-500 leading-tight">
+                        Unchecked by default. Enable only if you want altar servers to select Holy Hour slots in this link.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 p-2 rounded-lg bg-white border border-amber-200/60 hover:bg-amber-50/30 cursor-pointer transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={includeMeetings}
+                      onChange={(e) => setIncludeMeetings(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 rounded border-amber-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-xs font-bold text-slate-800">Meetings & Formations</span>
+                      <span className="text-[10px] text-slate-500 leading-tight">
+                        Parish assemblies, practices, and rehearsals (Unchecked by default).
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="pt-2 border-t border-amber-100">
+                  <label className="block text-[10px] font-extrabold uppercase text-amber-900 mb-1">
+                    Custom Excluded Keywords (Optional)
+                  </label>
+                  <input
+                    type="text"
+                    value={customExcludedKeywords}
+                    onChange={(e) => setCustomExcludedKeywords(e.target.value)}
+                    placeholder="e.g. Novena, Vespers, Special Service"
+                    className="w-full px-3 py-1.5 rounded-lg border border-amber-200 text-xs bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-medium text-slate-800 placeholder:text-slate-400"
+                  />
+                  <span className="text-[10px] text-amber-700 leading-tight block mt-1">
+                    Comma-separated title keywords to exclude from this publication.
+                  </span>
+                </div>
+              </div>
+
+              {/* Section 4: Eligible Member Ranks */}
+              <div className="bg-emerald-50/50 p-3.5 rounded-xl border border-emerald-200/80 space-y-3">
+                <div>
+                  <span className="block text-xs font-black text-emerald-950">4. Eligible Member Ranks (Allowed to Schedule)</span>
+                  <span className="text-[10px] text-emerald-700 font-medium leading-tight block mt-0.5">
+                    Select which server ranks can view and submit schedules in this publication. Squires are unchecked by default.
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                  {[
+                    { id: 'Chevaliers', label: 'Chevaliers', desc: 'Senior Servers' },
+                    { id: 'Paladins', label: 'Paladins', desc: 'Intermediate Servers' },
+                    { id: 'Squires', label: 'Squires', desc: 'Junior / Trainees' }
+                  ].map(rank => {
+                    const isChecked = allowedRanks.includes(rank.id)
+                    return (
+                      <label key={rank.id} className="flex items-start gap-2 p-2 rounded-lg bg-white border border-emerald-200/60 hover:bg-emerald-50/30 cursor-pointer transition-colors">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            if (isChecked) {
+                              setAllowedRanks(allowedRanks.filter(r => r !== rank.id))
+                            } else {
+                              setAllowedRanks([...allowedRanks, rank.id])
+                            }
+                          }}
+                          className="mt-0.5 h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                        />
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-slate-800">{rank.label}</span>
+                          <span className="text-[10px] text-slate-500">{rank.desc}</span>
+                        </div>
+                      </label>
+                    )
+                  })}
                 </div>
               </div>
             </div>

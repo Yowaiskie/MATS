@@ -8,7 +8,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { SchedulePublication } from '@/types/publication'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour } from '@/utils/scheduleUtils'
+import { formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface SchedulePattern {
@@ -28,74 +28,58 @@ export const PublicSchedulePage: React.FC = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
-  const [submitting, setSubmitting] = useState(false)
-
-  // User Selection State
-  const [selectedMemberId, setSelectedMemberId] = useState('')
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('')
+  const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [nameSearchQuery, setNameSearchQuery] = useState('')
   const [isMemberPickerOpen, setIsMemberPickerOpen] = useState(false)
-  const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
+  const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  
+  // Custom dialog modals
   const [limitModal, setLimitModal] = useState<{ title: string; message: string } | null>(null)
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false)
 
-
-
   const loadData = async () => {
-    if (!publicationId) {
-      setMessage({ type: 'error', text: 'No publication ID provided.' })
-      setLoading(false)
-      return
-    }
-
+    if (!publicationId) return
     setLoading(true)
     try {
+      // 1. Fetch publication
       const pub = await queryClient.fetchQuery({
         queryKey: ['publication', publicationId],
         queryFn: () => publicationService.getPublication(publicationId),
-        staleTime: 0
+        staleTime: 1000 * 60 * 2 // 2 minutes cache
       })
+
       if (!pub) {
-        setMessage({ type: 'error', text: 'Publication link not found or invalid.' })
+        setPublication(null)
         setLoading(false)
         return
       }
 
       setPublication(pub)
 
-      if (pub.status === 'draft') {
-        setMessage({ type: 'error', text: 'Draft' })
-        setLoading(false)
-        return
-      }
-
-      const [schedList, memList] = await Promise.all([
+      // 2. Fetch all members and schedules for date range in parallel
+      const [membersData, schedsData] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: ['members'],
+          queryFn: () => memberService.getMembers(),
+          staleTime: 1000 * 60 * 5
+        }),
         queryClient.fetchQuery({
           queryKey: ['public-schedules', pub.id, pub.startDate, pub.endDate],
           queryFn: () => scheduleService.getSchedulesByDateRange(pub.startDate, pub.endDate),
-          staleTime: 0
-        }),
-        queryClient.fetchQuery({
-          queryKey: ['public-active-members-non-squire'],
-          queryFn: async () => {
-            const allMembers = await memberService.getMembers()
-            return allMembers.filter(m => {
-              if (m.status !== 'active') return false
-              const r = (m.rank || '').toLowerCase()
-              const o = (m.order || '').toLowerCase()
-              const p = (m.position || '').toLowerCase()
-              return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
-            })
-          },
-          staleTime: 1000 * 60 * 10 // 10 minutes cache
+          staleTime: 1000 * 60 * 1
         })
       ])
 
-      setMembers(memList)
-      setSchedules(schedList)
-    } catch (err) {
+      // Only eligible active members based on allowed ranks
+      const eligible = membersData.filter(m => isMemberEligibleForPublication(m, pub))
+
+      setMembers(eligible)
+      setSchedules(schedsData)
+    } catch (err: any) {
       console.error(err)
-      setMessage({ type: 'error', text: 'Failed to load schedule data.' })
+      setMessage({ type: 'error', text: 'Failed to load publication details.' })
     } finally {
       setLoading(false)
     }
@@ -105,6 +89,16 @@ export const PublicSchedulePage: React.FC = () => {
     loadData()
   }, [publicationId, queryClient])
 
+  // Filter schedules strictly by publication date range and dynamic filter settings
+  const publicationSchedules = useMemo(() => {
+    if (!publication) return []
+    return schedules.filter(s => 
+      s.date >= publication.startDate && 
+      s.date <= publication.endDate && 
+      isScheduleIncludedInPublication(s, publication)
+    )
+  }, [schedules, publication])
+
   // Sync selected schedules when selected member changes
   useEffect(() => {
     if (!selectedMemberId) {
@@ -112,23 +106,13 @@ export const PublicSchedulePage: React.FC = () => {
       return
     }
     const initial = new Set<string>()
-    schedules.forEach(s => {
+    publicationSchedules.forEach(s => {
       if (s.assignedMembers?.includes(selectedMemberId)) {
         initial.add(s.id)
       }
     })
     setSelectedScheduleIds(initial)
-  }, [selectedMemberId, schedules])
-
-  // Filter schedules strictly by publication date range
-  const publicationSchedules = useMemo(() => {
-    if (!publication) return []
-    return schedules.filter(s => 
-      s.date >= publication.startDate && 
-      s.date <= publication.endDate && 
-      s.status !== 'cancelled'
-    )
-  }, [schedules, publication])
+  }, [selectedMemberId, publicationSchedules])
 
   // Group into patterns
   const { sundayPatterns, weekdayPatterns } = useMemo(() => {
@@ -651,7 +635,7 @@ export const PublicSchedulePage: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0">
       {/* LEFT FORM PANEL */}
-      <div className="w-full lg:w-[360px] bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col shrink-0 shadow-xs justify-between">
+      <div className="w-full lg:w-[380px] lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col shrink-0 shadow-xs justify-between">
         <div>
           {/* Header Actions */}
           <div className="flex items-center gap-3.5 mb-5 sm:mb-8">
@@ -692,9 +676,14 @@ export const PublicSchedulePage: React.FC = () => {
           </div>
 
           {isFinalized ? (
-            <div className="bg-amber-50 border border-amber-200 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
-              <div className="text-2xl sm:text-3xl mb-2 sm:mb-3">🔒</div>
-              <h3 className="text-amber-900 font-black mb-1 sm:mb-2 text-base sm:text-lg">Scheduling Closed</h3>
+            <div className="bg-amber-50 border border-amber-200/80 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect width="18" height="11" x="3" y="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+              </div>
+              <h3 className="text-amber-950 font-black mb-1 sm:mb-2 text-base sm:text-lg tracking-tight">Scheduling Closed</h3>
               <p className="text-amber-800 text-xs sm:text-sm leading-relaxed">
                 This schedule period has been finalized by the administrator. No further selections can be made.
               </p>

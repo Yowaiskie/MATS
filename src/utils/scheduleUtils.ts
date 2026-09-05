@@ -1,4 +1,6 @@
 import type { Schedule, ScheduleStatus } from '@/types/schedule'
+import type { SchedulePublication } from '@/types/publication'
+import type { Member } from '@/types/member'
 
 /**
  * Dynamically computes a schedule's status based on current system time,
@@ -56,6 +58,41 @@ export const isTimeOverlapping = (
   endB: string
 ): boolean => {
   return startA < endB && startB < endA
+}
+
+/**
+ * Determines whether a schedule title represents a Holy Hour or Adoration devotion.
+ */
+export const isHolyHourSchedule = (title?: string): boolean => {
+  if (!title) return false
+  const lower = title.toLowerCase().trim()
+  return (
+    lower.includes('holy hour') ||
+    lower.includes('holyhour') ||
+    lower.includes('hora santa') ||
+    lower.includes('adoration') ||
+    lower.includes('benediction') ||
+    lower.includes('santissimo') ||
+    lower.includes('santissmo')
+  )
+}
+
+/**
+ * Determines whether a schedule title represents a meeting, formation, or rehearsal.
+ */
+export const isMeetingSchedule = (title?: string): boolean => {
+  if (!title) return false
+  const lower = title.toLowerCase().trim()
+  return (
+    lower.includes('meeting') ||
+    lower.includes('formation') ||
+    lower.includes('assembly') ||
+    lower.includes('practice') ||
+    lower.includes('rehearsal') ||
+    lower.includes('orientation') ||
+    lower.includes('pulong') ||
+    lower.includes('workshop')
+  )
 }
 
 /**
@@ -122,6 +159,46 @@ export const isSundayOrAnticipatedMass = (
 }
 
 /**
+ * Checks if a schedule should be included in a Publication based on dynamic publication settings.
+ */
+export const isScheduleIncludedInPublication = (
+  schedule: Pick<Schedule, 'title' | 'date' | 'startTime' | 'status'>,
+  publication?: Partial<SchedulePublication> | null
+): boolean => {
+  if (schedule.status === 'cancelled') return false
+
+  const title = schedule.title || ''
+  const titleLower = title.toLowerCase().trim()
+
+  // 1. Custom Excluded Keywords check
+  if (publication?.customExcludedKeywords && publication.customExcludedKeywords.length > 0) {
+    const isCustomExcluded = publication.customExcludedKeywords.some(kw => {
+      const cleanKw = kw.trim().toLowerCase()
+      return cleanKw.length > 0 && titleLower.includes(cleanKw)
+    })
+    if (isCustomExcluded) return false
+  }
+
+  // 2. Holy Hour Check (Default: false)
+  if (isHolyHourSchedule(title)) {
+    return publication?.includeHolyHour ?? false
+  }
+
+  // 3. Meeting / Formation Check (Default: false)
+  if (isMeetingSchedule(title)) {
+    return publication?.includeMeetings ?? false
+  }
+
+  // 4. Sunday / Weekday Mass Check (Defaults: true)
+  const isSunday = isSundayOrAnticipatedMass(title, schedule.date, schedule.startTime)
+  if (isSunday) {
+    return publication?.includeSundays ?? true
+  } else {
+    return publication?.includeWeekdays ?? true
+  }
+}
+
+/**
  * Converts a 24-hour time string (HH:MM) to a 12-hour AM/PM format.
  * @param time24 - e.g. "14:30"
  * @returns e.g. "2:30 PM"
@@ -139,3 +216,31 @@ export const formatTime12Hour = (time24: string): string => {
 
   return `${hour}:${minuteStr} ${ampm}`
 }
+
+/**
+ * Checks if a member is eligible to participate in a schedule publication.
+ * If allowedRanks is configured in the publication, matches member's rank/order/position.
+ * By default (if not configured or for Squires), Squires are excluded unless explicitly allowed.
+ */
+export const isMemberEligibleForPublication = (
+  member: Pick<Member, 'status' | 'rank' | 'order' | 'position'>,
+  publication?: Partial<SchedulePublication> | null
+): boolean => {
+  if (member.status !== 'active') return false
+
+  const r = (member.rank || '').trim().toLowerCase()
+  const o = (member.order || '').trim().toLowerCase()
+  const p = (member.position || '').trim().toLowerCase()
+
+  const allowedRanks = publication?.allowedRanks
+  if (allowedRanks && allowedRanks.length > 0) {
+    return allowedRanks.some(allowed => {
+      const target = allowed.trim().toLowerCase()
+      return r.includes(target) || o.includes(target) || p.includes(target)
+    })
+  }
+
+  // Default behavior when allowedRanks is not configured: active non-squires
+  return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
+}
+

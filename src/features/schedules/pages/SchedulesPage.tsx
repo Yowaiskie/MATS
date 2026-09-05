@@ -8,9 +8,9 @@ import { AssignmentModal } from '../components/AssignmentModal'
 import { CalendarView } from '../components/CalendarView'
 import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
 import { TemplateManagerModal } from '../components/TemplateManagerModal'
-import { CSVImporterModal } from '../components/CSVImporterModal'
 import { PublicationsTab } from '../components/PublicationsTab'
 import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
+import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
@@ -28,6 +28,31 @@ const getTodayString = () => {
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 }
 
+const getThisWeekRange = (): { start: string; end: string } => {
+  const now = new Date()
+  const day = now.getDay()
+  const diffToSun = now.getDate() - day
+  const sun = new Date(now.getFullYear(), now.getMonth(), diffToSun)
+  const sat = new Date(now.getFullYear(), now.getMonth(), diffToSun + 6)
+  const formatD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { start: formatD(sun), end: formatD(sat) }
+}
+
+const getThisMonthRange = (): { start: string; end: string } => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+  return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` }
+}
+
+const getNext7DaysRange = (): { start: string; end: string } => {
+  const now = new Date()
+  const next7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6)
+  const formatD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { start: getTodayString(), end: formatD(next7) }
+}
+
 export const SchedulesPage: React.FC = () => {
   const queryClient = useQueryClient()
   const { profile, isAdmin, canAction } = useAuth()
@@ -42,8 +67,11 @@ export const SchedulesPage: React.FC = () => {
   // Selected Month State for Scoped Firestore Reads
   const [selectedMonthDate, setSelectedMonthDate] = useState<Date>(() => new Date())
 
-  // Filter states
+  // Filter states (Single Date vs Date Range)
+  const [dateFilterMode, setDateFilterMode] = useState<'single' | 'range'>('single')
   const [dateFilter, setDateFilter] = useState(getTodayString())
+  const [startDateFilter, setStartDateFilter] = useState('')
+  const [endDateFilter, setEndDateFilter] = useState('')
   const [timeFilter, setTimeFilter] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>([])
@@ -63,7 +91,7 @@ export const SchedulesPage: React.FC = () => {
   const [assignmentOpen, setAssignmentOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
-  const [csvImportOpen, setCsvImportOpen] = useState(false)
+  const [exportPdfOpen, setExportPdfOpen] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>('')
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
@@ -77,14 +105,19 @@ export const SchedulesPage: React.FC = () => {
     if (showSpinner) setLoading(true)
     setError(null)
     try {
-      const monthDate = targetMonthDate || selectedMonthDate
-      const y = monthDate.getFullYear()
-      const m = String(monthDate.getMonth() + 1).padStart(2, '0')
-      const startDate = `${y}-${m}-01`
-      const endDate = `${y}-${m}-31`
+      let scheduleData: Schedule[] = []
+      if (dateFilterMode === 'range' && startDateFilter && endDateFilter) {
+        scheduleData = await scheduleService.getSchedulesByDateRange(startDateFilter, endDateFilter)
+      } else {
+        const monthDate = targetMonthDate || selectedMonthDate
+        const y = monthDate.getFullYear()
+        const m = String(monthDate.getMonth() + 1).padStart(2, '0')
+        const startDate = `${y}-${m}-01`
+        const endDate = `${y}-${m}-31`
+        scheduleData = await scheduleService.getSchedulesByDateRange(startDate, endDate)
+      }
 
-      const [scheduleData, memberData, sessionsData] = await Promise.all([
-        scheduleService.getSchedulesByDateRange(startDate, endDate),
+      const [memberData, sessionsData] = await Promise.all([
         queryClient.fetchQuery({
           queryKey: ['members', 'all-with-archived'],
           queryFn: () => memberService.getMembers(true),
@@ -105,10 +138,14 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
-  // Load data whenever selectedMonthDate changes
+  // Load data whenever selectedMonthDate or date range changes
   useEffect(() => {
-    loadData(true, selectedMonthDate)
-  }, [selectedMonthDate])
+    if (dateFilterMode === 'range' && startDateFilter && endDateFilter) {
+      loadData(true)
+    } else {
+      loadData(true, selectedMonthDate)
+    }
+  }, [selectedMonthDate, dateFilterMode, startDateFilter, endDateFilter])
 
   const handleDateFilterChange = (newDateStr: string) => {
     setDateFilter(newDateStr)
@@ -127,12 +164,12 @@ export const SchedulesPage: React.FC = () => {
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1)
-  }, [dateFilter, timeFilter, searchQuery])
+  }, [dateFilterMode, dateFilter, startDateFilter, endDateFilter, timeFilter, searchQuery])
 
   // Reset time filter when date filter changes
   useEffect(() => {
     setTimeFilter('')
-  }, [dateFilter])
+  }, [dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
   // Clear selection when exiting bulk mode
   useEffect(() => {
@@ -275,11 +312,18 @@ export const SchedulesPage: React.FC = () => {
   }
 
   const availableSchedulesForSelectedDate = useMemo(() => {
-    if (!dateFilter) return []
-    return schedules
-      .filter((s) => s.date === dateFilter)
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
-  }, [schedules, dateFilter])
+    if (dateFilterMode === 'single') {
+      if (!dateFilter) return []
+      return schedules
+        .filter((s) => s.date === dateFilter)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    } else {
+      let rangeSchedules = schedules
+      if (startDateFilter) rangeSchedules = rangeSchedules.filter((s) => s.date >= startDateFilter)
+      if (endDateFilter) rangeSchedules = rangeSchedules.filter((s) => s.date <= endDateFilter)
+      return rangeSchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
+    }
+  }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
   const [attendanceFilter, setAttendanceFilter] = useState<'all' | ScheduleAttendanceState>('all')
 
@@ -307,8 +351,22 @@ export const SchedulesPage: React.FC = () => {
     }
 
     return schedules.filter((s) => {
-      // In Calendar View, display all month schedules without restricting to single dateFilter
-      const matchesDate = viewMode === 'calendar' || !dateFilter || s.date === dateFilter
+      // In Calendar View, display all month schedules without restricting to single dateFilter or range
+      let matchesDate = true
+      if (viewMode === 'calendar') {
+        matchesDate = true
+      } else if (dateFilterMode === 'single') {
+        matchesDate = !dateFilter || s.date === dateFilter
+      } else {
+        if (startDateFilter && endDateFilter) {
+          matchesDate = s.date >= startDateFilter && s.date <= endDateFilter
+        } else if (startDateFilter) {
+          matchesDate = s.date >= startDateFilter
+        } else if (endDateFilter) {
+          matchesDate = s.date <= endDateFilter
+        }
+      }
+
       const matchesTime = !timeFilter || s.startTime === timeFilter
 
       if (!matchesDate || !matchesTime) return false
@@ -335,7 +393,7 @@ export const SchedulesPage: React.FC = () => {
 
       return true
     })
-  }, [schedules, dateFilter, timeFilter, attendanceFilter, searchQuery, attendanceSessions, viewMode])
+  }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter, timeFilter, attendanceFilter, searchQuery, attendanceSessions, viewMode])
 
   const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -444,13 +502,14 @@ export const SchedulesPage: React.FC = () => {
                   </button>
 
                   <button
-                    onClick={() => setCsvImportOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    onClick={() => setExportPdfOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Export Month Schedule as PDF (Long Landscape)"
                   >
                     <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <span>Import CSV</span>
+                    <span>Export PDF</span>
                   </button>
 
                   <button
@@ -505,34 +564,125 @@ export const SchedulesPage: React.FC = () => {
           />
         </div>
 
-        {/* Date filter */}
-        <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-date" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Filter by Date
-          </label>
-          <div className="flex gap-1.5">
-            <input
-              id="filter-date"
-              type="date"
-              value={dateFilter}
-              onChange={(e) => handleDateFilterChange(e.target.value)}
-              className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-            />
-            <button
-              type="button"
-              onClick={() => {
-                const today = new Date()
-                setSelectedMonthDate(today)
-                setDateFilter(getTodayString())
-              }}
-              className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[36px] shadow-2xs"
-            >
-              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span>Today</span>
-            </button>
+        {/* Date Filter (Single Date vs Date Range) */}
+        <div className="flex flex-col space-y-1 flex-1 min-w-[280px]">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+              {dateFilterMode === 'single' ? 'Filter by Date' : 'Filter by Date Range'}
+            </label>
+            <div className="flex items-center gap-1 border border-gray-200 bg-slate-50 rounded-lg p-0.5 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setDateFilterMode('single')}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  dateFilterMode === 'single'
+                    ? 'bg-white text-blue-600 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Single
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterMode('range')
+                  if (!startDateFilter && !endDateFilter) {
+                    const thisWeek = getThisWeekRange()
+                    setStartDateFilter(thisWeek.start)
+                    setEndDateFilter(thisWeek.end)
+                  }
+                }}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  dateFilterMode === 'range'
+                    ? 'bg-white text-blue-600 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Range
+              </button>
+            </div>
           </div>
+
+          {dateFilterMode === 'single' ? (
+            <div className="flex gap-1.5">
+              <input
+                id="filter-date"
+                type="date"
+                value={dateFilter}
+                onChange={(e) => handleDateFilterChange(e.target.value)}
+                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date()
+                  setSelectedMonthDate(today)
+                  setDateFilter(getTodayString())
+                }}
+                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[36px] shadow-2xs"
+              >
+                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Today</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={startDateFilter}
+                  onChange={(e) => setStartDateFilter(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                  title="Start Date (From)"
+                />
+                <span className="text-xs font-bold text-gray-400 shrink-0">to</span>
+                <input
+                  type="date"
+                  value={endDateFilter}
+                  onChange={(e) => setEndDateFilter(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                  title="End Date (To)"
+                />
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = getThisWeekRange()
+                    setStartDateFilter(r.start)
+                    setEndDateFilter(r.end)
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
+                >
+                  This Week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = getThisMonthRange()
+                    setStartDateFilter(r.start)
+                    setEndDateFilter(r.end)
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md border border-indigo-200 transition-colors cursor-pointer"
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = getNext7DaysRange()
+                    setStartDateFilter(r.start)
+                    setEndDateFilter(r.end)
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                >
+                  Next 7 Days
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Time / Schedule filter */}
@@ -544,15 +694,22 @@ export const SchedulesPage: React.FC = () => {
             id="filter-time"
             value={timeFilter}
             onChange={(e) => setTimeFilter(e.target.value)}
-            disabled={!dateFilter}
+            disabled={dateFilterMode === 'single' && !dateFilter}
             className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 disabled:bg-gray-50"
           >
-            <option value="">{dateFilter ? 'All Times' : 'Select Date First'}</option>
-            {availableSchedulesForSelectedDate.map((s) => (
-              <option key={s.id} value={s.startTime}>
-                {formatTime12(s.startTime)} - {s.title}
-              </option>
-            ))}
+            <option value="">
+              {dateFilterMode === 'single'
+                ? (dateFilter ? 'All Times' : 'Select Date First')
+                : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times')}
+            </option>
+            {Array.from(new Set(availableSchedulesForSelectedDate.map((s) => s.startTime))).map((startTime) => {
+              const matched = availableSchedulesForSelectedDate.find((s) => s.startTime === startTime)
+              return (
+                <option key={startTime} value={startTime}>
+                  {formatTime12(startTime)} {matched?.title ? `- ${matched.title}` : ''}
+                </option>
+              )
+            })}
           </select>
         </div>
 
@@ -575,13 +732,16 @@ export const SchedulesPage: React.FC = () => {
         </div>
 
         {/* Clear filters */}
-        {(dateFilter || timeFilter || searchQuery || attendanceFilter !== 'all') && (
+        {(dateFilter || startDateFilter || endDateFilter || timeFilter || searchQuery || attendanceFilter !== 'all') && (
           <div className="flex items-end justify-start">
             <button
               onClick={() => {
                 const today = new Date()
                 setSelectedMonthDate(today)
+                setDateFilterMode('single')
                 setDateFilter(getTodayString())
+                setStartDateFilter('')
+                setEndDateFilter('')
                 setTimeFilter('')
                 setSearchQuery('')
                 setAttendanceFilter('all')
@@ -793,17 +953,17 @@ export const SchedulesPage: React.FC = () => {
         onGenerateSuccess={() => loadData(false)}
       />
 
-      <CSVImporterModal
-        isOpen={csvImportOpen}
-        onClose={() => setCsvImportOpen(false)}
-        activeMembers={allMembersProfiles}
-        onImportSuccess={() => loadData(false)}
-      />
 
       <BulkDeleteMonthModal
         isOpen={bulkDeleteMonthOpen}
         onClose={() => setBulkDeleteMonthOpen(false)}
         onSuccess={() => loadData(false)}
+      />
+
+      <SchedulePdfExportModal
+        isOpen={exportPdfOpen}
+        onClose={() => setExportPdfOpen(false)}
+        defaultMonth={`${selectedMonthDate.getFullYear()}-${String(selectedMonthDate.getMonth() + 1).padStart(2, '0')}`}
       />
 
       {/* Single Delete Confirm Dialog */}

@@ -7,7 +7,7 @@ import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
 import { publicationService } from '@/services/publicationService'
 import { auditService } from '@/services/auditService'
-import { isSundayOrAnticipatedMass, isTimeOverlapping } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isTimeOverlapping, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 
 export interface MemberAssignmentSummary {
@@ -42,22 +42,18 @@ export const autoAssignService = {
   async autoAssignUnsubmittedMembers(options: AutoAssignOptions): Promise<AutoAssignResult> {
     const { publication, targetMemberIds, mode = 'both', performedBy = 'Coordinator' } = options
 
-    // 1. Fetch active, non-squire members
+    // 1. Fetch eligible active members
     const allMembers = await memberService.getMembers()
-    const activeEligibleMembers = allMembers.filter(m => {
-      if (m.status !== 'active') return false
-      const r = (m.rank || '').toLowerCase()
-      const o = (m.order || '').toLowerCase()
-      const p = (m.position || '').toLowerCase()
-      return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
-    })
+    const activeEligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, publication))
 
     // 2. Fetch all schedules in the publication's date range
     const schedules = await scheduleService.getSchedulesByDateRange(
       publication.startDate,
       publication.endDate
     )
-    const activeSchedules = schedules.filter(s => s.status !== 'cancelled' && !s.isLocked)
+    const activeSchedules = schedules.filter(
+      s => s.status !== 'cancelled' && !s.isLocked && isScheduleIncludedInPublication(s, publication)
+    )
 
     // 3. Determine candidates to assign
     const submittedSet = new Set(publication.submittedMembers || [])

@@ -14,6 +14,12 @@ export interface SchedulePublication {
   maxWeekdaysPerServer?: number
   maxServersPerSundaySlot?: number
   maxServersPerWeekdaySlot?: number
+  includeSundays?: boolean
+  includeWeekdays?: boolean
+  includeHolyHour?: boolean
+  includeMeetings?: boolean
+  customExcludedKeywords?: string[]
+  allowedRanks?: string[]
   submittedMembers?: string[]
   createdAt: Timestamp
   updatedAt: Timestamp
@@ -30,5 +36,11 @@ export interface SchedulePublicationInput {
   maxWeekdaysPerServer?: number
   maxServersPerSundaySlot?: number
   maxServersPerWeekdaySlot?: number
+  includeSundays?: boolean
+  includeWeekdays?: boolean
+  includeHolyHour?: boolean
+  includeMeetings?: boolean
+  customExcludedKeywords?: string[]
+  allowedRanks?: string[]
 }
 

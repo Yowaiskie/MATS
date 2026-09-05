@@ -61,27 +61,35 @@ export const downloadEventFinanceReportPdf = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  // 1. Prepare Logo for Header
-  let logoImg: HTMLImageElement | null = null
+  // 1. Prepare Logos for Header
+  let logoParish: HTMLImageElement | null = null
+  let logoMinistry: HTMLImageElement | null = null
   try {
-    logoImg = await loadImage('/ministy_logo.jpg')
+    logoParish = await loadImage('/parish-logo.png')
   } catch {
     try {
-      logoImg = await loadImage('/favicon/favicon.png')
+      logoParish = await loadImage('/favicon/favicon.png')
     } catch {
-      try {
-        logoImg = await loadImage('/favicon/icon-192.png')
-      } catch {
-        // Fallback if image not found
-      }
+      // Fallback
     }
+  }
+
+  try {
+    logoMinistry = await loadImage('/ministy_logo.jpg')
+  } catch {
+    // Fallback
   }
 
   // 2. Helper to draw Uniform Header on every page
   const drawUniformHeader = () => {
-    // Single Ministry Logo on Right Side
-    if (logoImg) {
-      doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
+    // Dual Logos on Right Side (Parish & Ministry)
+    if (logoParish && logoMinistry) {
+      doc.addImage(logoParish, 'PNG', pageWidth - 48, 6.5, 16, 16)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 30, 6.5, 16, 16)
+    } else if (logoMinistry) {
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 6.5, 16, 16)
+    } else if (logoParish) {
+      doc.addImage(logoParish, 'PNG', pageWidth - 28, 6.5, 16, 16)
     }
 
     // Left Parish Text

@@ -295,23 +295,35 @@ export const exportMembersToPdf = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  // 1. Prepare Logo
-  let logoImg: HTMLImageElement | null = null
+  // 1. Prepare Logos
+  let logoParish: HTMLImageElement | null = null
+  let logoMinistry: HTMLImageElement | null = null
   try {
-    logoImg = await loadImage('/ministy_logo.jpg')
+    logoParish = await loadImage('/parish-logo.png')
   } catch {
     try {
-      logoImg = await loadImage('/favicon/favicon.png')
+      logoParish = await loadImage('/favicon/favicon.png')
     } catch {
       // Fallback
     }
   }
 
+  try {
+    logoMinistry = await loadImage('/ministy_logo.jpg')
+  } catch {
+    // Fallback
+  }
+
   // 2. Uniform Header across all pages
   const drawUniformHeader = () => {
-    // Ministry Logo on Right
-    if (logoImg) {
-      doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
+    // Dual Logos on Right Side (Parish & Ministry)
+    if (logoParish && logoMinistry) {
+      doc.addImage(logoParish, 'PNG', pageWidth - 45, 8, 14, 14)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 8, 14, 14)
+    } else if (logoMinistry) {
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 26, 8, 15, 15)
+    } else if (logoParish) {
+      doc.addImage(logoParish, 'PNG', pageWidth - 26, 8, 15, 15)
     }
 
     // Parish Text on Left

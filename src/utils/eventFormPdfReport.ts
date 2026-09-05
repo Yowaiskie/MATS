@@ -62,20 +62,23 @@ export const downloadEventFormPdf = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  // 1. Prepare Logo for Header on Every Page
-  let logoImg: HTMLImageElement | null = null
+  // 1. Prepare Logos for Header on Every Page
+  let logoParish: HTMLImageElement | null = null
+  let logoMinistry: HTMLImageElement | null = null
   try {
-    logoImg = await loadImage('/ministy_logo.jpg')
+    logoParish = await loadImage('/parish-logo.png')
   } catch {
     try {
-      logoImg = await loadImage('/favicon/favicon.png')
+      logoParish = await loadImage('/favicon/favicon.png')
     } catch {
-      try {
-        logoImg = await loadImage('/favicon/icon-192.png')
-      } catch {
-        // Fallback if image not found
-      }
+      // Fallback
     }
+  }
+
+  try {
+    logoMinistry = await loadImage('/ministy_logo.jpg')
+  } catch {
+    // Fallback
   }
 
   // 2. Document Title
@@ -192,9 +195,14 @@ export const downloadEventFormPdf = async (
   const cellPadding = isDense ? 3 : 3.8
 
   const drawUniformHeader = () => {
-    // 1. Draw Official Header (Single Ministry Logo on Right Side) on EVERY page
-    if (logoImg) {
-      doc.addImage(logoImg, 'JPEG', pageWidth - 26, 8, 15, 15)
+    // 1. Draw Official Header (Dual Logos on Right Side: Parish & Ministry) on EVERY page
+    if (logoParish && logoMinistry) {
+      doc.addImage(logoParish, 'PNG', pageWidth - 48, 6.5, 16, 16)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 30, 6.5, 16, 16)
+    } else if (logoMinistry) {
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 6.5, 16, 16)
+    } else if (logoParish) {
+      doc.addImage(logoParish, 'PNG', pageWidth - 28, 6.5, 16, 16)
     }
 
     // Left Parish Text
