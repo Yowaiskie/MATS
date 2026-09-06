@@ -39,6 +39,13 @@ export interface EventIncome {
   sourceFundRequestRef?: string
 }
 
+export interface EventExpenseReceipt {
+  id: string
+  orNumber: string
+  label?: string
+  amount?: number
+}
+
 export interface EventExpense {
   id: string
   eventId: string
@@ -63,6 +70,7 @@ export interface EventExpense {
   encashmentStatus?: 'pending' | 'encashed'
   fundSource?: 'event' | 'main_funds'
   orNumber?: string
+  receipts?: EventExpenseReceipt[]
   mainFinanceExpenseId?: string
   mainFinanceCategoryId?: string
 }

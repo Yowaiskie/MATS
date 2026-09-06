@@ -149,7 +149,11 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
         const matchSpentBy = (e.spentByName || '').toLowerCase().includes(q)
         const matchOr = (e.orNumber || '').toLowerCase().includes(q)
         const matchAlloc = (e.allocation || '').toLowerCase().includes(q)
-        if (!matchSpentOn && !matchSpentBy && !matchOr && !matchAlloc) {
+        const matchReceipts = e.receipts?.some(r => 
+          (r.orNumber || '').toLowerCase().includes(q) || 
+          (r.label || '').toLowerCase().includes(q)
+        )
+        if (!matchSpentOn && !matchSpentBy && !matchOr && !matchAlloc && !matchReceipts) {
           return false
         }
       }
@@ -722,9 +726,28 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 <tr key={exp.id} className={exp.isArchived ? 'opacity-60 bg-gray-50' : 'hover:bg-gray-50'}>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{exp.date}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-xs font-bold text-slate-600">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 uppercase text-[10px]">
-                      {exp.orNumber || 'NO O.R'}
-                    </span>
+                    {exp.receipts && exp.receipts.length > 1 ? (
+                      <div className="flex flex-col gap-1 items-start">
+                        {exp.receipts.map((r, rIdx) => (
+                          <span
+                            key={r.id || rIdx}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[10px] font-mono text-slate-700"
+                          >
+                            {r.label && <span className="font-sans font-bold text-slate-900">{r.label}:</span>}
+                            <span>{r.orNumber || 'NO O.R'}</span>
+                            {r.amount !== undefined && (
+                              <span className="text-emerald-700 font-bold font-mono text-[9.5px]">
+                                (₱{r.amount.toLocaleString('en-US')})
+                              </span>
+                            )}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 uppercase text-[10px]">
+                        {exp.orNumber || 'NO O.R'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900 min-w-[120px]">
                     <div className="flex flex-col">

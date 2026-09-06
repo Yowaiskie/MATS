@@ -38,6 +38,26 @@ async function checkPeriodClosedTx(tx: any, dateStr: string) {
   }
 }
 
+/**
+ * Deeply strips undefined keys from objects and arrays to prevent Firestore errors.
+ */
+function cleanFirestoreData<T>(obj: T): T {
+  if (obj === null || obj === undefined) return obj
+  if (Array.isArray(obj)) {
+    return obj.map(item => cleanFirestoreData(item)) as unknown as T
+  }
+  if (typeof obj === 'object' && !(obj instanceof Date) && !('nanoseconds' in (obj as any))) {
+    const res: Record<string, any> = {}
+    for (const [key, value] of Object.entries(obj)) {
+      if (value !== undefined) {
+        res[key] = cleanFirestoreData(value)
+      }
+    }
+    return res as T
+  }
+  return obj
+}
+
 export const eventFinanceService = {
   async getEventIncomes(eventId: string): Promise<EventIncome[]> {
     const q = query(
@@ -186,7 +206,7 @@ export const eventFinanceService = {
           sourceEventName: resolvedEventName
         })
 
-        tx.set(eventExpenseRef, {
+        tx.set(eventExpenseRef, cleanFirestoreData({
           ...expense,
           amount: Number(expense.amount),
           fundSource: 'main_funds',
@@ -196,7 +216,7 @@ export const eventFinanceService = {
           createdByName: name,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp()
-        })
+        }))
       })
 
       await auditService.logAction(
@@ -209,7 +229,7 @@ export const eventFinanceService = {
       return createdExpenseId
     }
 
-    const payload = {
+    const payload = cleanFirestoreData({
       ...expense,
       fundSource: 'event',
       isArchived: false,
@@ -217,7 +237,7 @@ export const eventFinanceService = {
       createdByName: name,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
-    }
+    })
     const docRef = await addDoc(collection(db, EXPENSES_COL), payload)
     await auditService.logAction(
       'EVENT_EXPENSE_ADD',
@@ -239,12 +259,12 @@ export const eventFinanceService = {
     const expenseRef = doc(db, EXPENSES_COL, id)
     const expenseDoc = await getDoc(expenseRef)
     
-    await updateDoc(expenseRef, {
+    await updateDoc(expenseRef, cleanFirestoreData({
       ...updates,
       updatedAt: serverTimestamp(),
       lastEditedBy: name,
       lastEditedAt: new Date().toISOString()
-    })
+    }))
 
     if (expenseDoc.exists()) {
       const data = expenseDoc.data()

@@ -320,14 +320,25 @@ export const EventLiquidationModal: React.FC<Props> = ({
       // 2. Map valid Expenses to Liquidated Expenditures
       const validExpenses = expenses.filter(e => !e.isArchived)
       const mappedExpenses: LiquidationExpenseItem[] = validExpenses.length > 0
-        ? validExpenses.map((exp, idx) => ({
-            id: exp.id || `e-${idx}`,
-            orNumber: exp.orNumber || 'NO O.R',
-            description: exp.spentOn
-              ? (exp.description ? `${exp.spentOn} - ${exp.description}` : exp.spentOn)
-              : (exp.description || 'Event Expenditure'),
-            amount: exp.amount
-          }))
+        ? validExpenses.map((exp, idx) => {
+            let orDisplay = exp.orNumber || 'NO O.R'
+            if (exp.receipts && exp.receipts.length > 0) {
+              orDisplay = exp.receipts
+                .map(r => {
+                  const or = r.orNumber ? r.orNumber.trim() : 'NO O.R'
+                  return r.label && r.label.trim() ? `${r.label.trim()} (${or})` : or
+                })
+                .join('\n')
+            }
+            return {
+              id: exp.id || `e-${idx}`,
+              orNumber: orDisplay,
+              description: exp.spentOn
+                ? (exp.description ? `${exp.spentOn} - ${exp.description}` : exp.spentOn)
+                : (exp.description || 'Event Expenditure'),
+              amount: exp.amount
+            }
+          })
         : [
             {
               id: 'e-default',
@@ -895,12 +906,12 @@ export const EventLiquidationModal: React.FC<Props> = ({
               <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
                 {liquidationExpenses.map((item, idx) => (
                   <div key={item.id || idx} className="flex items-center gap-2 bg-white p-2 rounded-xl border border-rose-100 shadow-2xs">
-                    <input
-                      type="text"
+                    <textarea
                       placeholder="OR # / NO O.R"
                       value={item.orNumber}
+                      rows={item.orNumber && item.orNumber.includes('\n') ? Math.min(item.orNumber.split('\n').length, 4) : 1}
                       onChange={e => handleUpdateExpenseItem(idx, 'orNumber', e.target.value)}
-                      className="w-28 text-[11px] font-bold p-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 uppercase shrink-0"
+                      className="w-36 text-[11px] font-mono font-bold p-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-rose-500 shrink-0 resize-none leading-tight"
                     />
                     <input
                       type="text"

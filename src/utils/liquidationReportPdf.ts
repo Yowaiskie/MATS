@@ -248,11 +248,28 @@ export const generateLiquidationReportPdfDoc = async (
   const totalExpenses = expenses.reduce((sum, e) => sum + (Number(String(e.amount || 0).replace(/,/g, '')) || 0), 0)
 
   const expenseTableBody = expenses.length > 0
-    ? expenses.map(e => [
-        e.orNumber || 'NO O.R',
-        e.description || '-',
-        `P ${(Number(String(e.amount || 0).replace(/,/g, '')) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-      ])
+    ? expenses.map(e => {
+        let orStr = (e.orNumber || 'NO O.R').trim()
+        // If comma-separated or colon-separated from previous formats, convert to clean multi-line: label (OR)
+        if (orStr.includes(', ') && !orStr.includes('\n')) {
+          orStr = orStr.split(', ').map(item => {
+            if (item.includes(': ') && !item.includes('(')) {
+              const [lbl, ...rest] = item.split(': ')
+              return `${lbl.trim()} (${rest.join(': ').trim()})`
+            }
+            return item
+          }).join('\n')
+        } else if (orStr.includes(': ') && !orStr.includes('(') && !orStr.includes('\n')) {
+          const [lbl, ...rest] = orStr.split(': ')
+          orStr = `${lbl.trim()} (${rest.join(': ').trim()})`
+        }
+
+        return [
+          orStr,
+          e.description || '-',
+          `P ${(Number(String(e.amount || 0).replace(/,/g, '')) || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        ]
+      })
     : [
         ['-', 'NO RECORDED EXPENSES', 'P 0.00']
       ]
@@ -284,8 +301,8 @@ export const generateLiquidationReportPdfDoc = async (
       cellPadding: tablePadding
     },
     columnStyles: {
-      0: { halign: 'center', cellWidth: 40 },
-      1: { halign: 'left', cellWidth: 90 },
+      0: { halign: 'left', cellWidth: 48 },
+      1: { halign: 'left', cellWidth: 82 },
       2: { halign: 'right', cellWidth: 52 }
     },
     styles: { font: 'helvetica', overflow: 'linebreak' },
