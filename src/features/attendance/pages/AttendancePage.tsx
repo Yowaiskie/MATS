@@ -339,7 +339,7 @@ export const AttendancePage: React.FC = () => {
       setSuccessMsg(`${memberName} was removed from this attendance list.`)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to remove server. Please try again.')
+      setError(err?.message || 'Failed to remove server. Please try again.')
     } finally {
       setSaving(false)
     }

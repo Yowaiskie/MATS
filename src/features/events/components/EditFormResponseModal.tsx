@@ -3,6 +3,7 @@ import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } 
 import type { Member } from '@/types/member'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 
 interface EditFormResponseModalProps {
   isOpen: boolean
@@ -163,23 +164,19 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Associated Member (Optional)</label>
-                <select
+                <MemberSearchDropdown
+                  members={membersList}
                   value={respondentMemberUid}
-                  onChange={e => {
-                    setRespondentMemberUid(e.target.value)
-                    if (e.target.value && membersMap[e.target.value]) {
-                      setRespondentName(membersMap[e.target.value])
+                  mode="id"
+                  title="Associate Altar Server"
+                  placeholder="Guest / Non-Member"
+                  onChange={(val, item) => {
+                    setRespondentMemberUid(val)
+                    if (val && item?.rawMember) {
+                      setRespondentName(`${item.rawMember.firstName} ${item.rawMember.lastName}`.trim())
                     }
                   }}
-                  className="w-full p-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
-                >
-                  <option value="">Guest / Non-Member</option>
-                  {membersList.map(m => (
-                    <option key={m.id} value={m.id}>
-                      {m.lastName}, {m.firstName} {m.order ? `(${m.order})` : ''}
-                    </option>
-                  ))}
-                </select>
+                />
               </div>
 
               <div>

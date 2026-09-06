@@ -169,6 +169,25 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
   }
 ]
 
+const deduplicatePresets = (list: SignaturePreset[]): SignaturePreset[] => {
+  const seenIds = new Set<string>()
+  const seenNames = new Set<string>()
+  const result: SignaturePreset[] = []
+
+  for (const item of list) {
+    if (!item || !item.name) continue
+    const normName = item.name.trim().toLowerCase()
+    if (seenIds.has(item.id) || seenNames.has(normName)) {
+      continue
+    }
+    seenIds.add(item.id)
+    seenNames.add(normName)
+    result.push(item)
+  }
+
+  return result
+}
+
 export const settingsService = {
   /**
    * Fetches custom permission presets from Firestore.
@@ -363,58 +382,67 @@ export const settingsService = {
       const docRef = doc(db, SETTINGS_COLLECTION, SIGNATURE_PRESETS_DOC)
       const docSnap = await getDoc(docRef)
 
+      let rawList: SignaturePreset[] = []
+
       if (docSnap.exists()) {
         const data = docSnap.data()
         if (data.presets && Array.isArray(data.presets) && data.presets.length > 0) {
-          try {
-            localStorage.setItem(LOCAL_STORAGE_PRESETS_KEY, JSON.stringify(data.presets))
-          } catch {}
-          return data.presets
+          rawList = data.presets
         }
       }
 
-      // Check localStorage
+      if (rawList.length === 0) {
+        try {
+          const stored = localStorage.getItem(LOCAL_STORAGE_PRESETS_KEY)
+          if (stored) {
+            const parsed = JSON.parse(stored)
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              rawList = parsed
+            }
+          }
+        } catch {}
+      }
+
+      // Combine defaults with custom presets cleanly without duplicates
+      const combined = [...DEFAULT_SIGNATURE_PRESETS, ...rawList]
+      const deduplicated = deduplicatePresets(combined)
+
       try {
-        const stored = localStorage.getItem(LOCAL_STORAGE_PRESETS_KEY)
-        if (stored) {
-          return JSON.parse(stored)
-        }
+        localStorage.setItem(LOCAL_STORAGE_PRESETS_KEY, JSON.stringify(deduplicated))
       } catch {}
 
-      return DEFAULT_SIGNATURE_PRESETS
+      return deduplicated
     } catch (err) {
       console.error('Failed to get signature presets from Firestore:', err)
-      try {
-        const stored = localStorage.getItem(LOCAL_STORAGE_PRESETS_KEY)
-        if (stored) return JSON.parse(stored)
-      } catch {}
       return DEFAULT_SIGNATURE_PRESETS
     }
   },
 
   /**
-   * Saves dynamic signature presets to Firestore and localStorage.
+   * Saves dynamic signature presets to Firestore and localStorage with strict deduplication.
    */
   async saveSignaturePresets(presets: SignaturePreset[], performedBy = 'System'): Promise<void> {
+    const deduplicated = deduplicatePresets(presets)
     const docRef = doc(db, SETTINGS_COLLECTION, SIGNATURE_PRESETS_DOC)
     const payload = {
-      presets,
+      presets: deduplicated,
       updatedAt: serverTimestamp()
     }
 
     await setDoc(docRef, payload, { merge: true })
 
     try {
-      localStorage.setItem(LOCAL_STORAGE_PRESETS_KEY, JSON.stringify(presets))
+      localStorage.setItem(LOCAL_STORAGE_PRESETS_KEY, JSON.stringify(deduplicated))
     } catch {}
 
     await auditService.logAction(
       'SETTINGS_UPDATE',
       'settings',
-      `Updated dynamic signature presets (${presets.length} presets configured)`,
+      `Updated dynamic signature presets (${deduplicated.length} presets configured)`,
       performedBy,
       payload
     )
   }
 }
+
 

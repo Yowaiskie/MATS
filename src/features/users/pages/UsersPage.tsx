@@ -11,6 +11,7 @@ import { Card } from '@/components/Card'
 import { ConfirmModal, AlertModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
+import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 
 const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'dashboard', label: 'Dashboard Overview', description: 'Access main metrics and overview dashboard' },
@@ -1240,21 +1241,15 @@ export const UsersPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Real Name (Officer's Name)</label>
-                    <select
+                    <MemberSearchDropdown
+                      members={members}
                       value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
-                    >
-                      <option value="">-- No Real Name Assigned --</option>
-                      {members.sort((a, b) => a.lastName.localeCompare(b.lastName)).map(member => {
-                        const fullName = `${member.firstName} ${member.lastName}`.trim()
-                        return (
-                          <option key={member.id} value={fullName}>
-                            {fullName} {member.position ? `(${member.position})` : ''}
-                          </option>
-                        )
-                      })}
-                    </select>
+                      mode="name"
+                      title="Select Officer / Altar Server"
+                      placeholder="-- No Real Name Assigned --"
+                      formatDisplayName={(m) => `${m.firstName} ${m.lastName}`.trim()}
+                      onChange={(val) => setDisplayName(val)}
+                    />
                   </div>
                 </div>
 

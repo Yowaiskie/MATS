@@ -44,13 +44,12 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
 }
 
 /**
- * Generates and downloads the Service Assignment Schedule as a Long Bond Paper (8.5 x 13 in)
- * Landscape PDF matching the exact official template.
+ * Generates the jsPDF Document object for the Service Assignment Schedule.
+ * Compactly calibrated to fit on exactly 1 Long Bond Paper (8.5 x 13 in) Landscape page.
  */
-export const downloadSchedulePdfLongLandscape = async (
-  data: ServiceScheduleExportData,
-  filename?: string
-): Promise<void> => {
+export const generateSchedulePdfDoc = async (
+  data: ServiceScheduleExportData
+): Promise<jsPDF> => {
   // Long Bond Paper: 8.5 x 13 inches in Landscape (330.2 mm width x 215.9 mm height)
   const doc = new jsPDF({
     orientation: 'landscape',
@@ -59,8 +58,8 @@ export const downloadSchedulePdfLongLandscape = async (
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
-  const leftMargin = 12
-  const rightMargin = 12
+  const leftMargin = 10
+  const rightMargin = 10
   const contentWidth = pageWidth - leftMargin - rightMargin
 
   // 1. Prepare Logos
@@ -90,27 +89,27 @@ export const downloadSchedulePdfLongLandscape = async (
   // 2. Draw Uniform Official Header
   // Left: Parish Information
   doc.setFont('times', 'bolditalic')
-  doc.setFontSize(16)
+  doc.setFontSize(15)
   doc.setTextColor(15, 23, 42)
-  doc.text('Ministry of Altar Servers', leftMargin, 12)
+  doc.text('Ministry of Altar Servers', leftMargin, 11)
 
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(8.5)
   doc.setTextColor(30, 41, 59)
-  doc.text('SACRED HEART OF JESUS PARISH - MBS', leftMargin, 17.5)
+  doc.text('SACRED HEART OF JESUS PARISH - MBS', leftMargin, 16)
 
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(7.5)
+  doc.setFontSize(7)
   doc.setTextColor(71, 85, 105)
-  doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', leftMargin, 21.5)
+  doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', leftMargin, 20)
 
   // Center: Dual Logos
-  const logoSize = 18.5
+  const logoSize = 17
   const centerCenterX = pageWidth / 2
-  const logoTopY = 6.5
+  const logoTopY = 5.5
   if (logoLeft && logoRight) {
-    doc.addImage(logoLeft, 'PNG', centerCenterX - logoSize - 2.5, logoTopY, logoSize, logoSize)
-    doc.addImage(logoRight, 'JPEG', centerCenterX + 2.5, logoTopY, logoSize, logoSize)
+    doc.addImage(logoLeft, 'PNG', centerCenterX - logoSize - 2, logoTopY, logoSize, logoSize)
+    doc.addImage(logoRight, 'JPEG', centerCenterX + 2, logoTopY, logoSize, logoSize)
   } else if (logoRight) {
     doc.addImage(logoRight, 'JPEG', centerCenterX - logoSize / 2, logoTopY, logoSize, logoSize)
   } else if (logoLeft) {
@@ -119,45 +118,45 @@ export const downloadSchedulePdfLongLandscape = async (
 
   // Right: Title & Month/Year
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14.5)
+  doc.setFontSize(13.5)
   doc.setTextColor(15, 23, 42)
   const mainTitleText = 'Service Assignment Schedule'
   const titleWidth = doc.getTextWidth(mainTitleText)
   const titleRightX = pageWidth - rightMargin - titleWidth
-  doc.text(mainTitleText, titleRightX, 14)
+  doc.text(mainTitleText, titleRightX, 13)
 
   // Underline for title
   doc.setDrawColor(15, 23, 42)
-  doc.setLineWidth(0.6)
-  doc.line(titleRightX, 15.2, titleRightX + titleWidth, 15.2)
+  doc.setLineWidth(0.5)
+  doc.line(titleRightX, 14.2, titleRightX + titleWidth, 14.2)
 
   // Month & Year
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(13.5)
+  doc.setFontSize(12.5)
   doc.setTextColor(15, 23, 42)
   const monthText = data.monthYearTitle.trim().toUpperCase()
   const monthWidth = doc.getTextWidth(monthText)
-  doc.text(monthText, pageWidth - rightMargin - monthWidth, 23)
+  doc.text(monthText, pageWidth - rightMargin - monthWidth, 21.5)
 
   // Header bottom border line
   doc.setDrawColor(15, 23, 42)
-  doc.setLineWidth(0.6)
-  doc.line(leftMargin, 27.5, pageWidth - rightMargin, 27.5)
+  doc.setLineWidth(0.5)
+  doc.line(leftMargin, 25, pageWidth - rightMargin, 25)
 
-  let currentY = 33.5
+  let currentY = 29.5
 
   // --- SECTION 1: SUNDAY MASSES (ACV) ---
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(9.5)
   doc.setTextColor(15, 23, 42)
   doc.text('SUNDAY MASSES (ACV)', pageWidth / 2, currentY, { align: 'center' })
-  currentY += 2.5
+  currentY += 2
 
   const sundaySlots = data.sundayMasses.length > 0 ? data.sundayMasses : []
   const satSlots = sundaySlots.filter(s => s.dayName === 'Saturday')
   const sunSlots = sundaySlots.filter(s => s.dayName === 'Sunday')
 
-  const serversColWidth = 15
+  const serversColWidth = 16
 
   const headRow1: any[] = [
     { content: '', styles: { fillColor: [217, 225, 242] } }
@@ -166,14 +165,14 @@ export const downloadSchedulePdfLongLandscape = async (
     headRow1.push({
       content: 'Saturday',
       colSpan: satSlots.length,
-      styles: { halign: 'center', fillColor: [226, 240, 217], fontStyle: 'bold' as const, fontSize: 8.5 }
+      styles: { halign: 'center', fillColor: [226, 240, 217], fontStyle: 'bold' as const, fontSize: 8 }
     })
   }
   if (sunSlots.length > 0) {
     headRow1.push({
       content: 'Sunday',
       colSpan: sunSlots.length,
-      styles: { halign: 'center', fillColor: [226, 240, 217], fontStyle: 'bold' as const, fontSize: 8.5 }
+      styles: { halign: 'center', fillColor: [226, 240, 217], fontStyle: 'bold' as const, fontSize: 8 }
     })
   }
 
@@ -183,7 +182,7 @@ export const downloadSchedulePdfLongLandscape = async (
   sundaySlots.forEach(slot => {
     headRow2.push({
       content: slot.timeLabel,
-      styles: { halign: 'center', fillColor: [226, 240, 217], fontStyle: 'bold' as const, fontSize: 7 }
+      styles: { halign: 'center', fillColor: [226, 240, 217], fontStyle: 'bold' as const, fontSize: 6.8 }
     })
   })
 
@@ -196,7 +195,7 @@ export const downloadSchedulePdfLongLandscape = async (
         fontStyle: 'bold' as const,
         halign: 'center',
         valign: 'middle',
-        fontSize: 8.5
+        fontSize: 8
       }
     }
   ]
@@ -209,8 +208,8 @@ export const downloadSchedulePdfLongLandscape = async (
         fillColor: [255, 255, 255],
         halign: 'center',
         valign: 'top',
-        fontSize: 7.5,
-        cellPadding: 2
+        fontSize: 7,
+        cellPadding: 1.5
       }
     })
   })
@@ -223,7 +222,7 @@ export const downloadSchedulePdfLongLandscape = async (
     theme: 'grid',
     styles: {
       lineColor: [0, 0, 0],
-      lineWidth: 0.3,
+      lineWidth: 0.25,
       textColor: [0, 0, 0],
       overflow: 'linebreak'
     },
@@ -232,21 +231,21 @@ export const downloadSchedulePdfLongLandscape = async (
     }
   })
 
-  currentY = (doc as any).lastAutoTable.finalY + 8
+  currentY = (doc as any).lastAutoTable.finalY + 5
 
   // --- SECTION 2: WEEKDAY MASSES (SSV) ---
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(9.5)
   doc.setTextColor(15, 23, 42)
   doc.text('WEEKDAY MASSES (SSV)', pageWidth / 2, currentY, { align: 'center' })
-  currentY += 2.5
+  currentY += 2
 
   const weekdayCols = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
   const weekdayHead: any[] = [
-    { content: 'Time \\ Day', styles: { fillColor: [217, 225, 242], halign: 'center', fontStyle: 'bold' as const, fontSize: 8 } },
+    { content: 'Time \\ Day', styles: { fillColor: [217, 225, 242], halign: 'center', fontStyle: 'bold' as const, fontSize: 7.5 } },
     ...weekdayCols.map(day => ({
       content: day,
-      styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8 }
+      styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 7.5 }
     }))
   ]
 
@@ -254,14 +253,14 @@ export const downloadSchedulePdfLongLandscape = async (
     return [
       {
         content: row.timeLabel,
-        styles: { fillColor: [217, 225, 242], halign: 'center', valign: 'middle', fontStyle: 'bold' as const, fontSize: 8 }
+        styles: { fillColor: [217, 225, 242], halign: 'center', valign: 'middle', fontStyle: 'bold' as const, fontSize: 7.5 }
       },
-      { content: row.monday.length > 0 ? row.monday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7.5 } },
-      { content: row.tuesday.length > 0 ? row.tuesday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7.5 } },
-      { content: row.wednesday.length > 0 ? row.wednesday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7.5 } },
-      { content: row.thursday.length > 0 ? row.thursday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7.5 } },
-      { content: row.friday.length > 0 ? row.friday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7.5 } },
-      { content: row.saturday.length > 0 ? row.saturday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7.5 } }
+      { content: row.monday.length > 0 ? row.monday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7 } },
+      { content: row.tuesday.length > 0 ? row.tuesday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7 } },
+      { content: row.wednesday.length > 0 ? row.wednesday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7 } },
+      { content: row.thursday.length > 0 ? row.thursday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7 } },
+      { content: row.friday.length > 0 ? row.friday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7 } },
+      { content: row.saturday.length > 0 ? row.saturday.join('\n') : '----', styles: { halign: 'center', valign: 'middle', fontSize: 7 } }
     ]
   })
 
@@ -276,9 +275,9 @@ export const downloadSchedulePdfLongLandscape = async (
     theme: 'grid',
     styles: {
       lineColor: [0, 0, 0],
-      lineWidth: 0.3,
+      lineWidth: 0.25,
       textColor: [0, 0, 0],
-      cellPadding: 2.2,
+      cellPadding: 1.8,
       overflow: 'linebreak'
     },
     columnStyles: {
@@ -292,33 +291,33 @@ export const downloadSchedulePdfLongLandscape = async (
     }
   })
 
-  currentY = (doc as any).lastAutoTable.finalY + 8
+  currentY = (doc as any).lastAutoTable.finalY + 5
 
   // --- SECTION 3: OTHER LITURGICAL CELEBRATIONS ---
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(9.5)
   doc.setTextColor(15, 23, 42)
   doc.text('OTHER LITURGICAL CELEBRATIONS', pageWidth / 2, currentY, { align: 'center' })
-  currentY += 2.5
+  currentY += 2
 
   const celebrationsHead: any[] = [
-    { content: 'Celebration', styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8.5 } },
-    { content: 'Time and Date', styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8.5 } },
-    { content: 'Vestment', styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8.5 } }
+    { content: 'Celebration', styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8 } },
+    { content: 'Time and Date', styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8 } },
+    { content: 'Vestment', styles: { fillColor: [226, 240, 217], halign: 'center', fontStyle: 'bold' as const, fontSize: 8 } }
   ]
 
   const celebrationsBody: any[] = data.celebrations.map(c => [
     {
       content: c.celebration,
-      styles: { fillColor: [217, 225, 242], halign: 'center', valign: 'middle', fontStyle: 'bold' as const, fontSize: 8 }
+      styles: { fillColor: [217, 225, 242], halign: 'center', valign: 'middle', fontStyle: 'bold' as const, fontSize: 7.5 }
     },
     {
       content: c.timeAndDate,
-      styles: { fillColor: [255, 255, 255], halign: 'center', valign: 'middle', fontSize: 8, cellPadding: 2.5 }
+      styles: { fillColor: [255, 255, 255], halign: 'center', valign: 'middle', fontSize: 7.5, cellPadding: 2 }
     },
     {
       content: c.vestment,
-      styles: { fillColor: [255, 255, 255], halign: 'center', valign: 'middle', fontSize: 8, cellPadding: 2.5 }
+      styles: { fillColor: [255, 255, 255], halign: 'center', valign: 'middle', fontSize: 7.5, cellPadding: 2 }
     }
   ])
 
@@ -334,7 +333,7 @@ export const downloadSchedulePdfLongLandscape = async (
     theme: 'grid',
     styles: {
       lineColor: [0, 0, 0],
-      lineWidth: 0.3,
+      lineWidth: 0.25,
       textColor: [0, 0, 0],
       overflow: 'linebreak'
     },
@@ -350,13 +349,55 @@ export const downloadSchedulePdfLongLandscape = async (
   drawStandardPdfFooter(doc, 1, docCode, {
     leftMargin,
     rightMargin,
-    bottomMargin: 7,
-    footerLineOffset: 10
+    bottomMargin: 6,
+    footerLineOffset: 9
   })
 
-  // 4. Save file (Default name format: SAS-MMDDYY.pdf)
+  return doc
+}
+
+/**
+ * Downloads the generated PDF to user's device.
+ */
+export const downloadSchedulePdfLongLandscape = async (
+  data: ServiceScheduleExportData,
+  filename?: string
+): Promise<void> => {
+  const doc = await generateSchedulePdfDoc(data)
+  const docCode = formatDocCodeWithDate('SAS')
   const finalFilename = filename || `${docCode}.pdf`
   doc.save(finalFilename)
+}
+
+/**
+ * Directly prints the generated PDF.
+ */
+export const printSchedulePdf = async (
+  data: ServiceScheduleExportData
+): Promise<void> => {
+  const doc = await generateSchedulePdfDoc(data)
+  doc.autoPrint()
+  const blob = doc.output('blob')
+  const blobUrl = URL.createObjectURL(blob)
+  const printWindow = window.open(blobUrl, '_blank')
+  if (printWindow) {
+    printWindow.focus()
+  } else {
+    // Fallback if popup blocked
+    const iframe = document.createElement('iframe')
+    iframe.style.position = 'fixed'
+    iframe.style.right = '0'
+    iframe.style.bottom = '0'
+    iframe.style.width = '0'
+    iframe.style.height = '0'
+    iframe.style.border = '0'
+    iframe.src = blobUrl
+    document.body.appendChild(iframe)
+    iframe.onload = () => {
+      iframe.contentWindow?.focus()
+      iframe.contentWindow?.print()
+    }
+  }
 }
 
 /**

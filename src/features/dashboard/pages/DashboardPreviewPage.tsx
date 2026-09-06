@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { dashboardService, type ActivityLog } from '@/services/dashboardService'
+import { dashboardService, type ActivityLog, type BirthdayCelebrant } from '@/services/dashboardService'
 import type { Schedule } from '@/types/schedule'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { DashboardCharts } from '../components/DashboardCharts'
@@ -15,6 +15,7 @@ export const DashboardPreviewPage: React.FC = () => {
     todaySchedules: Schedule[]
     activities: ActivityLog[]
     myEventAssignments: any[]
+    monthBirthdays?: BirthdayCelebrant[]
   } | null>(null)
   
   const [loading, setLoading] = useState(true)

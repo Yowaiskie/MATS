@@ -50,7 +50,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   const getConflictDetails = (memberId: string): string | null => {
     const overlappingSchedule = otherSchedulesOnSameDay.find(
       (s) => 
-        s.assignedMembers.includes(memberId) && 
+        (s.assignedMembers || []).includes(memberId) && 
         isTimeOverlapping(schedule.startTime, schedule.endTime, s.startTime, s.endTime)
     )
     return overlappingSchedule ? `${overlappingSchedule.title} (${formatTime12Hour(overlappingSchedule.startTime)} - ${formatTime12Hour(overlappingSchedule.endTime)})` : null

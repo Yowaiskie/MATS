@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/Card'
-import { dashboardService, type ActivityLog } from '@/services/dashboardService'
+import { dashboardService, type ActivityLog, type BirthdayCelebrant } from '@/services/dashboardService'
 import type { Schedule } from '@/types/schedule'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { getOrderBadgeStyle } from '@/types/member'
 import { DashboardCharts } from './DashboardCharts'
 
 const statIcons: { [key: string]: React.ReactNode } = {
@@ -144,6 +145,7 @@ export const DashboardOverview: React.FC = () => {
     stats: any
     todaySchedules: Schedule[]
     activities: ActivityLog[]
+    monthBirthdays: BirthdayCelebrant[]
   } | null>(null)
   
   const [loading, setLoading] = useState(true)
@@ -273,6 +275,20 @@ export const DashboardOverview: React.FC = () => {
                 ? `You are managing the ${userOrder} group. Here is your order's service overview and member activity.`
                 : "Here is your real-time overview of ministry schedules, server attendance, and active operations."}
             </p>
+
+            {data.monthBirthdays.filter(b => b.isToday).length > 0 && (
+              <div className="pt-1 flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-amber-400/20 text-amber-200 border border-amber-400/40 backdrop-blur-md">
+                  <svg className="w-3.5 h-3.5 text-amber-300 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                  </svg>
+                  <span>Today's Birthday:</span>
+                  <span className="text-white font-extrabold">
+                    {data.monthBirthdays.filter(b => b.isToday).map(b => b.fullName).join(', ')}
+                  </span>
+                </span>
+              </div>
+            )}
           </div>
 
           {userOrder && (
@@ -431,8 +447,119 @@ export const DashboardOverview: React.FC = () => {
           </div>
         </div>
 
-        {/* Quick Actions Panel */}
-        <div>
+        {/* Right Column: Birthdays & Quick Actions */}
+        <div className="space-y-6">
+          {/* Birthday Celebrants This Month Card */}
+          <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-xl bg-pink-50 border border-pink-100 flex items-center justify-center text-pink-600 shrink-0">
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 15.546c-.523 0-1.046.151-1.5.454a2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.704 2.704 0 00-3 0 2.704 2.704 0 01-3 0 2.701 2.701 0 00-1.5-.454M9 6v2m3-2v2m3-2v2M9 3h.01M12 3h.01M15 3h.01M3 21h18M4 21V10a2 2 0 012-2h12a2 2 0 012 2v11" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
+                    {new Date().toLocaleString('en-US', { month: 'long' })} Birthdays
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium">Monthly server celebrants</p>
+                </div>
+              </div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-pink-50 text-pink-700 border border-pink-200/60">
+                {data.monthBirthdays.length} {data.monthBirthdays.length === 1 ? 'Celebrant' : 'Celebrants'}
+              </span>
+            </div>
+
+            {/* List of Celebrants */}
+            <div className="space-y-2.5 pt-1 max-h-[380px] overflow-y-auto pr-0.5">
+              {data.monthBirthdays.length > 0 ? (
+                data.monthBirthdays.map((b) => {
+                  const isToday = b.isToday
+                  const isTomorrow = b.daysRemaining === 1
+                  const isUpcoming = b.daysRemaining > 1
+                  const isPassed = b.daysRemaining < 0
+
+                  return (
+                    <div
+                      key={b.id}
+                      className={`p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                        isToday
+                          ? 'bg-gradient-to-r from-amber-50/90 via-rose-50/70 to-pink-50/90 border-amber-300 shadow-xs'
+                          : 'bg-slate-50/50 hover:bg-slate-50 border-slate-200/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${
+                          isToday
+                            ? 'bg-rose-600 text-white shadow-xs'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}>
+                          {b.birthDay}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="text-xs font-bold text-slate-900 truncate">
+                            {b.fullName}
+                            {b.nickname && <span className="text-slate-400 font-normal ml-1">({b.nickname})</span>}
+                          </h4>
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[10px] text-slate-500 font-medium">{b.rank}</span>
+                            {b.order && (
+                              <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold border ${getOrderBadgeStyle(b.order)}`}>
+                                {b.order}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Birthday Status Badge */}
+                      <div className="shrink-0 text-right">
+                        {isToday ? (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-600 text-white shadow-xs">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span>Today</span>
+                          </span>
+                        ) : isTomorrow ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs font-bold text-amber-700">{b.formattedDate}</span>
+                            <span className="text-[9.5px] font-bold text-amber-600">Tomorrow</span>
+                          </div>
+                        ) : isUpcoming ? (
+                          <div className="flex flex-col items-end">
+                            <span className="text-xs font-bold text-slate-800">{b.formattedDate}</span>
+                            <span className="text-[9.5px] font-semibold text-emerald-600">In {b.daysRemaining} days</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-end opacity-60">
+                            <span className="text-xs font-medium text-slate-600">{b.formattedDate}</span>
+                            <span className="text-[9px] text-slate-400">Passed</span>
+                          </div>
+                        )}
+                        {b.turningAge && (
+                          <span className="text-[9px] text-slate-400 block font-medium">
+                            {isPassed ? `Turned ${b.turningAge}` : `Turns ${b.turningAge}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })
+              ) : (
+                <div className="py-8 text-center text-xs font-semibold text-slate-400 bg-slate-50/50 rounded-xl border border-dashed border-slate-200 flex flex-col items-center justify-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <span>No member birthdays recorded for {new Date().toLocaleString('en-US', { month: 'long' })}.</span>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick Actions Panel */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
             <div>
               <h3 className="text-base font-extrabold text-slate-900 tracking-tight">Quick Tasks & Actions</h3>

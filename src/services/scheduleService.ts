@@ -17,6 +17,7 @@ import { isTimeOverlapping } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import type { Member } from '@/types/member'
 import { auditService } from '@/services/auditService'
+import { publicationService } from '@/services/publicationService'
 
 const SCHEDULES_COLLECTION = 'schedules'
 const ATTENDANCE_COLLECTION = 'attendance'
@@ -362,10 +363,13 @@ export const scheduleService = {
       .map(doc => ({ id: doc.id, ...doc.data() }) as Schedule)
       .filter(s => s.id !== scheduleId && activeStatuses.includes(s.status)) // exclude target schedule and cancelled
 
-    // Perform conflict check for each member being assigned
-    for (const memberId of memberIds) {
+    // Perform conflict check only for newly added members
+    const currentAssigned = targetSchedule.assignedMembers || []
+    const newlyAddedMemberIds = memberIds.filter(id => !currentAssigned.includes(id))
+
+    for (const memberId of newlyAddedMemberIds) {
       const conflictingSchedule = otherSchedules.find(other => 
-        other.assignedMembers.includes(memberId) &&
+        (other.assignedMembers || []).includes(memberId) &&
         isTimeOverlapping(targetSchedule.startTime, targetSchedule.endTime, other.startTime, other.endTime)
       )
 
@@ -439,6 +443,59 @@ export const scheduleService = {
       `Public self-service updated schedule selections for member ID '${memberId}'`,
       performedBy,
       { memberId, selectionsCount: selections.length }
+    )
+  },
+
+  /**
+   * Admin Member Publication Schedule Override:
+   * Directly sets or updates an altar server's assigned schedules within a publication,
+   * without needing the public link or resetting their entire submission.
+   */
+  async adminUpdateMemberPublicationSchedules(
+    publicationId: string,
+    memberId: string,
+    selections: { scheduleId: string; isSelected: boolean }[],
+    markAsSubmitted: boolean,
+    performedBy = 'Admin'
+  ): Promise<void> {
+    const targetScheduleIds = selections.map(s => s.scheduleId)
+    const targetSchedules = await this.getSchedulesByIds(targetScheduleIds)
+    const scheduleMap = new Map(targetSchedules.map(s => [s.id, s]))
+
+    for (const item of selections) {
+      const target = scheduleMap.get(item.scheduleId)
+      if (!target) continue
+
+      let currentMembers = [...(target.assignedMembers || [])]
+      const alreadyAssigned = currentMembers.includes(memberId)
+
+      if (item.isSelected && !alreadyAssigned) {
+        currentMembers.push(memberId)
+      } else if (!item.isSelected && alreadyAssigned) {
+        currentMembers = currentMembers.filter(id => id !== memberId)
+      } else {
+        continue // No change
+      }
+
+      const scheduleRef = doc(db, SCHEDULES_COLLECTION, item.scheduleId)
+      await updateDoc(scheduleRef, {
+        assignedMembers: currentMembers,
+        updatedAt: serverTimestamp()
+      })
+    }
+
+    if (markAsSubmitted) {
+      await publicationService.markMemberSubmitted(publicationId, memberId)
+    } else {
+      await publicationService.resetMembersSubmission(publicationId, [memberId])
+    }
+
+    await auditService.logAction(
+      'SCHEDULE_ASSIGN',
+      'schedule',
+      `Admin updated publication schedule selections for member ID '${memberId}'`,
+      performedBy,
+      { publicationId, memberId, selectionsCount: selections.length, markAsSubmitted }
     )
   }
 }

@@ -3,6 +3,7 @@ import { eventService } from '@/services/eventService'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { userService } from '@/services/userService'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import type { EventStage, Priority, Event } from '@/types/event'
 import type { UserProfile } from '@/types/auth'
 
@@ -190,21 +191,20 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
 
             <div>
               <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Event Head (Leader)</label>
-              <select 
-                value={headUid} 
-                onChange={(e) => setHeadUid(e.target.value)} 
-                className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all cursor-pointer"
-              >
-                {users.length === 0 ? (
-                  <option value={profile?.uid || ''}>{profile?.displayName || profile?.email || 'Current User'}</option>
-                ) : (
-                  users.map(u => (
-                    <option key={u.uid} value={u.uid}>
-                      {u.displayName ? `${u.displayName} (${u.email})` : u.email}
-                    </option>
-                  ))
-                )}
-              </select>
+              <MemberSearchDropdown
+                options={users.length === 0 ? [
+                  { id: profile?.uid || '', name: profile?.displayName || profile?.email || 'Current User', subtitle: profile?.email || undefined }
+                ] : users.map(u => ({
+                  id: u.uid,
+                  name: u.displayName || u.email,
+                  subtitle: u.displayName ? u.email : undefined
+                }))}
+                value={headUid}
+                mode="id"
+                title="Select Event Head (Leader)"
+                placeholder="Choose Event Head..."
+                onChange={(val) => setHeadUid(val)}
+              />
             </div>
 
             <div>

@@ -3,6 +3,7 @@ import { eventTaskService } from '@/services/eventTaskService'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ConfirmModal } from '@/components/Dialog'
+import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import type { EventTask, Priority, TaskStatus, EventAssignment } from '@/types/event'
 
 interface TaskFormModalProps {
@@ -216,14 +217,19 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
                   </button>
                 )}
               </div>
-              <select value={assignedMemberName} onChange={(e) => setAssignedMemberName(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-gray-50 disabled:text-gray-500 cursor-pointer">
-                <option value="">-- Unassigned --</option>
-                {assignments.map(a => (
-                  <option key={a.id} value={a.memberName}>
-                    {a.memberName} {a.eventRoleName ? `(${a.eventRoleName})` : ''}
-                  </option>
-                ))}
-              </select>
+              <MemberSearchDropdown
+                options={assignments.map(a => ({
+                  id: a.id,
+                  name: a.memberName,
+                  subtitle: a.eventRoleName || undefined
+                }))}
+                value={assignedMemberName}
+                mode="name"
+                disabled={!canEdit || submitting}
+                title="Assign Team Member"
+                placeholder="-- Unassigned --"
+                onChange={(val) => setAssignedMemberName(val)}
+              />
             </div>
           </form>
         </div>

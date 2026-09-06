@@ -91,15 +91,16 @@ service cloud.firestore {
     // attendanceSessions collection
     match /attendanceSessions/{sessionId} {
       allow read: if isAuthenticated();
-      allow write: if hasPermission('canTakeAttendance');
+      allow write: if isSuperAdmin() || hasPermission('canTakeAttendance') || hasPermission('canManageSchedules');
     }
     
     // attendance collection
     match /attendance/{attendanceId} {
       allow read: if isAuthenticated();
-      allow write: if hasPermission('canTakeAttendance') &&
+      allow create, update: if (isSuperAdmin() || hasPermission('canTakeAttendance')) &&
                    request.resource.data.status in ['present', 'late', 'absent', 'excused', 'observer', 'formation', 'alumni'] &&
                    (!('remarks' in request.resource.data) || isValidString(request.resource.data.remarks, 0, 500));
+      allow delete: if isSuperAdmin() || hasPermission('canTakeAttendance') || hasPermission('canManageSchedules');
     }
 
     // settings collection

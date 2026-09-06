@@ -12,6 +12,23 @@ import { getScheduleStatus } from '@/utils/scheduleUtils'
 
 import { reportService } from './reportService'
 
+export interface BirthdayCelebrant {
+  id: string
+  memberId: string
+  fullName: string
+  nickname?: string
+  rank: string
+  order?: string
+  dateOfBirth: string
+  birthMonth: number
+  birthDay: number
+  formattedDate: string
+  isToday: boolean
+  isUpcoming: boolean
+  daysRemaining: number
+  turningAge?: number
+}
+
 export interface DashboardStats {
   activeMembers: number
   archivedMembers: number
@@ -46,6 +63,7 @@ export const dashboardService = {
     stats: DashboardStats
     todaySchedules: Schedule[]
     activities: ActivityLog[]
+    monthBirthdays: BirthdayCelebrant[]
   }> {
     let attendanceSessions: AttendanceSession[] = []
     try {
@@ -197,13 +215,93 @@ export const dashboardService = {
       })
     })
 
-    // Sort combined activities by timestamp descending
-    activities.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime())
+    // 4. Calculate Birthdays for the current month
+    const currentMonth = today.getMonth() + 1 // 1-12
+    const currentDay = today.getDate()
+    const currentYear = today.getFullYear()
+    const monthNames = [
+      'January', 'February', 'March', 'April', 'May', 'June',
+      'July', 'August', 'September', 'October', 'November', 'December'
+    ]
+
+    const monthBirthdays: BirthdayCelebrant[] = []
+
+    allMembers
+      .filter(m => m.status === 'active' && m.dateOfBirth)
+      .forEach(m => {
+        const rawDob = (m.dateOfBirth || '').trim()
+        if (!rawDob) return
+
+        let bYear: number | undefined
+        let bMonth: number | undefined
+        let bDay: number | undefined
+
+        // Case 1: YYYY-MM-DD
+        if (/^\d{4}-\d{1,2}-\d{1,2}/.test(rawDob)) {
+          const parts = rawDob.split('T')[0].split('-')
+          bYear = parseInt(parts[0], 10)
+          bMonth = parseInt(parts[1], 10)
+          bDay = parseInt(parts[2], 10)
+        } 
+        // Case 2: MM/DD/YYYY or M/D/YYYY
+        else if (/^\d{1,2}\/\d{1,2}\/\d{4}/.test(rawDob)) {
+          const parts = rawDob.split('/')
+          bMonth = parseInt(parts[0], 10)
+          bDay = parseInt(parts[1], 10)
+          bYear = parseInt(parts[2], 10)
+        }
+        // Case 3: Standard Date parse fallback
+        else {
+          const parsed = new Date(rawDob)
+          if (!isNaN(parsed.getTime())) {
+            bYear = parsed.getFullYear()
+            bMonth = parsed.getMonth() + 1
+            bDay = parsed.getDate()
+          }
+        }
+
+        if (bMonth === currentMonth && bDay && !isNaN(bDay) && bDay >= 1 && bDay <= 31) {
+          const isToday = bDay === currentDay
+          const daysRemaining = bDay - currentDay
+          const isUpcoming = daysRemaining > 0
+          const turningAge = bYear && bYear > 1900 && bYear <= currentYear ? currentYear - bYear : undefined
+
+          const suffix = m.suffix ? ` ${m.suffix}` : ''
+          const fullName = `${m.firstName}${m.middleName ? ` ${m.middleName[0]}.` : ''} ${m.lastName}${suffix}`
+
+          monthBirthdays.push({
+            id: m.id,
+            memberId: m.id,
+            fullName,
+            nickname: m.nickname,
+            rank: m.rank,
+            order: m.order,
+            dateOfBirth: rawDob,
+            birthMonth: bMonth,
+            birthDay: bDay,
+            formattedDate: `${monthNames[bMonth - 1]} ${bDay}`,
+            isToday,
+            isUpcoming,
+            daysRemaining,
+            turningAge
+          })
+        }
+      })
+
+    // Sort birthdays: Today first, then upcoming (ascending by day), then passed (ascending by day)
+    monthBirthdays.sort((a, b) => {
+      if (a.isToday && !b.isToday) return -1
+      if (!a.isToday && b.isToday) return 1
+      if (a.isUpcoming && !b.isUpcoming) return -1
+      if (!a.isUpcoming && b.isUpcoming) return 1
+      return a.birthDay - b.birthDay
+    })
 
     return {
       stats,
       todaySchedules,
-      activities: activities.slice(0, 10) // show up to top 10 latest activities
+      activities: activities.slice(0, 10), // show up to top 10 latest activities
+      monthBirthdays
     }
   },
 

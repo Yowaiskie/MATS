@@ -8,6 +8,7 @@ import { memberService } from '@/services/memberService'
 import { autoAssignService, type AutoAssignResult } from '@/services/autoAssignService'
 import { isSundayOrAnticipatedMass, formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
+import { AdminEditMemberScheduleModal } from './AdminEditMemberScheduleModal'
 
 interface ManageSubmissionsModalProps {
   isOpen: boolean
@@ -57,6 +58,10 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Direct Member Schedule Edit State
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
+  const [isEditScheduleModalOpen, setIsEditScheduleModalOpen] = useState(false)
 
   // Auto-Assign Modal State
   const [showAutoAssignConfirm, setShowAutoAssignConfirm] = useState(false)
@@ -498,7 +503,23 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                 </svg>
               </div>
 
-              {stats.unsubmitted > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = selectedMembersWithSchedule[0]?.member || filteredMembers[0]?.member || members[0] || null
+                    setEditingMember(target)
+                    setIsEditScheduleModalOpen(true)
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/20 active:scale-95 transition-all cursor-pointer shrink-0"
+                  title="Directly assign or edit schedule for a member without using public link"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                  <span>Direct Assign</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
@@ -514,7 +535,6 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                   </svg>
                   <span>{selectedIds.size > 0 ? `Auto-Assign (${selectedIds.size})` : 'Auto-Assign'}</span>
                 </button>
-              )}
             </div>
           </div>
 
@@ -581,8 +601,25 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                           </div>
                         </div>
 
-                        {/* Dropdown Action or Pending Badge */}
-                        <div className="flex items-center gap-2 shrink-0">
+                        {/* Dropdown Action, Edit Button, or Pending Badge */}
+                        <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                          {/* Direct Edit Button */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMember(item.member)
+                              setIsEditScheduleModalOpen(true)
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/90 shadow-2xs transition-all cursor-pointer"
+                            title={`Directly assign or edit schedules for ${item.member.firstName}`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                            <span>Edit Sched</span>
+                          </button>
+
                           {item.hasSchedule ? (
                             <button
                               type="button"
@@ -618,7 +655,16 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                         <div className="bg-slate-50/90 border-t border-slate-200/60 p-2.5 sm:p-3.5 pl-8 sm:pl-10 pr-3 sm:pr-4 space-y-2 animate-fade-in">
                           <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-black uppercase text-slate-400 tracking-wider">
                             <span>Mass Schedule Slots for {item.member.firstName}</span>
-                            <span>{slotsCount} {slotsCount === 1 ? 'Slot' : 'Slots'}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingMember(item.member)
+                                setIsEditScheduleModalOpen(true)
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                            >
+                              Edit / Change Slots
+                            </button>
                           </div>
                           
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 sm:gap-2">
@@ -850,6 +896,21 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Direct Member Schedule Editor Modal */}
+      {isEditScheduleModalOpen && (
+        <AdminEditMemberScheduleModal
+          isOpen={isEditScheduleModalOpen}
+          onClose={() => setIsEditScheduleModalOpen(false)}
+          publication={publication}
+          member={editingMember}
+          allEligibleMembers={members}
+          onSuccess={() => {
+            loadData()
+            onSuccess()
+          }}
+        />
       )}
     </div>
   )

@@ -20,16 +20,19 @@ export interface SignaturePreset {
 }
 
 export const COMMON_SIGNATURE_LABELS = [
-  'Requesting officer:',
-  'Approved by:',
-  'Released by:',
-  'Noted by:',
   'Prepared by:',
   'Verified by:',
+  'Checked by:',
+  'Reviewed by:',
   'Audited by:',
+  'Noted by:',
+  'Approved by:',
+  'Requesting officer:',
+  'Released by:',
   'Received by:',
   'Confirmed by:',
-  'Checked by:'
+  'Endorsed by:',
+  'Attested by:'
 ] as const
 
 export const DEFAULT_PARISH_NAME = 'Sacred Heart of Jesus Parish – MBS'
@@ -83,6 +86,74 @@ export const DEFAULT_SIGNATURE_PRESETS: SignaturePreset[] = [
       {
         id: 'preset-p2',
         label: 'Noted by:',
+        name: 'Bro. KYLE VINCENT MADRIAGA',
+        title: `Coordinator, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
+        column: 2
+      }
+    ]
+  },
+  {
+    id: 'preset-audit-verification',
+    name: 'Audit & Verification (4 Signatures)',
+    signatories: [
+      {
+        id: 'preset-av1',
+        label: 'Prepared by:',
+        name: '',
+        title: DEFAULT_MINISTRY_NAME,
+        organization: DEFAULT_PARISH_NAME,
+        column: 1
+      },
+      {
+        id: 'preset-av2',
+        label: 'Checked by:',
+        name: '',
+        title: `Officer, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
+        column: 1
+      },
+      {
+        id: 'preset-av3',
+        label: 'Verified by:',
+        name: '',
+        title: `Auditor, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
+        column: 2
+      },
+      {
+        id: 'preset-av4',
+        label: 'Approved by:',
+        name: 'Bro. KYLE VINCENT MADRIAGA',
+        title: `Coordinator, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
+        column: 2
+      }
+    ]
+  },
+  {
+    id: 'preset-verified-approved',
+    name: 'Verification & Approval (3 Signatures)',
+    signatories: [
+      {
+        id: 'preset-va1',
+        label: 'Prepared by:',
+        name: '',
+        title: DEFAULT_MINISTRY_NAME,
+        organization: DEFAULT_PARISH_NAME,
+        column: 1
+      },
+      {
+        id: 'preset-va2',
+        label: 'Verified by:',
+        name: '',
+        title: `Officer, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
+        column: 2
+      },
+      {
+        id: 'preset-va3',
+        label: 'Approved by:',
         name: 'Bro. KYLE VINCENT MADRIAGA',
         title: `Coordinator, ${DEFAULT_MINISTRY_NAME}`,
         organization: DEFAULT_PARISH_NAME,

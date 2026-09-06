@@ -12,6 +12,7 @@ import {
 import type { Member } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ConfirmModal } from '@/components/Dialog'
+import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 
 interface SignatureSettingsCardProps {
   onNotifySuccess: (msg: string) => void
@@ -409,20 +410,19 @@ export const SignatureSettingsCard: React.FC<SignatureSettingsCardProps> = ({
                           </div>
 
                           {/* Member Auto-fill */}
-                          <select
-                            onChange={e => handleSelectMember(sig.id, e.target.value)}
-                            defaultValue=""
-                            className="p-1 px-2 text-[11px] font-bold border border-gray-200 rounded-lg bg-white text-gray-700 focus:outline-hidden focus:ring-1 focus:ring-blue-500 cursor-pointer"
-                          >
-                            <option value="" disabled>
-                              Auto-fill from Member...
-                            </option>
-                            {members.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {m.firstName} {m.lastName} {m.position ? `(${m.position})` : ''}
-                              </option>
-                            ))}
-                          </select>
+                          <div className="w-52">
+                            <MemberSearchDropdown
+                              members={members}
+                              value=""
+                              mode="id"
+                              title="Auto-fill Signatory"
+                              placeholder="Auto-fill member..."
+                              allowClear={false}
+                              onChange={(val) => {
+                                if (val) handleSelectMember(sig.id, val)
+                              }}
+                            />
+                          </div>
 
                           {/* Order Buttons */}
                           <button

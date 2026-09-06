@@ -7,6 +7,7 @@ import { isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/ut
 import { formatDocCodeWithDate } from '@/utils/pdfFooterHelper'
 import {
   downloadSchedulePdfLongLandscape,
+  printSchedulePdf,
   type SundayMassSlotExport,
   type WeekdayMassRowExport,
   type LiturgicalCelebrationExport,
@@ -359,8 +360,21 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
     }
   }
 
-  const handlePrint = () => {
-    window.print()
+  const handlePrint = async () => {
+    setIsExporting(true)
+    try {
+      const exportPayload: ServiceScheduleExportData = {
+        monthYearTitle,
+        sundayMasses,
+        weekdayMasses,
+        celebrations
+      }
+      await printSchedulePdf(exportPayload)
+    } catch (err) {
+      console.error('Failed to print PDF:', err)
+    } finally {
+      setIsExporting(false)
+    }
   }
 
   const handleUpdateCelebration = (id: string, field: keyof LiturgicalCelebrationExport, value: string) => {
@@ -485,6 +499,30 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+      <style>{`
+        @media print {
+          body * {
+            visibility: hidden;
+          }
+          #printable-schedule-document, #printable-schedule-document * {
+            visibility: visible;
+          }
+          #printable-schedule-document {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0;
+            padding: 8mm;
+            box-shadow: none !important;
+            border: none !important;
+          }
+          @page {
+            size: landscape;
+            margin: 6mm;
+          }
+        }
+      `}</style>
       <div className="w-full max-w-7xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
         
         {/* Modal Header */}
@@ -577,7 +615,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
             </div>
           ) : activeTab === 'preview' ? (
             /* TAB 1: LIVE VISUAL PREVIEW */
-            <div className="max-w-6xl mx-auto bg-white shadow-xl rounded-2xl border border-slate-300/80 p-6 sm:p-10 font-sans text-slate-900 select-none">
+            <div id="printable-schedule-document" className="max-w-6xl mx-auto bg-white shadow-xl rounded-2xl border border-slate-300/80 p-6 sm:p-10 font-sans text-slate-900 select-none">
               
               {/* Header Container */}
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pb-3 border-b-2 border-slate-900">
