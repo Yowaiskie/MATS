@@ -26,7 +26,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [rank, setRank] = useState('')
   const [selectedOrders, setSelectedOrders] = useState<string[]>([])
   const [customOrderInput, setCustomOrderInput] = useState('')
-  const [status, setStatus] = useState<'active' | 'inactive'>('active')
+  const [status, setStatus] = useState<'active' | 'inactive' | 'suspended'>('active')
   const [phoneNumber, setPhoneNumber] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [loading, setLoading] = useState(false)
@@ -407,12 +407,13 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             <select
               id="modal-status"
               value={status}
-              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive')}
+              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive' | 'suspended')}
               className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               disabled={loading}
             >
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
             </select>
           </div>
 

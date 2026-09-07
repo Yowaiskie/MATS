@@ -47,8 +47,13 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
     <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-blue-50/40 transition-colors">
       {/* Member Details */}
       <div className="flex-1 min-w-[200px]">
-        <span className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
           {getFullName(member)}
+          {member.status === 'suspended' && (
+            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-rose-50 border border-rose-200 text-rose-700">
+              SUSPENDED
+            </span>
+          )}
           {isOtherServer && (
             <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 border border-amber-200 text-amber-600">
               Other Server

@@ -4,6 +4,8 @@ import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { getFullName } from '@/utils/member'
 import { isTimeOverlapping, formatTime12Hour } from '@/utils/scheduleUtils'
+import { qualificationService } from '@/services/qualificationService'
+import { ConfirmModal } from '@/components/Dialog'
 
 interface AssignmentModalProps {
   isOpen: boolean
@@ -23,14 +25,21 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   onSave,
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [suspendedConfirmMember, setSuspendedConfirmMember] = useState<Member | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [applyToMonth, setApplyToMonth] = useState(false)
 
+  // Determine if this schedule is a Meeting or Formation
+  const isMeetingOrFormation = schedule
+    ? (qualificationService.scheduleMatchesCategory(schedule, 'meeting') || qualificationService.scheduleMatchesCategory(schedule, 'formation'))
+    : false
+
   useEffect(() => {
     if (schedule) {
       setSelectedIds(schedule.assignedMembers || [])
+      setSuspendedConfirmMember(null)
       setError(null)
       setApplyToMonth(false)
     }
@@ -56,13 +65,23 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     return overlappingSchedule ? `${overlappingSchedule.title} (${formatTime12Hour(overlappingSchedule.startTime)} - ${formatTime12Hour(overlappingSchedule.endTime)})` : null
   }
 
+  const isExcludedSuspended = (m: Member) => m.status === 'suspended' && !isMeetingOrFormation
+
   const handleToggle = (memberId: string) => {
     setError(null)
-    setSelectedIds((prev) =>
-      prev.includes(memberId)
-        ? prev.filter((id) => id !== memberId)
-        : [...prev, memberId]
-    )
+    const isCurrentlySelected = selectedIds.includes(memberId)
+    if (isCurrentlySelected) {
+      setSelectedIds(prev => prev.filter(id => id !== memberId))
+      return
+    }
+
+    const targetMember = activeMembers.find(m => m.id === memberId)
+    if (targetMember && targetMember.status === 'suspended' && !isMeetingOrFormation) {
+      setSuspendedConfirmMember(targetMember)
+      return
+    }
+
+    setSelectedIds(prev => [...prev, memberId])
   }
 
   const handleToggleOrderGroup = (orderGroup: string) => {
@@ -77,7 +96,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       setSelectedIds(prev => prev.filter(id => !groupMemberIds.includes(id)))
     } else {
       const selectableIds = groupMembers
-        .filter(m => !getConflictDetails(m.id) || selectedIds.includes(m.id))
+        .filter(m => (!getConflictDetails(m.id) && !isExcludedSuspended(m)) || selectedIds.includes(m.id))
         .map(m => m.id)
       setSelectedIds(prev => Array.from(new Set([...prev, ...selectableIds])))
     }
@@ -85,7 +104,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
   const getSelectableMemberIds = (members: Member[]) => {
     return members
-      .filter((m) => !getConflictDetails(m.id) || selectedIds.includes(m.id))
+      .filter((m) => (!getConflictDetails(m.id) && !isExcludedSuspended(m)) || selectedIds.includes(m.id))
       .map((m) => m.id)
   }
 
@@ -301,6 +320,15 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                               {member.order}
                             </span>
                           )}
+                          {member.status === 'suspended' && (
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-extrabold ${
+                              isMeetingOrFormation
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : 'bg-rose-50 text-rose-700 border border-rose-200'
+                            }`}>
+                              {isMeetingOrFormation ? 'SUSPENDED (Meeting Allowed)' : 'SUSPENDED'}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -358,6 +386,23 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal when assigning a suspended server */}
+      <ConfirmModal
+        isOpen={!!suspendedConfirmMember}
+        title="Assign Suspended Server?"
+        message={`Bro. ${suspendedConfirmMember ? getFullName(suspendedConfirmMember) : ''} is currently marked as SUSPENDED. Are you sure you want to override and assign them to this schedule?`}
+        confirmLabel="Yes, Override & Assign"
+        cancelLabel="Cancel"
+        variant="warning"
+        onConfirm={() => {
+          if (suspendedConfirmMember) {
+            setSelectedIds(prev => [...prev, suspendedConfirmMember.id])
+            setSuspendedConfirmMember(null)
+          }
+        }}
+        onClose={() => setSuspendedConfirmMember(null)}
+      />
     </div>
   )
 }

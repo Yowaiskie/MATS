@@ -205,7 +205,14 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
                   return (
                     <div key={m.id} className="flex items-center justify-between text-xs p-2.5 rounded-xl bg-slate-50/80 border border-slate-200">
                       <div>
-                        <div className="font-extrabold text-slate-900">{getFullName(m)}</div>
+                        <div className="font-extrabold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                          <span>{getFullName(m)}</span>
+                          {m.status === 'suspended' && (
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-extrabold bg-rose-50 text-rose-700 border border-rose-200">
+                              SUSPENDED
+                            </span>
+                          )}
+                        </div>
                         {m.rank && <div className="text-[10px] font-semibold text-slate-500">{m.rank}</div>}
                       </div>
                       <div className="flex items-center gap-2">

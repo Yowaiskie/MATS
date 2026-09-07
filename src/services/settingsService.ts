@@ -4,12 +4,16 @@ import { auditService } from '@/services/auditService'
 import type { PermissionPreset } from '@/types/auth'
 import type { SignaturePreset } from '@/types/signature'
 import { DEFAULT_SIGNATURE_PRESETS } from '@/types/signature'
+import type { QualificationPreset } from '@/types/attendanceCategory'
+import { DEFAULT_QUALIFICATION_PRESETS } from '@/types/attendanceCategory'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
 const POLICY_DOC = 'suspensionPolicy'
 const SIGNATURE_PRESETS_DOC = 'signaturePresets'
+const QUALIFICATION_PRESETS_DOC = 'qualificationPresets'
 const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v1'
+const LOCAL_STORAGE_QUALIFICATION_KEY = 'mats_qualification_presets_v1'
 
 export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
 
@@ -34,6 +38,15 @@ export interface SuspensionPolicySettings {
   includeSundays: boolean // default true
   includeWeekdays: boolean // default false
   includeMeetings: boolean // default true
+  
+  // Dynamic Unsuspension / Clearance Settings
+  unsuspensionRequiresMeeting?: boolean // default true (must attend monthly meeting)
+  unsuspensionRequiredMeetingMonths?: number // default 1 (number of distinct meeting months)
+  unsuspensionRequiredMeetingCount?: number // backwards compatibility
+  unsuspensionRequiresFormation?: boolean // default false
+  unsuspensionRequiredFormationCount?: number // default 1
+  autoPromptOnSchedulingSuspended?: boolean // default true
+  excludeSuspendedFromAutoAssign?: boolean // default true
   updatedAt?: any
 }
 
@@ -44,7 +57,14 @@ export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
   evaluationMonthStr: '',
   includeSundays: true,
   includeWeekdays: false,
-  includeMeetings: true
+  includeMeetings: true,
+  unsuspensionRequiresMeeting: true,
+  unsuspensionRequiredMeetingMonths: 1,
+  unsuspensionRequiredMeetingCount: 1,
+  unsuspensionRequiresFormation: false,
+  unsuspensionRequiredFormationCount: 1,
+  autoPromptOnSchedulingSuspended: true,
+  excludeSuspendedFromAutoAssign: true
 }
 
 const PRESETS_DOC = 'permissionPresets'
@@ -439,6 +459,68 @@ export const settingsService = {
       'SETTINGS_UPDATE',
       'settings',
       `Updated dynamic signature presets (${deduplicated.length} presets configured)`,
+      performedBy,
+      payload
+    )
+  },
+
+  /**
+   * Retrieves qualification presets from Firestore with fallback to localStorage & defaults.
+   */
+  async getQualificationPresets(): Promise<QualificationPreset[]> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, QUALIFICATION_PRESETS_DOC)
+      const docSnap = await getDoc(docRef)
+      let customList: QualificationPreset[] = []
+
+      if (docSnap.exists() && docSnap.data().presets) {
+        customList = docSnap.data().presets as QualificationPreset[]
+      } else {
+        try {
+          const cached = localStorage.getItem(LOCAL_STORAGE_QUALIFICATION_KEY)
+          if (cached) {
+            customList = JSON.parse(cached)
+          }
+        } catch {}
+      }
+
+      // Merge defaults with custom presets by unique ID
+      const map = new Map<string, QualificationPreset>()
+      DEFAULT_QUALIFICATION_PRESETS.forEach(p => map.set(p.id, p))
+      customList.forEach(p => map.set(p.id, p))
+
+      const result = Array.from(map.values())
+      try {
+        localStorage.setItem(LOCAL_STORAGE_QUALIFICATION_KEY, JSON.stringify(result))
+      } catch {}
+
+      return result
+    } catch (err) {
+      console.error('Failed to get qualification presets:', err)
+      return DEFAULT_QUALIFICATION_PRESETS
+    }
+  },
+
+  /**
+   * Saves qualification presets to Firestore and localStorage.
+   */
+  async saveQualificationPresets(presets: QualificationPreset[], performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, QUALIFICATION_PRESETS_DOC)
+    const payload = {
+      presets,
+      updatedAt: serverTimestamp()
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    try {
+      localStorage.setItem(LOCAL_STORAGE_QUALIFICATION_KEY, JSON.stringify(presets))
+    } catch {}
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated qualification criteria presets (${presets.length} presets saved)`,
       performedBy,
       payload
     )

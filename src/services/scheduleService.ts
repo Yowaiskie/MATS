@@ -134,7 +134,7 @@ export const scheduleService = {
    */
   async addSchedule(input: ScheduleInput, performedBy = 'System'): Promise<string> {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
-    const docRef = await addDoc(schedulesRef, {
+    const newScheduleDoc: any = {
       title: input.title.trim(),
       date: input.date,
       startTime: input.startTime,
@@ -143,7 +143,10 @@ export const scheduleService = {
       assignedMembers: input.assignedMembers || [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
-    })
+    }
+    if (input.category) newScheduleDoc.category = input.category
+
+    const docRef = await addDoc(schedulesRef, newScheduleDoc)
 
     await auditService.logAction(
       'SCHEDULE_CREATE',
@@ -166,6 +169,7 @@ export const scheduleService = {
     }
 
     if (input.title !== undefined) updateData.title = input.title.trim()
+    if (input.category !== undefined) updateData.category = input.category
     if (input.date !== undefined) updateData.date = input.date
     if (input.startTime !== undefined) updateData.startTime = input.startTime
     if (input.endTime !== undefined) updateData.endTime = input.endTime

@@ -128,7 +128,7 @@ export const SchedulesPage: React.FC = () => {
 
       setSchedules(scheduleData)
       setAllMembersProfiles(memberData)
-      setActiveMembers(memberData.filter(m => m.status === 'active'))
+      setActiveMembers(memberData.filter(m => m.status === 'active' || m.status === 'suspended'))
       setAttendanceSessions(sessionsData)
     } catch (err: any) {
       console.error(err)

@@ -224,9 +224,10 @@ export const formatTime12Hour = (time24: string): string => {
  */
 export const isMemberEligibleForPublication = (
   member: Pick<Member, 'status' | 'rank' | 'order' | 'position'>,
-  publication?: Partial<SchedulePublication> | null
+  publication?: Partial<SchedulePublication> | null,
+  includeSuspended: boolean = false
 ): boolean => {
-  if (member.status !== 'active') return false
+  if (member.status !== 'active' && (!includeSuspended || member.status !== 'suspended')) return false
 
   const r = (member.rank || '').trim().toLowerCase()
   const o = (member.order || '').trim().toLowerCase()

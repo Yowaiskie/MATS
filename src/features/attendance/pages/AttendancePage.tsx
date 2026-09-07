@@ -852,7 +852,7 @@ export const AttendancePage: React.FC = () => {
         isOpen={assignmentOpen}
         onClose={() => setAssignmentOpen(false)}
         schedule={schedule}
-        activeMembers={allMembersProfiles.filter((m) => m.status === 'active')}
+        activeMembers={allMembersProfiles.filter((m) => m.status === 'active' || m.status === 'suspended')}
         allSchedules={allSchedules}
         onSave={handleSaveAssignments}
       />

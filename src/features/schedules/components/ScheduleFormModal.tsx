@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { Schedule, ScheduleInput, ScheduleStatus } from '@/types/schedule'
+import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
+import { SCHEDULE_CATEGORIES } from '@/types/attendanceCategory'
 
 interface ScheduleFormModalProps {
   isOpen: boolean
@@ -17,6 +19,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   defaultDate,
 }) => {
   const [title, setTitle] = useState('')
+  const [category, setCategory] = useState<ScheduleCategoryKey | ''>('')
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('')
   const [isCancelled, setIsCancelled] = useState(false)
@@ -26,11 +29,13 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   useEffect(() => {
     if (schedule) {
       setTitle(schedule.title)
+      setCategory(schedule.category || '')
       setDate(schedule.date)
       setStartTime(schedule.startTime)
       setIsCancelled(schedule.status === 'cancelled')
     } else {
       setTitle('')
+      setCategory('')
       setDate(defaultDate || '')
       setStartTime('')
       setIsCancelled(false)
@@ -83,6 +88,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
 
       await onSubmit({
         title: title.trim(),
+        category: category || undefined,
         date,
         startTime,
         endTime: calculatedEndTime,
@@ -113,7 +119,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             </div>
             <div>
               <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
-                Mass Schedule
+                Service Schedule
               </span>
               <h3 className="text-base font-black text-slate-900 tracking-tight">
                 {schedule ? 'Edit Service Schedule' : 'Create New Schedule'}
@@ -145,10 +151,36 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none"
-              placeholder="e.g. Sunday Morning High Mass"
+              placeholder="e.g. Monthly Meeting & OGF / Sunday Morning Mass"
               disabled={loading}
             />
             {errors.title && <p className="mt-1 text-xs text-rose-600 font-bold">{errors.title}</p>}
+          </div>
+
+          {/* Category Tag */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label htmlFor="schedule-category" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+                Attendance Category (Optional / Auto-detected)
+              </label>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Used for OGF & Meeting evaluation
+              </span>
+            </div>
+            <select
+              id="schedule-category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as ScheduleCategoryKey | '')}
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none cursor-pointer"
+              disabled={loading}
+            >
+              <option value="">Auto-Detect from Title / Date (Default)</option>
+              {SCHEDULE_CATEGORIES.map(cat => (
+                <option key={cat.key} value={cat.key}>
+                  {cat.label}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Date */}

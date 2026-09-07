@@ -112,11 +112,13 @@ export const MembersPreviewPage: React.FC = () => {
             </thead>
             <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
               {filteredMembers.map((m) => {
-                const statusBadge = {
+                const statusBadge: Record<string, string> = {
                   active: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
                   inactive: 'bg-amber-50 text-amber-700 border-amber-200/80',
+                  suspended: 'bg-rose-50 text-rose-700 border-rose-200/80',
                   archived: 'bg-slate-100 text-slate-600 border-slate-200/80',
-                }[m.status] || 'bg-slate-100 text-slate-600'
+                }
+                const badgeClass = statusBadge[m.status] || 'bg-slate-100 text-slate-600'
 
                 return (
                   <tr key={m.id} className="hover:bg-slate-50/60 transition-colors">
@@ -140,7 +142,7 @@ export const MembersPreviewPage: React.FC = () => {
                       {m.order || 'Unassigned'}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${statusBadge}`}>
+                      <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${badgeClass}`}>
                         {m.status}
                       </span>
                     </td>

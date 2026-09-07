@@ -72,8 +72,8 @@ export const PublicSchedulePage: React.FC = () => {
         })
       ])
 
-      // Only eligible active members based on allowed ranks
-      const eligible = membersData.filter(m => isMemberEligibleForPublication(m, pub))
+      // Only eligible active and suspended members based on allowed ranks
+      const eligible = membersData.filter(m => isMemberEligibleForPublication(m, pub, true))
 
       setMembers(eligible)
       setSchedules(schedsData)
@@ -221,11 +221,17 @@ export const PublicSchedulePage: React.FC = () => {
     return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
   }, [weekdayPatterns, selectedScheduleIds])
 
-  const selectedMemberName = useMemo(() => {
-    if (!selectedMemberId) return ''
-    const m = members.find(mem => mem.id === selectedMemberId)
-    return m ? `${m.lastName}, ${m.firstName}` : ''
+  const selectedMember = useMemo(() => {
+    if (!selectedMemberId) return null
+    return members.find(mem => mem.id === selectedMemberId) || null
   }, [members, selectedMemberId])
+
+  const selectedMemberName = useMemo(() => {
+    if (!selectedMember) return ''
+    return `${selectedMember.lastName}, ${selectedMember.firstName}`
+  }, [selectedMember])
+
+  const isSuspended = selectedMember?.status === 'suspended'
 
   const { isQuotaMaxed, confirmModalMessage } = useMemo(() => {
     const maxSun = publication?.maxSundaysPerServer ?? 4
@@ -255,6 +261,13 @@ export const PublicSchedulePage: React.FC = () => {
       const errText = 'Please select your name first from the selection panel!'
       setMessage({ type: 'error', text: errText })
       setLimitModal({ title: 'Select Name First', message: errText })
+      return
+    }
+
+    if (isSuspended) {
+      const suspMsg = 'Your serving privileges are currently SUSPENDED. You cannot select or submit slots for Sunday/Weekday Mass schedules until your suspension is cleared. Please attend the required monthly meetings.'
+      setMessage({ type: 'error', text: suspMsg })
+      setLimitModal({ title: 'Account Suspended', message: suspMsg })
       return
     }
 
@@ -328,6 +341,13 @@ export const PublicSchedulePage: React.FC = () => {
     if (!selectedMemberId) {
       setMessage({ type: 'error', text: 'Please select your name first from the selection panel.' })
       setLimitModal({ title: 'Select Name First', message: 'Please select your name from the selection panel before saving.' })
+      return
+    }
+
+    if (isSuspended) {
+      const suspMsg = 'Your serving privileges are currently SUSPENDED. You cannot submit Mass schedules. Please attend monthly meetings for clearance.'
+      setMessage({ type: 'error', text: suspMsg })
+      setLimitModal({ title: 'Account Suspended', message: suspMsg })
       return
     }
 
@@ -786,7 +806,14 @@ export const PublicSchedulePage: React.FC = () => {
                                   }`}
                                 >
                                   <div>
-                                    <div className="text-xs font-bold">{m.lastName}, {m.firstName}</div>
+                                    <div className="flex items-center gap-1.5">
+                                      <span className="text-xs font-bold">{m.lastName}, {m.firstName}</span>
+                                      {m.status === 'suspended' && (
+                                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 border border-rose-200">
+                                          SUSPENDED
+                                        </span>
+                                      )}
+                                    </div>
                                     {m.order && <div className="text-[10px] text-slate-500 font-medium">{m.order}</div>}
                                   </div>
                                   {isSelected && (
@@ -803,12 +830,27 @@ export const PublicSchedulePage: React.FC = () => {
                 )}
               </div>
 
+              {/* Suspended Account Notice Banner */}
+              {isSuspended && (
+                <div className="bg-rose-50/90 border border-rose-200 p-4 rounded-2xl text-xs text-rose-950 leading-relaxed shadow-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-extrabold text-rose-900">
+                    <svg className="h-4 w-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>Serving Privileges Suspended</span>
+                  </div>
+                  <p className="text-[11px] text-rose-800 leading-relaxed font-medium">
+                    Bro. {selectedMemberName}, your serving privileges are currently marked as <strong>SUSPENDED</strong> due to attendance requirements. You cannot submit availability or select slots for Sunday and Weekday Mass schedules until cleared. Please attend the required monthly meetings.
+                  </p>
+                </div>
+              )}
+
               {hasSubmitted ? (
                 <div className="bg-amber-50/80 border border-amber-200 p-3.5 sm:p-4 rounded-2xl text-xs text-amber-900 leading-relaxed shadow-xs">
                   <strong className="block mb-1 text-amber-950 font-extrabold">Finalized</strong>
                   You have already saved your schedule for this publication. If you need to make changes, please contact your administrator.
                 </div>
-              ) : (
+              ) : !isSuspended && (
                 <div className="bg-indigo-50/80 border border-indigo-100 p-3.5 sm:p-4 rounded-2xl text-xs text-indigo-900 leading-relaxed shadow-xs">
                   <strong className="block mb-1 text-indigo-950 font-extrabold">2. Select Slots in the Table</strong>
                   Tap any slot below to choose your serving time. When done, tap Save Schedule.
@@ -830,9 +872,9 @@ export const PublicSchedulePage: React.FC = () => {
               {/* Desktop Save Button (hidden on mobile, visible on lg+) */}
               <button
                 type="submit"
-                disabled={submitting || !selectedMemberId || hasSubmitted}
+                disabled={submitting || !selectedMemberId || hasSubmitted || isSuspended}
                 className={`hidden lg:flex w-full py-4 font-extrabold text-sm rounded-2xl shadow-lg transition-all items-center justify-center gap-2 mt-4 ${
-                  hasSubmitted 
+                  hasSubmitted || isSuspended
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
                     : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white shadow-indigo-600/30 cursor-pointer disabled:opacity-50'
                 }`}
@@ -840,9 +882,11 @@ export const PublicSchedulePage: React.FC = () => {
                 <span>
                   {submitting 
                     ? 'Saving...' 
-                    : isQuotaMaxed 
-                      ? 'Submit & Finalize Schedule' 
-                      : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
+                    : isSuspended
+                      ? 'Account Suspended (Cannot Save)'
+                      : isQuotaMaxed 
+                        ? 'Submit & Finalize Schedule' 
+                        : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
                 </span>
                 <span className="text-base">▹</span>
               </button>
@@ -944,7 +988,11 @@ export const PublicSchedulePage: React.FC = () => {
               </button>
             ) : hasSubmitted ? (
               <div className="w-full text-center py-2 text-xs font-bold text-amber-800 bg-amber-50 rounded-xl border border-amber-200">
-                ✅ Schedule Already Saved
+                Schedule Already Saved
+              </div>
+            ) : isSuspended ? (
+              <div className="w-full text-center py-2 text-xs font-extrabold text-rose-800 bg-rose-50 rounded-xl border border-rose-200">
+                Account Suspended (Cannot Submit)
               </div>
             ) : (
               <>

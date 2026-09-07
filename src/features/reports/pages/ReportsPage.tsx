@@ -12,8 +12,9 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { Pagination } from '@/components/Pagination'
 import { MemberReportExportModal } from '../components/MemberReportExportModal'
 import { HolyHourAnalyticsTab } from '../components/HolyHourAnalyticsTab'
+import { QualificationsTab } from '../components/QualificationsTab'
 
-type TabType = 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour'
+type TabType = 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour' | 'qualifications'
 
 export const ReportsPage: React.FC = () => {
   const { profile, canAction } = useAuth()
@@ -203,6 +204,7 @@ export const ReportsPage: React.FC = () => {
       <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
         {[
           { key: 'summary', label: 'Overall Summary' },
+          { key: 'qualifications', label: 'Renewal & Category Qualifications' },
           { key: 'member', label: 'Member Reports' },
           { key: 'schedule', label: 'Schedule Reports' },
           { key: 'monthly', label: 'Monthly Analytics' },
@@ -266,16 +268,35 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
+      {/* Renewal & Category Qualifications Tab View */}
+      {activeTab === 'qualifications' && !loading && (
+        <QualificationsTab
+          members={scopedData?.members || []}
+          schedules={rawData?.schedules || []}
+          attendanceRecords={rawData?.attendance || []}
+          startDate={startDate}
+          endDate={endDate}
+          onDateChange={(s, e) => {
+            setStartDate(s)
+            setEndDate(e)
+          }}
+          userRole={profile?.role}
+          canExport={canExport}
+        />
+      )}
+
       {/* Holy Hour Analytics Tab View */}
       {activeTab === 'holyhour' && (
         <HolyHourAnalyticsTab data={scopedData} loading={loading} />
       )}
 
-      {/* Overall Summary cards (Persists on the top of report tables for non-Holy Hour tabs) */}
-      {activeTab !== 'holyhour' && !loading && rawData && <SummaryCards summary={overallSummary} />}
+      {/* Overall Summary cards (Persists on top for standard report tables) */}
+      {activeTab !== 'holyhour' && activeTab !== 'qualifications' && !loading && rawData && (
+        <SummaryCards summary={overallSummary} />
+      )}
 
-      {/* Content layout tables for non-Holy Hour tabs */}
-      {activeTab !== 'holyhour' && (
+      {/* Content layout tables for standard tabs */}
+      {activeTab !== 'holyhour' && activeTab !== 'qualifications' && (
         <Card className="p-0 overflow-hidden">
         {loading ? (
           <div className="py-16">
@@ -551,6 +572,7 @@ export const ReportsPage: React.FC = () => {
         }}
         memberRow={selectedMemberRow}
         policy={rawData?.policy ?? null}
+        onMemberUpdated={loadData}
       />
 
       {/* Member Masterlist PDF Export Modal with Dynamic Signatures */}

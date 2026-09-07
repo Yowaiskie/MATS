@@ -1,4 +1,4 @@
-export type MemberStatus = 'active' | 'inactive' | 'archived'
+export type MemberStatus = 'active' | 'inactive' | 'archived' | 'suspended'
 
 export const ORDER_GROUPS = [
   'Order of San Pedro',

@@ -264,6 +264,107 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
           </div>
         </div>
 
+        {/* Dynamic Unsuspension Clearance & Scheduling Rules */}
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-0.5 w-4 bg-emerald-500 rounded-full"></div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-500">Suspension Clearance & Scheduling Guardrails</h3>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">Require Monthly Meeting Attendance for Clearance</span>
+                  <p className="text-[11px] text-slate-500">Suspended member must attend monthly meetings across the set number of months</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={policy.unsuspensionRequiresMeeting ?? true}
+                  onChange={(e) => setPolicy(p => ({ ...p, unsuspensionRequiresMeeting: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
+                />
+              </div>
+              {(policy.unsuspensionRequiresMeeting ?? true) && (
+                <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 text-xs">
+                  <span className="font-bold text-slate-700">Required Meeting Months:</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={policy.unsuspensionRequiredMeetingMonths ?? policy.unsuspensionRequiredMeetingCount ?? 1}
+                      onChange={(e) => {
+                        const val = Math.max(1, parseInt(e.target.value, 10) || 1)
+                        setPolicy(p => ({ ...p, unsuspensionRequiredMeetingMonths: val, unsuspensionRequiredMeetingCount: val }))
+                      }}
+                      className="w-16 p-1 text-center font-bold border border-slate-300 rounded-lg bg-white"
+                    />
+                    <span className="text-[11px] text-slate-500 font-semibold">Month(s)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 space-y-3">
+              <div className="flex items-start justify-between">
+                <div>
+                  <span className="text-xs font-black text-slate-900 block">Require Formation (OGF) Attendance</span>
+                  <p className="text-[11px] text-slate-500">Suspended member must attend formation session before clearance</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={policy.unsuspensionRequiresFormation ?? false}
+                  onChange={(e) => setPolicy(p => ({ ...p, unsuspensionRequiresFormation: e.target.checked }))}
+                  className="h-4 w-4 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
+                />
+              </div>
+              {policy.unsuspensionRequiresFormation && (
+                <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 text-xs">
+                  <span className="font-bold text-slate-700">Required Formation Count:</span>
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={policy.unsuspensionRequiredFormationCount ?? 1}
+                      onChange={(e) => setPolicy(p => ({ ...p, unsuspensionRequiredFormationCount: Math.max(1, parseInt(e.target.value, 10) || 1) }))}
+                      className="w-16 p-1 text-center font-bold border border-slate-300 rounded-lg bg-white"
+                    />
+                    <span className="text-[11px] text-slate-500 font-semibold">Session(s)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 flex items-start justify-between">
+              <div>
+                <span className="text-xs font-black text-slate-900 block">Prompt Admin on Scheduling Suspended Member</span>
+                <p className="text-[11px] text-slate-500">System asks for confirmation before assigning a suspended member to a Mass schedule</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={policy.autoPromptOnSchedulingSuspended ?? true}
+                onChange={(e) => setPolicy(p => ({ ...p, autoPromptOnSchedulingSuspended: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+              />
+            </div>
+
+            <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/60 flex items-start justify-between">
+              <div>
+                <span className="text-xs font-black text-slate-900 block">Exclude Suspended from Mass Schedules (Allow Meetings)</span>
+                <p className="text-[11px] text-slate-500">Suspended servers are excluded from Sunday & Weekday Mass scheduling, but remain eligible for Meetings</p>
+              </div>
+              <input
+                type="checkbox"
+                checked={policy.excludeSuspendedFromAutoAssign ?? true}
+                onChange={(e) => setPolicy(p => ({ ...p, excludeSuspendedFromAutoAssign: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+              />
+            </div>
+          </div>
+        </div>
+
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-gray-100">
           <button
             type="submit"

@@ -95,13 +95,16 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     return `${h}:${m} ${ampm}`
   }
 
-  const isLocked = schedule.isLocked || attendanceState === 'finalized'
-  const isPendingAttendance = computedStatus === 'completed' && !isLocked
+  // Only mark as finalized/locked if attendance was finalized or if completed & explicitly locked
+  const isFinalizedAttendance = attendanceState === 'finalized'
+  const isExplicitlyLocked = !!schedule.isLocked && computedStatus === 'completed'
+  const isLocked = isFinalizedAttendance || isExplicitlyLocked
+  const isPendingAttendance = computedStatus === 'completed' && !isFinalizedAttendance
   const displayStatus = isPendingAttendance ? 'pending' : computedStatus
 
   const getCardBorderStyle = () => {
     if (isSelected) return 'ring-2 ring-blue-500 bg-blue-50/30 border-blue-400'
-    if (isLocked) return 'border-emerald-400 bg-emerald-50/40 hover:border-emerald-500'
+    if (isFinalizedAttendance) return 'border-emerald-400 bg-emerald-50/40 hover:border-emerald-500'
     if (attendanceState === 'in_progress') return 'border-amber-400 bg-gradient-to-b from-amber-50/40 via-amber-50/10 to-white shadow-xs hover:border-amber-500'
     if (isPendingAttendance) return 'border-rose-400 bg-rose-50/30 hover:border-rose-500 ring-1 ring-rose-400/30'
     
@@ -218,7 +221,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
       {/* Bottom Action Footer */}
       <div className="pt-3.5 mt-3.5 border-t border-slate-100 flex items-center justify-between gap-2 relative">
-        {canManage && !isLocked && (
+        {canManage && (
           <button
             onClick={() => onManageAssignments(schedule)}
             className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50/60 hover:bg-purple-100/80 text-purple-700 text-xs font-bold border border-purple-200/70 transition-all cursor-pointer text-center"
@@ -237,7 +240,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           <svg className="w-3.5 h-3.5 text-indigo-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
-          <span>{isLocked ? 'View' : 'Attendance'}</span>
+          <span>{isFinalizedAttendance ? 'View' : 'Attendance'}</span>
         </Link>
 
         {/* Management Ellipsis Menu */}
@@ -258,6 +261,19 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
               <>
                 <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
                 <div className="absolute right-0 bottom-full mb-1 z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg text-xs space-y-0.5">
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      onEdit(schedule)
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 text-blue-700 transition-colors cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span>Edit Schedule</span>
+                  </button>
+
                   {onToggleLock && (
                     <button
                       onClick={() => {
@@ -269,21 +285,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                       <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                       </svg>
-                      <span>{isLocked ? 'Unlock Schedule' : 'Finalize & Lock'}</span>
-                    </button>
-                  )}
-                  {!isLocked && (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false)
-                        onEdit(schedule)
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 text-blue-700 transition-colors cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                      <span>Edit Schedule</span>
+                      <span>{schedule.isLocked ? 'Unlock Schedule' : 'Finalize & Lock'}</span>
                     </button>
                   )}
                   <button
