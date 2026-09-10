@@ -24,7 +24,9 @@ import { FinancePage } from '@/features/finance/pages/FinancePage'
 import { EventsPage } from '@/features/events/pages/EventsPage'
 import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
 import { InventoryPage } from '@/features/inventory/pages/InventoryPage'
+import { DesignSystemShowcasePage } from '@/features/preview/DesignSystemShowcasePage'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
+import { ToastProvider } from '@/context/ToastContext'
 
 function App() {
   return (
@@ -32,17 +34,21 @@ function App() {
       <AuthProvider>
         <MaintenanceProvider>
           <TutorialProvider>
-            <BrowserRouter>
+            <ToastProvider>
+              <BrowserRouter>
               <Routes>
+                {/* Design System Preview Route (Phase 1 Preview) */}
+                <Route path="/design-system-preview" element={<DesignSystemShowcasePage />} />
+
                 {/* Public Login Route */}
-              <Route 
-                path="/login" 
-                element={
-                  <PublicRoute>
-                    <LoginPage />
-                  </PublicRoute>
-                } 
-              />
+                <Route 
+                  path="/login" 
+                  element={
+                    <PublicRoute>
+                      <LoginPage />
+                    </PublicRoute>
+                  } 
+                />
 
               {/* Public Self-Service Schedule Link */}
               <Route 
@@ -211,6 +217,7 @@ function App() {
           </Routes>
           <PWAUpdatePrompt />
         </BrowserRouter>
+        </ToastProvider>
         </TutorialProvider>
         </MaintenanceProvider>
       </AuthProvider>

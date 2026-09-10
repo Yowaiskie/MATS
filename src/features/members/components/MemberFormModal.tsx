@@ -31,6 +31,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+  const [contactMode, setContactMode] = useState<'mobile' | 'landline'>('mobile')
 
   useEffect(() => {
     if (member) {
@@ -46,7 +47,13 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       const customOnes = parsedOrders.filter(o => !ORDER_GROUPS.includes(o as any))
       setCustomOrderInput(customOnes.join(', '))
       setStatus(member.status === 'archived' ? 'active' : member.status)
-      setPhoneNumber(member.phoneNumber || '')
+      const rawPhone = member.phoneNumber || ''
+      setPhoneNumber(rawPhone)
+      if (rawPhone.length >= 7 && rawPhone.length <= 10 && !rawPhone.startsWith('09')) {
+        setContactMode('landline')
+      } else {
+        setContactMode('mobile')
+      }
       setDateOfBirth(member.dateOfBirth || '')
     } else {
       setFirstName('')
@@ -59,12 +66,18 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setCustomOrderInput('')
       setStatus('active')
       setPhoneNumber('')
+      setContactMode('mobile')
       setDateOfBirth('')
     }
     setErrors({})
   }, [member, isOpen])
 
   if (!isOpen) return null
+
+  const rawPhoneDigits = phoneNumber.replace(/\D/g, '')
+  const isMobileValid = contactMode === 'mobile' && rawPhoneDigits.length === 11 && rawPhoneDigits.startsWith('09')
+  const isLandlineValid = contactMode === 'landline' && rawPhoneDigits.length >= 7 && rawPhoneDigits.length <= 10
+  const isPhoneValid = !rawPhoneDigits || (contactMode === 'mobile' ? isMobileValid : isLandlineValid)
 
   const validate = (): boolean => {
     const newErrors: { [key: string]: string } = {}
@@ -93,9 +106,14 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
     }
     
     if (phoneNumber.trim()) {
-      const phoneRegex = /^[0-9]{11}$/
-      if (!phoneRegex.test(phoneNumber.trim())) {
-        newErrors.phoneNumber = 'Phone number must be exactly 11 digits (e.g. 09123456789).'
+      if (contactMode === 'mobile') {
+        if (!isMobileValid) {
+          newErrors.phoneNumber = 'Mobile number must be exactly 11 digits starting with 09 (e.g. 09123456789).'
+        }
+      } else {
+        if (!isLandlineValid) {
+          newErrors.phoneNumber = 'Landline number must be 7 to 10 digits (e.g. 81234567).'
+        }
       }
     }
     
@@ -381,40 +399,108 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             {errors.dateOfBirth && <p className="mt-1 text-xs text-red-600 font-medium">{errors.dateOfBirth}</p>}
           </div>
 
-          {/* Phone Number */}
-          <div>
-            <label htmlFor="modal-phone" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Phone Number
-            </label>
-            <input
-              id="modal-phone"
-              type="tel"
-              maxLength={11}
-              value={phoneNumber}
-              onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, 11))}
-              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              placeholder="e.g. 09123456789"
-              disabled={loading}
-            />
-            {errors.phoneNumber && <p className="mt-1 text-xs text-red-600 font-medium">{errors.phoneNumber}</p>}
+          {/* Phone Number with Mobile / Landline Toggle and Live Validation */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <label htmlFor="modal-phone" className="block text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                Contact Number
+              </label>
+              
+              {/* Mode Switcher Tabs */}
+              <div className="flex items-center bg-slate-200/60 p-0.5 rounded-lg border border-slate-300/50 text-[10px] font-bold">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactMode('mobile')
+                    setPhoneNumber(phoneNumber.replace(/\D/g, '').slice(0, 11))
+                  }}
+                  className={`px-2.5 py-1 rounded-md transition ${contactMode === 'mobile' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 cursor-pointer'}`}
+                >
+                  Mobile (11 Digits)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setContactMode('landline')
+                    setPhoneNumber(phoneNumber.replace(/\D/g, '').slice(0, 10))
+                  }}
+                  className={`px-2.5 py-1 rounded-md transition ${contactMode === 'landline' ? 'bg-blue-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900 cursor-pointer'}`}
+                >
+                  Landline (7-10)
+                </button>
+              </div>
+            </div>
+
+            {/* Input with dedicated right padding & status icon */}
+            <div className="relative">
+              <input
+                id="modal-phone"
+                type="tel"
+                maxLength={contactMode === 'mobile' ? 11 : 10}
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value.replace(/\D/g, '').slice(0, contactMode === 'mobile' ? 11 : 10))}
+                className={`w-full h-10 pl-3.5 pr-10 rounded-xl border bg-white font-mono text-xs font-bold transition focus:outline-none focus:ring-2 ${
+                  !rawPhoneDigits
+                    ? 'border-slate-300 text-slate-900 focus:ring-blue-500/20 focus:border-blue-600'
+                    : isPhoneValid
+                    ? 'border-emerald-300 text-slate-900 focus:ring-emerald-500/20 focus:border-emerald-600'
+                    : 'border-rose-300 text-rose-900 bg-rose-50/20 focus:ring-rose-500/20 focus:border-rose-600'
+                }`}
+                placeholder={contactMode === 'mobile' ? "e.g. 09171234567" : "e.g. 81234567"}
+                disabled={loading}
+              />
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                {rawPhoneDigits ? (
+                  isPhoneValid ? (
+                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4 text-rose-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+                    </svg>
+                  )
+                ) : null}
+              </div>
+            </div>
+
+            {/* Helper Text and Live Digit Count */}
+            <div className="flex flex-wrap items-center justify-between gap-1 text-[11px] font-medium pt-0.5">
+              <span className={!rawPhoneDigits || isPhoneValid ? 'text-slate-500' : 'text-rose-600 font-semibold'}>
+                {contactMode === 'mobile'
+                  ? (isMobileValid ? 'Valid 11-digit mobile format.' : 'Mobile must be 11 digits starting with 09.')
+                  : (isLandlineValid ? 'Valid landline length.' : 'Landline must be 7 to 10 digits.')}
+              </span>
+              <span className={`font-mono text-[10px] font-bold px-1.5 py-0.5 rounded shrink-0 ${!rawPhoneDigits ? 'bg-slate-100 text-slate-500' : isPhoneValid ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                {rawPhoneDigits.length}/{contactMode === 'mobile' ? '11' : '7-10'}
+              </span>
+            </div>
+            {errors.phoneNumber && <p className="text-xs text-rose-600 font-medium">{errors.phoneNumber}</p>}
           </div>
 
           {/* Status */}
           <div>
-            <label htmlFor="modal-status" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            <label htmlFor="modal-status" className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">
               Status *
             </label>
-            <select
-              id="modal-status"
-              value={status}
-              onChange={(e) => setStatus(e.target.value as 'active' | 'inactive' | 'suspended')}
-              className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              disabled={loading}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
+            <div className="relative">
+              <select
+                id="modal-status"
+                value={status}
+                onChange={(e) => setStatus(e.target.value as 'active' | 'inactive' | 'suspended')}
+                className="block w-full h-10 pl-3 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+                disabled={loading}
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="suspended">Suspended</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Action Buttons */}

@@ -13,9 +13,11 @@ import { BulkOrderEditModal } from '../components/BulkOrderEditModal'
 import { MemberExportModal } from '../components/MemberExportModal'
 import type { Member, MemberInput } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useToast } from '@/context/ToastContext'
 
 export const MembersPage: React.FC = () => {
   const { profile, isAdmin, canAction } = useAuth()
+  const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageMembers')
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -95,12 +97,19 @@ export const MembersPage: React.FC = () => {
   // ── Single-record callbacks ───────────────────────────────────
   const handleAddOrEditSubmit = async (input: MemberInput) => {
     const actor = profile?.email || 'Admin'
-    if (editingMember) {
-      await memberService.updateMember(editingMember.id, input, actor)
-    } else {
-      await memberService.addMember(input, actor)
+    try {
+      if (editingMember) {
+        await memberService.updateMember(editingMember.id, input, actor)
+        toast.success('Profile Updated', `Successfully updated profile for ${input.firstName} ${input.lastName}.`)
+      } else {
+        await memberService.addMember(input, actor)
+        toast.success('Member Added', `Successfully added ${input.firstName} ${input.lastName} to member directory.`)
+      }
+      await loadMembers(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Save Failed', err.message || 'Failed to save member profile.')
     }
-    await loadMembers(false)
   }
 
   const handleArchive = (id: string) => {
@@ -110,15 +119,15 @@ export const MembersPage: React.FC = () => {
 
   const handleArchiveConfirmed = async () => {
     if (!confirmArchive) return
-    const { id } = confirmArchive
+    const { id, name } = confirmArchive
     setConfirmArchive(null)
     try {
       await memberService.deleteMember(id, profile?.email || 'Admin')
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
-    } catch (err) {
+      toast.success('Member Deleted', `${name} was permanently removed.`)
+    } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Delete Failed', message: 'Failed to delete member. Please try again.' })
+      toast.error('Delete Failed', err.message || 'Failed to delete member.')
     }
   }
 
@@ -129,13 +138,13 @@ export const MembersPage: React.FC = () => {
 
   const handleDeleteConfirmed = async (password: string) => {
     if (!confirmDelete) return
-    const { id } = confirmDelete
+    const { id, name } = confirmDelete
     try {
       await authService.verifyPassword(password)
       await memberService.deleteMember(id, profile?.email || 'Admin')
       setConfirmDelete(null)
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Deleted', message: 'Member was permanently deleted.' })
+      toast.success('Member Deleted', `${name} was permanently removed.`)
     } catch (err: any) {
       console.error(err)
       throw new Error(err.message || 'Verification failed. Password may be incorrect.')
@@ -144,17 +153,25 @@ export const MembersPage: React.FC = () => {
 
   const handleRestore = async (id: string) => {
     try {
+      const member = members.find(m => m.id === id)
       await memberService.restoreMember(id, profile?.email || 'Admin')
       await loadMembers(false)
-    } catch (err) {
+      toast.success('Member Restored', `${member ? member.firstName + ' ' + member.lastName : 'Member'} has been restored to active.`)
+    } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Restore Failed', message: 'Failed to restore member. Please try again.' })
+      toast.error('Restore Failed', err.message || 'Failed to restore member.')
     }
   }
 
   const handleImport = async (inputs: MemberInput[]) => {
-    await memberService.importMembersBatch(inputs, profile?.email || 'Admin')
-    await loadMembers(false)
+    try {
+      await memberService.importMembersBatch(inputs, profile?.email || 'Admin')
+      await loadMembers(false)
+      toast.success('Import Successful', `Successfully imported ${inputs.length} member records.`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Import Failed', err.message || 'Failed to import member records.')
+    }
   }
 
   // ── Bulk selection helpers ────────────────────────────────────
@@ -190,10 +207,10 @@ export const MembersPage: React.FC = () => {
       setBulkArchiveOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
+      toast.success('Bulk Delete Complete', `${ids.length} member(s) have been permanently deleted.`)
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected members.' })
+      toast.error('Bulk Delete Failed', err.message || 'Failed to delete selected members.')
     } finally {
       setBulkProcessing(false)
     }
@@ -208,10 +225,10 @@ export const MembersPage: React.FC = () => {
       setBulkRestoreOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Bulk Restore Complete', message: `${ids.length} member(s) have been restored to active.` })
+      toast.success('Bulk Restore Complete', `${ids.length} member(s) have been restored to active.`)
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Bulk Restore Failed', message: err.message || 'Failed to restore selected members.' })
+      toast.error('Bulk Restore Failed', err.message || 'Failed to restore selected members.')
     } finally {
       setBulkProcessing(false)
     }
@@ -227,7 +244,7 @@ export const MembersPage: React.FC = () => {
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Bulk Delete Complete', message: `${ids.length} member(s) have been permanently deleted.` })
+      toast.success('Bulk Delete Complete', `${ids.length} member(s) have been permanently deleted.`)
     } catch (err: any) {
       console.error(err)
       throw new Error(err.message || 'Verification failed. Password may be incorrect.')
@@ -245,10 +262,10 @@ export const MembersPage: React.FC = () => {
       setBulkRankEditOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Bulk Rank Update Complete', message: `Successfully updated rank to '${newRank}' for ${ids.length} member(s).` })
+      toast.success('Bulk Rank Update Complete', `Successfully updated rank to '${newRank}' for ${ids.length} member(s).`)
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Bulk Rank Update Failed', message: err.message || 'Failed to update rank for selected members.' })
+      toast.error('Bulk Rank Update Failed', err.message || 'Failed to update rank for selected members.')
     } finally {
       setBulkProcessing(false)
     }
@@ -263,10 +280,10 @@ export const MembersPage: React.FC = () => {
       setBulkOrderEditOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
-      setAlertModal({ variant: 'success', title: 'Bulk Order Update Complete', message: `Successfully updated order to '${newOrder || 'Unassigned'}' for ${ids.length} member(s).` })
+      toast.success('Bulk Order Update Complete', `Successfully updated order to '${newOrder || 'Unassigned'}' for ${ids.length} member(s).`)
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ variant: 'error', title: 'Bulk Order Update Failed', message: err.message || 'Failed to update order for selected members.' })
+      toast.error('Bulk Order Update Failed', err.message || 'Failed to update order for selected members.')
     } finally {
       setBulkProcessing(false)
     }
@@ -429,6 +446,7 @@ export const MembersPage: React.FC = () => {
               setExportScope('selected')
               setExportOpen(true)
             }}
+            bulkProcessing={bulkProcessing}
           />
         )}
       </Card>

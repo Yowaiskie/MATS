@@ -20,6 +20,7 @@ import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attenda
 import { attendanceService } from '@/services/attendanceService'
 import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useToast } from '@/context/ToastContext'
 
 const PAGE_SIZE = 12
 
@@ -56,6 +57,7 @@ const getNext7DaysRange = (): { start: string; end: string } => {
 export const SchedulesPage: React.FC = () => {
   const queryClient = useQueryClient()
   const { profile, isAdmin, canAction } = useAuth()
+  const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageSchedules')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
@@ -181,12 +183,19 @@ export const SchedulesPage: React.FC = () => {
   // Callbacks
   const handleAddOrEditSubmit = async (input: ScheduleInput) => {
     const actor = profile?.email || 'Admin'
-    if (selectedSchedule) {
-      await scheduleService.updateSchedule(selectedSchedule.id, input, actor)
-    } else {
-      await scheduleService.addSchedule(input, actor)
+    try {
+      if (selectedSchedule) {
+        await scheduleService.updateSchedule(selectedSchedule.id, input, actor)
+        toast.success('Schedule Updated', `Successfully updated schedule for "${input.title}".`)
+      } else {
+        await scheduleService.addSchedule(input, actor)
+        toast.success('Schedule Created', `Successfully scheduled "${input.title}".`)
+      }
+      await loadData(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Schedule Failed', err.message || 'Failed to save schedule.')
     }
-    await loadData(false)
   }
 
   const handleDelete = (id: string) => {
@@ -200,9 +209,10 @@ export const SchedulesPage: React.FC = () => {
     try {
       await scheduleService.deleteSchedule(id, profile?.email || 'Admin')
       await loadData(false)
+      toast.success('Schedule Deleted', 'The schedule record was removed.')
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Delete Failed', message: err.message || 'Failed to delete schedule.' })
+      toast.error('Delete Failed', err.message || 'Failed to delete schedule.')
     }
   }
 
@@ -563,10 +573,10 @@ export const SchedulesPage: React.FC = () => {
       ) : (
         <>
       {/* Filters bar */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-xs">
+      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-slate-200/80 bg-white shadow-2xs">
         {/* Search filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-search" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          <label htmlFor="filter-search" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Search Schedules
           </label>
           <input
@@ -582,7 +592,7 @@ export const SchedulesPage: React.FC = () => {
         {/* Date Filter (Single Date vs Date Range) */}
         <div className="flex flex-col space-y-1 flex-1 min-w-[280px]">
           <div className="flex items-center justify-between">
-            <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               {dateFilterMode === 'single' ? 'Filter by Date' : 'Filter by Date Range'}
             </label>
             <div className="flex items-center gap-1 border border-gray-200 bg-slate-50 rounded-lg p-0.5 text-[10px] font-bold">
@@ -702,48 +712,62 @@ export const SchedulesPage: React.FC = () => {
 
         {/* Time / Schedule filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-time" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          <label htmlFor="filter-time" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Select Time
           </label>
-          <select
-            id="filter-time"
-            value={timeFilter}
-            onChange={(e) => setTimeFilter(e.target.value)}
-            disabled={dateFilterMode === 'single' && !dateFilter}
-            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors disabled:opacity-50 disabled:bg-gray-50"
-          >
-            <option value="">
-              {dateFilterMode === 'single'
-                ? (dateFilter ? 'All Times' : 'Select Date First')
-                : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times')}
-            </option>
-            {Array.from(new Set(availableSchedulesForSelectedDate.map((s) => s.startTime))).map((startTime) => {
-              const matched = availableSchedulesForSelectedDate.find((s) => s.startTime === startTime)
-              return (
-                <option key={startTime} value={startTime}>
-                  {formatTime12(startTime)} {matched?.title ? `- ${matched.title}` : ''}
-                </option>
-              )
-            })}
-          </select>
+          <div className="relative">
+            <select
+              id="filter-time"
+              value={timeFilter}
+              onChange={(e) => setTimeFilter(e.target.value)}
+              disabled={dateFilterMode === 'single' && !dateFilter}
+              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
+            >
+              <option value="">
+                {dateFilterMode === 'single'
+                  ? (dateFilter ? 'All Times' : 'Select Date First')
+                  : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times')}
+              </option>
+              {Array.from(new Set(availableSchedulesForSelectedDate.map((s) => s.startTime))).map((startTime) => {
+                const matched = availableSchedulesForSelectedDate.find((s) => s.startTime === startTime)
+                return (
+                  <option key={startTime} value={startTime}>
+                    {formatTime12(startTime)} {matched?.title ? `- ${matched.title}` : ''}
+                  </option>
+                )
+              })}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         {/* Attendance Status Filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-attendance" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+          <label htmlFor="filter-attendance" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Attendance Tracking
           </label>
-          <select
-            id="filter-attendance"
-            value={attendanceFilter}
-            onChange={(e) => setAttendanceFilter(e.target.value as any)}
-            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-          >
-            <option value="all">All Tracking Statuses</option>
-            <option value="untaken">Untaken (Not Started)</option>
-            <option value="in_progress">In Progress (Unfinalized)</option>
-            <option value="finalized">Finalized (Locked)</option>
-          </select>
+          <div className="relative">
+            <select
+              id="filter-attendance"
+              value={attendanceFilter}
+              onChange={(e) => setAttendanceFilter(e.target.value as any)}
+              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Tracking Statuses</option>
+              <option value="untaken">Untaken (Not Started)</option>
+              <option value="in_progress">In Progress (Unfinalized)</option>
+              <option value="finalized">Finalized (Locked)</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         {/* Clear filters */}

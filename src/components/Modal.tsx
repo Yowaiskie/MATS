@@ -7,8 +7,10 @@ export interface ModalProps {
   subtitle?: string
   icon?: React.ReactNode
   badge?: string
+  footer?: React.ReactNode
   children: React.ReactNode
   maxWidth?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | '4xl' | '5xl' | 'full'
+  className?: string
 }
 
 export const Modal: React.FC<ModalProps> = ({
@@ -18,8 +20,10 @@ export const Modal: React.FC<ModalProps> = ({
   subtitle,
   icon,
   badge,
+  footer,
   children,
-  maxWidth = 'xl'
+  maxWidth = 'xl',
+  className = '',
 }) => {
   useEffect(() => {
     if (!isOpen) return
@@ -53,7 +57,7 @@ export const Modal: React.FC<ModalProps> = ({
       />
 
       {/* Modal Container */}
-      <div className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-3xl border border-slate-200/80 shadow-2xl z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150`}>
+      <div className={`relative w-full ${maxWidthClasses[maxWidth]} bg-white rounded-3xl border border-slate-200/80 shadow-2xl z-10 flex flex-col max-h-[90vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150 ${className}`}>
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 sm:px-6 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-3 min-w-0 pr-2">
@@ -77,6 +81,7 @@ export const Modal: React.FC<ModalProps> = ({
             </div>
           </div>
           <button 
+            type="button"
             onClick={onClose}
             className="text-slate-400 hover:text-slate-600 transition-colors p-1.5 rounded-xl hover:bg-slate-100 shrink-0 cursor-pointer"
             aria-label="Close dialog"
@@ -88,9 +93,16 @@ export const Modal: React.FC<ModalProps> = ({
         </div>
         
         {/* Body */}
-        <div className="p-5 sm:p-6 overflow-y-auto">
+        <div className="p-5 sm:p-6 overflow-y-auto flex-1">
           {children}
         </div>
+
+        {/* Optional Standard Footer */}
+        {footer && (
+          <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 sm:px-6 border-t border-slate-100 bg-slate-50/50 shrink-0">
+            {footer}
+          </div>
+        )}
       </div>
     </div>
   )

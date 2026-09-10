@@ -347,7 +347,7 @@ export const DashboardLayout: React.FC = () => {
                   MATS Portal
                 </span>
                 <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
-                  v2.0
+                  v.2.1
                 </span>
               </div>
             )}
@@ -468,6 +468,9 @@ export const DashboardLayout: React.FC = () => {
                 <div className="flex items-center space-x-2.5 overflow-hidden">
                   <img src="/favicon/favicon.png" alt="Logo" className="h-8 w-8 rounded-xl border border-slate-200/60 object-cover shrink-0" />
                   <span className="font-extrabold text-sm text-slate-900 tracking-tight truncate">MATS Portal</span>
+                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                    v.2.1
+                  </span>
                 </div>
 
                 <button

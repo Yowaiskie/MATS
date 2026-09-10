@@ -48,12 +48,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   })()
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-sm select-none">
+    <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-slate-200/80 bg-white shadow-2xs select-none">
       {/* Date range & Month Picker filters (Used by Summary, Member, Schedule tabs) */}
       {activeTab !== 'monthly' && (
         <>
           <div className="flex flex-col space-y-1.5 w-full md:w-52">
-            <label htmlFor="filter-month-select" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            <label htmlFor="filter-month-select" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Select Month
             </label>
             <input
@@ -76,12 +76,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 onStartDateChange(firstDay)
                 onEndDateChange(lastDay)
               }}
-              className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
+              className="block w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
             />
           </div>
 
           <div className="flex flex-col space-y-1.5 flex-1">
-            <label htmlFor="filter-start" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            <label htmlFor="filter-start" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Start Date
             </label>
             <input
@@ -89,12 +89,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               type="date"
               value={startDate}
               onChange={(e) => onStartDateChange(e.target.value)}
-              className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="block w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
             />
           </div>
 
           <div className="flex flex-col space-y-1.5 flex-1">
-            <label htmlFor="filter-end" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+            <label htmlFor="filter-end" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               End Date
             </label>
             <input
@@ -102,7 +102,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               type="date"
               value={endDate}
               onChange={(e) => onEndDateChange(e.target.value)}
-              className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+              className="block w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
             />
           </div>
         </>
@@ -111,47 +111,61 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Year filter (Only used by Monthly tab) */}
       {activeTab === 'monthly' && (
         <div className="flex flex-col space-y-1.5 w-full md:w-48">
-          <label htmlFor="filter-year" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          <label htmlFor="filter-year" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Select Year
           </label>
-          <select
-            id="filter-year"
-            value={selectedYear}
-            onChange={(e) => onYearChange(Number(e.target.value))}
-            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer"
-          >
-            {years.map(y => (
-              <option key={y} value={y}>{y}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="filter-year"
+              value={selectedYear}
+              onChange={(e) => onYearChange(Number(e.target.value))}
+              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+            >
+              {years.map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Suspension Status Filter (Only for Member tab) */}
       {activeTab === 'member' && onStatusFilterChange && (
         <div className="flex flex-col space-y-1.5 w-full md:w-56">
-          <label htmlFor="filter-suspension" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          <label htmlFor="filter-suspension" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Evaluation Status
           </label>
-          <select
-            id="filter-suspension"
-            value={statusFilter}
-            onChange={(e) => onStatusFilterChange(e.target.value)}
-            className="block w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100 cursor-pointer"
-          >
-            <option value="all">All Statuses</option>
-            <option value="active">Active / Good Standing</option>
-            <option value="warning">Warning Only</option>
-            <option value="suspended">Suspended Only</option>
-            <option value="inactive">Inactive (0 Serves)</option>
-          </select>
+          <div className="relative">
+            <select
+              id="filter-suspension"
+              value={statusFilter}
+              onChange={(e) => onStatusFilterChange(e.target.value)}
+              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Statuses</option>
+              <option value="active">Active / Good Standing</option>
+              <option value="warning">Warning Only</option>
+              <option value="suspended">Suspended Only</option>
+              <option value="inactive">Inactive (0 Serves)</option>
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Search Input (For Member and Schedule list queries) */}
       {(activeTab === 'member' || activeTab === 'schedule') && (
         <div className="flex flex-col space-y-1.5 flex-1">
-          <label htmlFor="filter-search" className="text-[10px] font-semibold uppercase tracking-wider text-gray-500">
+          <label htmlFor="filter-search" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             {activeTab === 'member' ? 'Search Member Name' : 'Search Service Title'}
           </label>
           <input
