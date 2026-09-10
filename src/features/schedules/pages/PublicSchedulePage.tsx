@@ -16,6 +16,7 @@ interface SchedulePattern {
   dayOfWeek: number
   dayName: string
   startTime: string
+  title?: string
   scheduleIds: string[]
   assignedMembers: string[]
 }
@@ -122,7 +123,7 @@ export const PublicSchedulePage: React.FC = () => {
       const d = new Date(s.date)
       const dayOfWeek = d.getDay()
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()
-      const patternId = `${dayOfWeek}-${s.startTime}`
+      const patternId = `${dayOfWeek}-${s.startTime}-${s.title}`
 
       if (!patternMap.has(patternId)) {
         patternMap.set(patternId, {
@@ -130,6 +131,7 @@ export const PublicSchedulePage: React.FC = () => {
           dayOfWeek,
           dayName,
           startTime: s.startTime,
+          title: s.title,
           scheduleIds: [],
           assignedMembers: []
         })
@@ -559,6 +561,7 @@ export const PublicSchedulePage: React.FC = () => {
                     <th key={p.id} className="px-3 sm:px-6 py-3.5 sm:py-5 text-center min-w-[130px] sm:min-w-[170px]">
                       <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{p.dayName}</div>
                       <div className="font-extrabold text-xs text-indigo-600 mt-0.5">{formatTime12Hour(p.startTime)}</div>
+                      {p.title && <div className="text-[10px] text-slate-400 font-medium truncate max-w-[150px] mx-auto mt-0.5">{p.title}</div>}
                     </th>
                   ))}
                 </tr>

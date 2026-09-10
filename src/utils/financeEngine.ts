@@ -39,9 +39,10 @@ export const financeEngine = {
       })
     })
 
-    // 3. Process Fund Requests
+    // 3. Process Fund Requests (Only Main Ministry Funds impact the Ministry General Ledger)
     fundRequests.forEach((req) => {
       if (req.isArchived) return
+      if (req.fundSource === 'parish') return // Parish funds are disbursed by the Parish, not Ministry Treasury
 
       const status = (req.status || '').toLowerCase()
 

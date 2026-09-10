@@ -135,7 +135,9 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
     >
       <div className="p-4 mb-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-start gap-3">
         <div className="h-8 w-8 rounded-xl bg-white border border-indigo-200 flex items-center justify-center text-indigo-600 font-bold shrink-0 shadow-2xs">
-          🏛️
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+          </svg>
         </div>
         <div>
           <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider">Treasury Transfer Notice</h4>

@@ -159,10 +159,46 @@ export const isSundayOrAnticipatedMass = (
 }
 
 /**
+ * Determines whether a schedule represents a special mass / event (e.g. Fiesta, Wedding, Funeral, Baccalaureate, etc.)
+ * that is not part of the standard recurring Sunday/Weekday service schedule.
+ */
+export const isSpecialEventOrService = (
+  schedule: { title?: string; category?: string }
+): boolean => {
+  if (schedule.category === 'special_event' || schedule.category === 'practice' || schedule.category === 'other') {
+    return true
+  }
+  const title = (schedule.title || '').toLowerCase().trim()
+  return (
+    title.includes('special mass') ||
+    title.includes('special service') ||
+    title.includes('special') ||
+    title.includes('fiesta') ||
+    title.includes('feast') ||
+    title.includes('pontifical') ||
+    title.includes('procession') ||
+    title.includes('solemnity') ||
+    title.includes('vigil') ||
+    title.includes('chrism') ||
+    title.includes('wedding') ||
+    title.includes('kasal') ||
+    title.includes('funeral') ||
+    title.includes('libing') ||
+    title.includes('requiem') ||
+    title.includes('baccalaureate') ||
+    title.includes('confirmation') ||
+    title.includes('kumpil') ||
+    title.includes('first communion') ||
+    title.includes('binyag') ||
+    title.includes('baptism')
+  )
+}
+
+/**
  * Checks if a schedule should be included in a Publication based on dynamic publication settings.
  */
 export const isScheduleIncludedInPublication = (
-  schedule: Pick<Schedule, 'title' | 'date' | 'startTime' | 'status'>,
+  schedule: Pick<Schedule, 'title' | 'date' | 'startTime' | 'status'> & { category?: string },
   publication?: Partial<SchedulePublication> | null
 ): boolean => {
   if (schedule.status === 'cancelled') return false
@@ -189,7 +225,12 @@ export const isScheduleIncludedInPublication = (
     return publication?.includeMeetings ?? false
   }
 
-  // 4. Sunday / Weekday Mass Check (Defaults: true)
+  // 4. Special Event / Special Mass Check (Default: false in regular publications)
+  if (isSpecialEventOrService(schedule)) {
+    return false
+  }
+
+  // 5. Sunday / Weekday Mass Check (Defaults: true)
   const isSunday = isSundayOrAnticipatedMass(title, schedule.date, schedule.startTime)
   if (isSunday) {
     return publication?.includeSundays ?? true

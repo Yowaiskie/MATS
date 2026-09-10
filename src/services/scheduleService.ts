@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
-import { isTimeOverlapping } from '@/utils/scheduleUtils'
+import { isTimeOverlapping, isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import type { Member } from '@/types/member'
 import { auditService } from '@/services/auditService'
@@ -287,10 +287,16 @@ export const scheduleService = {
   },
 
   /**
-   * Removes specific members from all schedules within a date range.
-   * Useful for resetting submissions.
+   * Removes specific members from schedules within a date range with optional scope.
+   * Useful for resetting submissions (all, sundays only, or weekdays only).
    */
-  async removeMembersFromSchedules(startDate: string, endDate: string, memberIds: string[], performedBy = 'System'): Promise<void> {
+  async removeMembersFromSchedules(
+    startDate: string,
+    endDate: string,
+    memberIds: string[],
+    scope: 'all' | 'sunday' | 'weekday' = 'all',
+    performedBy = 'System'
+  ): Promise<number> {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
     const q = query(
       schedulesRef,
@@ -299,10 +305,18 @@ export const scheduleService = {
     )
     const snapshot = await getDocs(q)
 
+    let updatedCount = 0
     await Promise.all(
       snapshot.docs.map(async (docSnap) => {
         const schedule = docSnap.data() as Schedule
-        if (!schedule.assignedMembers) return
+        if (!schedule.assignedMembers || schedule.assignedMembers.length === 0) return
+
+        // Filter by scope if sunday or weekday is selected
+        if (scope === 'sunday' || scope === 'weekday') {
+          const isSun = isSundayOrAnticipatedMass(schedule.title, schedule.date, schedule.startTime)
+          if (scope === 'sunday' && !isSun) return
+          if (scope === 'weekday' && isSun) return
+        }
 
         const updatedMembers = schedule.assignedMembers.filter(id => !memberIds.includes(id))
         
@@ -313,16 +327,20 @@ export const scheduleService = {
             assignedMembers: updatedMembers,
             updatedAt: serverTimestamp()
           })
+          updatedCount++
         }
       })
     )
 
+    const scopeLabel = scope === 'sunday' ? 'Sunday ' : scope === 'weekday' ? 'Weekday ' : ''
     await auditService.logAction(
       'SCHEDULE_UPDATE',
       'schedule',
-      `Bulk removed ${memberIds.length} members from schedules between ${startDate} and ${endDate}`,
+      `Bulk removed ${memberIds.length} members from ${scopeLabel}schedules between ${startDate} and ${endDate}`,
       performedBy
     )
+
+    return updatedCount
   },
 
   /**

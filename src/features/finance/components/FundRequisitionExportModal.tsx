@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
 import type { SignatureConfig, SignatoryItem } from '@/types/signature'
-import type { FinanceFundRequest } from '@/types/finance'
+import type { FinanceFundRequest, FundRequestSource } from '@/types/finance'
 import { downloadFundRequisitionPdf } from '@/utils/fundRequisitionPdf'
 
 interface FundRequisitionExportModalProps {
@@ -18,6 +18,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
 }) => {
   const [docDate, setDocDate] = useState('')
   const [fromMinistry, setFromMinistry] = useState('The MINISTRY OF ALTAR SERVERS')
+  const [fundSource, setFundSource] = useState<FundRequestSource>('main_funds')
   const [purpose, setPurpose] = useState('')
   const [participants, setParticipants] = useState('N/A')
   const [dateNeeded, setDateNeeded] = useState('')
@@ -35,6 +36,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
     if (request) {
       setDocDate(request.dateNeeded || new Date().toISOString().slice(0, 10))
       setFromMinistry(request.fromMinistry || 'The MINISTRY OF ALTAR SERVERS')
+      setFundSource(request.fundSource || 'main_funds')
       setPurpose(request.purpose || request.title || '')
       setParticipants(request.participants || 'N/A')
       setDateNeeded(request.dateNeeded || '')
@@ -90,6 +92,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
       await downloadFundRequisitionPdf(request, {
         documentDate: docDate,
         fromMinistry: fromMinistry.trim() || 'The MINISTRY OF ALTAR SERVERS',
+        fundSource,
         purpose: purpose.trim(),
         participants: participants.trim(),
         dateNeeded: dateNeeded.trim(),
@@ -144,6 +147,19 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                Chargeable To (Fund Source)
+              </label>
+              <select
+                value={fundSource}
+                onChange={e => setFundSource(e.target.value as FundRequestSource)}
+                className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              >
+                <option value="main_funds">Main Ministry Funds (MAS Treasury)</option>
+                <option value="parish">Parish Funds (Parish Priest / Office)</option>
+              </select>
+            </div>
             <div>
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 From (Requester Unit)

@@ -190,6 +190,26 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
     setMessage(null)
   }
 
+  const handleClearSundays = () => {
+    const sundayIds = new Set(sundayPatterns.flatMap(p => p.scheduleIds))
+    setSelectedScheduleIds(prev => {
+      const next = new Set(prev)
+      sundayIds.forEach(id => next.delete(id))
+      return next
+    })
+    setMessage(null)
+  }
+
+  const handleClearWeekdays = () => {
+    const weekdayIds = new Set(weekdayPatterns.flatMap(p => p.scheduleIds))
+    setSelectedScheduleIds(prev => {
+      const next = new Set(prev)
+      weekdayIds.forEach(id => next.delete(id))
+      return next
+    })
+    setMessage(null)
+  }
+
   const handleClearAll = () => {
     setSelectedScheduleIds(new Set())
     setMessage(null)
@@ -405,13 +425,38 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
                 </span>
               </div>
 
-              <button
-                type="button"
-                onClick={handleClearAll}
-                className="px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-rose-200/80"
-              >
-                Clear All
-              </button>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {selectedSundayCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearSundays}
+                    className="px-2.5 py-1.5 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-xl transition-colors cursor-pointer border border-indigo-200"
+                    title="Reset only Sunday slots"
+                  >
+                    Reset Sundays
+                  </button>
+                )}
+                {selectedWeekdayCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={handleClearWeekdays}
+                    className="px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-xl transition-colors cursor-pointer border border-emerald-200"
+                    title="Reset only Weekday slots"
+                  >
+                    Reset Weekdays
+                  </button>
+                )}
+                {(selectedSundayCount > 0 || selectedWeekdayCount > 0) && (
+                  <button
+                    type="button"
+                    onClick={handleClearAll}
+                    className="px-2.5 py-1.5 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:bg-rose-50 rounded-xl transition-colors cursor-pointer border border-rose-200/80"
+                    title="Reset all slots"
+                  >
+                    Reset All
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -444,9 +489,21 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
                       Sunday & Anticipated Masses ({sundayPatterns.length} slots)
                     </h3>
                   </div>
-                  <span className="text-[11px] font-bold text-indigo-600">
-                    {selectedSundayCount} selected
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-indigo-600">
+                      {selectedSundayCount} selected
+                    </span>
+                    {selectedSundayCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearSundays}
+                        className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors cursor-pointer"
+                        title="Clear only Sunday slots"
+                      >
+                        Reset Sundays
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {sundayPatterns.length === 0 ? (
@@ -469,9 +526,21 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
                       Weekday Masses ({weekdayPatterns.length} slots)
                     </h3>
                   </div>
-                  <span className="text-[11px] font-bold text-emerald-600">
-                    {selectedWeekdayCount} selected
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[11px] font-bold text-emerald-600">
+                      {selectedWeekdayCount} selected
+                    </span>
+                    {selectedWeekdayCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleClearWeekdays}
+                        className="px-2 py-0.5 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer"
+                        title="Clear only Weekday slots"
+                      >
+                        Reset Weekdays
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {weekdayPatterns.length === 0 ? (

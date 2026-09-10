@@ -94,6 +94,8 @@ export interface LiquidationExpenseItem {
   amount: number | string
 }
 
+export type FundRequestSource = 'main_funds' | 'parish'
+
 export interface FinanceFundRequest {
   id: string
   title: string
@@ -110,6 +112,9 @@ export interface FinanceFundRequest {
   updatedAt: any
   createdByUid: string
   createdByName: string
+
+  // Fund Source / Channel: 'main_funds' (Main Ministry Funds) | 'parish' (Parish Funds)
+  fundSource?: FundRequestSource
 
   // Requisition Details
   fromMinistry?: string
@@ -166,6 +171,15 @@ export interface FinanceFundRequest {
   liquidationReviewedByUid?: string
   liquidationReviewedByName?: string
   liquidationReviewedAt?: any
+  liquidationReviewRemarks?: string
+  liquidationRevisionReason?: string
+  liquidationRevisionRequestedByUid?: string
+  liquidationRevisionRequestedByName?: string
+  liquidationRevisionRequestedAt?: any
+  liquidationReopenedByUid?: string
+  liquidationReopenedByName?: string
+  liquidationReopenedAt?: any
+  liquidationReopenReason?: string
 
   // Target Event Link (when requested for a specific event)
   targetEventId?: string

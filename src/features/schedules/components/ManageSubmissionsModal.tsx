@@ -69,6 +69,12 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   const [assignTargetScope, setAssignTargetScope] = useState<'all_unsubmitted' | 'selected_only'>('all_unsubmitted')
   const [autoAssignResult, setAutoAssignResult] = useState<AutoAssignResult | null>(null)
 
+  // Reset Modal State
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
+  const [resetScope, setResetScope] = useState<'all' | 'sunday' | 'weekday'>('all')
+  const [resetTargetMemberIds, setResetTargetMemberIds] = useState<string[]>([])
+  const [resetUnlockSubmission, setResetUnlockSubmission] = useState(true)
+
   const loadData = async () => {
     if (!publication) return
     setIsLoading(true)
@@ -270,20 +276,52 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
     })
   }
 
-  const handleReset = async () => {
+  const handleOpenResetBulk = () => {
     const ids = selectedMembersWithSchedule.map(m => m.member.id)
     if (ids.length === 0) return
+    setResetTargetMemberIds(ids)
+    setResetScope('all')
+    setResetUnlockSubmission(true)
+    setShowResetConfirm(true)
+  }
+
+  const handleOpenResetSingle = (memberId: string, defaultScope: 'all' | 'sunday' | 'weekday' = 'all') => {
+    setResetTargetMemberIds([memberId])
+    setResetScope(defaultScope)
+    setResetUnlockSubmission(true)
+    setShowResetConfirm(true)
+  }
+
+  const handleExecuteReset = async () => {
+    const ids = resetTargetMemberIds.length > 0 
+      ? resetTargetMemberIds 
+      : selectedMembersWithSchedule.map(m => m.member.id)
+    if (ids.length === 0 || !publication) return
+    setShowResetConfirm(false)
     setIsSubmitting(true)
     setMessage(null)
 
     try {
-      // 1. Remove from schedules
-      await scheduleService.removeMembersFromSchedules(publication.startDate, publication.endDate, ids)
+      // 1. Remove from schedules with chosen scope
+      await scheduleService.removeMembersFromSchedules(
+        publication.startDate, 
+        publication.endDate, 
+        ids, 
+        resetScope,
+        'Coordinator'
+      )
       
-      // 2. Remove from publication submissions
-      await publicationService.resetMembersSubmission(publication.id, ids)
+      // 2. Remove from publication submissions if requested
+      if (resetUnlockSubmission) {
+        await publicationService.resetMembersSubmission(publication.id, ids)
+      }
 
-      setMessage({ type: 'success', text: `Successfully reset schedule submissions for ${ids.length} member(s).` })
+      const scopeText = resetScope === 'sunday' 
+        ? 'Sunday' 
+        : resetScope === 'weekday' 
+          ? 'Weekday' 
+          : 'All'
+      setMessage({ type: 'success', text: `Successfully reset ${scopeText} schedule assignments for ${ids.length} member(s).` })
       setSelectedIds(new Set())
       await loadData()
       onSuccess()
@@ -653,18 +691,48 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                       {/* Dropdown Drawer: Grouped by Day & Time */}
                       {isExpanded && item.hasSchedule && (
                         <div className="bg-slate-50/90 border-t border-slate-200/60 p-2.5 sm:p-3.5 pl-8 sm:pl-10 pr-3 sm:pr-4 space-y-2 animate-fade-in">
-                          <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-black uppercase text-slate-400 tracking-wider">
+                          <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] sm:text-[10px] font-black uppercase text-slate-400 tracking-wider">
                             <span>Mass Schedule Slots for {item.member.firstName}</span>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingMember(item.member)
-                                setIsEditScheduleModalOpen(true)
-                              }}
-                              className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
-                            >
-                              Edit / Change Slots
-                            </button>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {item.sundaysCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenResetSingle(item.member.id, 'sunday')}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                                  title="Reset only Sunday & Anticipated mass slots for this member"
+                                >
+                                  Reset Sundays ({item.sundaysCount})
+                                </button>
+                              )}
+                              {item.weekdaysCount > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenResetSingle(item.member.id, 'weekday')}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                  title="Reset only Weekday mass slots for this member"
+                                >
+                                  Reset Weekdays ({item.weekdaysCount})
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                title="Reset all schedule slots for this member"
+                              >
+                                Reset All
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingMember(item.member)
+                                  setIsEditScheduleModalOpen(true)
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer ml-1"
+                              >
+                                Edit / Change Slots
+                              </button>
+                            </div>
                           </div>
                           
                           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5 sm:gap-2">
@@ -729,7 +797,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
             
             <button
               type="button"
-              onClick={handleReset}
+              onClick={handleOpenResetBulk}
               disabled={isSubmitting || selectedMembersWithSchedule.length === 0}
               className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer text-center"
               title={selectedMembersWithSchedule.length === 0 ? 'Only members who have existing schedules can be reset.' : 'Reset schedule for selected members'}
@@ -892,6 +960,126 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                 className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:px-5 sm:py-2 text-xs font-black text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-purple-600/25 active:scale-95 transition cursor-pointer"
               >
                 <span>{isSubmitting ? 'Assigning...' : 'Yes, Assign Randomly'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Dialog for Resetting Schedules */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-md w-full shadow-2xl border border-slate-200 space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-rose-50 border border-rose-200 text-rose-600 shrink-0">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" className="sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-900">Reset Schedule Assignments</h3>
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-500 mt-0.5">
+                  Target: {resetTargetMemberIds.length === 1 
+                    ? (members.find(m => m.id === resetTargetMemberIds[0]) ? getFullName(members.find(m => m.id === resetTargetMemberIds[0])!) : '1 Member')
+                    : `${resetTargetMemberIds.length} Selected Members`}
+                </p>
+              </div>
+            </div>
+
+            {/* Scope Selection */}
+            <div className="space-y-2">
+              <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider">
+                Select Which Slots to Reset:
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setResetScope('all')}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    resetScope === 'all'
+                      ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="block text-xs font-black">All Schedules (Sundays & Weekdays)</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Remove all mass assignments within this publication</span>
+                  </div>
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    resetScope === 'all' ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
+                  }`}>
+                    {resetScope === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetScope('sunday')}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    resetScope === 'sunday'
+                      ? 'bg-indigo-50 border-indigo-600 text-indigo-950 ring-2 ring-indigo-500/20 font-black shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="block text-xs font-black">Sundays Only</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Remove Sunday & Anticipated mass slots (keep weekdays)</span>
+                  </div>
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    resetScope === 'sunday' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'
+                  }`}>
+                    {resetScope === 'sunday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetScope('weekday')}
+                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                    resetScope === 'weekday'
+                      ? 'bg-emerald-50 border-emerald-600 text-emerald-950 ring-2 ring-emerald-500/20 font-black shadow-xs'
+                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                  }`}
+                >
+                  <div className="space-y-0.5">
+                    <span className="block text-xs font-black">Weekdays Only</span>
+                    <span className="text-[10px] text-slate-400 block font-medium">Remove Monday–Saturday mass slots (keep Sundays)</span>
+                  </div>
+                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                    resetScope === 'weekday' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                  }`}>
+                    {resetScope === 'weekday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Unlock submission checkbox */}
+            <label className="flex items-center gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200/80 cursor-pointer select-none text-xs font-bold text-slate-700">
+              <input
+                type="checkbox"
+                checked={resetUnlockSubmission}
+                onChange={e => setResetUnlockSubmission(e.target.checked)}
+                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500 cursor-pointer"
+              />
+              <span className="text-[11px]">Unmark / Unlock submission status (allows member to re-submit on public link)</span>
+            </label>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(false)}
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteReset}
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:px-5 sm:py-2 text-xs font-black text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-rose-600/25 active:scale-95 transition cursor-pointer"
+              >
+                <span>{isSubmitting ? 'Resetting...' : 'Execute Reset'}</span>
               </button>
             </div>
           </div>

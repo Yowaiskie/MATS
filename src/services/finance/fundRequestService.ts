@@ -65,6 +65,9 @@ export const fundRequestService = {
           createdByUid: data.createdByUid || '',
           createdByName: data.createdByName || '',
 
+          // Fund Source
+          fundSource: data.fundSource || 'main_funds',
+
           // Requisition Details
           fromMinistry: data.fromMinistry || '',
           venue: data.venue || '',
@@ -161,6 +164,7 @@ export const fundRequestService = {
       requestedByName, 
       dateNeeded, 
       description,
+      fundSource,
       fromMinistry,
       venue,
       participants,
@@ -189,6 +193,7 @@ export const fundRequestService = {
         status,
         referenceNumber,
         periodId,
+        fundSource: fundSource || 'main_funds',
         fromMinistry: fromMinistry || 'The MINISTRY OF ALTAR SERVERS',
         venue: venue || 'N/A',
         participants: participants || 'N/A',
@@ -205,12 +210,14 @@ export const fundRequestService = {
         updatedAt: serverTimestamp()
       })
 
+      const sourceLabel = fundSource === 'parish' ? 'Parish' : 'Main Funds'
+
       await auditService.logAction(
         'REQUEST_SUBMIT',
         'attendance',
-        `Created fund request '${title}' ($${requestedAmount}) as ${status} (${referenceNumber})${targetEventName ? ` for event ${targetEventName}` : ''}`,
+        `Created fund request '${title}' (₱${requestedAmount}) from ${sourceLabel} as ${status} (${referenceNumber})${targetEventName ? ` for event ${targetEventName}` : ''}`,
         createdByName,
-        { requestId: docRef.id, referenceNumber, amount: requestedAmount, status, targetEventId, targetEventName }
+        { requestId: docRef.id, referenceNumber, amount: requestedAmount, status, fundSource: fundSource || 'main_funds', targetEventId, targetEventName }
       )
 
       return docRef.id
@@ -475,17 +482,21 @@ export const fundRequestService = {
 
       // If this request is allocated for an Event, automatically create an Event Income record!
       if (data.targetEventId) {
+        const isParish = data.fundSource === 'parish'
+        const sourceLabel = isParish ? 'Parish Funds' : 'Main Ministry Funds'
+        const allocationType = isParish ? 'Parish Grant' : 'Ministry Grant'
+
         const eventIncomeRef = await addDoc(collection(db, 'eventIncome'), {
           eventId: data.targetEventId,
           amount: Number(releasedAmount),
-          receivedFrom: 'Main Ministry Funds',
+          receivedFrom: sourceLabel,
           categoryId: '',
           date: releasedDate,
           paymentMethod: 'Cash',
-          allocation: 'Ministry Grant',
-          description: `Budget released from Main Ministry Funds (${data.referenceNumber}) - ${data.title}`,
+          allocation: allocationType,
+          description: `Budget released from ${sourceLabel} (${data.referenceNumber}) - ${data.title}`,
           isArchived: false,
-          sourceType: 'main_fund_release',
+          sourceType: isParish ? 'general' : 'main_fund_release',
           sourceFundRequestId: id,
           sourceFundRequestRef: data.referenceNumber,
           createdByUid: releasedByUid,
@@ -498,9 +509,9 @@ export const fundRequestService = {
         await auditService.logAction(
           'EVENT_INCOME_ADD',
           'events',
-          `Added event income of ₱${releasedAmount} to event ${data.targetEventId} from Main Ministry Fund Release (${data.referenceNumber})`,
+          `Added event income of ₱${releasedAmount} to event ${data.targetEventId} from ${sourceLabel} Release (${data.referenceNumber})`,
           releasedByName,
-          { eventId: data.targetEventId, incomeId: eventIncomeRef.id, referenceNumber: data.referenceNumber }
+          { eventId: data.targetEventId, incomeId: eventIncomeRef.id, referenceNumber: data.referenceNumber, fundSource: data.fundSource || 'main_funds' }
         )
       }
 
@@ -522,12 +533,14 @@ export const fundRequestService = {
 
       await updateDoc(docRef, updatePayload)
 
+      const fundSourceLabel = data.fundSource === 'parish' ? 'Parish' : 'Main Ministry Funds'
+
       await auditService.logAction(
         'FUNDS_RELEASE',
         'attendance',
-        `Released ₱${releasedAmount} to ${releasedToName} for request '${data.title}' (${data.referenceNumber})${data.targetEventName ? ` (Auto-credited to event ${data.targetEventName})` : ''}`,
+        `Released ₱${releasedAmount} from ${fundSourceLabel} to ${releasedToName} for request '${data.title}' (${data.referenceNumber})${data.targetEventName ? ` (Auto-credited to event ${data.targetEventName})` : ''}`,
         releasedByName,
-        { requestId: id, referenceNumber: data.referenceNumber, amount: releasedAmount, linkedEventIncomeId }
+        { requestId: id, referenceNumber: data.referenceNumber, amount: releasedAmount, fundSource: data.fundSource || 'main_funds', linkedEventIncomeId }
       )
     } catch (err) {
       console.error('Failed to release funds:', err)
@@ -574,7 +587,9 @@ export const fundRequestService = {
       if (!docSnap.exists()) throw new Error('Fund request does not exist.')
 
       const data = docSnap.data()
-      if (data.status !== 'released') throw new Error('Liquidation can only be submitted for released requests.')
+      if (data.status !== 'released' && data.status !== 'liquidated') {
+        throw new Error('Liquidation can only be submitted or adjusted for released or liquidated requests.')
+      }
 
       await checkPeriodClosed(data.dateNeeded)
       if (data.releasedDate) {
@@ -601,8 +616,8 @@ export const fundRequestService = {
 
       await auditService.logAction(
         'LIQUIDATION_SUBMIT',
-        'attendance',
-        `Submitted liquidation for '${data.title}' (Spent: $${totalSpent}, Returned: $${returnedAmount}) (${data.referenceNumber})`,
+        'finance',
+        `Submitted liquidation for '${data.title}' (Spent: ₱${totalSpent.toLocaleString()}, Returned: ₱${returnedAmount.toLocaleString()}) (${data.referenceNumber})`,
         liquidatedByName,
         { requestId: id, referenceNumber: data.referenceNumber, totalSpent, returnedAmount }
       )
@@ -618,7 +633,8 @@ export const fundRequestService = {
   async reviewLiquidation(
     id: string,
     reviewedByUid: string,
-    reviewedByName: string
+    reviewedByName: string,
+    remarks?: string
   ): Promise<void> {
     try {
       const docRef = doc(db, REQUEST_COLLECTION, id)
@@ -638,18 +654,102 @@ export const fundRequestService = {
         liquidationReviewedByUid: reviewedByUid,
         liquidationReviewedByName: reviewedByName,
         liquidationReviewedAt: serverTimestamp(),
+        liquidationReviewRemarks: remarks?.trim() || null,
         updatedAt: serverTimestamp()
       })
 
       await auditService.logAction(
         'LIQUIDATION_APPROVE',
-        'attendance',
-        `Approved liquidation and closed fund request '${data.title}' (${data.referenceNumber})`,
+        'finance',
+        `Approved liquidation and closed fund request '${data.title}' (${data.referenceNumber})${remarks ? `: ${remarks}` : ''}`,
         reviewedByName,
         { requestId: id, referenceNumber: data.referenceNumber }
       )
     } catch (err) {
       console.error('Failed to review liquidation:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Requests revisions on a submitted liquidation and returns status to 'released'.
+   */
+  async requestLiquidationRevision(
+    id: string,
+    revisionReason: string,
+    requestedByUid: string,
+    requestedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, REQUEST_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) throw new Error('Fund request does not exist.')
+
+      const data = docSnap.data()
+      if (data.status !== 'liquidated') throw new Error('Only liquidated requests can be returned for revision.')
+
+      await updateDoc(docRef, {
+        status: 'released',
+        liquidationRevisionReason: revisionReason.trim(),
+        liquidationRevisionRequestedByUid: requestedByUid,
+        liquidationRevisionRequestedByName: requestedByName,
+        liquidationRevisionRequestedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      })
+
+      await auditService.logAction(
+        'LIQUIDATION_REVISION_REQUEST',
+        'finance',
+        `Returned liquidation of '${data.title}' (${data.referenceNumber}) for revision: ${revisionReason.trim()}`,
+        requestedByName,
+        { requestId: id, referenceNumber: data.referenceNumber, revisionReason: revisionReason.trim() }
+      )
+    } catch (err) {
+      console.error('Failed to request liquidation revision:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Reopens a closed fund request back to 'liquidated' status for re-review or audit corrections.
+   */
+  async reopenLiquidationReview(
+    id: string,
+    reopenReason: string,
+    reopenedByUid: string,
+    reopenedByName: string
+  ): Promise<void> {
+    try {
+      const docRef = doc(db, REQUEST_COLLECTION, id)
+      const docSnap = await getDoc(docRef)
+      if (!docSnap.exists()) throw new Error('Fund request does not exist.')
+
+      const data = docSnap.data()
+      if (data.status !== 'closed') throw new Error('Only closed fund requests can be reopened for review.')
+
+      await checkPeriodClosed(data.dateNeeded)
+      if (data.releasedDate) {
+        await checkPeriodClosed(data.releasedDate)
+      }
+
+      await updateDoc(docRef, {
+        status: 'liquidated',
+        liquidationReopenedByUid: reopenedByUid,
+        liquidationReopenedByName: reopenedByName,
+        liquidationReopenedAt: serverTimestamp(),
+        liquidationReopenReason: reopenReason.trim() || null,
+        updatedAt: serverTimestamp()
+      })
+
+      await auditService.logAction(
+        'LIQUIDATION_REOPEN',
+        'finance',
+        `Reopened closed liquidation of '${data.title}' (${data.referenceNumber}) for re-review${reopenReason.trim() ? `: ${reopenReason.trim()}` : ''}`,
+        reopenedByName,
+        { requestId: id, referenceNumber: data.referenceNumber, reopenReason: reopenReason.trim() }
+      )
+    } catch (err) {
+      console.error('Failed to reopen liquidation for review:', err)
       throw err
     }
   },

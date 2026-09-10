@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { fundRequestService } from '@/services/finance/fundRequestService'
+import type { FundRequestSource } from '@/types/finance'
 
 interface Props {
   isOpen: boolean
@@ -22,6 +23,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const [fundSource, setFundSource] = useState<FundRequestSource>('main_funds')
   const [title, setTitle] = useState('')
   const [purpose, setPurpose] = useState('')
   const [amount, setAmount] = useState('')
@@ -30,6 +32,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
 
   useEffect(() => {
     if (isOpen) {
+      setFundSource('main_funds')
       setTitle(`Seed Budget for ${eventName}`)
       setPurpose('Event Preparation & Initial Expenses')
       setAmount('')
@@ -69,6 +72,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
           requestedByName: uName,
           dateNeeded,
           description: description.trim(),
+          fundSource,
           targetEventId: eventId,
           targetEventName: eventName,
           createdByUid: user.uid,
@@ -83,7 +87,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
       onClose()
     } catch (err: any) {
       console.error('Failed to submit event fund request:', err)
-      setError(err.message || 'Failed to submit fund request to Main Finance.')
+      setError(err.message || 'Failed to submit fund request.')
     } finally {
       setSubmitting(false)
     }
@@ -93,8 +97,8 @@ export const EventFundRequestModal: React.FC<Props> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Request Funds from Main Ministry"
-      subtitle="Submit fund requisition proposal to Parish / Main Ministry treasury"
+      title="Request Funds for Event"
+      subtitle="Submit fund requisition proposal to Main Ministry treasury or Parish"
       badge="Treasury Requisition"
       icon={
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -105,12 +109,24 @@ export const EventFundRequestModal: React.FC<Props> = ({
     >
       <div className="p-4 mb-4 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-start gap-3">
         <div className="h-8 w-8 rounded-xl bg-white border border-indigo-200 flex items-center justify-center text-indigo-600 font-bold shrink-0 shadow-2xs">
-          🏛️
+          {fundSource === 'parish' ? (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+            </svg>
+          )}
         </div>
         <div>
-          <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider">Main Finance Approval Workflow</h4>
+          <h4 className="text-xs font-black text-indigo-900 uppercase tracking-wider">
+            {fundSource === 'parish' ? 'Parish Requisition Workflow' : 'Main Ministry Treasury Workflow'}
+          </h4>
           <p className="text-xs text-indigo-700/90 font-medium mt-0.5">
-            This request will be submitted to the Main Finance / Treasury team. Once approved and released, the funds will <strong>automatically be credited to this event's ledger as Event Income</strong>.
+            {fundSource === 'parish' 
+              ? "This request is submitted to the Parish Priest / Parish Office. Once approved and released, it will automatically be credited to this event's ledger as Parish Subsidy."
+              : "This request is submitted to the Main Ministry Treasury. Once approved and released, it will automatically be credited to this event's ledger as Ministry Grant."}
           </p>
         </div>
       </div>
@@ -121,6 +137,72 @@ export const EventFundRequestModal: React.FC<Props> = ({
             {error}
           </div>
         )}
+
+        {/* Fund Source Selector */}
+        <div>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">
+            Request Source / Charge To *
+          </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setFundSource('main_funds')}
+              className={`p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                fundSource === 'main_funds'
+                  ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 text-slate-600'
+              }`}
+            >
+              <div className={`p-2 rounded-xl ${fundSource === 'main_funds' ? 'bg-blue-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600'}`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-black ${fundSource === 'main_funds' ? 'text-blue-950' : 'text-slate-800'}`}>
+                    Main Ministry Funds
+                  </span>
+                  {fundSource === 'main_funds' && (
+                    <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                  Disbursed from MAS internal treasury
+                </p>
+              </div>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setFundSource('parish')}
+              className={`p-3 rounded-2xl border text-left flex items-start gap-3 transition-all cursor-pointer ${
+                fundSource === 'parish'
+                  ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                  : 'bg-slate-50 border-slate-200 hover:bg-slate-100/80 text-slate-600'
+              }`}
+            >
+              <div className={`p-2 rounded-xl ${fundSource === 'parish' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-white border border-slate-200 text-slate-600'}`}>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div className="flex items-center justify-between">
+                  <span className={`text-xs font-black ${fundSource === 'parish' ? 'text-emerald-950' : 'text-slate-800'}`}>
+                    Parish Funds
+                  </span>
+                  {fundSource === 'parish' && (
+                    <span className="h-2 w-2 rounded-full bg-emerald-600"></span>
+                  )}
+                </div>
+                <p className="text-[11px] text-slate-500 mt-0.5 leading-tight">
+                  Requested from Parish Priest / Office
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
 
         <div>
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Request Title *</label>

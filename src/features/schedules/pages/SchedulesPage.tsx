@@ -18,7 +18,7 @@ import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
 import { attendanceService } from '@/services/attendanceService'
-import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 
 const PAGE_SIZE = 12
@@ -213,12 +213,27 @@ export const SchedulesPage: React.FC = () => {
       if (sourceSchedule) {
         // e.g. "2026-08-05" -> targetMonth is "2026-08"
         const targetMonth = sourceSchedule.date.substring(0, 7)
-        // Find all schedules in the same month with the same title and start time
-        const matchingSchedules = schedules.filter(s => 
-          s.date.startsWith(targetMonth) && 
-          s.title === sourceSchedule.title && 
-          s.startTime === sourceSchedule.startTime
-        )
+        // Find all matching recurring schedules in the same month with the same title, start time, and category
+        const isSourceSpecial = isSpecialEventOrService(sourceSchedule)
+        const sourceDayOfWeek = sourceSchedule.date ? new Date(sourceSchedule.date + 'T00:00:00').getDay() : -1
+
+        const matchingSchedules = schedules.filter(s => {
+          if (!s.date.startsWith(targetMonth)) return false
+          if (s.title !== sourceSchedule.title) return false
+          if (s.startTime !== sourceSchedule.startTime) return false
+          if ((s.category || '') !== (sourceSchedule.category || '')) return false
+          
+          // Don't mix special events with regular schedules
+          if (isSourceSpecial !== isSpecialEventOrService(s)) return false
+
+          // Match day of week for weekly recurring schedules
+          if (sourceDayOfWeek >= 0) {
+            const sDay = new Date(s.date + 'T00:00:00').getDay()
+            if (sDay !== sourceDayOfWeek) return false
+          }
+
+          return true
+        })
         
         // Update all matching schedules
         for (const s of matchingSchedules) {

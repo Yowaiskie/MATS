@@ -11,6 +11,7 @@ import type {
   DirectExpense, 
   FinanceCategory, 
   FinanceFundRequest, 
+  FundRequestSource,
   FinancePeriod, 
   LedgerEntry,
   FundRequisitionItem,
@@ -32,6 +33,7 @@ import { financeEngine } from '@/utils/financeEngine'
 import { FinanceExportModal } from '@/features/finance/components/FinanceExportModal'
 import { FundRequisitionExportModal } from '@/features/finance/components/FundRequisitionExportModal'
 import { LiquidationExportModal } from '@/features/finance/components/LiquidationExportModal'
+import { MemberCombobox } from '@/components/MemberCombobox'
 
 export const FinancePage: React.FC = () => {
   const { hasModuleAccess, canAction, profile } = useAuth()
@@ -78,6 +80,17 @@ export const FinancePage: React.FC = () => {
   const [requisitionExportRequest, setRequisitionExportRequest] = useState<FinanceFundRequest | null>(null)
   const [isLiquidationExportOpen, setIsLiquidationExportOpen] = useState(false)
   const [liquidationExportRequest, setLiquidationExportRequest] = useState<FinanceFundRequest | null>(null)
+
+  // Review Liquidation Modal state
+  const [isReviewLiquidationModalOpen, setIsReviewLiquidationModalOpen] = useState(false)
+  const [reviewLiquidationRequest, setReviewLiquidationRequest] = useState<FinanceFundRequest | null>(null)
+  const [reviewRemarks, setReviewRemarks] = useState('')
+  const [reviewRevisionReason, setReviewRevisionReason] = useState('')
+  const [showRevisionSection, setShowRevisionSection] = useState(false)
+
+  // Reopen Review Modal state
+  const [reopenModalRequest, setReopenModalRequest] = useState<FinanceFundRequest | null>(null)
+  const [reopenReason, setReopenReason] = useState('')
 
   // Cancel & Void Modal state
   const [cancelModalRequest, setCancelModalRequest] = useState<FinanceFundRequest | null>(null)
@@ -145,6 +158,8 @@ export const FinancePage: React.FC = () => {
   const [catColor, setCatColor] = useState('blue')
 
   // Form states - Fund Request (Formatted Text & Dynamic Items)
+  const [reqFundSource, setReqFundSource] = useState<FundRequestSource>('main_funds')
+  const [fundSourceFilter, setFundSourceFilter] = useState<'all' | 'main_funds' | 'parish'>('all')
   const [reqTitle, setReqTitle] = useState('')
   const [reqPurpose, setReqPurpose] = useState('')
   const [reqAmount, setReqAmount] = useState('')
@@ -591,7 +606,7 @@ export const FinancePage: React.FC = () => {
       return
     }
 
-    const calculatedTotal = reqExpectedExpenses.reduce((sum, item) => sum + (Number(item.amount) || 0), 0)
+    const calculatedTotal = reqExpectedExpenses.reduce((sum, item) => sum + parseAmount(item.amount), 0)
     const finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(reqAmount)
 
     if (finalAmount <= 0) {
@@ -611,11 +626,12 @@ export const FinancePage: React.FC = () => {
           requestedByName: profile?.displayName || 'User',
           dateNeeded: reqDateNeeded,
           description: reqDesc.trim(),
+          fundSource: reqFundSource,
           fromMinistry: reqFromMinistry.trim() || 'The MINISTRY OF ALTAR SERVERS',
           venue: reqVenue.trim() || 'N/A',
           participants: reqParticipants.trim() || 'N/A',
           assembly: reqAssembly.trim() || 'N/A',
-          expectedExpenses: reqExpectedExpenses.filter(item => item.intendedUse.trim() || Number(item.amount) > 0),
+          expectedExpenses: reqExpectedExpenses.filter(item => item.intendedUse.trim() || parseAmount(item.amount) > 0),
           createdByUid: profile?.uid || 'System',
           createdByName: profile?.displayName || 'Admin'
         },
@@ -623,6 +639,7 @@ export const FinancePage: React.FC = () => {
         profile?.displayName || 'Admin',
         true // Submit immediately as pending
       )
+      setReqFundSource('main_funds')
       setReqTitle('')
       setReqPurpose('')
       setReqAmount('')
@@ -885,19 +902,100 @@ export const FinancePage: React.FC = () => {
     }
   }
 
-  const handleReviewLiquidation = async (reqId: string) => {
+  const handleOpenReviewModal = (req: FinanceFundRequest) => {
+    setReviewLiquidationRequest(req)
+    setReviewRemarks(req.liquidationReviewRemarks || '')
+    setReviewRevisionReason('')
+    setShowRevisionSection(false)
+    setIsReviewLiquidationModalOpen(true)
+  }
+
+  const handleApproveLiquidationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!reviewLiquidationRequest) return
+
     setSaving(true)
     setErrorMsg(null)
     try {
       await fundRequestService.reviewLiquidation(
-        reqId,
+        reviewLiquidationRequest.id,
         profile?.uid || 'Admin',
-        profile?.displayName || 'Admin'
+        profile?.displayName || 'Admin',
+        reviewRemarks.trim() || undefined
       )
-      setSuccessMsg('Liquidation approved. Request closed.')
+      setIsReviewLiquidationModalOpen(false)
+      setReviewLiquidationRequest(null)
+      setReviewRemarks('')
+      setSuccessMsg('Liquidation report approved. Fund request closed.')
       await fetchData()
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to approve liquidation.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleRequestRevisionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!reviewLiquidationRequest) return
+    if (!reviewRevisionReason.trim()) {
+      setErrorMsg('Please specify the required changes or reasons for revision.')
+      return
+    }
+
+    setSaving(true)
+    setErrorMsg(null)
+    try {
+      await fundRequestService.requestLiquidationRevision(
+        reviewLiquidationRequest.id,
+        reviewRevisionReason.trim(),
+        profile?.uid || 'Admin',
+        profile?.displayName || 'Admin'
+      )
+      setIsReviewLiquidationModalOpen(false)
+      setReviewLiquidationRequest(null)
+      setReviewRevisionReason('')
+      setShowRevisionSection(false)
+      setSuccessMsg('Liquidation returned for revision. Requester can now update the expenditures.')
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to request revision.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleOpenReopenModal = (req: FinanceFundRequest) => {
+    setReopenModalRequest(req)
+    setReopenReason('')
+  }
+
+  const handleReopenLiquidationSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!reopenModalRequest) return
+
+    setSaving(true)
+    setErrorMsg(null)
+    try {
+      await fundRequestService.reopenLiquidationReview(
+        reopenModalRequest.id,
+        reopenReason.trim(),
+        profile?.uid || 'Admin',
+        profile?.displayName || 'Admin'
+      )
+      const reopenedReq = {
+        ...reopenModalRequest,
+        status: 'liquidated' as const,
+        liquidationReopenedByName: profile?.displayName || 'Admin',
+        liquidationReopenReason: reopenReason.trim() || undefined
+      }
+      setReopenModalRequest(null)
+      setReopenReason('')
+      setSuccessMsg('Closed liquidation reopened for review.')
+      await fetchData()
+      handleOpenReviewModal(reopenedReq)
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to reopen liquidation for review.')
     } finally {
       setSaving(false)
     }
@@ -914,8 +1012,33 @@ export const FinancePage: React.FC = () => {
   const handleUpdateReqExpenseRow = (index: number, field: keyof FundRequisitionItem, value: any) => {
     setReqExpectedExpenses(prev => {
       const next = [...prev]
-      const finalVal = field === 'amount' ? formatCommaAmount(value) : value
-      next[index] = { ...next[index], [field]: finalVal }
+      const current = { ...next[index] }
+
+      if (field === 'amount') {
+        current.amount = formatCommaAmount(value)
+      } else {
+        (current as any)[field] = value
+
+        // Auto-compute amount whenever unitPrice or quantity is modified
+        if (field === 'unitPrice' || field === 'quantity') {
+          const extractNum = (v: any) => {
+            if (typeof v === 'number') return isNaN(v) ? 0 : v
+            if (!v) return 0
+            const match = String(v).replace(/,/g, '').match(/(\d+(?:\.\d+)?)/)
+            return match ? parseFloat(match[0]) : 0
+          }
+
+          const uPrice = extractNum(current.unitPrice)
+          const qty = extractNum(current.quantity)
+          if (uPrice > 0 && qty > 0) {
+            const computed = uPrice * qty
+            const formatted = computed % 1 === 0 ? computed.toString() : computed.toFixed(2)
+            current.amount = formatCommaAmount(formatted)
+          }
+        }
+      }
+
+      next[index] = current
       return next
     })
   }
@@ -2198,15 +2321,56 @@ export const FinancePage: React.FC = () => {
                   <h3 className="text-sm font-bold text-gray-900">Fund Requests Workflow</h3>
                   <p className="text-[11px] text-gray-500">Manage ministry fund requisition, approvals, disbursements, and liquidations.</p>
                 </div>
-                <button
-                  onClick={() => setIsRequestModalOpen(true)}
-                  className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all w-full sm:w-auto shrink-0"
-                >
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                  </svg>
-                  <span>Create Fund Request</span>
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {/* Fund Source Filter */}
+                  <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setFundSourceFilter('all')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                        fundSourceFilter === 'all'
+                          ? 'bg-white text-slate-900 shadow-xs'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      All ({requests.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFundSourceFilter('main_funds')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        fundSourceFilter === 'main_funds'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-blue-700'
+                      }`}
+                    >
+                      <span>Main Funds</span>
+                      <span className="text-[10px] opacity-80 font-mono">({requests.filter(r => r.fundSource !== 'parish').length})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFundSourceFilter('parish')}
+                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        fundSourceFilter === 'parish'
+                          ? 'bg-emerald-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-emerald-700'
+                      }`}
+                    >
+                      <span>Parish</span>
+                      <span className="text-[10px] opacity-80 font-mono">({requests.filter(r => r.fundSource === 'parish').length})</span>
+                    </button>
+                  </div>
+
+                  <button
+                    onClick={() => setIsRequestModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all w-full sm:w-auto shrink-0"
+                  >
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Create Fund Request</span>
+                  </button>
+                </div>
               </div>
 
               {/* Bulk Action Bar for Requests */}
@@ -2259,65 +2423,82 @@ export const FinancePage: React.FC = () => {
 
               {/* Mobile Card List View (< md) */}
               <div className="md:hidden space-y-3">
-                {requests.length > 0 && (
-                  <div className="flex items-center justify-between px-1 text-xs text-gray-500">
-                    <label className="flex items-center gap-2 cursor-pointer font-medium">
-                      <input
-                        type="checkbox"
-                        checked={requests.length > 0 && selectedIds.size === requests.length}
-                        onChange={() => handleSelectAll(requests.map(r => r.id))}
-                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                      />
-                      <span>Select All ({requests.length})</span>
-                    </label>
-                    <span className="text-[11px] font-bold text-gray-400">{requests.length} Requests</span>
-                  </div>
-                )}
+                {(() => {
+                  const filtered = requests.filter(r => {
+                    if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                    if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                    return true
+                  })
 
-                {requests.length === 0 ? (
-                  <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
-                    No fund requests found.
-                  </div>
-                ) : (
-                  requests.map((req, idx) => (
-                    <div
-                      key={req.id}
-                      className={`bg-white rounded-2xl border p-4 shadow-2xs space-y-3 transition-all ${
-                        req.isArchived ? 'opacity-70 bg-gray-50 border-gray-200' : 'border-gray-200'
-                      } ${selectedIds.has(req.id) ? 'ring-2 ring-blue-500/30 border-blue-300 bg-blue-50/20' : ''}`}
-                    >
-                      {/* Top Row: Select, Reference & Status */}
-                      <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(req.id)}
-                            onChange={() => handleToggleSelect(req.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                          />
-                          <span className="font-mono font-bold text-xs text-gray-950">
-                            {req.referenceNumber}
-                          </span>
-                          {req.isArchived && (
-                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              Archived
-                            </span>
-                          )}
+                  if (requests.length > 0) {
+                    return (
+                      <>
+                        <div className="flex items-center justify-between px-1 text-xs text-gray-500">
+                          <label className="flex items-center gap-2 cursor-pointer font-medium">
+                            <input
+                              type="checkbox"
+                              checked={filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))}
+                              onChange={() => handleSelectAll(filtered.map(r => r.id))}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                            />
+                            <span>Select All ({filtered.length})</span>
+                          </label>
+                          <span className="text-[11px] font-bold text-gray-400">{filtered.length} of {requests.length} Requests</span>
                         </div>
 
-                        <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
-                          req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                          req.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
-                          req.status === 'released' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                          req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
-                          req.status === 'closed' ? 'bg-gray-100 text-gray-700 border border-gray-200' :
-                          req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
-                          req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                          'bg-blue-50 text-blue-700 border border-blue-200'
-                        }`}>
-                          {req.status}
-                        </span>
-                      </div>
+                        {filtered.length === 0 ? (
+                          <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
+                            No requests found matching the "{fundSourceFilter === 'parish' ? 'Parish' : 'Main Funds'}" filter.
+                          </div>
+                        ) : (
+                          filtered.map((req, idx) => (
+                            <div
+                              key={req.id}
+                              className={`bg-white rounded-2xl border p-4 shadow-2xs space-y-3 transition-all ${
+                                req.isArchived ? 'opacity-70 bg-gray-50 border-gray-200' : 'border-gray-200'
+                              } ${selectedIds.has(req.id) ? 'ring-2 ring-blue-500/30 border-blue-300 bg-blue-50/20' : ''}`}
+                            >
+                              {/* Top Row: Select, Reference, Fund Source & Status */}
+                              <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedIds.has(req.id)}
+                                    onChange={() => handleToggleSelect(req.id)}
+                                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                                  />
+                                  <span className="font-mono font-bold text-xs text-gray-950">
+                                    {req.referenceNumber}
+                                  </span>
+                                  {req.fundSource === 'parish' ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                      Parish
+                                    </span>
+                                  ) : (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                                      Main Funds
+                                    </span>
+                                  )}
+                                  {req.isArchived && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                      Archived
+                                    </span>
+                                  )}
+                                </div>
+
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                                  req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                  req.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
+                                  req.status === 'released' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                  req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
+                                  req.status === 'closed' ? 'bg-gray-100 text-gray-700 border border-gray-200' :
+                                  req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                                  req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                                  'bg-blue-50 text-blue-700 border border-blue-200'
+                                }`}>
+                                  {req.status}
+                                </span>
+                              </div>
 
                       {/* Request Details */}
                       <div>
@@ -2334,6 +2515,17 @@ export const FinancePage: React.FC = () => {
                         {req.purpose && (
                           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{req.purpose}</p>
                         )}
+                        {req.status === 'released' && req.liquidationRevisionReason && (
+                          <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
+                            <div className="flex items-center gap-1.5 text-amber-800 font-bold text-[10px] uppercase">
+                              <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <span>Revision Requested {req.liquidationRevisionRequestedByName ? `by ${req.liquidationRevisionRequestedByName}` : ''}</span>
+                            </div>
+                            <p className="text-xs text-amber-900 font-medium">"{req.liquidationRevisionReason}"</p>
+                          </div>
+                        )}
                       </div>
 
                       {/* Info & Amount Badges */}
@@ -2341,7 +2533,7 @@ export const FinancePage: React.FC = () => {
                         <div className="space-y-0.5">
                           <span className="text-[10px] font-semibold text-gray-400 block uppercase">Requester</span>
                           <span className="font-semibold text-gray-800 text-[11px] truncate block">
-                            👤 {req.requestedByName}
+                            {req.requestedByName}
                           </span>
                         </div>
                         <div className="space-y-0.5 text-right">
@@ -2352,7 +2544,7 @@ export const FinancePage: React.FC = () => {
                         </div>
                         {req.dateNeeded && (
                           <div className="col-span-2 flex items-center justify-between text-[11px] text-gray-500 bg-slate-50 px-2.5 py-1.5 rounded-lg border border-slate-100">
-                            <span>📅 Date Needed: <strong>{req.dateNeeded}</strong></span>
+                            <span>Date Needed: <strong>{req.dateNeeded}</strong></span>
                             {req.releasedAmount !== undefined && req.releasedAmount > 0 && (
                               <span className="text-amber-800 font-semibold">
                                 Disbursed: ₱{req.releasedAmount.toLocaleString()}
@@ -2445,19 +2637,23 @@ export const FinancePage: React.FC = () => {
 
                               {req.status === 'released' && (
                                 <button
+                                  type="button"
                                   onClick={() => handleLiquidationOpen(req)}
-                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-sm shadow-indigo-600/20 transition cursor-pointer"
+                                  className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white ${
+                                    req.liquidationRevisionReason ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                                  } rounded-xl shadow-sm transition cursor-pointer`}
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                                   </svg>
-                                  <span>Liquidate</span>
+                                  <span>{req.liquidationRevisionReason ? 'Edit & Re-liquidate' : 'Liquidate'}</span>
                                 </button>
                               )}
 
                               {req.status === 'liquidated' && (
                                 <button
-                                  onClick={() => handleReviewLiquidation(req.id)}
+                                  type="button"
+                                  onClick={() => handleOpenReviewModal(req)}
                                   className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm shadow-emerald-600/20 transition cursor-pointer"
                                 >
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -2467,7 +2663,20 @@ export const FinancePage: React.FC = () => {
                                 </button>
                               )}
 
-                              {(req.status === 'closed' || req.status === 'cancelled' || req.status === 'voided' || req.status === 'rejected') && (
+                              {req.status === 'closed' && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenReviewModal(req)}
+                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                  </svg>
+                                  <span>View & Re-review</span>
+                                </button>
+                              )}
+
+                              {(req.status === 'cancelled' || req.status === 'voided' || req.status === 'rejected') && (
                                 <button
                                   type="button"
                                   onClick={() => setHistoryRequest(req)}
@@ -2482,7 +2691,7 @@ export const FinancePage: React.FC = () => {
                             </div>
 
                             {/* History Icon Button */}
-                            {req.status !== 'closed' && req.status !== 'cancelled' && req.status !== 'voided' && req.status !== 'rejected' && (
+                            {req.status !== 'cancelled' && req.status !== 'voided' && req.status !== 'rejected' && (
                               <button
                                 type="button"
                                 onClick={() => setHistoryRequest(req)}
@@ -2516,7 +2725,7 @@ export const FinancePage: React.FC = () => {
                               </button>
 
                               {actionMenuReqId === req.id && (
-                                <div className={`absolute right-0 ${idx >= requests.length - 2 && requests.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'} w-52 max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
+                                <div className={`absolute right-0 ${idx > 0 && (idx >= filtered.length - 2 || filtered.length <= 3) ? 'bottom-full mb-1.5 origin-bottom-right' : 'top-full mt-1.5 origin-top-right'} w-56 max-h-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
                                   {/* Group: PDF Documents */}
                                   <div className="py-1">
                                     <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -2573,6 +2782,68 @@ export const FinancePage: React.FC = () => {
                                       </svg>
                                       <span>Workflow History</span>
                                     </button>
+
+                                    {req.status === 'liquidated' && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            handleOpenReviewModal(req)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                          <span>Review & Audit</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            handleLiquidationOpen(req)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                          </svg>
+                                          <span>Edit Liquidation</span>
+                                        </button>
+                                      </>
+                                    )}
+
+                                    {req.status === 'closed' && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            handleOpenReviewModal(req)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                          </svg>
+                                          <span>View & Re-review</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setActionMenuReqId(null)
+                                            handleOpenReopenModal(req)
+                                          }}
+                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
+                                        >
+                                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                          </svg>
+                                          <span>Reopen for Review</span>
+                                        </button>
+                                      </>
+                                    )}
 
                                     {req.status === 'pending' && (
                                       <button
@@ -2645,116 +2916,177 @@ export const FinancePage: React.FC = () => {
                     </div>
                   ))
                 )}
-              </div>
+              </>
+            )
+          }
+          return (
+            <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
+              No fund requests found.
+            </div>
+          )
+        })()}
+      </div>
 
-              {/* Desktop Table View (>= md) */}
-              <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
-                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[850px] [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
-                      <th className="p-3 w-10 text-center">
-                        <input
-                          type="checkbox"
-                          checked={requests.length > 0 && selectedIds.size === requests.length}
-                          onChange={() => handleSelectAll(requests.map(r => r.id))}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                        />
-                      </th>
-                      <th className="p-3">Reference No</th>
-                      <th className="p-3">Title & Log</th>
-                      <th className="p-3">Requester</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Status</th>
-                      <th className="p-3">Action Workflow</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {requests.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
-                          No fund requests found.
-                        </td>
-                      </tr>
+      {/* Desktop Table View (>= md) */}
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-2xs overflow-x-auto min-h-[380px] pb-28">
+        <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[850px] [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
+          <thead>
+            <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+              <th className="p-3 w-10 text-center">
+                <input
+                  type="checkbox"
+                  checked={(() => {
+                    const filtered = requests.filter(r => {
+                      if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                      if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                      return true
+                    })
+                    return filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))
+                  })()}
+                  onChange={() => {
+                    const filtered = requests.filter(r => {
+                      if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                      if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                      return true
+                    })
+                    handleSelectAll(filtered.map(r => r.id))
+                  }}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                />
+              </th>
+              <th className="p-3">Reference No</th>
+              <th className="p-3">Title & Log</th>
+              <th className="p-3">Requester</th>
+              <th className="p-3">Amount</th>
+              <th className="p-3">Status</th>
+              <th className="p-3">Action Workflow</th>
+            </tr>
+          </thead>
+          <tbody>
+            {(() => {
+              const filtered = requests.filter(r => {
+                if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                return true
+              })
+
+              if (filtered.length === 0) {
+                return (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                      {requests.length === 0 
+                        ? 'No fund requests found.'
+                        : `No fund requests found matching the "${fundSourceFilter === 'parish' ? 'Parish' : 'Main Funds'}" filter.`}
+                    </td>
+                  </tr>
+                )
+              }
+
+              return filtered.map((req, idx) => (
+                <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
+                  <td className="p-3 text-center">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(req.id)}
+                      onChange={() => handleToggleSelect(req.id)}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                    />
+                  </td>
+                  <td className="p-3 font-mono font-bold text-gray-950 whitespace-nowrap">
+                    {req.referenceNumber}
+                    {req.isArchived && (
+                      <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Archived
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-gray-800">{req.title}</span>
+                      {req.fundSource === 'parish' ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          Parish
+                        </span>
+                      ) : (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                          Main Funds
+                        </span>
+                      )}
+                      {req.targetEventName && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                          Event: {req.targetEventName}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setHistoryRequest(req)}
+                        className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-[10px] px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/80 hover:bg-blue-100 transition-colors cursor-pointer shadow-2xs"
+                      >
+                        <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>History</span>
+                      </button>
+                    </div>
+                    <div className="text-[10px] text-gray-400 mt-0.5">{req.purpose}</div>
+                    {req.status === 'released' && req.liquidationRevisionReason && (
+                      <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-0.5 max-w-md">
+                        <div className="flex items-center gap-1 text-[10px] font-bold uppercase text-amber-800">
+                          <svg className="w-3 h-3 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                          <span>Revision Requested {req.liquidationRevisionRequestedByName ? `by ${req.liquidationRevisionRequestedByName}` : ''}</span>
+                        </div>
+                        <div className="text-amber-950 font-medium text-[11px]">"{req.liquidationRevisionReason}"</div>
+                      </div>
+                    )}
+                  </td>
+                  <td className="p-3">{req.requestedByName}</td>
+                  <td className="p-3 font-bold">₱{req.requestedAmount.toLocaleString()}</td>
+                  <td className="p-3">
+                    {req.status === 'released' && req.liquidationRevisionReason ? (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-100 text-amber-900 border border-amber-300">
+                        Revision Req.
+                      </span>
                     ) : (
-                      requests.map((req, idx) => (
-                        <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
-                          <td className="p-3 text-center">
-                            <input
-                              type="checkbox"
-                              checked={selectedIds.has(req.id)}
-                              onChange={() => handleToggleSelect(req.id)}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                            />
-                          </td>
-                          <td className="p-3 font-mono font-bold text-gray-950">
-                            {req.referenceNumber}
-                            {req.isArchived && (
-                              <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                                Archived
-                              </span>
-                            )}
-                          </td>
-                          <td className="p-3">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-bold text-gray-800">{req.title}</span>
-                              {req.targetEventName && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
-                                  Event: {req.targetEventName}
-                                </span>
-                              )}
-                              <button
-                                type="button"
-                                onClick={() => setHistoryRequest(req)}
-                                className="inline-flex items-center gap-1 text-blue-700 hover:text-blue-900 font-bold text-[10px] px-2 py-0.5 rounded-md bg-blue-50/80 border border-blue-200/80 hover:bg-blue-100 transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                <span>History</span>
-                              </button>
-                            </div>
-                            <div className="text-[10px] text-gray-400 mt-0.5">{req.purpose}</div>
-                          </td>
-                          <td className="p-3">{req.requestedByName}</td>
-                          <td className="p-3 font-bold">₱{req.requestedAmount.toLocaleString()}</td>
-                          <td className="p-3">
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                              req.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
-                              req.status === 'rejected' ? 'bg-red-50 text-red-700' :
-                              req.status === 'released' ? 'bg-amber-50 text-amber-700' :
-                              req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700' :
-                              req.status === 'closed' ? 'bg-gray-100 text-gray-600' :
-                              req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
-                              req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
-                              'bg-gray-50 text-gray-600'
-                            }`}>
-                              {req.status}
-                            </span>
-                          </td>
-                          <td className="p-3">
-                            {req.isArchived ? (
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  onClick={() => handleRestoreRequest(req.id)}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                  </svg>
-                                  <span>Restore</span>
-                                </button>
-                                <button
-                                  onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
-                                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  <span>Delete</span>
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        req.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
+                        req.status === 'rejected' ? 'bg-red-50 text-red-700' :
+                        req.status === 'released' ? 'bg-amber-50 text-amber-700' :
+                        req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700' :
+                        req.status === 'closed' ? 'bg-gray-100 text-gray-600' :
+                        req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                        req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
+                        'bg-gray-50 text-gray-600'
+                      }`}>
+                        {req.status}
+                      </span>
+                    )}
+                  </td>
+                  <td className="p-3">
+                    {req.isArchived ? (
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => handleRestoreRequest(req.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                          </svg>
+                          <span>Restore</span>
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                          <span>Delete</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
                                 {/* 1. Primary Lifecycle Action Button */}
                                 {req.status === 'pending' && (
                                   <button
@@ -2782,25 +3114,42 @@ export const FinancePage: React.FC = () => {
 
                                 {req.status === 'released' && (
                                   <button
+                                    type="button"
                                     onClick={() => handleLiquidationOpen(req)}
-                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-xl shadow-md shadow-indigo-600/20 transition cursor-pointer"
+                                    className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white ${
+                                      req.liquidationRevisionReason ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                                    } rounded-xl shadow-md transition cursor-pointer`}
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
                                     </svg>
-                                    <span>Liquidate</span>
+                                    <span>{req.liquidationRevisionReason ? 'Edit & Re-liquidate' : 'Liquidate'}</span>
                                   </button>
                                 )}
 
                                 {req.status === 'liquidated' && (
                                   <button
-                                    onClick={() => handleReviewLiquidation(req.id)}
+                                    type="button"
+                                    onClick={() => handleOpenReviewModal(req)}
                                     className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
                                   >
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                                     </svg>
                                     <span>Review & Close</span>
+                                  </button>
+                                )}
+
+                                {req.status === 'closed' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenReviewModal(req)}
+                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 rounded-xl transition cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <span>View & Re-review</span>
                                   </button>
                                 )}
 
@@ -2825,7 +3174,7 @@ export const FinancePage: React.FC = () => {
                                   </button>
 
                                   {actionMenuReqId === req.id && (
-                                    <div className={`absolute right-0 ${idx >= requests.length - 2 && requests.length > 2 ? 'bottom-full mb-1' : 'top-full mt-1'} w-52 max-h-64 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
+                                    <div className={`absolute right-0 ${idx > 0 && (idx >= filtered.length - 2 || filtered.length <= 3) ? 'bottom-full mb-1.5 origin-bottom-right' : 'top-full mt-1.5 origin-top-right'} w-56 max-h-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
                                       {/* Group: PDF Documents */}
                                       <div className="py-1">
                                         <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -2882,6 +3231,68 @@ export const FinancePage: React.FC = () => {
                                           </svg>
                                           <span>Workflow History</span>
                                         </button>
+
+                                        {req.status === 'liquidated' && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActionMenuReqId(null)
+                                                handleOpenReviewModal(req)
+                                              }}
+                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                              </svg>
+                                              <span>Review & Audit</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActionMenuReqId(null)
+                                                handleLiquidationOpen(req)
+                                              }}
+                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                              </svg>
+                                              <span>Edit Liquidation</span>
+                                            </button>
+                                          </>
+                                        )}
+
+                                        {req.status === 'closed' && (
+                                          <>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActionMenuReqId(null)
+                                                handleOpenReviewModal(req)
+                                              }}
+                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
+                                            >
+                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                              </svg>
+                                              <span>View & Re-review</span>
+                                            </button>
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                setActionMenuReqId(null)
+                                                handleOpenReopenModal(req)
+                                              }}
+                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
+                                            >
+                                              <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                              </svg>
+                                              <span>Reopen for Review</span>
+                                            </button>
+                                          </>
+                                        )}
 
                                         {req.status === 'pending' && (
                                           <button
@@ -2981,7 +3392,7 @@ export const FinancePage: React.FC = () => {
                           </td>
                         </tr>
                       ))
-                    )}
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -3023,27 +3434,40 @@ export const FinancePage: React.FC = () => {
 
           {/* Reports Tab */}
           {activeTab === 'reports' && reportData && (
-            <div className="space-y-6">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 rounded-xl border border-gray-200 shadow-2xs">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <input
-                    type="date"
-                    value={reportStartDate}
-                    onChange={(e) => setReportStartDate(e.target.value)}
-                    className="p-2 border border-gray-300 rounded-xl text-xs font-bold bg-white"
-                  />
-                  <span className="text-gray-400 font-bold text-xs">to</span>
-                  <input
-                    type="date"
-                    value={reportEndDate}
-                    onChange={(e) => setReportEndDate(e.target.value)}
-                    className="p-2 border border-gray-300 rounded-xl text-xs font-bold bg-white"
-                  />
+            <div className="space-y-6 animate-fade-in">
+              {/* Report Header Filter & Actions */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/80 shadow-2xs">
+                <div>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                    Financial Statement Coverage
+                  </span>
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
+                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400">From</span>
+                      <input
+                        type="date"
+                        value={reportStartDate}
+                        onChange={(e) => setReportStartDate(e.target.value)}
+                        className="text-xs font-bold bg-transparent text-slate-800 outline-none cursor-pointer"
+                      />
+                    </div>
+                    <span className="text-slate-400 font-bold text-xs">to</span>
+                    <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs">
+                      <span className="text-[10px] font-extrabold uppercase text-slate-400">To</span>
+                      <input
+                        type="date"
+                        value={reportEndDate}
+                        onChange={(e) => setReportEndDate(e.target.value)}
+                        className="text-xs font-bold bg-transparent text-slate-800 outline-none cursor-pointer"
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 flex-wrap">
+
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
                   <button 
                     onClick={handleExportCSV} 
-                    className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold shadow-2xs transition cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold shadow-2xs transition cursor-pointer flex-1 sm:flex-none"
                   >
                     <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -3052,7 +3476,7 @@ export const FinancePage: React.FC = () => {
                   </button>
                   <button 
                     onClick={handleExportPDF} 
-                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md shadow-blue-600/20 transition cursor-pointer flex-1 sm:flex-none"
                   >
                     <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -3062,45 +3486,200 @@ export const FinancePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Summaries */}
-              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-                {[
-                  { label: 'Opening Balance', val: `₱${reportData.openingBalance.toLocaleString()}` },
-                  { label: 'Total Inflow', val: `₱${reportData.totalIncome.toLocaleString()}` },
-                  { label: 'Total Outflow', val: `₱${reportData.totalExpenses.toLocaleString()}` },
-                  { label: 'Closing Balance', val: `₱${reportData.closingBalance.toLocaleString()}` }
-                ].map((item, idx) => (
-                  <div key={idx} className="p-4 bg-white border border-gray-200 rounded-xl shadow-2xs">
-                    <span className="text-[10px] text-gray-500 font-bold uppercase">{item.label}</span>
-                    <div className="text-xl font-black mt-1 text-gray-900">{item.val}</div>
+              {/* KPI Summary Cards (Matching Dashboard Card Design) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Opening Balance */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Opening Balance</span>
+                    <div className="p-2 rounded-xl bg-slate-100 border border-slate-200 text-slate-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                      </svg>
+                    </div>
                   </div>
-                ))}
+                  <div className="mt-2">
+                    <div className="text-2xl sm:text-3xl font-black text-slate-900 font-mono">
+                      ₱{reportData.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      Carried forward before period
+                    </span>
+                  </div>
+                </div>
+
+                {/* 2. Total Inflow */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Total Inflow</span>
+                    <div className="p-2 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-2xl sm:text-3xl font-black text-emerald-600 font-mono">
+                      ₱{reportData.totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      Collections, donations & grants
+                    </span>
+                  </div>
+                </div>
+
+                {/* 3. Total Outflow */}
+                <div className="p-5 rounded-2xl border border-gray-200 bg-white shadow-2xs flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Total Outflow</span>
+                    <div className="p-2 rounded-xl bg-red-50 border border-red-100 text-red-600">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className="text-2xl sm:text-3xl font-black text-red-600 font-mono">
+                      ₱{reportData.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      Direct expenses & releases
+                    </span>
+                  </div>
+                </div>
+
+                {/* 4. Closing Balance */}
+                <div className={`p-5 rounded-2xl border transition-all shadow-2xs flex flex-col justify-between ${
+                  reportData.closingBalance > 0
+                    ? 'bg-emerald-50/50 border-emerald-200 text-emerald-950'
+                    : reportData.closingBalance < 0
+                    ? 'bg-rose-50/50 border-rose-200 text-rose-950'
+                    : 'bg-white border-gray-200 text-gray-900'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-gray-500">Closing Balance</span>
+                    <div className={`p-2 rounded-xl border ${
+                      reportData.closingBalance > 0
+                        ? 'bg-emerald-100 border-emerald-200 text-emerald-700'
+                        : reportData.closingBalance < 0
+                        ? 'bg-rose-100 border-rose-200 text-rose-700'
+                        : 'bg-blue-50 border-blue-100 text-blue-600'
+                    }`}>
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <div className={`text-2xl sm:text-3xl font-black font-mono ${
+                      reportData.closingBalance > 0 ? 'text-emerald-700' : reportData.closingBalance < 0 ? 'text-rose-700' : 'text-gray-900'
+                    }`}>
+                      ₱{reportData.closingBalance.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    <span className="text-[10px] font-semibold text-gray-400 block mt-1">
+                      Opening + Inflow − Outflow
+                    </span>
+                  </div>
+                </div>
               </div>
 
               {/* Categorized Breakdowns */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {reportData.incomeByCategory && reportData.incomeByCategory.filter((c: any) => c.total > 0).length > 0 && (
-                  <div className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
-                    <h4 className="text-xs font-bold uppercase text-gray-500">Incomes by Source / Category</h4>
-                    {reportData.incomeByCategory.filter((c: any) => c.total > 0).map((c: any) => (
-                      <div key={c.categoryId} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2">
-                        <span className="font-bold text-gray-700">{c.categoryName}</span>
-                        <span className="font-black text-emerald-600">₱{c.total.toLocaleString()}</span>
+                {/* Incomes Breakdown */}
+                <div className="p-5 sm:p-6 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-100">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                        </svg>
                       </div>
-                    ))}
-                  </div>
-                )}
-                {reportData.expenseByCategory && reportData.expenseByCategory.filter((c: any) => c.total > 0).length > 0 && (
-                  <div className="p-5 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-3">
-                    <h4 className="text-xs font-bold uppercase text-gray-500">Expenses by Category</h4>
-                    {reportData.expenseByCategory.filter((c: any) => c.total > 0).map((c: any) => (
-                      <div key={c.categoryId} className="flex justify-between items-center text-xs border-b border-gray-50 pb-2">
-                        <span className="font-bold text-gray-700">{c.categoryName}</span>
-                        <span className="font-black text-red-600">₱{c.total.toLocaleString()}</span>
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-gray-800 tracking-wider">Incomes by Category</h4>
+                        <span className="text-[10px] text-gray-400 font-semibold">Inflow revenue sources</span>
                       </div>
-                    ))}
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      ₱{reportData.totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
                   </div>
-                )}
+
+                  {reportData.incomeByCategory && reportData.incomeByCategory.filter((c: any) => c.total > 0).length > 0 ? (
+                    <div className="space-y-3">
+                      {reportData.incomeByCategory.filter((c: any) => c.total > 0).map((c: any) => {
+                        const percent = reportData.totalIncome > 0 ? Math.round((c.total / reportData.totalIncome) * 100) : 0
+                        return (
+                          <div key={c.categoryId} className="p-3 bg-slate-50/60 rounded-xl border border-slate-100 space-y-1.5">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-gray-800">{c.categoryName}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-gray-400 font-mono">({percent}%)</span>
+                                <span className="font-black text-emerald-600 font-mono">
+                                  ₱{c.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-emerald-500 h-1.5 rounded-full" style={{ width: `${percent}%` }}></div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-gray-400 text-xs font-medium italic">
+                      No income recorded in this period.
+                    </div>
+                  )}
+                </div>
+
+                {/* Expenses Breakdown */}
+                <div className="p-5 sm:p-6 bg-white border border-gray-200 rounded-2xl shadow-2xs space-y-4">
+                  <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-100">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 13l-5 5m0 0l-5-5m5 5V6" />
+                        </svg>
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black uppercase text-gray-800 tracking-wider">Expenses by Category</h4>
+                        <span className="text-[10px] text-gray-400 font-semibold">Outflow disbursements</span>
+                      </div>
+                    </div>
+                    <span className="px-2.5 py-1 rounded-full text-xs font-black bg-rose-50 text-rose-700 border border-rose-200">
+                      ₱{reportData.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+
+                  {reportData.expenseByCategory && reportData.expenseByCategory.filter((c: any) => c.total > 0).length > 0 ? (
+                    <div className="space-y-3">
+                      {reportData.expenseByCategory.filter((c: any) => c.total > 0).map((c: any) => {
+                        const percent = reportData.totalExpenses > 0 ? Math.round((c.total / reportData.totalExpenses) * 100) : 0
+                        return (
+                          <div key={c.categoryId} className="p-3 bg-slate-50/60 rounded-xl border border-slate-100 space-y-1.5">
+                            <div className="flex justify-between items-center text-xs">
+                              <span className="font-bold text-gray-800">{c.categoryName}</span>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-gray-400 font-mono">({percent}%)</span>
+                                <span className="font-black text-rose-600 font-mono">
+                                  ₱{c.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="w-full bg-gray-200 h-1.5 rounded-full overflow-hidden">
+                              <div className="bg-rose-500 h-1.5 rounded-full" style={{ width: `${percent}%` }}></div>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  ) : (
+                    <div className="p-8 text-center text-gray-400 text-xs font-medium italic">
+                      No expenses recorded in this period.
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -3188,16 +3767,23 @@ export const FinancePage: React.FC = () => {
 
       {/* Custom Dialog Modal (Alert / Confirm) */}
       {dialog && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xs animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-sm p-6 space-y-4 shadow-xl">
-            <h4 className="text-sm font-bold text-gray-900">{dialog.title}</h4>
-            <p className="text-xs text-gray-600 leading-relaxed">{dialog.message}</p>
-            <div className="flex justify-end gap-2 pt-2">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-sm p-5 space-y-4 shadow-2xl">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-100">
+                Notice
+              </span>
+            </div>
+            <div>
+              <h4 className="text-sm font-black text-gray-900">{dialog.title}</h4>
+              <p className="text-xs text-gray-600 leading-relaxed mt-1">{dialog.message}</p>
+            </div>
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-100">
               {dialog.isConfirm && (
                 <button
                   type="button"
                   onClick={() => setDialog(null)}
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
                 >
                   Cancel
                 </button>
@@ -3208,7 +3794,7 @@ export const FinancePage: React.FC = () => {
                   dialog.onConfirm()
                   setDialog(null)
                 }}
-                className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 cursor-pointer transition"
               >
                 Okay
               </button>
@@ -3220,27 +3806,44 @@ export const FinancePage: React.FC = () => {
       {/* Fund Request Workflow History Modal */}
       {historyRequest && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] flex flex-col overflow-hidden">
-            <div className="flex justify-between items-start">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg max-h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h4 className="text-sm font-bold text-gray-900">Fund Request Workflow History</h4>
-                <p className="text-[10px] text-gray-500 mt-0.5 font-mono">Ref: {historyRequest.referenceNumber}</p>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                  Audit Trail
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">Fund Request History</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[10px] text-gray-500 font-mono">Ref: {historyRequest.referenceNumber}</span>
+                  {historyRequest.fundSource === 'parish' ? (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                      Parish Funds
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                      Main Funds
+                    </span>
+                  )}
+                </div>
               </div>
               <button
+                type="button"
                 onClick={() => setHistoryRequest(null)}
-                className="text-gray-400 hover:text-gray-600 text-sm font-bold cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[60vh] sm:max-h-[350px] overflow-y-auto pr-1">
-              <div className="relative border-l-2 border-gray-100 pl-4 ml-2 space-y-5 py-2">
+            {/* Body */}
+            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              <div className="relative border-l-2 border-indigo-100 pl-4 ml-2 space-y-5 py-2">
                 {/* 1. Request submission */}
                 <div className="relative">
                   <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm"></div>
                   <div className="text-xs font-bold text-gray-900">Request Submitted</div>
-                  <div className="text-[10px] text-gray-500 mt-0.5">
+                  <div className="text-[11px] text-gray-500 mt-0.5">
                     Requested amount: <strong className="text-gray-800">₱{historyRequest.requestedAmount.toLocaleString()}</strong> by <strong className="text-gray-800">{historyRequest.requestedByName}</strong>
                   </div>
                 </div>
@@ -3249,8 +3852,8 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.approvedByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-emerald-700">✓ Approved</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
+                    <div className="text-xs font-bold text-emerald-700">Approved</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
                       Approved by <strong className="text-gray-800">{historyRequest.approvedByName}</strong> {historyRequest.approvalRemarks ? `("${historyRequest.approvalRemarks}")` : ''}
                     </div>
                   </div>
@@ -3259,8 +3862,8 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.rejectedByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-red-600">✗ Rejected</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
+                    <div className="text-xs font-bold text-red-600">Rejected</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
                       Rejected by <strong className="text-gray-800">{historyRequest.rejectedByName}</strong> {historyRequest.rejectionReason ? ` - Reason: "${historyRequest.rejectionReason}"` : ''}
                     </div>
                   </div>
@@ -3270,8 +3873,8 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.releasedByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-amber-700">→ Funds Released</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
+                    <div className="text-xs font-bold text-amber-700">Funds Released</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
                       Disbursed <strong className="text-gray-800">₱{historyRequest.releasedAmount?.toLocaleString()}</strong> by <strong className="text-gray-800">{historyRequest.releasedByName}</strong> to <strong className="text-gray-800">{historyRequest.releasedToName || historyRequest.requestedByName}</strong> on {historyRequest.releasedDate} {historyRequest.releaseRemarks ? `("${historyRequest.releaseRemarks}")` : ''}
                     </div>
                   </div>
@@ -3281,8 +3884,8 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.liquidatedByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-indigo-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-indigo-700">⟲ Liquidation Submitted</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
+                    <div className="text-xs font-bold text-indigo-700">Liquidation Submitted</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
                       Reported by <strong className="text-gray-800">{historyRequest.liquidatedByName}</strong> showing <strong className="text-gray-800">₱{historyRequest.totalSpent?.toLocaleString()}</strong> spent and <strong className="text-gray-800">₱{historyRequest.returnedAmount?.toLocaleString()}</strong> returned. {historyRequest.liquidationRemarks ? `("${historyRequest.liquidationRemarks}")` : ''}
                     </div>
                   </div>
@@ -3292,9 +3895,20 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.liquidationReviewedByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-gray-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-gray-700">🔒 Workflow Closed</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
-                      Reviewed & verified closed by <strong className="text-gray-800">{historyRequest.liquidationReviewedByName}</strong>
+                    <div className="text-xs font-bold text-gray-700">Workflow Closed</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
+                      Reviewed & verified closed by <strong className="text-gray-800">{historyRequest.liquidationReviewedByName}</strong> {historyRequest.liquidationReviewRemarks ? `("${historyRequest.liquidationReviewRemarks}")` : ''}
+                    </div>
+                  </div>
+                )}
+
+                {/* 5.1 Reopened for Review */}
+                {historyRequest.liquidationReopenedByName && (
+                  <div className="relative">
+                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm"></div>
+                    <div className="text-xs font-bold text-amber-700">Reopened for Review</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
+                      Reopened by <strong className="text-gray-800">{historyRequest.liquidationReopenedByName}</strong> {historyRequest.liquidationReopenReason ? ` - Reason: "${historyRequest.liquidationReopenReason}"` : ''}
                     </div>
                   </div>
                 )}
@@ -3303,8 +3917,8 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.cancelledByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-slate-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-slate-700">⊘ Request Cancelled</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
+                    <div className="text-xs font-bold text-slate-700">Request Cancelled</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
                       Cancelled by <strong className="text-gray-800">{historyRequest.cancelledByName}</strong> {historyRequest.cancellationReason ? ` - Reason: "${historyRequest.cancellationReason}"` : ''}
                     </div>
                   </div>
@@ -3314,8 +3928,8 @@ export const FinancePage: React.FC = () => {
                 {historyRequest.voidedByName && (
                   <div className="relative">
                     <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-rose-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-900 text-rose-700">⊘ Request Voided</div>
-                    <div className="text-[10px] text-gray-500 mt-0.5">
+                    <div className="text-xs font-bold text-rose-700">Request Voided</div>
+                    <div className="text-[11px] text-gray-500 mt-0.5">
                       Voided by <strong className="text-gray-800">{historyRequest.voidedByName}</strong> {historyRequest.voidReason ? ` - Reason: "${historyRequest.voidReason}"` : ''}
                     </div>
                   </div>
@@ -3323,11 +3937,12 @@ export const FinancePage: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-gray-100">
+            {/* Footer */}
+            <div className="flex justify-end p-3.5 border-t border-gray-100 bg-slate-50/50">
               <button
                 type="button"
                 onClick={() => setHistoryRequest(null)}
-                className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-bold rounded-lg cursor-pointer"
+                className="px-4 py-2 bg-white border border-gray-200 hover:bg-gray-50 text-gray-800 text-xs font-bold rounded-xl cursor-pointer shadow-2xs transition"
               >
                 Close History
               </button>
@@ -3338,58 +3953,121 @@ export const FinancePage: React.FC = () => {
 
       {/* Record / Edit Income Modal */}
       {isIncomeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h4 className="text-sm font-bold text-gray-900">
-              {editIncomeItem ? 'Edit Income Transaction' : 'Record Inflow Receipt'}
-            </h4>
-            <form onSubmit={handleSaveIncome} className="space-y-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Amount (₱)</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="0.00" 
-                  value={incAmount} 
-                  onChange={(e) => handleNumberChange(e.target.value, setIncAmount)} 
-                  className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" 
-                />
+                <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                  General Ledger Inflow
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">
+                  {editIncomeItem ? 'Edit Income Transaction' : 'Record Inflow Receipt'}
+                </h4>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Source Name</label>
-                <input type="text" required placeholder="e.g. Mass Donation" value={incSource} onChange={(e) => setIncSource(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
+              <button
+                type="button"
+                onClick={() => { setIsIncomeModalOpen(false); setEditIncomeItem(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveIncome} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Amount & Classification Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Amount & Classification</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount (₱) *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="0.00" 
+                      value={incAmount} 
+                      onChange={(e) => handleNumberChange(e.target.value, setIncAmount)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-bold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Category *</label>
+                    <select 
+                      required 
+                      value={incCategoryId} 
+                      onChange={(e) => setIncCategoryId(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 bg-white rounded-xl focus:ring-2 focus:ring-emerald-500 font-semibold text-xs"
+                    >
+                      <option value="">-- Choose Category --</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Source Name / Revenue Tag *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. Mass Donation, Solicitation, Church Subsidy" 
+                    value={incSource} 
+                    onChange={(e) => setIncSource(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Category</label>
-                <select required value={incCategoryId} onChange={(e) => setIncCategoryId(e.target.value)} className="w-full p-2 border border-gray-300 bg-white rounded mt-1 text-xs">
-                  <option value="">-- Choose Category --</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+
+              {/* Transaction Metadata Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">2. Transaction Metadata</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Received From *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Name or Parish / Institution" 
+                      value={incReceivedFrom} 
+                      onChange={(e) => setIncReceivedFrom(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Transaction Date *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={incDate} 
+                      onChange={(e) => setIncDate(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Description & Notes</label>
+                  <textarea 
+                    value={incDesc} 
+                    onChange={(e) => setIncDesc(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 text-xs" 
+                    rows={2}
+                    placeholder="Additional details, official receipt or voucher reference..."
+                  ></textarea>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Received From</label>
-                <input type="text" required placeholder="Name/Institution" value={incReceivedFrom} onChange={(e) => setIncReceivedFrom(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Transaction Date</label>
-                <input type="date" required value={incDate} onChange={(e) => setIncDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Description Notes</label>
-                <textarea value={incDesc} onChange={(e) => setIncDesc(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
+
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button 
                   type="button" 
                   onClick={() => { setIsIncomeModalOpen(false); setEditIncomeItem(null); }} 
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving} 
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 disabled:opacity-50 transition cursor-pointer"
                 >
                   {saving ? 'Saving...' : editIncomeItem ? 'Update Income' : 'Save Income'}
                 </button>
@@ -3401,54 +4079,109 @@ export const FinancePage: React.FC = () => {
 
       {/* Record / Edit Expense Modal */}
       {isExpenseModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h4 className="text-sm font-bold text-gray-900">
-              {editExpenseItem ? 'Edit Direct Expense' : 'Record Direct Outflow'}
-            </h4>
-            <form onSubmit={handleSaveExpense} className="space-y-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Amount (₱)</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="0.00" 
-                  value={expAmount} 
-                  onChange={(e) => handleNumberChange(e.target.value, setExpAmount)} 
-                  className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" 
-                />
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-600 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-100">
+                  General Ledger Outflow
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">
+                  {editExpenseItem ? 'Edit Direct Expense' : 'Record Direct Outflow'}
+                </h4>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Category</label>
-                <select required value={expCategoryId} onChange={(e) => setExpCategoryId(e.target.value)} className="w-full p-2 border border-gray-300 bg-white rounded mt-1 text-xs">
-                  <option value="">-- Choose Category --</option>
-                  {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
+              <button
+                type="button"
+                onClick={() => { setIsExpenseModalOpen(false); setEditExpenseItem(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveExpense} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Amount & Category Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Outflow & Category</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount (₱) *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="0.00" 
+                      value={expAmount} 
+                      onChange={(e) => handleNumberChange(e.target.value, setExpAmount)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-bold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Category *</label>
+                    <select 
+                      required 
+                      value={expCategoryId} 
+                      onChange={(e) => setExpCategoryId(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 bg-white rounded-xl focus:ring-2 focus:ring-rose-500 font-semibold text-xs"
+                    >
+                      <option value="">-- Choose Category --</option>
+                      {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Spent By (Person / Officer) *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. Juan Dela Cruz" 
+                    value={expSpentByName} 
+                    onChange={(e) => setExpSpentByName(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-semibold text-xs" 
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Spent By (Person)</label>
-                <input type="text" required value={expSpentByName} onChange={(e) => setExpSpentByName(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
+
+              {/* Purpose & Date Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">2. Purpose & Transaction Date</h5>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Transaction Date *</label>
+                  <input 
+                    type="date" 
+                    required 
+                    value={expDate} 
+                    onChange={(e) => setExpDate(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-semibold text-xs" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Expense Purpose Description *</label>
+                  <textarea 
+                    required 
+                    value={expDesc} 
+                    onChange={(e) => setExpDesc(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 text-xs" 
+                    rows={2}
+                    placeholder="Specific itemized description or reason for direct disbursement..."
+                  ></textarea>
+                </div>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Transaction Date</label>
-                <input type="date" required value={expDate} onChange={(e) => setExpDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Expense Purpose Description</label>
-                <textarea required value={expDesc} onChange={(e) => setExpDesc(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
+
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button 
                   type="button" 
                   onClick={() => { setIsExpenseModalOpen(false); setEditExpenseItem(null); }} 
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving} 
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 disabled:opacity-50 transition cursor-pointer"
                 >
                   {saving ? 'Saving...' : editExpenseItem ? 'Update Expense' : 'Save Expense'}
                 </button>
@@ -3460,40 +4193,72 @@ export const FinancePage: React.FC = () => {
 
       {/* Add / Edit Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-sm p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h4 className="text-sm font-bold text-gray-900">
-              {editCategoryItem ? 'Edit Category' : 'Add Finance Category'}
-            </h4>
-            <form onSubmit={handleSaveCategory} className="space-y-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Category Name</label>
-                <input type="text" required placeholder="e.g. Utility Bills" value={catName} onChange={(e) => setCatName(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
+                <span className="text-[10px] font-black uppercase tracking-wider text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
+                  Treasury Classification
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">
+                  {editCategoryItem ? 'Edit Category' : 'Add Finance Category'}
+                </h4>
               </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Display Color</label>
-                <select value={catColor} onChange={(e) => setCatColor(e.target.value)} className="w-full p-2 border border-gray-300 bg-white rounded mt-1 text-xs">
-                  <option value="blue">Blue</option>
-                  <option value="emerald">Emerald Green</option>
-                  <option value="red">Crimson Red</option>
-                  <option value="amber">Amber Yellow</option>
-                  <option value="purple">Royal Purple</option>
-                </select>
+              <button
+                type="button"
+                onClick={() => { setIsCategoryModalOpen(false); setEditCategoryItem(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveCategory} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Category Name *</label>
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="e.g. Utility Bills, Donations, Liturgical Supplies" 
+                    value={catName} 
+                    onChange={(e) => setCatName(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-purple-500 font-semibold text-xs" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Display Color Accent</label>
+                  <select 
+                    value={catColor} 
+                    onChange={(e) => setCatColor(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 bg-white rounded-xl focus:ring-2 focus:ring-purple-500 font-semibold text-xs"
+                  >
+                    <option value="blue">Blue</option>
+                    <option value="emerald">Emerald Green</option>
+                    <option value="red">Crimson Red</option>
+                    <option value="amber">Amber Yellow</option>
+                    <option value="purple">Royal Purple</option>
+                  </select>
+                </div>
               </div>
-              <div className="flex justify-end gap-2 pt-2">
+
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button 
                   type="button" 
                   onClick={() => { setIsCategoryModalOpen(false); setEditCategoryItem(null); }} 
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit" 
                   disabled={saving} 
-                  className="px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 cursor-pointer"
+                  className="px-5 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-md shadow-purple-600/20 disabled:opacity-50 transition cursor-pointer"
                 >
-                  {saving ? 'Saving...' : editCategoryItem ? 'Update Category' : 'Create'}
+                  {saving ? 'Saving...' : editCategoryItem ? 'Update Category' : 'Create Category'}
                 </button>
               </div>
             </form>
@@ -3526,8 +4291,73 @@ export const FinancePage: React.FC = () => {
             <form onSubmit={handleCreateRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Top Metadata Grid */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Request Details</h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Request Details & Source</h5>
+                
+                {/* Fund Source Selection Cards */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">Request Source / Charge To *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setReqFundSource('main_funds')}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        reqFundSource === 'main_funds'
+                          ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${reqFundSource === 'main_funds' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${reqFundSource === 'main_funds' ? 'text-blue-950' : 'text-slate-800'}`}>
+                            Main Ministry Funds
+                          </span>
+                          {reqFundSource === 'main_funds' && (
+                            <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          Disbursed from MAS internal treasury balance
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setReqFundSource('parish')}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        reqFundSource === 'parish'
+                          ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${reqFundSource === 'parish' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${reqFundSource === 'parish' ? 'text-emerald-950' : 'text-slate-800'}`}>
+                            Parish Funds
+                          </span>
+                          {reqFundSource === 'parish' && (
+                            <span className="h-2 w-2 rounded-full bg-emerald-600"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          Requested from Parish Priest / Parish Treasury
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Request Title *</label>
                     <input 
@@ -3745,48 +4575,110 @@ export const FinancePage: React.FC = () => {
 
       {/* Release Funds Modal */}
       {isReleaseModalOpen && selectedRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h4 className="text-sm font-bold text-gray-900">Release Approved Allocation</h4>
-
-            {selectedRequest.targetEventName && (
-              <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl text-xs text-indigo-900 leading-relaxed flex items-start gap-2">
-                <span className="shrink-0 px-1.5 py-0.5 bg-indigo-200 text-indigo-900 rounded font-bold text-[10px] uppercase">
-                  Event
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-lg max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                  Disbursement Authorization
                 </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">Release Approved Allocation</h4>
+                <p className="text-[10px] font-mono text-gray-500">Ref: {selectedRequest.referenceNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsReleaseModalOpen(false); setSelectedRequest(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleReleaseSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Event Allocation Notice */}
+              {selectedRequest.targetEventName && (
+                <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-xl text-xs text-indigo-950 leading-relaxed flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-indigo-600 text-white shrink-0 mt-0.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="font-black text-indigo-900 uppercase text-[10px] block tracking-wide">Event Budget Allocation</span>
+                    <p className="text-indigo-800 text-[11px] mt-0.5">
+                      Releasing these funds will automatically credit them to <strong>"{selectedRequest.targetEventName}"</strong> as Event Income in its financial ledger.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Disbursement Details Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Disbursement Details</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <MemberCombobox
+                      label="Released To (Person / Custodian)"
+                      placeholder="Search member or type recipient..."
+                      value={relToName}
+                      required
+                      allowCustom={true}
+                      onChange={(name) => setRelToName(name)}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Released Amount (₱) *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="0.00" 
+                      value={relAmount} 
+                      onChange={(e) => handleNumberChange(e.target.value, setRelAmount)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 font-bold text-xs" 
+                    />
+                    <span className="text-[10px] text-gray-400 mt-1 block">Requested: ₱{selectedRequest.requestedAmount.toLocaleString()}</span>
+                  </div>
+                </div>
                 <div>
-                  <strong>Event Budget Allocation:</strong> Releasing these funds will automatically credit them to the event <strong>"{selectedRequest.targetEventName}"</strong> as Event Income in its financial ledger.
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Date *</label>
+                  <input 
+                    type="date" 
+                    required 
+                    value={relDate} 
+                    onChange={(e) => setRelDate(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 font-semibold text-xs" 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Remarks / Voucher Notes</label>
+                  <textarea 
+                    value={relRemarks} 
+                    onChange={(e) => setRelRemarks(e.target.value)} 
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 text-xs" 
+                    rows={2}
+                    placeholder="Disbursement authorization note or reference number..."
+                  ></textarea>
                 </div>
               </div>
-            )}
 
-            <form onSubmit={handleReleaseSubmit} className="space-y-3">
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Released To (Name)</label>
-                <input type="text" required value={relToName} onChange={(e) => setRelToName(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Released Amount (₱)</label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="0.00" 
-                  value={relAmount} 
-                  onChange={(e) => handleNumberChange(e.target.value, setRelAmount)} 
-                  className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" 
-                />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Release Date</label>
-                <input type="date" required value={relDate} onChange={(e) => setRelDate(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase">Release Remarks</label>
-                <textarea value={relRemarks} onChange={(e) => setRelRemarks(e.target.value)} className="w-full p-2 border border-gray-300 rounded mt-1 text-xs" rows={2}></textarea>
-              </div>
-              <div className="flex justify-end gap-2 pt-2 flex-wrap">
-                <button type="button" onClick={() => { setIsReleaseModalOpen(false); setSelectedRequest(null); }} className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded hover:bg-gray-50">Cancel</button>
-                <button type="submit" disabled={saving} className="px-4 py-2 bg-amber-600 text-white text-xs font-bold rounded hover:bg-amber-700">Execute Release</button>
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsReleaseModalOpen(false); setSelectedRequest(null); }} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md shadow-amber-600/20 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {saving ? 'Releasing...' : 'Execute Release'}
+                </button>
               </div>
             </form>
           </div>
@@ -4088,41 +4980,47 @@ export const FinancePage: React.FC = () => {
 
       {/* Cancel Fund Request Modal */}
       {cancelModalRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-md max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <h4 className="text-sm font-bold text-gray-900">Cancel Fund Request</h4>
-                <p className="text-[10px] text-gray-500 font-mono mt-0.5">Ref: {cancelModalRequest.referenceNumber}</p>
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                  Requisition Cancellation
+                </span>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">Cancel Fund Request</h4>
+                <p className="text-[10px] text-gray-500 font-mono">Ref: {cancelModalRequest.referenceNumber}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setCancelModalRequest(null); setCancelReason(''); }}
-                className="text-gray-400 hover:text-gray-600 font-bold text-sm cursor-pointer"
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-1 text-xs">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Request Title:</span>
-                <span className="font-bold text-gray-900">{cancelModalRequest.title}</span>
+            {/* Modal Body Form */}
+            <form onSubmit={handleConfirmCancel} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Summary Card */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Request Title:</span>
+                  <span className="font-bold text-gray-900 truncate max-w-[200px]">{cancelModalRequest.title}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Requested Amount:</span>
+                  <span className="font-black text-blue-700 font-mono">₱{cancelModalRequest.requestedAmount.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between items-center text-xs">
+                  <span className="text-gray-500">Requester:</span>
+                  <span className="font-semibold text-gray-800">{cancelModalRequest.requestedByName}</span>
+                </div>
               </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Requested Amount:</span>
-                <span className="font-bold text-gray-900">₱{cancelModalRequest.requestedAmount.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-500">Requester:</span>
-                <span className="font-medium text-gray-800">{cancelModalRequest.requestedByName}</span>
-              </div>
-            </div>
 
-            <form onSubmit={handleConfirmCancel} className="space-y-3">
               <div>
-                <label className="block text-[10px] font-bold text-gray-500 uppercase mb-1">
-                  Cancellation Reason (Dahilan kung bakit kinansela) *
+                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                  Cancellation Reason *
                 </label>
                 <textarea
                   required
@@ -4131,23 +5029,24 @@ export const FinancePage: React.FC = () => {
                   value={cancelReason}
                   onChange={(e) => setCancelReason(e.target.value)}
                   placeholder="e.g. Activity was postponed, budget no longer required..."
-                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  className="w-full p-2.5 border border-gray-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-slate-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button
                   type="button"
                   onClick={() => { setCancelModalRequest(null); setCancelReason(''); }}
                   disabled={saving}
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-lg hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
                   disabled={saving || !cancelReason.trim()}
-                  className="px-4 py-2 bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold rounded-lg disabled:opacity-50 transition-colors cursor-pointer"
+                  className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50 transition cursor-pointer"
                 >
                   {saving ? 'Cancelling...' : 'Confirm Cancellation'}
                 </button>
@@ -4159,38 +5058,49 @@ export const FinancePage: React.FC = () => {
 
       {/* Void Fund Request Modal */}
       {voidModalRequest && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-3 sm:p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl border border-rose-200 w-full max-w-md p-4 sm:p-6 space-y-4 shadow-xl max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-rose-200 w-full max-w-md max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-rose-100 flex items-center justify-between bg-rose-50/50">
               <div>
-                <h4 className="text-sm font-bold text-rose-900 flex items-center gap-1.5">
-                  <span>⚠️</span> Void Fund Request Voucher
-                </h4>
-                <p className="text-[10px] text-rose-600 font-mono mt-0.5">Ref: {voidModalRequest.referenceNumber}</p>
+                <span className="text-[10px] font-black uppercase tracking-wider text-rose-700 bg-rose-100 px-2 py-0.5 rounded-md border border-rose-200">
+                  Voucher Annulment
+                </span>
+                <h4 className="text-base font-black text-rose-950 mt-0.5">Void Fund Request Voucher</h4>
+                <p className="text-[10px] text-rose-600 font-mono">Ref: {voidModalRequest.referenceNumber}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setVoidModalRequest(null); setVoidReason(''); }}
-                className="text-gray-400 hover:text-gray-600 font-bold text-sm cursor-pointer"
+                className="text-rose-400 hover:text-rose-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-rose-100"
               >
                 ✕
               </button>
             </div>
 
-            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5 text-xs text-rose-900">
-              <p className="font-medium text-[11px] leading-relaxed">
-                <strong>Warning:</strong> Voiding this request will annul its status. If funds were previously disbursed (₱{(voidModalRequest.releasedAmount || voidModalRequest.requestedAmount).toLocaleString()}), this will reverse its financial ledger outflow and soft-archive any linked event income.
-              </p>
-              <div className="pt-1 border-t border-rose-200/60 text-[11px] flex justify-between">
-                <span>Title: <strong>{voidModalRequest.title}</strong></span>
-                <span>Amount: <strong>₱{(voidModalRequest.releasedAmount || voidModalRequest.requestedAmount).toLocaleString()}</strong></span>
+            {/* Modal Body Form */}
+            <form onSubmit={handleConfirmVoid} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Warning Card */}
+              <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-xs text-rose-950">
+                <div className="flex items-start gap-2">
+                  <div className="p-1 rounded-lg bg-rose-600 text-white shrink-0 mt-0.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <p className="font-medium text-[11px] leading-relaxed">
+                    Voiding this request will annul its status. If funds were previously disbursed (₱{(voidModalRequest.releasedAmount || voidModalRequest.requestedAmount).toLocaleString()}), this will reverse its financial ledger outflow and soft-archive any linked event income.
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-rose-200/70 text-[11px] flex justify-between">
+                  <span>Title: <strong>{voidModalRequest.title}</strong></span>
+                  <span>Amount: <strong>₱{(voidModalRequest.releasedAmount || voidModalRequest.requestedAmount).toLocaleString()}</strong></span>
+                </div>
               </div>
-            </div>
 
-            <form onSubmit={handleConfirmVoid} className="space-y-3">
               <div>
                 <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
-                  Void Reason (Dahilan kung bakit i-void) *
+                  Void Reason *
                 </label>
                 <textarea
                   required
@@ -4199,25 +5109,109 @@ export const FinancePage: React.FC = () => {
                   value={voidReason}
                   onChange={(e) => setVoidReason(e.target.value)}
                   placeholder="e.g. Duplicate disbursement voucher, issued in error..."
-                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                  className="w-full p-2.5 border border-gray-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-rose-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2 border-t border-gray-100 flex-wrap">
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
                 <button
                   type="button"
                   onClick={() => { setVoidModalRequest(null); setVoidReason(''); }}
                   disabled={saving}
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-lg hover:bg-gray-50 cursor-pointer"
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
                 >
                   Close
                 </button>
                 <button
                   type="submit"
                   disabled={saving || !voidReason.trim()}
-                  className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg disabled:opacity-50 shadow-sm shadow-rose-500/30 transition-colors cursor-pointer"
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 disabled:opacity-50 transition cursor-pointer"
                 >
                   {saving ? 'Voiding...' : 'Confirm Void'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Reopen Closed Liquidation Review Modal */}
+      {reopenModalRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-amber-200 w-full max-w-md max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-amber-100 flex items-center justify-between bg-amber-50/50">
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-200">
+                  Audit & Re-evaluation
+                </span>
+                <h4 className="text-base font-black text-amber-950 mt-0.5">Reopen Closed Liquidation</h4>
+                <p className="text-[10px] text-amber-700 font-mono">Ref: {reopenModalRequest.referenceNumber}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setReopenModalRequest(null); setReopenReason(''); }}
+                className="text-amber-400 hover:text-amber-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-amber-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleReopenLiquidationSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Info Card */}
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs text-amber-950">
+                <div className="flex items-start gap-2">
+                  <div className="p-1 rounded-lg bg-amber-600 text-white shrink-0 mt-0.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <p className="font-medium text-[11px] leading-relaxed">
+                    Ibabalik ang status ng request na ito mula sa <strong>Closed</strong> patungo sa <strong>Liquidated</strong> upang ma-review, maiwasto, o ma-audit muli ang mga resibo at expenditures.
+                  </p>
+                </div>
+                <div className="pt-2 border-t border-amber-200/70 text-[11px] flex justify-between">
+                  <span>Title: <strong>{reopenModalRequest.title}</strong></span>
+                  <span>Amount: <strong>₱{(reopenModalRequest.releasedAmount || reopenModalRequest.requestedAmount).toLocaleString()}</strong></span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">
+                  Reason for Reopening *
+                </label>
+                <textarea
+                  required
+                  rows={3}
+                  maxLength={300}
+                  value={reopenReason}
+                  onChange={(e) => setReopenReason(e.target.value)}
+                  placeholder="Hal: Karagdagang pagsusuri sa mga opisyal na resibo, pagwawasto ng halaga..."
+                  className="w-full p-2.5 border border-gray-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 font-medium"
+                />
+              </div>
+
+              {/* Sticky Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => { setReopenModalRequest(null); setReopenReason(''); }}
+                  disabled={saving}
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving || !reopenReason.trim()}
+                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md shadow-amber-600/20 disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>{saving ? 'Reopening...' : 'Reopen for Review'}</span>
                 </button>
               </div>
             </form>
@@ -4269,6 +5263,429 @@ export const FinancePage: React.FC = () => {
         }
         confirmLabel="Delete Permanently"
       />
+
+      {/* Review Liquidation Modal */}
+      {isReviewLiquidationModalOpen && reviewLiquidationRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-3xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                    reviewLiquidationRequest.status === 'closed'
+                      ? 'text-gray-700 bg-gray-100 border-gray-300'
+                      : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                  }`}>
+                    {reviewLiquidationRequest.status === 'closed' ? 'Closed Liquidation (Audited)' : 'Audit & Review'}
+                  </span>
+                  {reviewLiquidationRequest.liquidationReopenReason && reviewLiquidationRequest.status === 'liquidated' && (
+                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-800 bg-amber-100 px-2 py-0.5 rounded-md border border-amber-300">
+                      Reopened for Review
+                    </span>
+                  )}
+                </div>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">
+                  {reviewLiquidationRequest.status === 'closed' ? 'Liquidation Audit Summary' : 'Review Liquidation Report'}
+                </h4>
+                <p className="text-[10px] font-mono text-gray-500">
+                  Ref: {reviewLiquidationRequest.referenceNumber} • Title: {reviewLiquidationRequest.title}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsReviewLiquidationModalOpen(false); setReviewLiquidationRequest(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Top Financial Breakdown Cards */}
+              {(() => {
+                const totalBudget = (reviewLiquidationRequest.budgetSources || []).reduce((s, b) => s + parseAmount(b.amount), 0) || (reviewLiquidationRequest.releasedAmount || reviewLiquidationRequest.requestedAmount || 0)
+                const totalSpent = (reviewLiquidationRequest.liquidationExpenses || []).reduce((s, e) => s + parseAmount(e.amount), 0) || (reviewLiquidationRequest.totalSpent || 0)
+                const returned = Math.max(0, totalBudget - totalSpent)
+                const reimbursed = Math.max(0, totalSpent - totalBudget)
+
+                return (
+                  <div className="space-y-2.5">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase text-gray-500 block">Total Budget Received</span>
+                        <span className="text-sm font-black text-indigo-900 font-mono">
+                          ₱{totalBudget.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase text-gray-500 block">Total Expenses Spent</span>
+                        <span className="text-sm font-black text-rose-700 font-mono">
+                          ₱{totalSpent.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase text-gray-500 block">Surplus (Isasauli)</span>
+                        <span className={`text-sm font-black font-mono ${returned > 0 ? 'text-emerald-700' : 'text-gray-400'}`}>
+                          ₱{returned.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                      <div className="p-2.5 bg-white rounded-xl border border-slate-200 shadow-2xs">
+                        <span className="text-[10px] font-bold uppercase text-gray-500 block">Reimbursement (Abono)</span>
+                        <span className={`text-sm font-black font-mono ${reimbursed > 0 ? 'text-amber-700' : 'text-gray-400'}`}>
+                          ₱{reimbursed.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Settlement Notice */}
+                    {returned > 0 && (
+                      <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 text-xs flex items-center gap-2">
+                        <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span>
+                          <strong>Surplus Settlement:</strong> ₱{returned.toLocaleString('en-US', { minimumFractionDigits: 2 })} remaining balance must be returned to the parish/ministry fund.
+                        </span>
+                      </div>
+                    )}
+                    {reimbursed > 0 && (
+                      <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 text-xs flex items-center gap-2">
+                        <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>
+                          <strong>Reimbursement Claim:</strong> ₱{reimbursed.toLocaleString('en-US', { minimumFractionDigits: 2 })} out-of-pocket expenses to be reimbursed to {reviewLiquidationRequest.requestedByName}.
+                        </span>
+                      </div>
+                    )}
+                    {returned === 0 && reimbursed === 0 && (
+                      <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-blue-900 text-xs flex items-center gap-2">
+                        <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>
+                          <strong>Balanced:</strong> Total expenditures exactly match the released budget amount.
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
+              {/* Memo Details */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Memo & Metadata</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Addressee (To)</span>
+                    <span className="font-semibold text-gray-800">{reviewLiquidationRequest.liquidationTo || '--'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Sender (From)</span>
+                    <span className="font-semibold text-gray-800">{reviewLiquidationRequest.liquidationFrom || '--'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Liquidation Date</span>
+                    <span className="font-semibold text-gray-800">{reviewLiquidationRequest.liquidationDate || '--'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Liquidated By</span>
+                    <span className="font-semibold text-gray-800">{reviewLiquidationRequest.liquidatedByName || reviewLiquidationRequest.requestedByName || '--'}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Table: Budget Sources */}
+              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-2 shadow-2xs">
+                <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                  </svg>
+                  <span>Budget Sources & Sponsors</span>
+                </h5>
+                <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5">Source / Sponsor Description</th>
+                        <th className="p-2.5 text-right w-36">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(reviewLiquidationRequest.budgetSources || []).map((b, idx) => (
+                        <tr key={b.id || idx}>
+                          <td className="p-2.5 font-medium text-gray-800">{b.description || '--'}</td>
+                          <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                            ₱{parseAmount(b.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                      {(!reviewLiquidationRequest.budgetSources || reviewLiquidationRequest.budgetSources.length === 0) && (
+                        <tr>
+                          <td className="p-2.5 font-medium text-gray-800">Parish / Main Funds (Request #{reviewLiquidationRequest.referenceNumber})</td>
+                          <td className="p-2.5 text-right font-mono font-bold text-gray-900">
+                            ₱{(reviewLiquidationRequest.releasedAmount || reviewLiquidationRequest.requestedAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Table: Actual Expenses */}
+              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-2 shadow-2xs">
+                <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                  </svg>
+                  <span>Actual Expense Breakdown & Receipts</span>
+                </h5>
+                <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase text-[10px]">
+                      <tr>
+                        <th className="p-2.5 w-28">O.R. No</th>
+                        <th className="p-2.5">Item Description</th>
+                        <th className="p-2.5 text-right w-36">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {(reviewLiquidationRequest.liquidationExpenses || []).map((exp, idx) => (
+                        <tr key={exp.id || idx}>
+                          <td className="p-2.5 font-mono text-gray-600 font-semibold">{exp.orNumber || 'NO O.R'}</td>
+                          <td className="p-2.5 font-medium text-gray-800">{exp.description || '--'}</td>
+                          <td className="p-2.5 text-right font-mono font-bold text-rose-700">
+                            ₱{parseAmount(exp.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      ))}
+                      {(!reviewLiquidationRequest.liquidationExpenses || reviewLiquidationRequest.liquidationExpenses.length === 0) && (
+                        <tr>
+                          <td colSpan={3} className="p-3 text-center text-gray-400 italic">No expense items recorded.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Remarks */}
+              {reviewLiquidationRequest.liquidationRemarks && (
+                <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                  <span className="text-[10px] uppercase font-bold text-gray-500 block mb-0.5">Liquidation Remarks</span>
+                  <p className="text-gray-700 font-medium italic">"{reviewLiquidationRequest.liquidationRemarks}"</p>
+                </div>
+              )}
+
+              {/* Auditor Notes if Already Closed */}
+              {reviewLiquidationRequest.status === 'closed' && (
+                <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl space-y-1.5 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-emerald-900 flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Audited & Approved by {reviewLiquidationRequest.liquidationReviewedByName || 'Admin'}</span>
+                    </span>
+                    {reviewLiquidationRequest.liquidationReviewedAt && (
+                      <span className="text-[10px] text-emerald-700 font-medium">
+                        {new Date(reviewLiquidationRequest.liquidationReviewedAt?.toDate ? reviewLiquidationRequest.liquidationReviewedAt.toDate() : reviewLiquidationRequest.liquidationReviewedAt).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                  {reviewLiquidationRequest.liquidationReviewRemarks && (
+                    <p className="text-emerald-950 font-medium italic pl-5">
+                      "{reviewLiquidationRequest.liquidationReviewRemarks}"
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Request Changes / Revision Form Section */}
+              {showRevisionSection ? (
+                <form onSubmit={handleRequestRevisionSubmit} className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-xs font-black text-amber-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span>Request Changes / Return for Revision</span>
+                    </h5>
+                    <button
+                      type="button"
+                      onClick={() => setShowRevisionSection(false)}
+                      className="text-xs font-bold text-gray-500 hover:text-gray-700 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-amber-800 font-medium">
+                    I-specify ang mga kailangang baguhin o itama (hal. kulang na resibo, maling halaga). Ibabalik ang status sa <strong>Released</strong> upang mabago ng requester ang liquidation details.
+                  </p>
+                  <div>
+                    <label className="block text-[10px] font-bold text-amber-900 uppercase mb-1">
+                      Reason for Revision / Required Changes *
+                    </label>
+                    <textarea
+                      required
+                      rows={3}
+                      value={reviewRevisionReason}
+                      onChange={(e) => setReviewRevisionReason(e.target.value)}
+                      placeholder="Hal: Pakilagay ang O.R. number sa supplies at pakitama ang halaga ng transpo..."
+                      className="w-full p-2.5 border border-amber-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 font-medium"
+                    />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowRevisionSection(false)}
+                      className="px-3 py-1.5 border border-gray-200 text-xs font-semibold rounded-xl bg-white hover:bg-gray-50 cursor-pointer"
+                    >
+                      Back to Review
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+                    >
+                      {saving ? 'Returning...' : 'Confirm & Request Changes'}
+                    </button>
+                  </div>
+                </form>
+              ) : reviewLiquidationRequest.status === 'closed' ? (
+                /* Closed View Toolbar & Reopen Option */
+                <div className="space-y-3 pt-2">
+                  <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setLiquidationExportRequest(reviewLiquidationRequest)
+                        setIsLiquidationExportOpen(true)
+                      }}
+                      className="px-3.5 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl border border-indigo-200 text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Preview Liquidation PDF</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const req = reviewLiquidationRequest
+                        setIsReviewLiquidationModalOpen(false)
+                        handleOpenReopenModal(req)
+                      }}
+                      className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition cursor-pointer shadow-md shadow-amber-600/20"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Reopen for Review / Adjustments</span>
+                    </button>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
+                    <button
+                      type="button"
+                      onClick={() => { setIsReviewLiquidationModalOpen(false); setReviewLiquidationRequest(null); }}
+                      className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                    >
+                      Close Review
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                /* Approval Form & Toolbar */
+                <form onSubmit={handleApproveLiquidationSubmit} className="space-y-3 pt-2">
+                  {/* Action Toolbar */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-slate-50 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLiquidationExportRequest(reviewLiquidationRequest)
+                          setIsLiquidationExportOpen(true)
+                        }}
+                        className="px-3 py-1.5 bg-white hover:bg-indigo-50 text-indigo-700 font-bold rounded-xl border border-indigo-200 text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>Preview PDF</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const req = reviewLiquidationRequest
+                          setIsReviewLiquidationModalOpen(false)
+                          handleLiquidationOpen(req)
+                        }}
+                        className="px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-700 font-bold rounded-xl border border-blue-200 text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        <span>Edit / Adjust Liquidation</span>
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowRevisionSection(true)}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold rounded-xl border border-amber-200 text-xs flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                    >
+                      <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <span>Request Changes / Revision</span>
+                    </button>
+                  </div>
+
+                  {/* Reviewer Audit Remarks */}
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                      Audit / Approval Remarks (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={reviewRemarks}
+                      onChange={(e) => setReviewRemarks(e.target.value)}
+                      placeholder="e.g. Audited and verified by Parish Finance Council"
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-emerald-500 font-medium"
+                    />
+                  </div>
+
+                  {/* Modal Footer */}
+                  <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
+                    <button
+                      type="button"
+                      onClick={() => { setIsReviewLiquidationModalOpen(false); setReviewLiquidationRequest(null); }}
+                      className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 disabled:opacity-50 transition cursor-pointer flex items-center gap-1.5"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>{saving ? 'Approving & Closing...' : 'Approve Liquidation & Close'}</span>
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Finance PDF Export Modal with Dynamic Signatures */}
       <FinanceExportModal

@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { scheduleService } from '@/services/scheduleService'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
 
 interface BulkDeleteMonthModalProps {
   isOpen: boolean
@@ -15,6 +16,7 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
 }) => {
   const { profile } = useAuth()
   const [selectedMonth, setSelectedMonth] = useState('')
+  const [deleteScope, setDeleteScope] = useState<'all' | 'sunday' | 'weekday'>('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<{ deleted: number; skipped: number } | null>(null)
@@ -36,10 +38,18 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
       const startDate = `${selectedMonth}-01`
       const endDate = `${selectedMonth}-31`
       const monthSchedules = await scheduleService.getSchedulesByDateRange(startDate, endDate)
-      const idsToDelete = monthSchedules.map(s => s.id)
+      
+      const filtered = monthSchedules.filter(s => {
+        if (deleteScope === 'all') return true
+        const isSun = isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
+        return deleteScope === 'sunday' ? isSun : !isSun
+      })
+
+      const idsToDelete = filtered.map(s => s.id)
 
       if (idsToDelete.length === 0) {
-        setError('No schedules found for this month.')
+        const scopeLabel = deleteScope === 'sunday' ? 'Sunday ' : deleteScope === 'weekday' ? 'Weekday ' : ''
+        setError(`No ${scopeLabel}schedules found for this month.`)
         setLoading(false)
         return
       }
@@ -127,6 +137,52 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
                 disabled={loading}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none transition-all"
               />
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">
+                Target Schedules to Delete:
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteScope('all')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                    deleteScope === 'all'
+                      ? 'bg-rose-50 border-rose-500 text-rose-950 font-black shadow-xs ring-2 ring-rose-500/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
+                  }`}
+                >
+                  <span className="block text-xs">All Slots</span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">Sun & Wkday</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeleteScope('sunday')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                    deleteScope === 'sunday'
+                      ? 'bg-indigo-50 border-indigo-500 text-indigo-950 font-black shadow-xs ring-2 ring-indigo-500/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
+                  }`}
+                >
+                  <span className="block text-xs">Sundays</span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">Sun & Anticipated</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setDeleteScope('weekday')}
+                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                    deleteScope === 'weekday'
+                      ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-black shadow-xs ring-2 ring-emerald-500/20'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
+                  }`}
+                >
+                  <span className="block text-xs">Weekdays</span>
+                  <span className="text-[9px] text-slate-400 block mt-0.5">Mon to Sat</span>
+                </button>
+              </div>
             </div>
           </div>
         )}

@@ -633,7 +633,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                 </button>
 
                 {isAddRuleDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-2 w-[calc(100vw-3rem)] max-w-xs sm:w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-1.5 space-y-0.5 animate-in fade-in zoom-in-95 duration-150">
+                  <div className="absolute right-0 top-full mt-2 w-[calc(100vw-3rem)] max-w-xs sm:w-64 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-1.5 space-y-0.5 max-h-72 overflow-y-auto animate-in fade-in zoom-in-95 duration-150">
                     <button
                       type="button"
                       disabled={activeRules.some(r => r.category === 'all')}

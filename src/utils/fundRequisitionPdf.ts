@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import type { FinanceFundRequest } from '@/types/finance'
+import type { FinanceFundRequest, FundRequestSource } from '@/types/finance'
 import type { SignatureConfig } from '@/types/signature'
 import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
@@ -29,6 +29,7 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
 export interface FundRequisitionPdfOptions {
   documentDate?: string
   fromMinistry?: string
+  fundSource?: FundRequestSource
   purpose?: string
   participants?: string
   dateNeeded?: string
@@ -130,9 +131,14 @@ export const downloadFundRequisitionPdf = async (
 
   // Details block
   cursorY += 7
-  const lineHeight = 6
+  const lineHeight = 5.5
   const labelX = 14
   const valueX = 42
+
+  const effectiveFundSource = options?.fundSource || request.fundSource || 'main_funds'
+  const fundSourceLabel = effectiveFundSource === 'parish' 
+    ? 'PARISH FUNDS (Sacred Heart of Jesus Parish)' 
+    : 'MAIN MINISTRY FUNDS (Ministry of Altar Servers)'
 
   const purposeVal = options?.purpose || request.purpose || request.title || 'N/A'
   const participantsVal = options?.participants || request.participants || 'N/A'
@@ -140,9 +146,17 @@ export const downloadFundRequisitionPdf = async (
   const venueVal = options?.venue || request.venue || 'N/A'
   const assemblyVal = options?.assembly || request.assembly || 'N/A'
 
+  // Charge to / Source
+  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9.5)
+  doc.text('Chargeable To:', labelX, cursorY)
+  doc.setFont('helvetica', 'bold')
+  doc.text(fundSourceLabel, valueX, cursorY)
+  cursorY += lineHeight
+
   // Purpose
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
+  doc.setFontSize(9.5)
   doc.text('Purpose:', labelX, cursorY)
   doc.setFont('helvetica', 'bold')
   doc.text(purposeVal, valueX, cursorY)
