@@ -53,8 +53,8 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
       {
         id: 'ev-sig-1',
         label: 'Prepared by:',
-        name: '',
-        title: DEFAULT_MINISTRY_NAME,
+        name: 'Bro. BENAIKA LORENZO PARONABLE',
+        title: `Admin Officer, ${DEFAULT_MINISTRY_NAME}`,
         organization: DEFAULT_PARISH_NAME,
         column: 1
       },

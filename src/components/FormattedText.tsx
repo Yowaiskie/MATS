@@ -223,8 +223,34 @@ export const FormatToolbar: React.FC<FormatToolbarProps> = ({
     const start = input.selectionStart ?? value.length
     const end = input.selectionEnd ?? value.length
     const selectedText = value.substring(start, end)
-    const replacement = selectedText ? `${prefix}${selectedText}${suffix}` : `${prefix}${defaultPlaceholder}${suffix}`
 
+    // Check if selected text is already wrapped in prefix and suffix (smart un-formatting)
+    if (selectedText && selectedText.startsWith(prefix) && selectedText.endsWith(suffix) && selectedText.length >= prefix.length + suffix.length) {
+      const unwrapped = selectedText.substring(prefix.length, selectedText.length - suffix.length)
+      const newValue = value.substring(0, start) + unwrapped + value.substring(end)
+      onChange(newValue)
+      setTimeout(() => {
+        input.focus()
+        input.setSelectionRange(start, start + unwrapped.length)
+      }, 10)
+      return
+    }
+
+    // Check if cursor is immediately inside or surrounding the prefix/suffix in the broader text
+    const beforeSelection = value.substring(Math.max(0, start - prefix.length), start)
+    const afterSelection = value.substring(end, Math.min(value.length, end + suffix.length))
+    if (beforeSelection === prefix && afterSelection === suffix && selectedText) {
+      const newValue = value.substring(0, start - prefix.length) + selectedText + value.substring(end + suffix.length)
+      onChange(newValue)
+      setTimeout(() => {
+        input.focus()
+        const newStart = start - prefix.length
+        input.setSelectionRange(newStart, newStart + selectedText.length)
+      }, 10)
+      return
+    }
+
+    const replacement = selectedText ? `${prefix}${selectedText}${suffix}` : `${prefix}${defaultPlaceholder}${suffix}`
     const newValue = value.substring(0, start) + replacement + value.substring(end)
     onChange(newValue)
 

@@ -541,19 +541,26 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
               Order / Group
             </label>
-            <select
-              value={selectedOrder}
-              onChange={(e) => {
-                setSelectedOrder(e.target.value)
-                setCurrentPage(1)
-              }}
-              className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
-            >
-              <option value="all">All Orders / Groups</option>
-              {ORDER_GROUPS.map(og => (
-                <option key={og} value={og}>{og}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedOrder}
+                onChange={(e) => {
+                  setSelectedOrder(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
+              >
+                <option value="all">All Orders / Groups</option>
+                {ORDER_GROUPS.map(og => (
+                  <option key={og} value={og}>{og}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Serving Activity Filter */}
@@ -561,18 +568,25 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
               Participation
             </label>
-            <select
-              value={servedFilter}
-              onChange={(e) => {
-                setServedFilter(e.target.value as any)
-                setCurrentPage(1)
-              }}
-              className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
-            >
-              <option value="all">All Members ({reportSummary.servers.length})</option>
-              <option value="served">Served at least once ({reportSummary.uniqueServersCount})</option>
-              <option value="zero">Zero Serves ({reportSummary.servers.length - reportSummary.uniqueServersCount})</option>
-            </select>
+            <div className="relative">
+              <select
+                value={servedFilter}
+                onChange={(e) => {
+                  setServedFilter(e.target.value as any)
+                  setCurrentPage(1)
+                }}
+                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
+              >
+                <option value="all">All Members ({reportSummary.servers.length})</option>
+                <option value="served">Served at least once ({reportSummary.uniqueServersCount})</option>
+                <option value="zero">Zero Serves ({reportSummary.servers.length - reportSummary.uniqueServersCount})</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Sort By */}
@@ -580,18 +594,25 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
             <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
               Sort Ranking By
             </label>
-            <select
-              value={sortBy}
-              onChange={(e) => {
-                setSortBy(e.target.value as any)
-                setCurrentPage(1)
-              }}
-              className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-slate-50 focus:bg-white focus:outline-none focus:border-blue-500 font-medium cursor-pointer"
-            >
-              <option value="most_served">Most Services Completed</option>
-              <option value="rate">Highest Attendance Rate %</option>
-              <option value="name">Server Name (A to Z)</option>
-            </select>
+            <div className="relative">
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(e.target.value as any)
+                  setCurrentPage(1)
+                }}
+                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
+              >
+                <option value="most_served">Most Services Completed</option>
+                <option value="rate">Highest Attendance Rate %</option>
+                <option value="name">Server Name (A to Z)</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Title Keyword Matcher */}

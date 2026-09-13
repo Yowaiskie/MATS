@@ -359,18 +359,25 @@ export const InventoryPage: React.FC = () => {
 
         {/* Condition Filter */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          <select
-            value={selectedCondition}
-            onChange={(e) => setSelectedCondition(e.target.value)}
-            className="px-3 py-2 bg-white border border-slate-200/80 rounded-xl text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-2xs cursor-pointer"
-          >
-            <option value="all">All Conditions</option>
-            {INVENTORY_CONDITIONS.map((cond) => (
-              <option key={cond} value={cond}>
-                {cond}
-              </option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              value={selectedCondition}
+              onChange={(e) => setSelectedCondition(e.target.value)}
+              className="h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
+            >
+              <option value="all">All Conditions</option>
+              {INVENTORY_CONDITIONS.map((cond) => (
+                <option key={cond} value={cond}>
+                  {cond}
+                </option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
 
           {/* View Mode Toggle (Grid / Table) */}
           <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80">

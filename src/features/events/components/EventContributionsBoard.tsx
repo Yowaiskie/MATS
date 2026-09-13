@@ -764,48 +764,69 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
           {/* Held By Filter */}
           <div>
             <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Held By (Hawak ni)</label>
-            <select
-              value={selectedHeldBy}
-              onChange={(e) => setSelectedHeldBy(e.target.value)}
-              className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs truncate"
-            >
-              <option value="all">All Custodians</option>
-              <option value="unassigned">Not Specified</option>
-              {uniqueCustodians.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedHeldBy}
+                onChange={(e) => setSelectedHeldBy(e.target.value)}
+                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs truncate cursor-pointer transition"
+              >
+                <option value="all">All Custodians</option>
+                <option value="unassigned">Not Specified</option>
+                {uniqueCustodians.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Purpose Filter */}
           <div>
             <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Purpose Category</label>
-            <select
-              value={selectedPurposeId}
-              onChange={(e) => setSelectedPurposeId(e.target.value)}
-              className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs truncate"
-            >
-              <option value="all">All Purposes</option>
-              {purposes.map(p => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <select
+                value={selectedPurposeId}
+                onChange={(e) => setSelectedPurposeId(e.target.value)}
+                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs truncate cursor-pointer transition"
+              >
+                <option value="all">All Purposes</option>
+                {purposes.map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Payment Method Filter */}
           <div>
             <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Payment Method</label>
-            <select
-              value={selectedPaymentMethod}
-              onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-              className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs truncate"
-            >
-              <option value="all">All Methods</option>
-              <option value="cash">Cash</option>
-              <option value="gcash">GCash</option>
-              <option value="bank_transfer">Bank Transfer</option>
-              <option value="other">Other</option>
-            </select>
+            <div className="relative">
+              <select
+                value={selectedPaymentMethod}
+                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs truncate cursor-pointer transition"
+              >
+                <option value="all">All Methods</option>
+                <option value="cash">Cash</option>
+                <option value="gcash">GCash</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="other">Other</option>
+              </select>
+              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                </svg>
+              </div>
+            </div>
           </div>
 
           {/* Date Filter */}

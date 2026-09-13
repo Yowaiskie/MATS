@@ -338,27 +338,37 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
               {unknownMembers.length > 0 && (
                 <div className="p-3 rounded-lg border border-amber-200 bg-amber-50 space-y-2">
                   <h5 className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
-                    ⚠ Unrecognized Altar Server Names ({unknownMembers.length})
+                    <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                    Unrecognized Altar Server Names ({unknownMembers.length})
                   </h5>
                   <p className="text-[10px] text-amber-700">Map these CSV names to active members in your roster:</p>
                   <div className="flex flex-col gap-2 max-h-36 overflow-y-auto pr-1">
                     {unknownMembers.map((name) => (
-                      <div key={name} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2 rounded border border-amber-200">
+                      <div key={name} className="flex flex-col sm:flex-row sm:items-center gap-2 bg-white p-2 rounded-xl border border-amber-200">
                         <span className="text-[10px] font-semibold text-gray-800 flex-1">
                           {name}
                         </span>
-                        <select
-                          className="text-xs border border-gray-200 rounded p-1 flex-1 bg-white focus:outline-none focus:border-blue-400"
-                          value={manualMemberMap[name] || ''}
-                          onChange={(e) => handleManualMapChange(name, e.target.value)}
-                        >
-                          <option value="">-- Exclude / Skip --</option>
-                          {activeMembers.map(m => (
-                            <option key={m.id} value={m.id}>
-                              {getFullName(m)}
-                            </option>
-                          ))}
-                        </select>
+                        <div className="relative flex-1">
+                          <select
+                            className="w-full h-8 pl-2.5 pr-8 text-xs font-semibold border border-slate-300 rounded-lg bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
+                            value={manualMemberMap[name] || ''}
+                            onChange={(e) => handleManualMapChange(name, e.target.value)}
+                          >
+                            <option value="">-- Exclude / Skip --</option>
+                            {activeMembers.map(m => (
+                              <option key={m.id} value={m.id}>
+                                {getFullName(m)}
+                              </option>
+                            ))}
+                          </select>
+                          <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                            </svg>
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>

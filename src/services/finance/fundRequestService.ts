@@ -274,6 +274,16 @@ export const fundRequestService = {
 
       const data = docSnap.data()
       if (data.status !== 'pending') throw new Error('Only pending requests can be approved.')
+
+      // Check self-approval: requester cannot approve their own request
+      const isSelfApproval = Boolean(
+        (approvedByUid && (data.requestedByUid === approvedByUid || data.createdByUid === approvedByUid)) ||
+        (approvedByName && data.requestedByName && data.requestedByName.trim().toLowerCase() === approvedByName.trim().toLowerCase())
+      )
+      if (isSelfApproval) {
+        throw new Error('Self-approval is not allowed. A different authorized administrator must approve this fund request.')
+      }
+
       await checkPeriodClosed(data.dateNeeded)
 
       await updateDoc(docRef, {
@@ -755,7 +765,7 @@ export const fundRequestService = {
   },
 
   /**
-   * Updates an existing request (only if status is 'draft' or 'pending').
+   * Updates an existing fund request details (draft, pending, approved, or rejected).
    */
   async updateRequest(
     id: string,
@@ -769,8 +779,8 @@ export const fundRequestService = {
       if (!docSnap.exists()) throw new Error('Fund request does not exist.')
 
       const currentData = docSnap.data()
-      if (currentData.status !== 'draft' && currentData.status !== 'pending') {
-        throw new Error('Only draft or pending requests can be modified.')
+      if (['released', 'liquidated', 'closed', 'voided'].includes(currentData.status)) {
+        throw new Error(`Cannot edit request in '${currentData.status}' status. Funds have already been released or finalized.`)
       }
 
       await checkPeriodClosed(currentData.dateNeeded)
@@ -785,11 +795,31 @@ export const fundRequestService = {
         updatedByName
       }
 
+      if (updates.requestedAmount !== undefined) {
+        payload.requestedAmount = Number(updates.requestedAmount) || 0
+      }
+
+      if (updates.expectedExpenses) {
+        payload.expectedExpenses = updates.expectedExpenses.map(item => ({
+          ...item,
+          amount: Number(String(item.amount).replace(/,/g, '')) || 0
+        }))
+      }
+
       if (updates.dateNeeded) {
         payload.periodId = updates.dateNeeded.slice(0, 7)
       }
 
       await updateDoc(docRef, payload)
+
+      const amountLabel = updates.requestedAmount !== undefined ? ` (₱${Number(updates.requestedAmount).toLocaleString()})` : ''
+      await auditService.logAction(
+        'REQUEST_UPDATE',
+        'attendance',
+        `Updated details for fund request '${updates.title || currentData.title}'${amountLabel} (${currentData.referenceNumber})`,
+        updatedByName,
+        { requestId: id, referenceNumber: currentData.referenceNumber, ...updates }
+      )
     } catch (err) {
       console.error('Failed to update fund request:', err)
       throw err

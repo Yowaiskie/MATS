@@ -76,40 +76,40 @@ export const downloadFinanceReportPdf = async (
   const drawUniformHeader = () => {
     // Dual Logos on Right Side (Parish & Ministry)
     if (logoParish && logoMinistry) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 48, 6.5, 16, 16)
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 30, 6.5, 16, 16)
+      doc.addImage(logoParish, 'PNG', pageWidth - 44, 5.5, 13, 13)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
     } else if (logoMinistry) {
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 6.5, 16, 16)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
     } else if (logoParish) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 28, 6.5, 16, 16)
+      doc.addImage(logoParish, 'PNG', pageWidth - 28, 5.5, 13, 13)
     }
 
     // Left Parish Text
     doc.setFont('times', 'bolditalic')
-    doc.setFontSize(16)
+    doc.setFontSize(13.5)
     doc.setTextColor(15, 23, 42)
-    doc.text('Ministry of Altar Servers', 14, 14)
+    doc.text('Ministry of Altar Servers', 14, 10.5)
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
+    doc.setFontSize(8.5)
     doc.setTextColor(51, 65, 85)
-    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 15)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 19)
 
     // Horizontal Header Divider Line
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
-    doc.line(14, 28, pageWidth - 14, 28)
+    doc.line(14, 22, pageWidth - 14, 22)
   }
 
   // Document Title (Centered & Bold Underline Style)
   const titleText = (options?.documentTitle?.trim() || 'TREASURY FINANCIAL STATEMENT & REPORT').toUpperCase()
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(14)
+  doc.setFontSize(12.5)
   doc.setTextColor(15, 23, 42)
   const titleWidth = doc.getTextWidth(titleText)
   const titleX = (pageWidth - titleWidth) / 2
-  const titleY = 37
+  const titleY = 28
   doc.text(titleText, titleX, titleY)
   doc.setLineWidth(0.5)
   doc.setDrawColor(15, 23, 42)
@@ -117,20 +117,20 @@ export const downloadFinanceReportPdf = async (
 
   // Sub-header Metadata Row
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(9)
+  doc.setFontSize(8.5)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Covered Period: ${report.startDate} to ${report.endDate}`, 14, 45)
-  doc.text(`Generated: ${dateStr} at ${timeStr}`, pageWidth - 14, 45, { align: 'right' })
+  doc.text(`Covered Period: ${report.startDate} to ${report.endDate}`, 14, 34)
+  doc.text(`Generated: ${dateStr} at ${timeStr}`, pageWidth - 14, 34, { align: 'right' })
 
   // Section: Executive Summary Boxes
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
+  doc.setFontSize(9.5)
   doc.setTextColor(15, 23, 42)
-  doc.text('EXECUTIVE FINANCIAL SUMMARY', 14, 53)
+  doc.text('EXECUTIVE FINANCIAL SUMMARY', 14, 41)
 
-  const startY = 56
+  const startY = 44
   const boxWidth = 42
-  const boxHeight = 17
+  const boxHeight = 15
   const gap = 4.6
 
   // 1. Opening Balance Box
@@ -140,10 +140,10 @@ export const downloadFinanceReportPdf = async (
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(100, 116, 139)
-  doc.text('OPENING BALANCE', 14 + boxWidth / 2, startY + 5.5, { align: 'center' })
-  doc.setFontSize(9.5)
+  doc.text('OPENING BALANCE', 14 + boxWidth / 2, startY + 5, { align: 'center' })
+  doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
-  doc.text(`P ${report.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + boxWidth / 2, startY + 12.5, { align: 'center' })
+  doc.text(`P ${report.openingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + boxWidth / 2, startY + 11, { align: 'center' })
 
   // 2. Total Inflow (Income) Box
   doc.setDrawColor(226, 232, 240)
@@ -152,10 +152,10 @@ export const downloadFinanceReportPdf = async (
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(100, 116, 139)
-  doc.text('TOTAL INFLOW', 14 + boxWidth + gap + boxWidth / 2, startY + 5.5, { align: 'center' })
-  doc.setFontSize(9.5)
+  doc.text('TOTAL INFLOW', 14 + boxWidth + gap + boxWidth / 2, startY + 5, { align: 'center' })
+  doc.setFontSize(9)
   doc.setTextColor(22, 163, 74)
-  doc.text(`+P ${report.totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + boxWidth + gap + boxWidth / 2, startY + 12.5, { align: 'center' })
+  doc.text(`+P ${report.totalIncome.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + boxWidth + gap + boxWidth / 2, startY + 11, { align: 'center' })
 
   // 3. Total Outflow (Expenses) Box
   doc.setDrawColor(226, 232, 240)
@@ -164,10 +164,10 @@ export const downloadFinanceReportPdf = async (
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'bold')
   doc.setTextColor(100, 116, 139)
-  doc.text('TOTAL OUTFLOW', 14 + (boxWidth + gap) * 2 + boxWidth / 2, startY + 5.5, { align: 'center' })
-  doc.setFontSize(9.5)
+  doc.text('TOTAL OUTFLOW', 14 + (boxWidth + gap) * 2 + boxWidth / 2, startY + 5, { align: 'center' })
+  doc.setFontSize(9)
   doc.setTextColor(220, 38, 38)
-  doc.text(`-P ${report.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + (boxWidth + gap) * 2 + boxWidth / 2, startY + 12.5, { align: 'center' })
+  doc.text(`-P ${report.totalExpenses.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + (boxWidth + gap) * 2 + boxWidth / 2, startY + 11, { align: 'center' })
 
   // 4. Closing / Net Balance Box
   if (report.closingBalance >= 0) {
@@ -182,11 +182,11 @@ export const downloadFinanceReportPdf = async (
   doc.roundedRect(14 + (boxWidth + gap) * 3, startY, boxWidth, boxHeight, 2, 2, 'FD')
   doc.setFontSize(7.5)
   doc.setFont('helvetica', 'bold')
-  doc.text('CLOSING BALANCE', 14 + (boxWidth + gap) * 3 + boxWidth / 2, startY + 5.5, { align: 'center' })
-  doc.setFontSize(9.5)
-  doc.text(`P ${report.closingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + (boxWidth + gap) * 3 + boxWidth / 2, startY + 12.5, { align: 'center' })
+  doc.text('CLOSING BALANCE', 14 + (boxWidth + gap) * 3 + boxWidth / 2, startY + 5, { align: 'center' })
+  doc.setFontSize(9)
+  doc.text(`P ${report.closingBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 14 + (boxWidth + gap) * 3 + boxWidth / 2, startY + 11, { align: 'center' })
 
-  let currentY = startY + boxHeight + 10
+  let currentY = startY + boxHeight + 8
 
   // Section: Income Breakdown Table (Rendered only if entries exist)
   const incTableHead = [['#', 'CATEGORY / SOURCE', 'AMOUNT (P)']]

@@ -12,7 +12,7 @@ const REPORT_TEMPLATE_DOC = 'communityReport'
 const POLICY_DOC = 'suspensionPolicy'
 const SIGNATURE_PRESETS_DOC = 'signaturePresets'
 const QUALIFICATION_PRESETS_DOC = 'qualificationPresets'
-const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v1'
+const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v2'
 const LOCAL_STORAGE_QUALIFICATION_KEY = 'mats_qualification_presets_v1'
 
 export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})

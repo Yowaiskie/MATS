@@ -180,21 +180,28 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
 
         <div>
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Destination Main Category *</label>
-          <select
-            required
-            value={categoryId}
-            onChange={(e) => setCategoryId(e.target.value)}
-            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all cursor-pointer"
-          >
-            <option value="">Select Main Finance Category</option>
-            {loading ? (
-              <option disabled>Loading...</option>
-            ) : (
-              categories.map(c => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))
-            )}
-          </select>
+          <div className="relative">
+            <select
+              required
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+              className="w-full h-10 pl-3.5 pr-10 border border-slate-300 rounded-xl bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all cursor-pointer shadow-2xs"
+            >
+              <option value="">Select Main Finance Category</option>
+              {loading ? (
+                <option disabled>Loading...</option>
+              ) : (
+                categories.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))
+              )}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         <div>

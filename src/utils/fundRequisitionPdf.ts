@@ -73,135 +73,120 @@ export const downloadFundRequisitionPdf = async (
   const drawUniformHeader = () => {
     // Dual Logos on Right Side (Parish & Ministry)
     if (logoParish && logoMinistry) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 48, 6.5, 16, 16)
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 30, 6.5, 16, 16)
+      doc.addImage(logoParish, 'PNG', pageWidth - 44, 5.5, 13, 13)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
     } else if (logoMinistry) {
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 6.5, 16, 16)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
     } else if (logoParish) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 28, 6.5, 16, 16)
+      doc.addImage(logoParish, 'PNG', pageWidth - 28, 5.5, 13, 13)
     }
 
     // Left Parish Text
     doc.setFont('times', 'bolditalic')
-    doc.setFontSize(16)
-    doc.setTextColor(15, 23, 42)
-    doc.text('Ministry of Altar Servers', 14, 14)
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
+    doc.text('Ministry of Altar Servers', 14, 10.5)
 
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(8.5)
+    doc.setTextColor(0, 0, 0)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 15)
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(51, 65, 85)
-    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 19)
 
     // Horizontal Header Divider Line
-    doc.setDrawColor(30, 41, 59)
-    doc.setLineWidth(0.6)
-    doc.line(14, 28, pageWidth - 14, 28)
+    doc.setDrawColor(0, 0, 0)
+    doc.setLineWidth(0.65)
+    doc.line(14, 22, pageWidth - 14, 22)
   }
 
   // Draw Page 1 header
   drawUniformHeader()
 
-  let cursorY = 35
+  let cursorY = 27
 
   // Top Right: Requisition Date
   const rawDate = options?.documentDate || request.dateNeeded || (request.createdAt ? new Date() : new Date())
   const reqDateStr = formatDateUpper(rawDate)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10.5)
-  doc.setTextColor(15, 23, 42)
+  doc.setFontSize(9.5)
+  doc.setTextColor(0, 0, 0)
   doc.text(reqDateStr, pageWidth - 14, cursorY, { align: 'right' })
 
-  // Spacing between Date and From: header block
-  cursorY += 9
-
-  // Left: "From:  The MINISTRY OF ALTAR SERVERS"
-  const fromText = options?.fromMinistry?.trim() || request.fromMinistry?.trim() || 'The MINISTRY OF ALTAR SERVERS'
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10.5)
-  doc.text('From:', 14, cursorY)
-  doc.setFont('helvetica', 'bold')
-  doc.text(fromText, 32, cursorY)
-
-  // Horizontal separator line under From
+  // Spacing between Date and Details block (no line above From)
   cursorY += 6
-  doc.setDrawColor(15, 23, 42)
-  doc.setLineWidth(0.8)
-  doc.line(14, cursorY, pageWidth - 14, cursorY)
 
   // Details block
-  cursorY += 7
-  const lineHeight = 5.5
+  const lineHeight = 4.8
   const labelX = 14
-  const valueX = 42
+  const valueX = 38
 
-  const effectiveFundSource = options?.fundSource || request.fundSource || 'main_funds'
-  const fundSourceLabel = effectiveFundSource === 'parish' 
-    ? 'PARISH FUNDS (Sacred Heart of Jesus Parish)' 
-    : 'MAIN MINISTRY FUNDS (Ministry of Altar Servers)'
-
+  const fromText = options?.fromMinistry?.trim() || request.fromMinistry?.trim() || 'The MINISTRY OF ALTAR SERVERS'
   const purposeVal = options?.purpose || request.purpose || request.title || 'N/A'
   const participantsVal = options?.participants || request.participants || 'N/A'
   const dateNeededVal = formatDateUpper(options?.dateNeeded || request.dateNeeded || '') || 'N/A'
   const venueVal = options?.venue || request.venue || 'N/A'
   const assemblyVal = options?.assembly || request.assembly || 'N/A'
 
-  // Charge to / Source
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.text('Chargeable To:', labelX, cursorY)
+  // From
   doc.setFont('helvetica', 'bold')
-  doc.text(fundSourceLabel, valueX, cursorY)
+  doc.setFontSize(9)
+  doc.setTextColor(0, 0, 0)
+  doc.text('From:', labelX, cursorY)
+  doc.text(fromText, valueX, cursorY)
   cursorY += lineHeight
 
   // Purpose
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
-  doc.text('Purpose:', labelX, cursorY)
   doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9)
+  doc.setTextColor(0, 0, 0)
+  doc.text('Purpose:', labelX, cursorY)
   doc.text(purposeVal, valueX, cursorY)
   cursorY += lineHeight
 
   // Participants
-  doc.setFont('helvetica', 'normal')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(0, 0, 0)
   doc.text('Participants:', labelX, cursorY)
   doc.setFont('helvetica', 'normal')
   doc.text(participantsVal, valueX, cursorY)
   cursorY += lineHeight
 
   // Date needed
-  doc.setFont('helvetica', 'normal')
-  doc.text('Date needed:', labelX, cursorY)
   doc.setFont('helvetica', 'bold')
+  doc.setTextColor(0, 0, 0)
+  doc.text('Date needed:', labelX, cursorY)
   doc.text(dateNeededVal, valueX, cursorY)
   cursorY += lineHeight
 
   // Venue
-  doc.setFont('helvetica', 'normal')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(0, 0, 0)
   doc.text('Venue:', labelX, cursorY)
   doc.setFont('helvetica', 'normal')
   doc.text(venueVal, valueX, cursorY)
   cursorY += lineHeight
 
   // Assembly
-  doc.setFont('helvetica', 'normal')
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(0, 0, 0)
   doc.text('Assembly:', labelX, cursorY)
   doc.setFont('helvetica', 'normal')
   doc.text(assemblyVal, valueX, cursorY)
-  cursorY += lineHeight
 
   // Bottom line of details block
-  cursorY += 1
-  doc.setDrawColor(15, 23, 42)
-  doc.setLineWidth(0.8)
+  cursorY += 2
+  doc.setDrawColor(0, 0, 0)
+  doc.setLineWidth(0.65)
   doc.line(14, cursorY, pageWidth - 14, cursorY)
 
   // Section title: Expected Expenses:
-  cursorY += 7
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10.5)
+  cursorY += 5
+  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(9.5)
+  doc.setTextColor(0, 0, 0)
   doc.text('Expected Expenses:', 14, cursorY)
-  cursorY += 3
+  cursorY += 2.5
 
   // Prepare table data
   const expenses = (request.expectedExpenses && request.expectedExpenses.length > 0)
@@ -227,8 +212,8 @@ export const downloadFundRequisitionPdf = async (
 
   // Append Total row
   tableBody.push([
-    { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold', fontSize: 10, halign: 'left' } } as any,
-    { content: `P ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fontSize: 10, halign: 'right' } } as any
+    { content: 'TOTAL', colSpan: 3, styles: { fontStyle: 'bold', fontSize: 10, halign: 'left', textColor: [0, 0, 0] } } as any,
+    { content: `P ${totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, styles: { fontStyle: 'bold', fontSize: 10, halign: 'right', textColor: [0, 0, 0] } } as any
   ])
 
   autoTable(doc, {
@@ -237,19 +222,19 @@ export const downloadFundRequisitionPdf = async (
     body: tableBody,
     theme: 'grid',
     headStyles: {
-      fillColor: [255, 255, 255],
-      textColor: [15, 23, 42],
+      fillColor: [242, 242, 242],
+      textColor: [0, 0, 0],
       fontStyle: 'bold',
       fontSize: 9.5,
       halign: 'center',
-      lineColor: [15, 23, 42],
-      lineWidth: 0.3
+      lineColor: [0, 0, 0],
+      lineWidth: 0.35
     },
     bodyStyles: {
-      textColor: [15, 23, 42],
+      textColor: [0, 0, 0],
       fontSize: 9,
-      lineColor: [15, 23, 42],
-      lineWidth: 0.2,
+      lineColor: [0, 0, 0],
+      lineWidth: 0.25,
       cellPadding: 2.2
     },
     columnStyles: {

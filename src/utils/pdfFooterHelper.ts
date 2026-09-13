@@ -50,14 +50,14 @@ export const drawStandardPdfFooter = (
   const textY = pageHeight - bottomMargin
 
   // 1. Horizontal Divider Line
-  doc.setDrawColor(15, 23, 42)
+  doc.setDrawColor(0, 0, 0)
   doc.setLineWidth(0.5)
   doc.line(leftMargin, lineY, pageWidth - rightMargin, lineY)
 
   // 2. Footer Text
   doc.setFont('times', 'normal')
   doc.setFontSize(9.5)
-  doc.setTextColor(15, 23, 42)
+  doc.setTextColor(0, 0, 0)
 
   // Left
   doc.text('MAS-KoA-SHJP.mbs', leftMargin, textY, { align: 'left' })

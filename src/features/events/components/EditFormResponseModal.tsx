@@ -246,71 +246,166 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                   )}
 
                   {/* Dropdown */}
-                  {q.type === 'dropdown' && (
-                    <select
-                      value={currentVal !== undefined && currentVal !== null ? String(currentVal) : ''}
-                      onChange={e => handleAnswerChange(q.id, e.target.value)}
-                      className="w-full p-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
-                    >
-                      <option value="">-- Select option --</option>
-                      {(q.options || []).map((opt, oIdx) => (
-                        <option key={oIdx} value={opt}>
-                          {opt} {q.optionLimits?.[opt] ? `(Limit: ${q.optionLimits[opt]} slots)` : ''}
-                        </option>
-                      ))}
-                    </select>
-                  )}
+                  {q.type === 'dropdown' && (() => {
+                    const isKnownOpt = (q.options || []).includes(String(currentVal))
+                    const isOther = currentVal !== undefined && currentVal !== null && currentVal !== '' && (!isKnownOpt || String(currentVal).startsWith('Other:'))
+
+                    return (
+                      <div className="space-y-2">
+                        <select
+                          value={isOther ? '__other__' : (currentVal !== undefined && currentVal !== null ? String(currentVal) : '')}
+                          onChange={e => {
+                            if (e.target.value === '__other__') {
+                              handleAnswerChange(q.id, 'Other: ')
+                            } else {
+                              handleAnswerChange(q.id, e.target.value)
+                            }
+                          }}
+                          className="w-full p-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
+                        >
+                          <option value="">-- Select option --</option>
+                          {(q.options || []).map((opt, oIdx) => (
+                            <option key={oIdx} value={opt}>
+                              {opt} {q.optionLimits?.[opt] ? `(Limit: ${q.optionLimits[opt]} slots)` : ''}
+                            </option>
+                          ))}
+                          {q.hasOtherOption && (
+                            <option value="__other__">{q.otherOptionLabel || 'Other'}</option>
+                          )}
+                        </select>
+
+                        {isOther && (
+                          <input
+                            type="text"
+                            value={String(currentVal).startsWith('Other: ') ? String(currentVal).replace(/^Other:\s*/, '') : String(currentVal)}
+                            onChange={e => handleAnswerChange(q.id, e.target.value ? `Other: ${e.target.value}` : '')}
+                            placeholder={q.otherOptionPlaceholder || "Specify other answer..."}
+                            className="w-full p-2.5 border border-blue-300 rounded-xl bg-blue-50/30 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                          />
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Multiple Choice (Radio) */}
-                  {q.type === 'multiple_choice' && (
-                    <div className="space-y-1.5 pt-1">
-                      {(q.options || []).map((opt, oIdx) => {
-                        const isChecked = currentVal === opt
-                        return (
-                          <label key={oIdx} className="flex items-center space-x-2 text-slate-700 cursor-pointer">
-                            <input
-                              type="radio"
-                              name={`mc_${q.id}`}
-                              checked={isChecked}
-                              onChange={() => handleAnswerChange(q.id, opt)}
-                              className="text-blue-600 focus:ring-blue-500 h-4 w-4"
-                            />
-                            <span className="font-medium">{opt}</span>
-                            {q.optionLimits?.[opt] ? (
-                              <span className="text-[10px] text-slate-400 font-bold ml-1">
-                                (Limit: {q.optionLimits[opt]} slots)
-                              </span>
-                            ) : null}
-                          </label>
-                        )
-                      })}
-                    </div>
-                  )}
+                  {q.type === 'multiple_choice' && (() => {
+                    const isKnownOpt = (q.options || []).includes(String(currentVal))
+                    const isOther = currentVal !== undefined && currentVal !== null && currentVal !== '' && (!isKnownOpt || String(currentVal).startsWith('Other:'))
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        {(q.options || []).map((opt, oIdx) => {
+                          const isChecked = currentVal === opt
+                          return (
+                            <label key={oIdx} className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`mc_${q.id}`}
+                                checked={isChecked}
+                                onChange={() => handleAnswerChange(q.id, opt)}
+                                className="text-blue-600 focus:ring-blue-500 h-4 w-4"
+                              />
+                              <span className="font-medium">{opt}</span>
+                              {q.optionLimits?.[opt] ? (
+                                <span className="text-[10px] text-slate-400 font-bold ml-1">
+                                  (Limit: {q.optionLimits[opt]} slots)
+                                </span>
+                              ) : null}
+                            </label>
+                          )
+                        })}
+
+                        {q.hasOtherOption && (
+                          <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                            <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                              <input
+                                type="radio"
+                                name={`mc_${q.id}`}
+                                checked={isOther}
+                                onChange={() => handleAnswerChange(q.id, 'Other: ')}
+                                className="text-blue-600 focus:ring-blue-500 h-4 w-4"
+                              />
+                              <span className="font-medium">{q.otherOptionLabel || 'Other'}:</span>
+                            </label>
+                            {isOther && (
+                              <input
+                                type="text"
+                                value={String(currentVal).startsWith('Other: ') ? String(currentVal).replace(/^Other:\s*/, '') : String(currentVal)}
+                                onChange={e => handleAnswerChange(q.id, e.target.value ? `Other: ${e.target.value}` : 'Other: ')}
+                                placeholder={q.otherOptionPlaceholder || "Specify other answer..."}
+                                className="w-full p-2 border border-blue-300 rounded-xl bg-blue-50/30 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-hidden ml-6"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Checkbox */}
-                  {q.type === 'checkbox' && (
-                    <div className="space-y-1.5 pt-1">
-                      {(q.options || []).map((opt, oIdx) => {
-                        const isChecked = Array.isArray(currentVal) && currentVal.includes(opt)
-                        return (
-                          <label key={oIdx} className="flex items-center space-x-2 text-slate-700 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={e => handleCheckboxToggle(q.id, opt, e.target.checked)}
-                              className="rounded-md text-blue-600 focus:ring-blue-500 h-4 w-4"
-                            />
-                            <span className="font-medium">{opt}</span>
-                            {q.optionLimits?.[opt] ? (
-                              <span className="text-[10px] text-slate-400 font-bold ml-1">
-                                (Limit: {q.optionLimits[opt]} slots)
-                              </span>
-                            ) : null}
-                          </label>
-                        )
-                      })}
-                    </div>
-                  )}
+                  {q.type === 'checkbox' && (() => {
+                    const currentArr: string[] = Array.isArray(currentVal) ? currentVal : []
+                    const otherItem = currentArr.find(v => typeof v === 'string' && (v.startsWith('Other:') || !(q.options || []).includes(v)))
+                    const isOtherChecked = !!otherItem
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        {(q.options || []).map((opt, oIdx) => {
+                          const isChecked = currentArr.includes(opt)
+                          return (
+                            <label key={oIdx} className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={e => handleCheckboxToggle(q.id, opt, e.target.checked)}
+                                className="rounded-md text-blue-600 focus:ring-blue-500 h-4 w-4"
+                              />
+                              <span className="font-medium">{opt}</span>
+                              {q.optionLimits?.[opt] ? (
+                                <span className="text-[10px] text-slate-400 font-bold ml-1">
+                                  (Limit: {q.optionLimits[opt]} slots)
+                                </span>
+                              ) : null}
+                            </label>
+                          )
+                        })}
+
+                        {q.hasOtherOption && (
+                          <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                            <label className="flex items-center space-x-2 text-slate-700 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isOtherChecked}
+                                onChange={e => {
+                                  if (e.target.checked) {
+                                    handleAnswerChange(q.id, [...currentArr, 'Other: '])
+                                  } else {
+                                    handleAnswerChange(q.id, currentArr.filter(v => v !== otherItem))
+                                  }
+                                }}
+                                className="rounded-md text-blue-600 focus:ring-blue-500 h-4 w-4"
+                              />
+                              <span className="font-medium">{q.otherOptionLabel || 'Other'}:</span>
+                            </label>
+                            {isOtherChecked && (
+                              <input
+                                type="text"
+                                value={otherItem.startsWith('Other: ') ? otherItem.replace(/^Other:\s*/, '') : otherItem}
+                                onChange={e => {
+                                  const text = e.target.value
+                                  const filtered = currentArr.filter(v => v !== otherItem)
+                                  const updated = text ? [...filtered, `Other: ${text}`] : [...filtered, 'Other: ']
+                                  handleAnswerChange(q.id, updated)
+                                }}
+                                placeholder={q.otherOptionPlaceholder || "Specify other answer..."}
+                                className="w-full p-2 border border-blue-300 rounded-xl bg-blue-50/30 text-xs font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-hidden ml-6"
+                              />
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
 
                   {/* Yes / No */}
                   {q.type === 'yes_no' && (

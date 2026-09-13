@@ -8,7 +8,7 @@ import type {
   MemberCategoryStat
 } from '@/types/attendanceCategory'
 import { SCHEDULE_CATEGORIES } from '@/types/attendanceCategory'
-import { isSundayOrAnticipatedMass, isHolyHourSchedule } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isHolyHourSchedule, isSpecialEventOrService } from '@/utils/scheduleUtils'
 
 export class QualificationService {
   /**
@@ -69,16 +69,8 @@ export class QualificationService {
       return 'practice'
     }
 
-    // 6. Check for Special Events / Fiesta
-    if (
-      title.includes('fiesta') ||
-      title.includes('feast') ||
-      title.includes('pontifical') ||
-      title.includes('procession') ||
-      title.includes('solemnity') ||
-      title.includes('vigil') ||
-      title.includes('chrism')
-    ) {
+    // 6. Check for Special Events / Fiesta / Solemnities
+    if (isSpecialEventOrService(schedule)) {
       return 'special_event'
     }
 

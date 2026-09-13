@@ -77,46 +77,43 @@ export const generateLiquidationReportPdfDoc = async (
   const drawUniformHeader = () => {
     // Dual Logos on Right Side (Parish & Ministry)
     if (logoParish && logoMinistry) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 48, 6.5, 16, 16)
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 30, 6.5, 16, 16)
+      doc.addImage(logoParish, 'PNG', pageWidth - 44, 5.5, 13, 13)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
     } else if (logoMinistry) {
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 6.5, 16, 16)
+      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
     } else if (logoParish) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 28, 6.5, 16, 16)
+      doc.addImage(logoParish, 'PNG', pageWidth - 28, 5.5, 13, 13)
     }
 
     // Left Parish Text
     doc.setFont('times', 'bolditalic')
-    doc.setFontSize(16)
+    doc.setFontSize(13.5)
     doc.setTextColor(15, 23, 42)
-    doc.text('Ministry of Altar Servers', 14, 14)
+    doc.text('Ministry of Altar Servers', 14, 10.5)
 
     doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
+    doc.setFontSize(8.5)
     doc.setTextColor(51, 65, 85)
-    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 15)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 19)
 
     // Horizontal Header Divider Line
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
-    doc.line(14, 28, pageWidth - 14, 28)
+    doc.line(14, 22, pageWidth - 14, 22)
   }
 
   drawUniformHeader()
 
-  let cursorY = 32
+  let cursorY = 26
 
   // Top Right: Date
   const rawDate = options?.liquidationDate || request.liquidationDate || (request.liquidatedAt ? new Date() : new Date())
   const repDateStr = formatDateUpper(rawDate)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(10)
+  doc.setFontSize(9)
   doc.setTextColor(15, 23, 42)
   doc.text(repDateStr, pageWidth - 14, cursorY, { align: 'right' })
-
-  // Spacing between Date and To: header block
-  cursorY += 5
 
   // Header Lines: To, From, Re
   const toName = options?.liquidationTo?.trim() || request.liquidationTo?.trim() || 'Rev. Fr. ILDEFONSO DE GUZMAN JR.'
@@ -126,34 +123,34 @@ export const generateLiquidationReportPdfDoc = async (
 
   // To:
   doc.setFont('helvetica', 'normal')
-  doc.setFontSize(9.5)
+  doc.setFontSize(9)
   doc.text('To:', 14, cursorY)
   doc.setFont('helvetica', 'bold')
-  doc.text(toName, 30, cursorY)
-  cursorY += 4.5
+  doc.text(toName, 26, cursorY)
+  cursorY += 4
   doc.setFont('helvetica', 'normal')
-  doc.text(toTitle, 30, cursorY)
-  cursorY += 5
+  doc.text(toTitle, 26, cursorY)
+  cursorY += 4.5
 
   // From:
   doc.setFont('helvetica', 'normal')
   doc.text('From:', 14, cursorY)
   doc.setFont('helvetica', 'bold')
-  doc.text(fromName, 30, cursorY)
-  cursorY += 5
+  doc.text(fromName, 26, cursorY)
+  cursorY += 4.5
 
   // Re:
   doc.setFont('helvetica', 'normal')
   doc.text('Re:', 14, cursorY)
   doc.setFont('helvetica', 'normal')
-  doc.text(reSubject, 30, cursorY)
-  cursorY += 4.5
+  doc.text(reSubject, 26, cursorY)
+  cursorY += 3.5
 
   // Horizontal separator line under memo header
   doc.setDrawColor(15, 23, 42)
   doc.setLineWidth(0.6)
   doc.line(14, cursorY, pageWidth - 14, cursorY)
-  cursorY += 4
+  cursorY += 3.5
 
   // 1. Section: BUDGET INFO | SPONSORS
   doc.setFont('helvetica', 'bold')

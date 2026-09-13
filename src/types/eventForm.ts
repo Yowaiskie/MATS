@@ -81,6 +81,9 @@ export interface EventFormQuestion {
   required: boolean
   order: number
   options?: string[]
+  hasOtherOption?: boolean
+  otherOptionLabel?: string
+  otherOptionPlaceholder?: string
   optionLimits?: Record<string, number>
   fullOptionBehavior?: 'disable' | 'hide'
   visibilityCondition?: VisibilityCondition

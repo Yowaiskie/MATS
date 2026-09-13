@@ -67,9 +67,9 @@ export const renderPdfSignatures = (
     let blockY = y
 
     // 1. Role Label (e.g. "Prepared by:", "Approved by:")
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
-    doc.setTextColor(30, 41, 59)
+    doc.setTextColor(0, 0, 0)
     doc.text(sig.label || 'Authorized Signature:', x, blockY)
 
     // 2. Space for Signature (optional image, or clear writing area)
@@ -83,14 +83,14 @@ export const renderPdfSignatures = (
     }
 
     // 3. Signature Underline
-    doc.setDrawColor(15, 23, 42)
-    doc.setLineWidth(0.4)
+    doc.setDrawColor(0, 0, 0)
+    doc.setLineWidth(0.45)
     doc.line(x, signAreaY, x + signatureLineLength, signAreaY)
 
     // 4. Signatory Full Name (Bold Uppercase)
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(9)
-    doc.setTextColor(15, 23, 42)
+    doc.setTextColor(0, 0, 0)
     const formattedName = sig.name?.trim() ? sig.name.trim().toUpperCase() : 'NAME / SIGNATURE'
     doc.text(formattedName, x, signAreaY + 3.8)
 
@@ -98,8 +98,8 @@ export const renderPdfSignatures = (
     let nextTextY = signAreaY + 7.2
     if (sig.title?.trim()) {
       doc.setFont('helvetica', 'normal')
-      doc.setFontSize(7.5)
-      doc.setTextColor(51, 65, 85)
+      doc.setFontSize(8)
+      doc.setTextColor(0, 0, 0)
       doc.text(sig.title.trim(), x, nextTextY)
       nextTextY += 3.2
     }
@@ -108,7 +108,7 @@ export const renderPdfSignatures = (
     if (sig.organization?.trim()) {
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(7.5)
-      doc.setTextColor(71, 85, 105)
+      doc.setTextColor(30, 30, 30)
       doc.text(sig.organization.trim(), x, nextTextY)
     }
   }

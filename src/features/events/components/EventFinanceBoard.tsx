@@ -469,17 +469,24 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
             {/* Held By Filter Dropdown */}
             <div className="lg:col-span-3">
-              <select
-                value={selectedHeldBy}
-                onChange={(e) => setSelectedHeldBy(e.target.value)}
-                className="w-full text-xs font-bold border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 shadow-2xs cursor-pointer truncate"
-              >
-                <option value="all">All Custodians (Lahat ng may hawak)</option>
-                <option value="unassigned">Not Specified (Walang nakatalaga)</option>
-                {uniqueCustodians.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+              <div className="relative">
+                <select
+                  value={selectedHeldBy}
+                  onChange={(e) => setSelectedHeldBy(e.target.value)}
+                  className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer truncate transition"
+                >
+                  <option value="all">All Custodians (Lahat ng may hawak)</option>
+                  <option value="unassigned">Not Specified (Walang nakatalaga)</option>
+                  {uniqueCustodians.map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
+              </div>
             </div>
 
             {/* Date Range Filter */}

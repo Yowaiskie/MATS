@@ -229,6 +229,7 @@ export const AuditPage: React.FC = () => {
     EXPENSE_RESTORE: 'bg-teal-100 text-teal-800 border-teal-200',
     EXPENSE_DELETE: 'bg-red-100 text-red-800 border-red-200',
     REQUEST_SUBMIT: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    REQUEST_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
     REQUEST_APPROVE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
     REQUEST_REJECT: 'bg-rose-100 text-rose-800 border-rose-200',
     REQUEST_CANCEL: 'bg-slate-100 text-slate-800 border-slate-200',
@@ -423,17 +424,24 @@ export const AuditPage: React.FC = () => {
           <label htmlFor="audit-category" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Category
           </label>
-          <select
-            id="audit-category"
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value)}
-            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-          >
-            <option value="all">All Categories</option>
-            {categories.map((c) => (
-              <option key={c} value={c} className="capitalize">{c}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="audit-category"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value)}
+              className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Categories</option>
+              {categories.map((c) => (
+                <option key={c} value={c} className="capitalize">{c}</option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         {/* Action Filter */}
@@ -441,17 +449,24 @@ export const AuditPage: React.FC = () => {
           <label htmlFor="audit-action" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
             Action Type
           </label>
-          <select
-            id="audit-action"
-            value={actionFilter}
-            onChange={(e) => setActionFilter(e.target.value)}
-            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-          >
-            <option value="all">All Actions</option>
-            {actions.map((a) => (
-              <option key={a} value={a}>{a.replace('_', ' ')}</option>
-            ))}
-          </select>
+          <div className="relative">
+            <select
+              id="audit-action"
+              value={actionFilter}
+              onChange={(e) => setActionFilter(e.target.value)}
+              className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+            >
+              <option value="all">All Actions</option>
+              {actions.map((a) => (
+                <option key={a} value={a}>{a.replace('_', ' ')}</option>
+              ))}
+            </select>
+            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            </div>
+          </div>
         </div>
 
         {/* Reset Filters Button */}

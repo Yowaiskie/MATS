@@ -159,7 +159,7 @@ export const isSundayOrAnticipatedMass = (
 }
 
 /**
- * Determines whether a schedule represents a special mass / event (e.g. Fiesta, Wedding, Funeral, Baccalaureate, etc.)
+ * Determines whether a schedule represents a special mass / event (e.g. Fiesta, Wedding, Funeral, Baccalaureate, Nativity, Solemnity, etc.)
  * that is not part of the standard recurring Sunday/Weekday service schedule.
  */
 export const isSpecialEventOrService = (
@@ -169,19 +169,88 @@ export const isSpecialEventOrService = (
     return true
   }
   const title = (schedule.title || '').toLowerCase().trim()
+  if (!title) return false
+
   return (
+    // General special mass markers
     title.includes('special mass') ||
     title.includes('special service') ||
+    title.includes('special event') ||
     title.includes('special') ||
+    title.includes('espesyal') ||
+
+    // Marian & Solemn Feasts (e.g. Nativity of Mary, Immaculate Conception, Assumption)
+    title.includes('nativity') ||
+    title.includes('kapanganakan') ||
+    title.includes('annunciation') ||
+    title.includes('pagpapahayag') ||
+    title.includes('assumption') ||
+    title.includes('pag-aakyat') ||
+    title.includes('pagaakyat') ||
+    title.includes('immaculate conception') ||
+    title.includes('inmaculada concepcion') ||
+    title.includes('immaculada') ||
+    title.includes('visitation') ||
+    title.includes('pagdalaw') ||
+    title.includes('transfiguration') ||
+    title.includes('pagbabagong-anyo') ||
+    title.includes('presentation') ||
+    title.includes('paghahandog') ||
+    title.includes('ascension') ||
+    title.includes('pentecost') ||
+    title.includes('pentekostes') ||
+    title.includes('corpus christi') ||
+
+    // Feasts, Fiestas, Processions & Solemnities
     title.includes('fiesta') ||
+    title.includes('pista') ||
     title.includes('feast') ||
+    title.includes('kapistahan') ||
+    title.includes('kapiyestahan') ||
+    title.includes('patronal') ||
+    title.includes('solemnity') ||
     title.includes('pontifical') ||
     title.includes('procession') ||
-    title.includes('solemnity') ||
+    title.includes('misa mayor') ||
     title.includes('vigil') ||
+
+    // Lent, Holy Week & Paschal Triduum
+    title.includes('ash wednesday') ||
+    title.includes('miyerkules ng abo') ||
+    title.includes('semana santa') ||
+    title.includes('holy week') ||
+    title.includes('palm sunday') ||
+    title.includes('palaspas') ||
+    title.includes('maundy thursday') ||
+    title.includes('hwebes santo') ||
+    title.includes('good friday') ||
+    title.includes('biyernes santo') ||
+    title.includes('black saturday') ||
+    title.includes('sabado de gloria') ||
+    title.includes('easter vigil') ||
+    title.includes('salubong') ||
     title.includes('chrism') ||
+
+    // Advent & Christmas Specials
+    title.includes('simbang gabi') ||
+    title.includes('misa de gallo') ||
+    title.includes('misa de aguinaldo') ||
+    title.includes('dawn mass') ||
+
+    // Devotions & Memorials
+    title.includes('novena') ||
+    title.includes('nobena') ||
+    title.includes('triduum') ||
+    title.includes('triduo') ||
+    title.includes('memorial') ||
+    title.includes('commemoration') ||
+    title.includes('paggunita') ||
+    title.includes('healing mass') ||
+
+    // Sacramental & Occasional Masses
     title.includes('wedding') ||
     title.includes('kasal') ||
+    title.includes('matrimony') ||
     title.includes('funeral') ||
     title.includes('libing') ||
     title.includes('requiem') ||
@@ -189,8 +258,30 @@ export const isSpecialEventOrService = (
     title.includes('confirmation') ||
     title.includes('kumpil') ||
     title.includes('first communion') ||
+    title.includes('unang pakikinabang') ||
     title.includes('binyag') ||
-    title.includes('baptism')
+    title.includes('bautismo') ||
+    title.includes('baptism') ||
+
+    // Ceremonial & Milestone Masses
+    title.includes('ordination') ||
+    title.includes('ordinasyon') ||
+    title.includes('installation') ||
+    title.includes('thanksgiving mass') ||
+    title.includes('pasasalamat') ||
+    title.includes('jubilee') ||
+    title.includes('anniversary') ||
+    title.includes('anibersaryo') ||
+    title.includes('send-off') ||
+    title.includes('send off') ||
+    title.includes('commissioning') ||
+    title.includes('investiture') ||
+    title.includes('investitura') ||
+    title.includes('blessing') ||
+    title.includes('pagbabasbas') ||
+    title.includes('dedication') ||
+    title.includes('concelebrated') ||
+    title.includes('concelebration')
   )
 }
 

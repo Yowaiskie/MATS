@@ -92,6 +92,15 @@ export const eventFormQuestionService = {
         if (q.fullOptionBehavior) {
           fullQuestionData.fullOptionBehavior = q.fullOptionBehavior
         }
+        if (q.hasOtherOption !== undefined) {
+          fullQuestionData.hasOtherOption = q.hasOtherOption
+        }
+        if (q.otherOptionLabel !== undefined) {
+          fullQuestionData.otherOptionLabel = q.otherOptionLabel
+        }
+        if (q.otherOptionPlaceholder !== undefined) {
+          fullQuestionData.otherOptionPlaceholder = q.otherOptionPlaceholder
+        }
 
         // Set complete document without merge so deleted/updated conditions overwrite cleanly
         await setDoc(docRef, fullQuestionData)

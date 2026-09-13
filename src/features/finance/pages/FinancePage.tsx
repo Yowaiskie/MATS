@@ -208,6 +208,23 @@ export const FinancePage: React.FC = () => {
   // Action Menu Dropdown state for requests table
   const [actionMenuReqId, setActionMenuReqId] = useState<string | null>(null)
 
+  // Edit Fund Request Modal states
+  const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false)
+  const [editingRequest, setEditingRequest] = useState<FinanceFundRequest | null>(null)
+  const [editReqFundSource, setEditReqFundSource] = useState<FundRequestSource>('main_funds')
+  const [editReqTitle, setEditReqTitle] = useState('')
+  const [editReqPurpose, setEditReqPurpose] = useState('')
+  const [editReqAmount, setEditReqAmount] = useState('')
+  const [editReqDateNeeded, setEditReqDateNeeded] = useState(getLocalYYYYMMDD())
+  const [editReqDesc, setEditReqDesc] = useState('')
+  const [editReqFromMinistry, setEditReqFromMinistry] = useState('The MINISTRY OF ALTAR SERVERS')
+  const [editReqVenue, setEditReqVenue] = useState('N/A')
+  const [editReqParticipants, setEditReqParticipants] = useState('N/A')
+  const [editReqAssembly, setEditReqAssembly] = useState('N/A')
+  const [editReqExpectedExpenses, setEditReqExpectedExpenses] = useState<FundRequisitionItem[]>([
+    { id: 'item-1', intendedUse: '', unitPrice: '', quantity: '', amount: 0 }
+  ])
+
   // Check if page should render
   if (!hasModuleAccess('finance')) {
     return <Navigate to="/" replace />
@@ -666,6 +683,135 @@ export const FinancePage: React.FC = () => {
       await fetchData()
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to submit request.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Check if current user is the requester (to prevent self-approval)
+  const isSelfRequest = (req: FinanceFundRequest) => {
+    if (!profile) return false
+    const currentUid = profile.uid?.trim()
+    const currentName = profile.displayName?.trim().toLowerCase()
+    const reqUid = req.requestedByUid?.trim() || req.createdByUid?.trim()
+    const reqName = req.requestedByName?.trim().toLowerCase()
+
+    const matchUid = Boolean(currentUid && reqUid && currentUid === reqUid)
+    const matchName = Boolean(currentName && reqName && currentName === reqName)
+
+    return matchUid || matchName
+  }
+
+  // Open Edit Fund Request Modal
+  const handleOpenEditRequestModal = (req: FinanceFundRequest) => {
+    setEditingRequest(req)
+    setEditReqTitle(req.title || '')
+    setEditReqPurpose(req.purpose || '')
+    setEditReqAmount(req.requestedAmount ? String(req.requestedAmount) : '')
+    setEditReqDateNeeded(req.dateNeeded || getLocalYYYYMMDD())
+    setEditReqDesc(req.description || '')
+    setEditReqFundSource(req.fundSource || 'main_funds')
+    setEditReqFromMinistry(req.fromMinistry || 'The MINISTRY OF ALTAR SERVERS')
+    setEditReqVenue(req.venue || 'N/A')
+    setEditReqParticipants(req.participants || 'N/A')
+    setEditReqAssembly(req.assembly || 'N/A')
+    setEditReqExpectedExpenses(
+      req.expectedExpenses && req.expectedExpenses.length > 0
+        ? req.expectedExpenses.map((it, i) => ({
+            id: it.id || `item-${i + 1}`,
+            intendedUse: it.intendedUse || '',
+            unitPrice: it.unitPrice || '',
+            quantity: it.quantity || '',
+            amount: it.amount || 0
+          }))
+        : [{ id: 'item-1', intendedUse: '', unitPrice: '', quantity: '', amount: 0 }]
+    )
+    setIsEditRequestModalOpen(true)
+  }
+
+  const handleAddEditReqExpenseRow = () => {
+    setEditReqExpectedExpenses(prev => [
+      ...prev,
+      { id: `item-${Date.now()}-${prev.length + 1}`, intendedUse: '', unitPrice: '', quantity: '', amount: 0 }
+    ])
+  }
+
+  const handleRemoveEditReqExpenseRow = (index: number) => {
+    setEditReqExpectedExpenses(prev => {
+      if (prev.length <= 1) {
+        return [{ id: `item-${Date.now()}`, intendedUse: '', unitPrice: '', quantity: '', amount: 0 }]
+      }
+      return prev.filter((_, i) => i !== index)
+    })
+  }
+
+  const handleUpdateEditReqExpenseRow = (index: number, field: keyof FundRequisitionItem, val: string) => {
+    setEditReqExpectedExpenses(prev => {
+      const updated = [...prev]
+      const item = { ...updated[index] }
+
+      if (field === 'amount') {
+        const sanitized = val.replace(/[^0-9.]/g, '')
+        const parts = sanitized.split('.')
+        const formatted = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : sanitized
+        item.amount = formatted
+      } else {
+        (item as any)[field] = val
+      }
+
+      updated[index] = item
+      return updated
+    })
+  }
+
+  // Handle Save Edit Fund Request
+  const handleSaveEditRequest = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingRequest) return
+    if (!editReqTitle.trim() || !editReqPurpose.trim() || !editReqDateNeeded) {
+      setErrorMsg('Please populate all mandatory request fields.')
+      return
+    }
+    if (isPeriodClosed(editReqDateNeeded)) {
+      setErrorMsg('The selected period is closed.')
+      return
+    }
+
+    const calculatedTotal = editReqExpectedExpenses.reduce((sum, item) => sum + parseAmount(item.amount), 0)
+    const finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(editReqAmount)
+
+    if (finalAmount <= 0) {
+      setErrorMsg('Please enter a valid requested amount or add expected expense items.')
+      return
+    }
+
+    setSaving(true)
+    setErrorMsg(null)
+    try {
+      await fundRequestService.updateRequest(
+        editingRequest.id,
+        {
+          title: editReqTitle.trim(),
+          purpose: editReqPurpose.trim(),
+          requestedAmount: finalAmount,
+          dateNeeded: editReqDateNeeded,
+          description: editReqDesc.trim(),
+          fundSource: editReqFundSource,
+          fromMinistry: editReqFromMinistry.trim() || 'The MINISTRY OF ALTAR SERVERS',
+          venue: editReqVenue.trim() || 'N/A',
+          participants: editReqParticipants.trim() || 'N/A',
+          assembly: editReqAssembly.trim() || 'N/A',
+          expectedExpenses: editReqExpectedExpenses.filter(item => item.intendedUse.trim() || parseAmount(item.amount) > 0)
+        },
+        profile?.uid || 'System',
+        profile?.displayName || 'Admin'
+      )
+      setIsEditRequestModalOpen(false)
+      setEditingRequest(null)
+      setSuccessMsg('Fund request details updated successfully.')
+      await fetchData()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update request.')
     } finally {
       setSaving(false)
     }
@@ -2787,15 +2933,27 @@ export const FinancePage: React.FC = () => {
                             {/* Primary Lifecycle Button */}
                             <div className="flex-1 min-w-[130px]">
                               {req.status === 'pending' && (
-                                <button
-                                  onClick={() => handleApproveRequest(req.id)}
-                                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm shadow-emerald-600/20 transition cursor-pointer"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                  </svg>
-                                  <span>Approve</span>
-                                </button>
+                                isSelfRequest(req) ? (
+                                  <div
+                                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
+                                    title="Self-approval not permitted. Another administrator must approve your fund request."
+                                  >
+                                    <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                    </svg>
+                                    <span>Requester (Self)</span>
+                                  </div>
+                                ) : (
+                                  <button
+                                    onClick={() => handleApproveRequest(req.id)}
+                                    className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-sm shadow-emerald-600/20 transition cursor-pointer"
+                                  >
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    <span>Approve</span>
+                                  </button>
+                                )
                               )}
 
                               {req.status === 'approved' && (
@@ -2958,6 +3116,23 @@ export const FinancePage: React.FC = () => {
                                       <span>Workflow History</span>
                                     </button>
 
+                                    {/* Edit Details (Draft, Pending, Approved, Rejected) */}
+                                    {['draft', 'pending', 'approved', 'rejected'].includes(req.status) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          handleOpenEditRequestModal(req)
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                        <span>Edit Details</span>
+                                      </button>
+                                    )}
+
                                     {req.status === 'liquidated' && (
                                       <>
                                         <button
@@ -3065,6 +3240,23 @@ export const FinancePage: React.FC = () => {
                                           <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                         </svg>
                                         <span>Void Transaction</span>
+                                      </button>
+                                    )}
+
+                                    {/* Delete Unreleased / Mistaken Request */}
+                                    {['draft', 'pending', 'rejected', 'cancelled'].includes(req.status) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setActionMenuReqId(null)
+                                          setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })
+                                        }}
+                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-semibold cursor-pointer"
+                                      >
+                                        <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                        <span>Delete Request</span>
                                       </button>
                                     )}
 
@@ -3264,15 +3456,27 @@ export const FinancePage: React.FC = () => {
                       <div className="flex items-center gap-2">
                                 {/* 1. Primary Lifecycle Action Button */}
                                 {req.status === 'pending' && (
-                                  <button
-                                    onClick={() => handleApproveRequest(req.id)}
-                                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
-                                  >
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    <span>Approve</span>
-                                  </button>
+                                  isSelfRequest(req) ? (
+                                    <div
+                                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-500 bg-slate-100 border border-slate-200 rounded-xl cursor-not-allowed"
+                                      title="Self-approval not permitted. Another administrator must approve your fund request."
+                                    >
+                                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                                      </svg>
+                                      <span>Requester (Self)</span>
+                                    </div>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleApproveRequest(req.id)}
+                                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                                    >
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      <span>Approve</span>
+                                    </button>
+                                  )
                                 )}
 
                                 {req.status === 'approved' && (
@@ -3407,6 +3611,23 @@ export const FinancePage: React.FC = () => {
                                           <span>Workflow History</span>
                                         </button>
 
+                                        {/* Edit Details (Draft, Pending, Approved, Rejected) */}
+                                        {['draft', 'pending', 'approved', 'rejected'].includes(req.status) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActionMenuReqId(null)
+                                              handleOpenEditRequestModal(req)
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
+                                          >
+                                            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                            </svg>
+                                            <span>Edit Details</span>
+                                          </button>
+                                        )}
+
                                         {req.status === 'liquidated' && (
                                           <>
                                             <button
@@ -3514,6 +3735,23 @@ export const FinancePage: React.FC = () => {
                                               <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                             </svg>
                                             <span>Void Transaction</span>
+                                          </button>
+                                        )}
+
+                                        {/* Delete Unreleased / Mistaken Request */}
+                                        {['draft', 'pending', 'rejected', 'cancelled'].includes(req.status) && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setActionMenuReqId(null)
+                                              setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })
+                                            }}
+                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-semibold cursor-pointer"
+                                          >
+                                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                            </svg>
+                                            <span>Delete Request</span>
                                           </button>
                                         )}
 
@@ -4741,6 +4979,317 @@ export const FinancePage: React.FC = () => {
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 disabled:opacity-50 transition cursor-pointer"
                 >
                   {saving ? 'Submitting...' : 'Submit Fund Requisition'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Fund Request Modal */}
+      {isEditRequestModalOpen && editingRequest && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-2 sm:p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl border border-gray-200 w-full max-w-2xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
+                    Edit Requisition
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                    Status: {editingRequest.status}
+                  </span>
+                </div>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">Edit Fund Request Details</h4>
+                <p className="text-[10px] font-mono text-gray-500">Ref: {editingRequest.referenceNumber} • Requester: {editingRequest.requestedByName}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setIsEditRequestModalOpen(false); setEditingRequest(null); }}
+                className="text-gray-400 hover:text-gray-600 font-bold text-lg cursor-pointer p-1 rounded-lg hover:bg-gray-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveEditRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+              {/* Fund Source Selection */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Channel & Core Request Info</h5>
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">Fund Source / Channel *</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setEditReqFundSource('main_funds')}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        editReqFundSource === 'main_funds'
+                          ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${editReqFundSource === 'main_funds' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${editReqFundSource === 'main_funds' ? 'text-blue-950' : 'text-slate-800'}`}>
+                            Main Ministry Funds
+                          </span>
+                          {editReqFundSource === 'main_funds' && (
+                            <span className="h-2 w-2 rounded-full bg-blue-600"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          Disbursed from MAS internal treasury balance
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditReqFundSource('parish')}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        editReqFundSource === 'parish'
+                          ? 'bg-emerald-50/80 border-emerald-500 ring-2 ring-emerald-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${editReqFundSource === 'parish' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${editReqFundSource === 'parish' ? 'text-emerald-950' : 'text-slate-800'}`}>
+                            Parish Funds
+                          </span>
+                          {editReqFundSource === 'parish' && (
+                            <span className="h-2 w-2 rounded-full bg-emerald-600"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          Requested from Parish Priest / Parish Treasury
+                        </p>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Request Title *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="e.g. Replenishing of Liturgical Supplies" 
+                      value={editReqTitle} 
+                      onChange={(e) => setEditReqTitle(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Purpose / Intended Objective *</label>
+                    <input 
+                      type="text" 
+                      required 
+                      placeholder="Detailed purpose" 
+                      value={editReqPurpose} 
+                      onChange={(e) => setEditReqPurpose(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Date Needed *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      value={editReqDateNeeded} 
+                      onChange={(e) => setEditReqDateNeeded(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">From (Requester Unit)</label>
+                    <input 
+                      type="text" 
+                      value={editReqFromMinistry} 
+                      onChange={(e) => setEditReqFromMinistry(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Activity / Logistics Metadata */}
+              <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">2. Logistics & Activity Info</h5>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Participants</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. N/A or 15 Servers" 
+                      value={editReqParticipants} 
+                      onChange={(e) => setEditReqParticipants(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Venue</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. N/A or Parish Hall" 
+                      value={editReqVenue} 
+                      onChange={(e) => setEditReqVenue(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Assembly / Gathering Time</label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. N/A or 6:00 AM" 
+                      value={editReqAssembly} 
+                      onChange={(e) => setEditReqAssembly(e.target.value)} 
+                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-semibold text-xs" 
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Dynamic Expected Expenses Table */}
+              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>3. Expected Expenses Breakdown</span>
+                    </h5>
+                    <p className="text-[10px] text-gray-500">I-lista ang mga bibilhin o gastusin (tulad ng nasa requisition format).</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleAddEditReqExpenseRow}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                  >
+                    <span>+ Add Item Row</span>
+                  </button>
+                </div>
+
+                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                  <table className="w-full text-left text-xs border-collapse min-w-[500px]">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
+                      <tr>
+                        <th className="p-2 text-left min-w-[140px]">Intended Use</th>
+                        <th className="p-2 text-center min-w-[120px]">Unit Price</th>
+                        <th className="p-2 text-center min-w-[110px]">Quantity</th>
+                        <th className="p-2 text-right min-w-[100px]">Amount (₱)</th>
+                        <th className="p-2 w-10 text-center"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {editReqExpectedExpenses.map((item, idx) => (
+                        <tr key={item.id || idx} className="hover:bg-gray-50/50">
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. Candle Sticks"
+                              value={item.intendedUse}
+                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'intendedUse', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. ₱175 per plastic"
+                              value={item.unitPrice}
+                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'unitPrice', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              placeholder="e.g. 2 plastic 6 pairs"
+                              value={item.quantity}
+                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'quantity', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                            />
+                          </td>
+                          <td className="p-1.5">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              placeholder="0.00"
+                              value={item.amount !== undefined && item.amount !== null ? String(item.amount) : ''}
+                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'amount', e.target.value)}
+                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
+                            />
+                          </td>
+                          <td className="p-1.5 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveEditReqExpenseRow(idx)}
+                              className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                              title="Remove item"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                      <tr>
+                        <td colSpan={3} className="p-2.5 text-slate-800 text-right uppercase text-[11px]">
+                          Total Calculated Requisition Amount:
+                        </td>
+                        <td className="p-2.5 text-right font-black text-sm text-blue-700 font-mono">
+                          ₱{editReqExpectedExpenses.reduce((s, i) => s + parseAmount(i.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        </td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* Description & Remarks */}
+              <div>
+                <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Additional Notes / Description Explanation</label>
+                <textarea 
+                  value={editReqDesc} 
+                  onChange={(e) => setEditReqDesc(e.target.value)} 
+                  className="w-full p-2.5 border border-gray-300 rounded-xl text-xs" 
+                  rows={2}
+                  placeholder="Any further justifications or details..."
+                ></textarea>
+              </div>
+
+              {/* Sticky Modal Footer */}
+              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
+                <button 
+                  type="button" 
+                  onClick={() => { setIsEditRequestModalOpen(false); setEditingRequest(null); }} 
+                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="submit" 
+                  disabled={saving} 
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-md shadow-blue-500/20 disabled:opacity-50 transition cursor-pointer"
+                >
+                  {saving ? 'Saving Changes...' : 'Save Changes'}
                 </button>
               </div>
             </form>

@@ -56,8 +56,8 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
       {
         id: 'mem-sig-1',
         label: 'Prepared by:',
-        name: '',
-        title: DEFAULT_MINISTRY_NAME,
+        name: 'Bro. BENAIKA LORENZO PARONABLE',
+        title: `Admin Officer, ${DEFAULT_MINISTRY_NAME}`,
         organization: DEFAULT_PARISH_NAME,
         column: 1
       },
@@ -303,33 +303,47 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
                   Choose Order Group:
                 </label>
-                <select
-                  value={selectedOrder}
-                  onChange={e => setSelectedOrder(e.target.value)}
-                  className="w-full text-xs font-bold p-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Orders</option>
-                  {ORDER_GROUPS.map(g => (
-                    <option key={g} value={g}>{g}</option>
-                  ))}
-                  <option value="none">Unassigned / No Order</option>
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedOrder}
+                    onChange={e => setSelectedOrder(e.target.value)}
+                    className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+                  >
+                    <option value="all">All Orders</option>
+                    {ORDER_GROUPS.map(g => (
+                      <option key={g} value={g}>{g}</option>
+                    ))}
+                    <option value="none">Unassigned / No Order</option>
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                </div>
               </div>
 
               <div>
                 <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
                   Filter by Rank (Optional):
                 </label>
-                <select
-                  value={selectedRank}
-                  onChange={e => setSelectedRank(e.target.value)}
-                  className="w-full text-xs font-bold p-2 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Ranks</option>
-                  {MEMBER_RANKS.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedRank}
+                    onChange={e => setSelectedRank(e.target.value)}
+                    className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+                  >
+                    <option value="all">All Ranks</option>
+                    {MEMBER_RANKS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -340,16 +354,23 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
                 <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
                   Filter Rank:
                 </label>
-                <select
-                  value={selectedRank}
-                  onChange={e => setSelectedRank(e.target.value)}
-                  className="text-xs font-bold py-1.5 px-3 bg-white border border-slate-300 rounded-lg text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="all">All Ranks</option>
-                  {MEMBER_RANKS.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select
+                    value={selectedRank}
+                    onChange={e => setSelectedRank(e.target.value)}
+                    className="h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+                  >
+                    <option value="all">All Ranks</option>
+                    {MEMBER_RANKS.map(r => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </div>
+                </div>
               </div>
             </div>
           )}

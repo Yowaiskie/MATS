@@ -36,6 +36,7 @@ export const PublicEventFormPage: React.FC = () => {
 
   // Answers State: maps questionId -> value
   const [answers, setAnswers] = useState<Record<string, any>>({})
+  const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({})
 
   // Helper to compute used and remaining open slots for an option/category
   const getOptionSlotInfo = (q: EventFormQuestion, opt: string) => {
@@ -307,7 +308,20 @@ export const PublicEventFormPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  setAnswers(userPreviousResponse.answers || {})
+                  const prevAns = userPreviousResponse.answers || {}
+                  setAnswers(prevAns)
+                  const initOther: Record<string, string> = {}
+                  Object.entries(prevAns).forEach(([qId, val]) => {
+                    if (typeof val === 'string' && val.startsWith('Other: ')) {
+                      initOther[qId] = val.replace(/^Other:\s*/, '')
+                    } else if (Array.isArray(val)) {
+                      const otherItem = val.find(v => typeof v === 'string' && v.startsWith('Other: '))
+                      if (otherItem) {
+                        initOther[qId] = otherItem.replace(/^Other:\s*/, '')
+                      }
+                    }
+                  })
+                  setOtherTextAnswers(initOther)
                   setExistingTrackingNumber(userPreviousResponse.trackingNumber)
                   window.scrollTo({ top: 0, behavior: 'smooth' })
                 }}
@@ -627,7 +641,14 @@ export const PublicEventFormPage: React.FC = () => {
     }
     if (!q.required) return true
     if (val === undefined || val === null || val === '') return false
-    if (Array.isArray(val) && val.length === 0) return false
+    if (val === '__other__') return false // User chose Other but didn't specify text
+    if (typeof val === 'string' && val.startsWith('Other:') && !val.replace(/^Other:\s*/, '').trim()) return false
+    if (Array.isArray(val)) {
+      if (val.length === 0) return false
+      // Filter out empty '__other__' items
+      const validItems = val.filter(v => v !== '__other__' && !(typeof v === 'string' && v.startsWith('Other:') && !v.replace(/^Other:\s*/, '').trim()))
+      if (validItems.length === 0) return false
+    }
     return true
   }
 
@@ -941,7 +962,6 @@ export const PublicEventFormPage: React.FC = () => {
                             <input
                               type="radio"
                               name={`q_${q.id}`}
-                              required={q.required}
                               disabled={isOptionFull}
                               checked={isSelected}
                               onChange={() => !isOptionFull && handleInputChange(q.id, opt)}
@@ -974,104 +994,278 @@ export const PublicEventFormPage: React.FC = () => {
                         </label>
                       )
                     })}
+
+                    {/* "Other" Option Radio with expanding input */}
+                    {q.hasOtherOption && (() => {
+                      const isOtherSelected = answers[q.id] === '__other__' || (typeof answers[q.id] === 'string' && (answers[q.id].startsWith('Other:') || !q.options?.includes(answers[q.id])))
+                      const customText = otherTextAnswers[q.id] ?? (typeof answers[q.id] === 'string' && answers[q.id].startsWith('Other:') ? answers[q.id].replace(/^Other:\s*/, '') : (typeof answers[q.id] === 'string' && !q.options?.includes(answers[q.id]) && answers[q.id] !== '__other__' ? answers[q.id] : ''))
+
+                      return (
+                        <div
+                          className={`p-3.5 border rounded-2xl transition space-y-2.5 ${
+                            isOtherSelected
+                              ? 'bg-blue-50/80 border-blue-400 shadow-2xs'
+                              : 'border-slate-200 hover:bg-slate-50 cursor-pointer'
+                          }`}
+                          onClick={() => {
+                            if (!isOtherSelected) {
+                              const text = customText
+                              const nextVal = text.trim() ? `Other: ${text.trim()}` : '__other__'
+                              handleInputChange(q.id, nextVal)
+                            }
+                          }}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <input
+                              type="radio"
+                              name={`q_${q.id}`}
+                              checked={isOtherSelected}
+                              onChange={() => {
+                                const text = customText
+                                const nextVal = text.trim() ? `Other: ${text.trim()}` : '__other__'
+                                handleInputChange(q.id, nextVal)
+                              }}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer shrink-0"
+                            />
+                            <span className="text-xs font-semibold text-slate-800">
+                              {q.otherOptionLabel || 'Other'}:
+                            </span>
+                          </div>
+
+                          {isOtherSelected && (
+                            <div className="pl-7 animate-in fade-in slide-in-from-top-1" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={customText}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  setOtherTextAnswers(prev => ({ ...prev, [q.id]: val }))
+                                  handleInputChange(q.id, val.trim() ? `Other: ${val.trim()}` : '__other__')
+                                }}
+                                placeholder={q.otherOptionPlaceholder || 'Please specify...'}
+                                autoFocus
+                                className="w-full h-10 px-3.5 bg-white border border-blue-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal placeholder:italic focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs transition"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )}
 
-                {q.type === 'dropdown' && (
-                  <select
-                    required={q.required}
-                    value={answers[q.id] || ''}
-                    onChange={e => handleInputChange(q.id, e.target.value)}
-                    className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                  >
-                    <option value="">Select an option...</option>
-                    {(q.options || []).map((opt, oIdx) => {
-                      const slotInfo = getOptionSlotInfo(q, opt)
-                      if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
-                        return null
-                      }
-                      return (
-                        <option
-                          key={oIdx}
-                          value={opt}
-                          disabled={slotInfo.isFull}
-                          className={slotInfo.isFull ? 'text-slate-400 bg-slate-100' : ''}
+                {q.type === 'dropdown' && (() => {
+                  const isOtherSelected = answers[q.id] === '__other__' || (typeof answers[q.id] === 'string' && (answers[q.id].startsWith('Other:') || !q.options?.includes(answers[q.id])))
+                  const customText = otherTextAnswers[q.id] ?? (typeof answers[q.id] === 'string' && answers[q.id].startsWith('Other:') ? answers[q.id].replace(/^Other:\s*/, '') : (typeof answers[q.id] === 'string' && !q.options?.includes(answers[q.id]) && answers[q.id] !== '__other__' ? answers[q.id] : ''))
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="relative">
+                        <select
+                          value={isOtherSelected ? '__other__' : (answers[q.id] || '')}
+                          onChange={e => {
+                            const val = e.target.value
+                            if (val === '__other__') {
+                              const text = customText
+                              handleInputChange(q.id, text.trim() ? `Other: ${text.trim()}` : '__other__')
+                            } else {
+                              handleInputChange(q.id, val)
+                            }
+                          }}
+                          className="w-full h-11 pl-3.5 pr-10 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition cursor-pointer"
                         >
-                          {opt}
-                          {slotInfo.hasLimit
-                            ? slotInfo.isFull
-                              ? ' — [FULL / No Slots Left]'
-                              : ` (${slotInfo.openSlots} / ${slotInfo.maxSlots} open slots)`
-                            : ''}
-                        </option>
-                      )
-                    })}
-                  </select>
-                )}
+                          <option value="">Select an option...</option>
+                          {(q.options || []).map((opt, oIdx) => {
+                            const slotInfo = getOptionSlotInfo(q, opt)
+                            if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                              return null
+                            }
+                            return (
+                              <option
+                                key={oIdx}
+                                value={opt}
+                                disabled={slotInfo.isFull}
+                                className={slotInfo.isFull ? 'text-slate-400 bg-slate-100' : ''}
+                              >
+                                {opt}
+                                {slotInfo.hasLimit
+                                  ? slotInfo.isFull
+                                    ? ' — [FULL / No Slots Left]'
+                                    : ` (${slotInfo.openSlots} / ${slotInfo.maxSlots} open slots)`
+                                  : ''}
+                              </option>
+                            )
+                          })}
+                          {q.hasOtherOption && (
+                            <option value="__other__">
+                              {q.otherOptionLabel || 'Other (Please specify...)'}
+                            </option>
+                          )}
+                        </select>
+                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                          </svg>
+                        </div>
+                      </div>
 
-                {q.type === 'checkbox' && (
-                  <div className="space-y-2">
-                    {(q.options || []).map((opt, oIdx) => {
-                      const slotInfo = getOptionSlotInfo(q, opt)
-                      if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
-                        return null
-                      }
-                      const isOptionFull = slotInfo.isFull
-                      const isChecked = Array.isArray(answers[q.id]) && answers[q.id].includes(opt)
+                      {isOtherSelected && (
+                        <div className="animate-in fade-in slide-in-from-top-1">
+                          <input
+                            type="text"
+                            value={customText}
+                            onChange={e => {
+                              const val = e.target.value
+                              setOtherTextAnswers(prev => ({ ...prev, [q.id]: val }))
+                              handleInputChange(q.id, val.trim() ? `Other: ${val.trim()}` : '__other__')
+                            }}
+                            placeholder={q.otherOptionPlaceholder || 'Please specify...'}
+                            autoFocus
+                            className="w-full h-10 px-3.5 bg-white border border-blue-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal placeholder:italic focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs transition"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
-                      return (
-                        <label
-                          key={oIdx}
-                          className={`flex items-center justify-between p-3.5 border rounded-2xl transition ${
-                            isOptionFull && !isChecked
-                              ? 'opacity-50 bg-slate-100/90 border-slate-200 cursor-not-allowed select-none'
-                              : isChecked
-                              ? 'bg-blue-50/80 border-blue-400 shadow-2xs cursor-pointer'
+                {q.type === 'checkbox' && (() => {
+                  const currentArray: string[] = Array.isArray(answers[q.id]) ? answers[q.id] : []
+                  const hasOtherChecked = currentArray.some(v => v === '__other__' || (typeof v === 'string' && (v.startsWith('Other:') || !q.options?.includes(v))))
+                  const otherItem = currentArray.find(v => typeof v === 'string' && (v.startsWith('Other:') || !q.options?.includes(v) && v !== '__other__'))
+                  const customText = otherTextAnswers[q.id] ?? (otherItem ? (otherItem.startsWith('Other:') ? otherItem.replace(/^Other:\s*/, '') : otherItem) : '')
+
+                  return (
+                    <div className="space-y-2">
+                      {(q.options || []).map((opt, oIdx) => {
+                        const slotInfo = getOptionSlotInfo(q, opt)
+                        if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                          return null
+                        }
+                        const isOptionFull = slotInfo.isFull
+                        const isChecked = currentArray.includes(opt)
+
+                        return (
+                          <label
+                            key={oIdx}
+                            className={`flex items-center justify-between p-3.5 border rounded-2xl transition ${
+                              isOptionFull && !isChecked
+                                ? 'opacity-50 bg-slate-100/90 border-slate-200 cursor-not-allowed select-none'
+                                : isChecked
+                                ? 'bg-blue-50/80 border-blue-400 shadow-2xs cursor-pointer'
+                                : 'border-slate-200 hover:bg-slate-50 cursor-pointer'
+                            }`}
+                          >
+                            <div className="flex items-center space-x-3">
+                              <input
+                                type="checkbox"
+                                disabled={isOptionFull && !isChecked}
+                                checked={isChecked}
+                                onChange={e => {
+                                  if (isOptionFull && !isChecked) return
+                                  handleCheckboxChange(q.id, opt, e.target.checked)
+                                }}
+                                className={`h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 ${
+                                  isOptionFull && !isChecked ? 'cursor-not-allowed' : 'cursor-pointer'
+                                }`}
+                              />
+                              <span className={`text-xs font-semibold ${isOptionFull && !isChecked ? 'text-slate-500 line-through decoration-slate-400' : 'text-slate-800'}`}>
+                                {opt}
+                              </span>
+                            </div>
+
+                            {slotInfo.hasLimit && (
+                              <div className="shrink-0 ml-2">
+                                {isOptionFull ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 uppercase tracking-wide">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                    FULL (0 Slots Left)
+                                  </span>
+                                ) : (
+                                  <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                    slotInfo.openSlots <= 3
+                                      ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                      : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                  }`}>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${slotInfo.openSlots <= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                    {slotInfo.openSlots} open {slotInfo.openSlots === 1 ? 'slot' : 'slots'} left ({slotInfo.usedSlots}/{slotInfo.maxSlots})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                          </label>
+                        )
+                      })}
+
+                      {/* "Other" Option Checkbox with expanding input */}
+                      {q.hasOtherOption && (
+                        <div
+                          className={`p-3.5 border rounded-2xl transition space-y-2.5 ${
+                            hasOtherChecked
+                              ? 'bg-blue-50/80 border-blue-400 shadow-2xs'
                               : 'border-slate-200 hover:bg-slate-50 cursor-pointer'
                           }`}
+                          onClick={() => {
+                            if (!hasOtherChecked) {
+                              const text = customText
+                              const nextVal = text.trim() ? `Other: ${text.trim()}` : '__other__'
+                              setAnswers(prev => {
+                                const list = Array.isArray(prev[q.id]) ? prev[q.id] : []
+                                return { ...prev, [q.id]: [...list, nextVal] }
+                              })
+                            }
+                          }}
                         >
                           <div className="flex items-center space-x-3">
                             <input
                               type="checkbox"
-                              disabled={isOptionFull && !isChecked}
-                              checked={isChecked}
+                              checked={hasOtherChecked}
                               onChange={e => {
-                                if (isOptionFull && !isChecked) return
-                                handleCheckboxChange(q.id, opt, e.target.checked)
+                                const checked = e.target.checked
+                                setAnswers(prev => {
+                                  const list: string[] = Array.isArray(prev[q.id]) ? prev[q.id] : []
+                                  const filtered = list.filter(v => v !== '__other__' && !(typeof v === 'string' && (v.startsWith('Other:') || !q.options?.includes(v))))
+                                  if (checked) {
+                                    const text = customText
+                                    const nextVal = text.trim() ? `Other: ${text.trim()}` : '__other__'
+                                    return { ...prev, [q.id]: [...filtered, nextVal] }
+                                  }
+                                  return { ...prev, [q.id]: filtered }
+                                })
                               }}
-                              className={`h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 ${
-                                isOptionFull && !isChecked ? 'cursor-not-allowed' : 'cursor-pointer'
-                              }`}
+                              className="h-4 w-4 text-blue-600 rounded-md focus:ring-blue-500 cursor-pointer shrink-0"
                             />
-                            <span className={`text-xs font-semibold ${isOptionFull && !isChecked ? 'text-slate-500 line-through decoration-slate-400' : 'text-slate-800'}`}>
-                              {opt}
+                            <span className="text-xs font-semibold text-slate-800">
+                              {q.otherOptionLabel || 'Other'}:
                             </span>
                           </div>
 
-                          {slotInfo.hasLimit && (
-                            <div className="shrink-0 ml-2">
-                              {isOptionFull ? (
-                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200 uppercase tracking-wide">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
-                                  FULL (0 Slots Left)
-                                </span>
-                              ) : (
-                                <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                                  slotInfo.openSlots <= 3
-                                    ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                    : 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                                }`}>
-                                  <span className={`w-1.5 h-1.5 rounded-full ${slotInfo.openSlots <= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
-                                  {slotInfo.openSlots} open {slotInfo.openSlots === 1 ? 'slot' : 'slots'} left ({slotInfo.usedSlots}/{slotInfo.maxSlots})
-                                </span>
-                              )}
+                          {hasOtherChecked && (
+                            <div className="pl-7 animate-in fade-in slide-in-from-top-1" onClick={e => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                value={customText}
+                                onChange={e => {
+                                  const val = e.target.value
+                                  setOtherTextAnswers(prev => ({ ...prev, [q.id]: val }))
+                                  setAnswers(prev => {
+                                    const list: string[] = Array.isArray(prev[q.id]) ? prev[q.id] : []
+                                    const filtered = list.filter(v => v !== '__other__' && !(typeof v === 'string' && (v.startsWith('Other:') || !q.options?.includes(v))))
+                                    const nextVal = val.trim() ? `Other: ${val.trim()}` : '__other__'
+                                    return { ...prev, [q.id]: [...filtered, nextVal] }
+                                  })
+                                }}
+                                placeholder={q.otherOptionPlaceholder || 'Please specify...'}
+                                autoFocus
+                                className="w-full h-10 px-3.5 bg-white border border-blue-300 rounded-xl text-xs sm:text-sm font-semibold text-slate-900 placeholder:text-slate-400 placeholder:font-normal placeholder:italic focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs transition"
+                              />
                             </div>
                           )}
-                        </label>
-                      )
-                    })}
-                  </div>
-                )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {q.type === 'yes_no' && (
                   <div className="flex items-center space-x-4">

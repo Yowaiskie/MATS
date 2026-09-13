@@ -1521,16 +1521,23 @@ export const UsersPage: React.FC = () => {
 
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">Assigned Order Group (Filter Scope)</label>
-                    <select
-                      value={assignedOrder}
-                      onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
-                      className="block w-full sm:w-64 rounded-lg border border-amber-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-amber-500 cursor-pointer"
-                    >
-                      <option value="">-- All Orders (Unrestricted Scope) --</option>
-                      {ORDER_GROUPS.map((grp) => (
-                        <option key={grp} value={grp}>{grp}</option>
-                      ))}
-                    </select>
+                    <div className="relative w-full sm:w-64">
+                      <select
+                        value={assignedOrder}
+                        onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
+                        className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-amber-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 transition cursor-pointer shadow-2xs"
+                      >
+                        <option value="">-- All Orders (Unrestricted Scope) --</option>
+                        {ORDER_GROUPS.map((grp) => (
+                          <option key={grp} value={grp}>{grp}</option>
+                        ))}
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-amber-500">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </div>
+                    </div>
                     <p className="mt-1 text-[10px] text-amber-700">If selected, member reports will be filtered exclusively for this Order.</p>
                   </div>
                 </div>
@@ -1997,18 +2004,25 @@ export const UsersPage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Icon Style *</label>
-                    <select
-                      value={presetFormIcon}
-                      onChange={(e) => setPresetFormIcon(e.target.value as any)}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-500 cursor-pointer"
-                    >
-                      <option value="clipboard">Clipboard (Attendance)</option>
-                      <option value="users">Group (Order Leader)</option>
-                      <option value="shield">Shield (Admin)</option>
-                      <option value="calendar">Calendar (Schedules)</option>
-                      <option value="chart">Chart (Reports)</option>
-                      <option value="settings">Settings (Config)</option>
-                    </select>
+                    <div className="relative">
+                      <select
+                        value={presetFormIcon}
+                        onChange={(e) => setPresetFormIcon(e.target.value as any)}
+                        className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
+                      >
+                        <option value="clipboard">Clipboard (Attendance)</option>
+                        <option value="users">Group (Order Leader)</option>
+                        <option value="shield">Shield (Admin)</option>
+                        <option value="calendar">Calendar (Schedules)</option>
+                        <option value="chart">Chart (Reports)</option>
+                        <option value="settings">Settings (Config)</option>
+                      </select>
+                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                        </svg>
+                      </div>
+                    </div>
                   </div>
                 </div>
 

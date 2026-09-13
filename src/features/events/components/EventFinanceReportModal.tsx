@@ -32,8 +32,8 @@ export const EventFinanceReportModal: React.FC<Props> = ({
       {
         id: 'ef-sig-1',
         label: 'Prepared by:',
-        name: '',
-        title: DEFAULT_MINISTRY_NAME,
+        name: 'Bro. CHRYSLER DAVID',
+        title: `Treasurer, ${DEFAULT_MINISTRY_NAME}`,
         organization: DEFAULT_PARISH_NAME,
         column: 1
       },

@@ -30,9 +30,9 @@ export const QualificationsExportModal: React.FC<QualificationsExportModalProps>
       {
         id: 'qual-sig-1',
         label: 'Prepared by:',
-        name: '',
-        title: 'Secretariat / Auditor',
-        organization: DEFAULT_MINISTRY_NAME,
+        name: 'Bro. BENAIKA LORENZO PARONABLE',
+        title: `Admin Officer, ${DEFAULT_MINISTRY_NAME}`,
+        organization: DEFAULT_PARISH_NAME,
         column: 1
       },
       {
@@ -46,8 +46,8 @@ export const QualificationsExportModal: React.FC<QualificationsExportModalProps>
       {
         id: 'qual-sig-3',
         label: 'Approved by:',
-        name: '',
-        title: 'Spiritual Director / Parish Priest',
+        name: 'Rev. Fr. ILDEFONSO DE GUZMAN JR.',
+        title: 'Parish Priest',
         organization: DEFAULT_PARISH_NAME,
         column: 2
       }
