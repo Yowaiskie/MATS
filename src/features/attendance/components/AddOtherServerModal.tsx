@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import type { Member } from '@/types/member'
 import { getFullName } from '@/utils/member'
+import { Button } from '@/components'
 
 interface AddOtherServerModalProps {
   isOpen: boolean
@@ -160,20 +161,22 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
               {selectedIds.length} Selected
             </span>
             <div className="flex items-center space-x-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="dense"
                 onClick={onClose}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                variant="purple"
+                size="dense"
                 disabled={selectedIds.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               >
                 Add Selected
-              </button>
+              </Button>
             </div>
           </div>
         </form>

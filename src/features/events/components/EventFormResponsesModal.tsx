@@ -7,6 +7,8 @@ import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
 import { ConfirmModal } from '@/components/Dialog'
+import { Button, CustomSelect } from '@/components'
+import { useToast } from '@/context/ToastContext'
 import { downloadEventFormPdf } from '@/utils/eventFormPdfReport'
 import { EditFormResponseModal } from './EditFormResponseModal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
@@ -25,6 +27,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   form
 }) => {
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [responses, setResponses] = useState<EventFormResponse[]>([])
@@ -248,7 +251,12 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     : filteredGeneralResponses
 
   const handleExportCSV = () => {
-    eventFormResponseService.exportResponsesToCSV(form, questions, activeFilteredResponses)
+    try {
+      eventFormResponseService.exportResponsesToCSV(form, questions, activeFilteredResponses)
+      toast.success('Export Started', 'Form responses have been exported to CSV.')
+    } catch (err: any) {
+      toast.error('Export Failed', err.message || 'Failed to export CSV.')
+    }
   }
 
   const handleGeneratePdf = async () => {
@@ -265,8 +273,10 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
         signatureConfig: pdfSignatureConfig.enabled ? pdfSignatureConfig : undefined
       })
       setExportPdfModalOpen(false)
-    } catch (err) {
+      toast.success('PDF Generated', 'Form responses report has been downloaded.')
+    } catch (err: any) {
       console.error('Failed to generate PDF report:', err)
+      toast.error('PDF Generation Failed', err.message || 'Could not generate report.')
     } finally {
       setGeneratingPdf(false)
     }
@@ -286,8 +296,10 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
       }
       setResponseToDelete(null)
       await fetchData()
-    } catch (err) {
+      toast.success('Response Deleted', 'Form response has been successfully deleted.')
+    } catch (err: any) {
       console.error('Failed to delete response:', err)
+      toast.error('Delete Failed', err.message || 'Failed to delete response.')
     } finally {
       setDeleting(false)
     }
@@ -302,8 +314,10 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
       await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts'] })
       setShowDeleteAllConfirm(false)
       await fetchData()
-    } catch (err) {
+      toast.success('All Responses Deleted', 'All submitted responses have been removed.')
+    } catch (err: any) {
       console.error('Failed to delete all responses:', err)
+      toast.error('Delete Failed', err.message || 'Failed to delete responses.')
     } finally {
       setDeletingAll(false)
     }
@@ -340,38 +354,38 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
             </div>
           </div>
 
-          <div className="flex items-center space-x-2.5">
-            <button
-              type="button"
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setExportPdfModalOpen(true)}
               disabled={responses.length === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition-all active:scale-95 cursor-pointer disabled:opacity-50 shadow-md shadow-indigo-500/20"
             >
-              <span>Export PDF Report</span>
-            </button>
-            <button
-              type="button"
+              Export PDF Report
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={handleExportCSV}
               disabled={responses.length === 0}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50 border border-slate-200 shadow-2xs"
             >
-              <span>Export CSV</span>
-            </button>
-            <button
-              type="button"
+              Export CSV
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
               onClick={() => setShowDeleteAllConfirm(true)}
               disabled={responses.length === 0}
-              className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold rounded-xl transition-all cursor-pointer disabled:opacity-50"
             >
-              <span>Delete All</span>
-            </button>
-            <button
-              type="button"
+              Delete All
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onClose}
-              className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 text-xs font-bold rounded-xl transition-all cursor-pointer"
             >
               Close
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -412,20 +426,17 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               {/* Search & Order Filter Controls */}
               <div className="flex items-center space-x-3">
                 {/* Order Filter Dropdown */}
-                <div className="flex items-center space-x-1.5">
-                  <span className="text-xs font-bold text-slate-500">Order / Group:</span>
-                  <select
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Order / Group:</span>
+                  <CustomSelect
                     value={orderFilter}
                     onChange={e => setOrderFilter(e.target.value)}
-                    className="p-2 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-blue-500 focus:outline-hidden bg-slate-50"
-                  >
-                    <option value="all">All Groups</option>
-                    {ORDER_GROUPS.map(og => (
-                      <option key={og} value={og}>
-                        {og}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: 'all', label: 'All Groups' },
+                      ...ORDER_GROUPS.map(og => ({ value: og, label: og }))
+                    ]}
+                    className="w-44"
+                  />
                 </div>
 
                 {/* Search Input */}
@@ -434,7 +445,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                   placeholder="Search member, order, or answer..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-64 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                  className="w-64 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                 />
               </div>
             </>
@@ -643,28 +654,28 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
                           <td className="p-3.5 text-right">
                             {r ? (
-                              <div className="flex items-center justify-end space-x-2">
-                                <button
-                                  type="button"
+                              <div className="flex items-center justify-end space-x-1.5">
+                                <Button
+                                  variant="secondary"
+                                  size="xs"
                                   onClick={() => setSelectedResponse(r)}
-                                  className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
                                 >
                                   View Detail
-                                </button>
-                                <button
-                                  type="button"
+                                </Button>
+                                <Button
+                                  variant="secondary"
+                                  size="xs"
                                   onClick={() => setResponseToEdit(r)}
-                                  className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
                                 >
                                   Edit
-                                </button>
-                                <button
-                                  type="button"
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="xs"
                                   onClick={() => setResponseToDelete(r)}
-                                  className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
                                 >
                                   Delete
-                                </button>
+                                </Button>
                               </div>
                             ) : (
                               <span className="text-slate-400 text-[11px] italic">No submission</span>
@@ -711,28 +722,28 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           })}
                           <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
                           <td className="p-3.5 text-right">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button
-                                type="button"
+                            <div className="flex items-center justify-end space-x-1.5">
+                              <Button
+                                variant="secondary"
+                                size="xs"
                                 onClick={() => setSelectedResponse(r)}
-                                className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
                               >
                                 View Detail
-                              </button>
-                              <button
-                                type="button"
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="xs"
                                 onClick={() => setResponseToEdit(r)}
-                                className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
                               >
                                 Edit
-                              </button>
-                              <button
-                                type="button"
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="xs"
                                 onClick={() => setResponseToDelete(r)}
-                                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
                               >
                                 Delete
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -804,28 +815,28 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           })}
                           <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
                           <td className="p-3.5 text-right">
-                            <div className="flex items-center justify-end space-x-2">
-                              <button
-                                type="button"
+                            <div className="flex items-center justify-end space-x-1.5">
+                              <Button
+                                variant="secondary"
+                                size="xs"
                                 onClick={() => setSelectedResponse(r)}
-                                className="px-3 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50 border border-blue-200 rounded-lg transition-colors cursor-pointer"
                               >
                                 View Detail
-                              </button>
-                              <button
-                                type="button"
+                              </Button>
+                              <Button
+                                variant="secondary"
+                                size="xs"
                                 onClick={() => setResponseToEdit(r)}
-                                className="px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-50 border border-amber-200 rounded-lg transition-colors cursor-pointer"
                               >
                                 Edit
-                              </button>
-                              <button
-                                type="button"
+                              </Button>
+                              <Button
+                                variant="danger"
+                                size="xs"
                                 onClick={() => setResponseToDelete(r)}
-                                className="px-3 py-1.5 text-xs font-bold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors cursor-pointer"
                               >
                                 Delete
-                              </button>
+                              </Button>
                             </div>
                           </td>
                         </tr>
@@ -895,24 +906,24 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
             </div>
 
             <div className="pt-2 flex items-center justify-between">
-              <button
-                type="button"
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => {
                   const resp = selectedResponse
                   setSelectedResponse(null)
                   setResponseToEdit(resp)
                 }}
-                className="px-4 py-2 bg-amber-50 hover:bg-amber-100 border border-amber-200 font-bold text-xs rounded-xl text-amber-700 cursor-pointer"
               >
                 Edit Response
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setSelectedResponse(null)}
-                className="px-4 py-2 bg-slate-200 hover:bg-slate-300 font-bold text-xs rounded-xl text-slate-700 cursor-pointer"
               >
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -993,21 +1004,17 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 bg-slate-50 border border-slate-200 rounded-xl">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Filter Question (Optional)</label>
-                  <select
+                  <CustomSelect
                     value={pdfFilterQuestionId}
                     onChange={e => {
                       setPdfFilterQuestionId(e.target.value)
                       setPdfFilterValue('')
                     }}
-                    className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                  >
-                    <option value="">Include All Responses</option>
-                    {questions.map(q => (
-                      <option key={q.id} value={q.id}>
-                        {q.question}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: 'Include All Responses' },
+                      ...questions.map(q => ({ value: q.id, label: q.question }))
+                    ]}
+                  />
                 </div>
 
                 {pdfFilterQuestionId && (
@@ -1017,31 +1024,27 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                       const selQ = questions.find(q => q.id === pdfFilterQuestionId)
                       if (selQ && selQ.options && selQ.options.length > 0) {
                         return (
-                          <select
+                          <CustomSelect
                             value={pdfFilterValue}
                             onChange={e => setPdfFilterValue(e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                          >
-                            <option value="">Select option...</option>
-                            {selQ.options.map((opt, oIdx) => (
-                              <option key={oIdx} value={opt}>
-                                {opt}
-                              </option>
-                            ))}
-                          </select>
+                            options={[
+                              { value: '', label: 'Select option...' },
+                              ...selQ.options.map(opt => ({ value: opt, label: opt }))
+                            ]}
+                          />
                         )
                       }
                       if (selQ && selQ.type === 'yes_no') {
                         return (
-                          <select
+                          <CustomSelect
                             value={pdfFilterValue}
                             onChange={e => setPdfFilterValue(e.target.value)}
-                            className="w-full p-2 border border-slate-300 rounded-lg text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                          >
-                            <option value="">Select option...</option>
-                            <option value="Yes">Yes</option>
-                            <option value="No">No</option>
-                          </select>
+                            options={[
+                              { value: '', label: 'Select option...' },
+                              { value: 'Yes', label: 'Yes' },
+                              { value: 'No', label: 'No' }
+                            ]}
+                          />
                         )
                       }
                       return (
@@ -1146,22 +1149,23 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               />
             </div>
 
-            <div className="pt-3 border-t flex items-center justify-end space-x-3">
-              <button
-                type="button"
+            <div className="pt-3 border-t flex items-center justify-end space-x-2">
+              <Button
+                variant="secondary"
+                size="sm"
                 onClick={() => setExportPdfModalOpen(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl"
               >
                 Cancel
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleGeneratePdf}
+                loading={generatingPdf}
                 disabled={generatingPdf || pdfSelectedQuestionIds.length === 0}
-                className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs disabled:opacity-50"
               >
-                {generatingPdf ? 'Generating PDF Report...' : 'Download PDF Report'}
-              </button>
+                Download PDF Report
+              </Button>
             </div>
           </div>
         </div>

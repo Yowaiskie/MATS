@@ -2,7 +2,7 @@ import React from 'react'
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'ghost' | 'outline' | 'purple'
-  size?: 'dense' | 'default' | 'public'
+  size?: 'xs' | 'sm' | 'md' | 'dense' | 'default' | 'public'
   loading?: boolean
   loadingText?: string
   icon?: React.ReactNode
@@ -24,7 +24,10 @@ export const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const sizeClasses = {
+    xs: 'h-8 px-2.5 text-[10px] rounded-lg font-bold',
+    sm: 'h-9 px-3 text-[11px] rounded-xl font-bold',
     dense: 'h-9 px-3 text-[11px] rounded-xl font-bold',
+    md: 'h-10 px-4 text-xs rounded-xl font-bold',
     default: 'h-10 px-4 text-xs rounded-xl font-bold',
     public: 'h-11 px-5 text-xs sm:text-sm rounded-xl font-bold',
   }[size]

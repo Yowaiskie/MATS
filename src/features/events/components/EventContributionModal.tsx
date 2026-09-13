@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Modal } from '@/components/Modal'
+import { Modal, CurrencyInput, CustomSelect, Button, useToast } from '@/components'
 import { MemberCombobox } from '@/components/MemberCombobox'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventContributionService } from '@/services/eventContributionService'
@@ -32,6 +32,7 @@ export const EventContributionModal: React.FC<Props> = ({
   contributionToEdit
 }) => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   const [purposes, setPurposes] = useState<EventContributionPurpose[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(false)
@@ -422,6 +423,10 @@ export const EventContributionModal: React.FC<Props> = ({
           )
         }
 
+        toast.success(
+          contributionToEdit ? 'Group Contributions Updated' : 'Group Contributions Saved',
+          `Successfully saved ${validEntries.length} member contributions.`
+        )
         onSuccess()
         onClose()
       } catch (err: any) {
@@ -499,6 +504,10 @@ export const EventContributionModal: React.FC<Props> = ({
           profile.displayName || profile.email
         )
       }
+      toast.success(
+        contributionToEdit ? 'Contribution Updated' : 'Contribution Saved',
+        `Successfully ${contributionToEdit ? 'updated' : 'recorded'} contribution for ${finalContributorName}.`
+      )
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -620,7 +629,7 @@ export const EventContributionModal: React.FC<Props> = ({
                 return (
                   <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1.5 animate-in fade-in duration-150">
                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-900">
-                      <span>👨‍👩‍👧‍👦 Family / Sibling Suggestions:</span>
+                      <span>Family / Sibling Suggestions:</span>
                       <span className="text-slate-400 font-normal lowercase">(same surname in masterlist)</span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
@@ -646,37 +655,31 @@ export const EventContributionModal: React.FC<Props> = ({
 
           {/* Purpose category selection */}
           <div>
-            <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Contribution Purpose *</label>
-            <select
+            <CustomSelect
+              label="Contribution Purpose"
               required
               value={purposeId}
               onChange={(e) => setPurposeId(e.target.value)}
-              className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-500"
-            >
-              <option value="">-- Select Purpose category --</option>
-              {purposes.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: '', label: '-- Select Purpose category --' },
+                ...purposes.map((p) => ({
+                  value: p.id,
+                  label: p.name
+                }))
+              ]}
+            />
           </div>
 
           {/* Single Mode: Amount & Date */}
           {entryMode === 'single' && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Amount (PHP) *</label>
-                <input
-                  type="text"
+                <CurrencyInput
+                  label="Amount (PHP)"
                   required
                   placeholder="500.00"
                   value={amount}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/[^0-9.]/g, '')
-                    setAmount(val)
-                  }}
-                  className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-500"
+                  onChange={(_formatted, numeric) => setAmount(String(numeric))}
                 />
               </div>
 
@@ -749,7 +752,7 @@ export const EventContributionModal: React.FC<Props> = ({
                 return (
                   <div className="p-2.5 bg-indigo-50/70 border border-indigo-100 rounded-xl space-y-1.5 animate-in fade-in duration-150">
                     <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-900">
-                      <span>👨‍👩‍👧‍👦 Suggested Family Members / Siblings:</span>
+                      <span>Suggested Family Members / Siblings:</span>
                     </div>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {familyMatches.map(fm => (
@@ -783,15 +786,11 @@ export const EventContributionModal: React.FC<Props> = ({
                         onChange={(name, uid) => handleUpdateGroupRow(idx, { name, memberUid: uid || '' })}
                       />
                     </div>
-                    <div className="w-full sm:w-32 flex items-center gap-1.5 shrink-0">
-                      <span className="text-xs font-bold text-slate-500">₱</span>
-                      <input
-                        type="text"
-                        required
+                    <div className="w-full sm:w-36 flex items-center gap-1.5 shrink-0">
+                      <CurrencyInput
                         placeholder="0.00"
                         value={entry.amount}
-                        onChange={(e) => handleUpdateGroupRow(idx, { amount: e.target.value.replace(/[^0-9.]/g, '') })}
-                        className="w-full text-xs font-bold border border-slate-200 rounded-xl px-2.5 py-2 bg-white focus:outline-none focus:border-indigo-500 text-right"
+                        onChange={(_formatted, numeric) => handleUpdateGroupRow(idx, { amount: String(numeric) })}
                       />
                       {groupEntries.length > 1 && (
                         <button
@@ -848,21 +847,21 @@ export const EventContributionModal: React.FC<Props> = ({
           {/* Payment Method */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Payment Method *</label>
-              <select
+              <CustomSelect
+                label="Payment Method"
                 required
                 value={paymentMethod}
                 onChange={(e) => {
                   setPaymentMethod(e.target.value as ContributionPaymentMethod)
                   setReferenceNumber('')
                 }}
-                className="w-full text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:border-blue-500"
-              >
-                <option value="cash">Cash</option>
-                <option value="gcash">GCash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="other">Other</option>
-              </select>
+                options={[
+                  { value: 'cash', label: 'Cash' },
+                  { value: 'gcash', label: 'GCash' },
+                  { value: 'bank_transfer', label: 'Bank Transfer' },
+                  { value: 'other', label: 'Other' }
+                ]}
+              />
             </div>
 
             {/* Conditional Reference Number */}
@@ -908,22 +907,22 @@ export const EventContributionModal: React.FC<Props> = ({
 
           {/* Footer Actions */}
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="dense"
               onClick={onClose}
-              className="px-4 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-bold transition cursor-pointer"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={submitting}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition disabled:opacity-50 cursor-pointer"
+              variant="primary"
+              size="dense"
+              loading={submitting}
             >
-              {submitting
-                ? (contributionToEdit ? (entryMode === 'group' && groupEntries.filter(e => e.name.trim()).length > 1 ? 'Saving Group...' : 'Updating...') : 'Saving...')
-                : (contributionToEdit ? (entryMode === 'group' && groupEntries.filter(e => e.name.trim()).length > 1 ? `Update & Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Update Contribution') : (entryMode === 'group' ? `Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Save Contribution'))}
-            </button>
+              {contributionToEdit ? (entryMode === 'group' && groupEntries.filter(e => e.name.trim()).length > 1 ? `Update & Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Update Contribution') : (entryMode === 'group' ? `Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Save Contribution')}
+            </Button>
           </div>
         </form>
       )}

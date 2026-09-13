@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
@@ -14,6 +15,7 @@ import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
+import { FilterDropdown } from '@/components'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
@@ -23,10 +25,80 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { useToast } from '@/context/ToastContext'
 
 const PAGE_SIZE = 12
+const SCHEDULE_FILTERS_STORAGE_KEY = 'mats_schedules_filter_state'
+
+interface SavedScheduleFilters {
+  dateFilterMode?: 'single' | 'range'
+  dateFilter?: string
+  startDateFilter?: string
+  endDateFilter?: string
+  timeFilter?: string
+  searchQuery?: string
+  attendanceFilter?: 'all' | ScheduleAttendanceState
+  viewMode?: 'list' | 'calendar'
+  activeTab?: 'schedules' | 'publications'
+  monthStr?: string
+  currentPage?: number
+}
 
 const getTodayString = () => {
   const today = new Date()
   return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+const getInitialFilterState = (searchParams: URLSearchParams): SavedScheduleFilters => {
+  const urlDate = searchParams.get('date')
+  const urlMode = searchParams.get('mode') as 'single' | 'range' | null
+  const urlStart = searchParams.get('start')
+  const urlEnd = searchParams.get('end')
+  const urlTime = searchParams.get('time')
+  const urlSearch = searchParams.get('search') || searchParams.get('q')
+  const urlAttendance = searchParams.get('attendance') as 'all' | ScheduleAttendanceState | null
+  const urlView = searchParams.get('view') as 'list' | 'calendar' | null
+  const urlTab = searchParams.get('tab') as 'schedules' | 'publications' | null
+  const urlMonth = searchParams.get('month')
+  const urlPage = searchParams.get('page')
+
+  const hasUrlParams = !!(urlDate || urlMode || urlStart || urlEnd || urlTime || urlSearch || urlAttendance || urlView || urlTab || urlMonth || urlPage)
+
+  if (hasUrlParams) {
+    return {
+      dateFilterMode: urlMode || (urlStart && urlEnd ? 'range' : 'single'),
+      dateFilter: urlDate || getTodayString(),
+      startDateFilter: urlStart || '',
+      endDateFilter: urlEnd || '',
+      timeFilter: urlTime || '',
+      searchQuery: urlSearch || '',
+      attendanceFilter: urlAttendance || 'all',
+      viewMode: urlView || 'list',
+      activeTab: urlTab || 'schedules',
+      monthStr: urlMonth || (urlDate ? urlDate.slice(0, 7) : undefined),
+      currentPage: urlPage ? parseInt(urlPage, 10) || 1 : 1
+    }
+  }
+
+  try {
+    const raw = sessionStorage.getItem(SCHEDULE_FILTERS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return parsed
+    }
+  } catch {
+    // Ignore error
+  }
+
+  return {
+    dateFilterMode: 'single',
+    dateFilter: getTodayString(),
+    startDateFilter: '',
+    endDateFilter: '',
+    timeFilter: '',
+    searchQuery: '',
+    attendanceFilter: 'all',
+    viewMode: 'list',
+    activeTab: 'schedules',
+    currentPage: 1
+  }
 }
 
 const getThisWeekRange = (): { start: string; end: string } => {
@@ -59,27 +131,47 @@ export const SchedulesPage: React.FC = () => {
   const { profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageSchedules')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [initialFilters] = useState<SavedScheduleFilters>(() => getInitialFilterState(searchParams))
+
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>('schedules')
+  const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>(initialFilters.activeTab || 'schedules')
 
   // Selected Month State for Scoped Firestore Reads
-  const [selectedMonthDate, setSelectedMonthDate] = useState<Date>(() => new Date())
+  const [selectedMonthDate, setSelectedMonthDate] = useState<Date>(() => {
+    if (initialFilters.monthStr) {
+      const [yStr, mStr] = initialFilters.monthStr.split('-')
+      const y = parseInt(yStr, 10)
+      const m = parseInt(mStr, 10)
+      if (!isNaN(y) && !isNaN(m)) return new Date(y, m - 1, 1)
+    }
+    if (initialFilters.dateFilter) {
+      const [yStr, mStr] = initialFilters.dateFilter.split('-')
+      const y = parseInt(yStr, 10)
+      const m = parseInt(mStr, 10)
+      if (!isNaN(y) && !isNaN(m)) return new Date(y, m - 1, 1)
+    }
+    return new Date()
+  })
 
   // Filter states (Single Date vs Date Range)
-  const [dateFilterMode, setDateFilterMode] = useState<'single' | 'range'>('single')
-  const [dateFilter, setDateFilter] = useState(getTodayString())
-  const [startDateFilter, setStartDateFilter] = useState('')
-  const [endDateFilter, setEndDateFilter] = useState('')
-  const [timeFilter, setTimeFilter] = useState('')
-  const [searchQuery, setSearchQuery] = useState('')
+  const [dateFilterMode, setDateFilterMode] = useState<'single' | 'range'>(initialFilters.dateFilterMode || 'single')
+  const [dateFilter, setDateFilter] = useState(initialFilters.dateFilter || getTodayString())
+  const [startDateFilter, setStartDateFilter] = useState(initialFilters.startDateFilter || '')
+  const [endDateFilter, setEndDateFilter] = useState(initialFilters.endDateFilter || '')
+  const [timeFilter, setTimeFilter] = useState(initialFilters.timeFilter || '')
+  const [searchQuery, setSearchQuery] = useState(initialFilters.searchQuery || '')
+  const [attendanceFilter, setAttendanceFilter] = useState<'all' | ScheduleAttendanceState>(initialFilters.attendanceFilter || 'all')
   const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>([])
 
   // Pagination
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(initialFilters.currentPage || 1)
+  const isInitialMount = useRef(true)
 
   // Bulk select
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -96,7 +188,7 @@ export const SchedulesPage: React.FC = () => {
   const [exportPdfOpen, setExportPdfOpen] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>('')
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>(initialFilters.viewMode || 'list')
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
 
   // Dialog state
@@ -149,6 +241,63 @@ export const SchedulesPage: React.FC = () => {
     }
   }, [selectedMonthDate, dateFilterMode, startDateFilter, endDateFilter])
 
+  // Sync state to URL search params & session storage
+  useEffect(() => {
+    const y = selectedMonthDate.getFullYear()
+    const m = String(selectedMonthDate.getMonth() + 1).padStart(2, '0')
+    const monthStr = `${y}-${m}`
+
+    const filterState: SavedScheduleFilters = {
+      dateFilterMode,
+      dateFilter,
+      startDateFilter,
+      endDateFilter,
+      timeFilter,
+      searchQuery,
+      attendanceFilter,
+      viewMode,
+      activeTab,
+      monthStr,
+      currentPage
+    }
+
+    try {
+      sessionStorage.setItem(SCHEDULE_FILTERS_STORAGE_KEY, JSON.stringify(filterState))
+    } catch {
+      // Ignore
+    }
+
+    const params = new URLSearchParams()
+    if (activeTab !== 'schedules') params.set('tab', activeTab)
+    if (viewMode !== 'list') params.set('view', viewMode)
+    if (dateFilterMode === 'single') {
+      if (dateFilter) params.set('date', dateFilter)
+    } else {
+      params.set('mode', 'range')
+      if (startDateFilter) params.set('start', startDateFilter)
+      if (endDateFilter) params.set('end', endDateFilter)
+    }
+    if (timeFilter) params.set('time', timeFilter)
+    if (attendanceFilter !== 'all') params.set('attendance', attendanceFilter)
+    if (searchQuery.trim()) params.set('search', searchQuery.trim())
+    if (currentPage > 1) params.set('page', String(currentPage))
+
+    setSearchParams(params, { replace: true })
+  }, [
+    dateFilterMode,
+    dateFilter,
+    startDateFilter,
+    endDateFilter,
+    timeFilter,
+    searchQuery,
+    attendanceFilter,
+    viewMode,
+    activeTab,
+    selectedMonthDate,
+    currentPage,
+    setSearchParams
+  ])
+
   const handleDateFilterChange = (newDateStr: string) => {
     setDateFilter(newDateStr)
     if (newDateStr) {
@@ -163,10 +312,14 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
-  // Reset page when filters change
+  // Reset page when filters change (after initial mount)
   useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
     setCurrentPage(1)
-  }, [dateFilterMode, dateFilter, startDateFilter, endDateFilter, timeFilter, searchQuery])
+  }, [dateFilterMode, dateFilter, startDateFilter, endDateFilter, timeFilter, searchQuery, attendanceFilter])
 
   // Reset time filter when date filter changes
   useEffect(() => {
@@ -349,8 +502,6 @@ export const SchedulesPage: React.FC = () => {
       return rangeSchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
     }
   }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
-
-  const [attendanceFilter, setAttendanceFilter] = useState<'all' | ScheduleAttendanceState>('all')
 
   const getAttendanceState = (scheduleId: string, status: string): ScheduleAttendanceState => {
     if (status === 'upcoming' || status === 'cancelled') return 'none'
@@ -712,62 +863,53 @@ export const SchedulesPage: React.FC = () => {
 
         {/* Time / Schedule filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-time" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Select Time
           </label>
-          <div className="relative">
-            <select
-              id="filter-time"
-              value={timeFilter}
-              onChange={(e) => setTimeFilter(e.target.value)}
-              disabled={dateFilterMode === 'single' && !dateFilter}
-              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs disabled:opacity-50 disabled:bg-slate-50 disabled:cursor-not-allowed"
-            >
-              <option value="">
-                {dateFilterMode === 'single'
+          <FilterDropdown
+            value={timeFilter}
+            onChange={(val) => setTimeFilter(val)}
+            allLabel={
+              dateFilterMode === 'single'
+                ? (dateFilter ? 'All Times' : 'Select Date First')
+                : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times')
+            }
+            options={[
+              {
+                key: '',
+                label: dateFilterMode === 'single'
                   ? (dateFilter ? 'All Times' : 'Select Date First')
-                  : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times')}
-              </option>
-              {Array.from(new Set(availableSchedulesForSelectedDate.map((s) => s.startTime))).map((startTime) => {
+                  : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times'),
+                dot: 'bg-slate-400'
+              },
+              ...Array.from(new Set(availableSchedulesForSelectedDate.map((s) => s.startTime))).map((startTime) => {
                 const matched = availableSchedulesForSelectedDate.find((s) => s.startTime === startTime)
-                return (
-                  <option key={startTime} value={startTime}>
-                    {formatTime12(startTime)} {matched?.title ? `- ${matched.title}` : ''}
-                  </option>
-                )
-              })}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
-          </div>
+                return {
+                  key: startTime,
+                  label: `${formatTime12(startTime)} ${matched?.title ? `- ${matched.title}` : ''}`,
+                  dot: 'bg-indigo-500'
+                }
+              })
+            ]}
+          />
         </div>
 
         {/* Attendance Status Filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-attendance" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Attendance Tracking
           </label>
-          <div className="relative">
-            <select
-              id="filter-attendance"
-              value={attendanceFilter}
-              onChange={(e) => setAttendanceFilter(e.target.value as any)}
-              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-            >
-              <option value="all">All Tracking Statuses</option>
-              <option value="untaken">Untaken (Not Started)</option>
-              <option value="in_progress">In Progress (Unfinalized)</option>
-              <option value="finalized">Finalized (Locked)</option>
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
-          </div>
+          <FilterDropdown
+            value={attendanceFilter}
+            onChange={(val) => setAttendanceFilter(val as any)}
+            allLabel="All Tracking Statuses"
+            options={[
+              { key: 'all', label: 'All Tracking Statuses', dot: 'bg-slate-400' },
+              { key: 'untaken', label: 'Untaken (Not Started)', dot: 'bg-amber-500' },
+              { key: 'in_progress', label: 'In Progress (Unfinalized)', dot: 'bg-blue-500' },
+              { key: 'finalized', label: 'Finalized (Locked)', dot: 'bg-emerald-500' }
+            ]}
+          />
         </div>
 
         {/* Clear filters */}

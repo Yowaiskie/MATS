@@ -6,8 +6,7 @@ import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { EventFormBuilderModal } from './EventFormBuilderModal'
 import { EventFormResponsesModal } from './EventFormResponsesModal'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { ConfirmModal, AlertModal } from '@/components/Dialog'
-import { FormattedText } from '@/components/FormattedText'
+import { ConfirmModal, FormattedText, Button, EmptyState, StatusBadge, useToast } from '@/components'
 
 interface EventFormsTabProps {
   eventId: string
@@ -21,6 +20,7 @@ interface FormWithCount extends EventForm {
 export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrCreator }) => {
   const { profile, canAction } = useAuth()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [forms, setForms] = useState<FormWithCount[]>([])
   const [loading, setLoading] = useState(true)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
@@ -31,8 +31,8 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
   const [formToEdit, setFormToEdit] = useState<EventForm | null>(null)
   const [formStatusPending, setFormStatusPending] = useState<{ form: EventForm; target: FormStatus } | null>(null)
   const [formToDuplicate, setFormToDuplicate] = useState<EventForm | null>(null)
-  const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [copiedFormId, setCopiedFormId] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState(false)
 
   const canManageForms =
     canAction('canManageEvents') ||
@@ -63,6 +63,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
       setForms(formsWithCounts)
     } catch (err) {
       console.error('Failed to load event forms:', err)
+      toast.error('Load Failed', 'Failed to load event forms.')
     } finally {
       setLoading(false)
     }
@@ -78,6 +79,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     const publicUrl = `${window.location.origin}/public/forms/${targetSlug}`
     navigator.clipboard.writeText(publicUrl)
     setCopiedFormId(form.id)
+    toast.success('Link Copied', 'Public form registration link copied to clipboard.')
     setTimeout(() => setCopiedFormId(null), 2500)
   }
 
@@ -86,42 +88,54 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     const { form, target } = formStatusPending
     if (!form.id) return
     try {
+      setActionLoading(true)
       await eventFormService.updateFormStatus(form.id, target, profile?.email || 'User')
       await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
       await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
+      toast.success('Status Updated', `Form "${form.title}" status changed to ${target}.`)
       setFormStatusPending(null)
       fetchForms()
     } catch (err) {
       console.error('Failed to update form status:', err)
-      setAlertMessage('Failed to update form status.')
+      toast.error('Update Failed', 'Failed to update form status.')
+    } finally {
+      setActionLoading(false)
     }
   }
 
   const handleDuplicate = async () => {
     if (!formToDuplicate?.id) return
     try {
+      setActionLoading(true)
       await eventFormService.duplicateForm(formToDuplicate.id, profile?.email || 'User')
       await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
       await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
+      toast.success('Form Duplicated', `A copy of "${formToDuplicate.title}" was created as a draft.`)
       setFormToDuplicate(null)
       fetchForms()
     } catch (err) {
       console.error('Failed to duplicate form:', err)
-      setAlertMessage('Failed to duplicate form.')
+      toast.error('Action Failed', 'Failed to duplicate form.')
+    } finally {
+      setActionLoading(false)
     }
   }
 
   const handleDeleteConfirm = async () => {
     if (!formToDelete?.id) return
     try {
+      setActionLoading(true)
       await eventFormService.deleteForm(formToDelete.id, profile?.email || 'User')
       await queryClient.invalidateQueries({ queryKey: ['event-forms', eventId] })
       await queryClient.invalidateQueries({ queryKey: ['event-form-response-counts', eventId] })
+      toast.success('Form Deleted', `Form "${formToDelete.title}" was deleted.`)
       setFormToDelete(null)
       fetchForms()
     } catch (err) {
       console.error('Failed to delete form:', err)
-      setAlertMessage('Failed to delete form.')
+      toast.error('Delete Failed', 'Failed to delete form.')
+    } finally {
+      setActionLoading(false)
     }
   }
 
@@ -130,60 +144,56 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
   return (
     <div className="space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs">
         <div>
           <h2 className="text-xl font-black text-slate-900">Event Registration & Forms</h2>
-          <p className="text-xs text-slate-500 mt-1">Create dynamic custom registration forms, survey questionnaires, and RSVP links.</p>
+          <p className="text-xs text-slate-500 mt-0.5">Create dynamic custom registration forms, survey questionnaires, and RSVP links.</p>
         </div>
 
         {canManageForms && (
-          <button
-            type="button"
+          <Button
+            variant="primary"
+            size="dense"
             onClick={() => {
               setFormToEdit(null)
               setIsBuilderOpen(true)
             }}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer self-start sm:self-auto"
+            icon={
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            }
           >
-            <span>+ Create Form</span>
-          </button>
+            Create Form
+          </Button>
         )}
       </div>
 
       {/* Forms List */}
       {forms.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-slate-200 p-12 text-center">
-          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 text-sm font-bold">
-            FORMS
-          </div>
-          <h3 className="text-base font-bold text-slate-900">No forms created yet</h3>
-          <p className="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-            Build custom registration forms for pilgrimages, retreats, AGAPE attendance, or training sessions.
-          </p>
-          {canManageForms && (
-            <button
-              type="button"
-              onClick={() => {
-                setFormToEdit(null)
-                setIsBuilderOpen(true)
-              }}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl hover:bg-blue-700 transition cursor-pointer"
-            >
-              Create First Form
-            </button>
-          )}
-        </div>
+        <EmptyState
+          title="No forms created yet"
+          description="Build custom registration forms for pilgrimages, retreats, AGAPE attendance, or training sessions."
+          action={
+            canManageForms
+              ? {
+                  label: 'Create First Form',
+                  onClick: () => {
+                    setFormToEdit(null)
+                    setIsBuilderOpen(true)
+                  },
+                  icon: (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                    </svg>
+                  )
+                }
+              : undefined
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {forms.map(f => {
-            const statusColors: Record<FormStatus, string> = {
-              published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-              draft: 'bg-amber-50 text-amber-700 border-amber-200',
-              temporary_closed: 'bg-amber-100 text-amber-900 border-amber-300 font-extrabold',
-              closed: 'bg-slate-100 text-slate-600 border-slate-200',
-              archived: 'bg-red-50 text-red-700 border-red-200'
-            }
-
             const purposeLabels: Record<string, string> = {
               registration: 'Registration / RSVP',
               survey: 'Survey & Feedback',
@@ -193,7 +203,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
             }
 
             return (
-              <div key={f.id} className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs hover:shadow-md transition-all flex flex-col justify-between space-y-4">
+              <div key={f.id} className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-2xs hover:shadow-md transition-all flex flex-col justify-between space-y-4">
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <div>
@@ -204,19 +214,17 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       )}
                       <h3 className="text-base font-black text-slate-900 line-clamp-1">{f.title}</h3>
                     </div>
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase border shrink-0 ${statusColors[f.status]}`}>
-                      {f.status}
-                    </span>
+                    <StatusBadge status={f.status} size="sm" />
                   </div>
 
                   {f.description && (
-                    <div className="text-xs text-slate-500 line-clamp-2 mb-2">
+                    <div className="text-xs text-slate-500 line-clamp-2 mb-2 font-medium">
                       <FormattedText text={f.description} as="span" />
                     </div>
                   )}
 
                   {f.guidelines && (
-                    <div className="p-2 bg-amber-50/50 border border-amber-100 rounded-lg text-[11px] text-amber-900/80 line-clamp-2 mb-3">
+                    <div className="p-2.5 bg-amber-50/50 border border-amber-200/60 rounded-xl text-[11px] text-amber-900/90 line-clamp-2 mb-3">
                       <span className="font-bold text-amber-950">Guidelines: </span>
                       <FormattedText text={f.guidelines.replace(/\n/g, ' • ')} as="span" />
                     </div>
@@ -225,32 +233,33 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                   <div className="flex flex-wrap items-center gap-3 text-[11px] font-semibold text-slate-500 pt-2 border-t border-slate-100">
                     <span className="flex items-center space-x-1">
                       <span>Responses:</span>
-                      <strong className="text-slate-900">{f.responsesCount || 0}</strong>
+                      <strong className="text-slate-900 font-bold">{f.responsesCount || 0}</strong>
                     </span>
                     <span>•</span>
-                    <span>Access: <strong>{f.isPublic ? 'Public Share Link' : 'Internal Only'}</strong></span>
+                    <span>Access: <strong className="text-slate-900 font-bold">{f.isPublic ? 'Public Share Link' : 'Internal Only'}</strong></span>
                   </div>
                 </div>
 
                 {/* Card Action Buttons */}
                 <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center space-x-1">
-                    <button
-                      type="button"
+                  <div className="flex items-center space-x-1.5">
+                    <Button
+                      variant="secondary"
+                      size="dense"
                       onClick={() => setResponsesForm(f)}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                     >
                       View Responses ({f.responsesCount || 0})
-                    </button>
+                    </Button>
 
                     {f.isPublic && f.status === 'published' && (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="dense"
                         onClick={() => handleCopyPublicLink(f)}
-                        className="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-lg transition-colors cursor-pointer flex items-center space-x-1"
+                        className="text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/60"
                       >
-                        <span>{copiedFormId === f.id ? 'Copied!' : 'Copy Link'}</span>
-                      </button>
+                        {copiedFormId === f.id ? 'Copied!' : 'Copy Link'}
+                      </Button>
                     )}
                   </div>
 
@@ -258,61 +267,65 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                     <div className="flex items-center space-x-1">
                       {f.status === 'published' ? (
                         <>
-                          <button
-                            type="button"
+                          <Button
+                            variant="ghost"
+                            size="dense"
                             onClick={() => setFormStatusPending({ form: f, target: 'temporary_closed' })}
-                            className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                            title="Pansamantalang Isara (Temporary Closed)"
+                            className="text-amber-800 bg-amber-50 hover:bg-amber-100"
+                            title="Temporary Close"
                           >
                             Temp Close
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="dense"
                             onClick={() => setFormStatusPending({ form: f, target: 'closed' })}
-                            className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                            title="Lubusang Isara (Totally Closed)"
+                            className="text-rose-700 bg-rose-50 hover:bg-rose-100"
+                            title="Totally Close"
                           >
                             Close
-                          </button>
+                          </Button>
                         </>
                       ) : (
-                        <button
-                          type="button"
+                        <Button
+                          variant="ghost"
+                          size="dense"
                           onClick={() => setFormStatusPending({ form: f, target: 'published' })}
-                          className="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                          className="text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                         >
                           {f.status === 'draft' ? 'Publish' : 'Reopen'}
-                        </button>
+                        </Button>
                       )}
 
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="dense"
                         onClick={() => {
                           setFormToEdit(f)
                           setIsBuilderOpen(true)
                         }}
-                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                       >
                         Edit
-                      </button>
+                      </Button>
 
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="dense"
                         onClick={() => setFormToDuplicate(f)}
-                        className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                         title="Duplicate Form"
                       >
                         Duplicate
-                      </button>
+                      </Button>
 
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="dense"
                         onClick={() => setFormToDelete(f)}
-                        className="px-2.5 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                        className="text-rose-600 hover:text-rose-800 hover:bg-rose-50"
                         title="Delete Form"
                       >
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   )}
                 </div>
@@ -358,6 +371,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         message={`Are you sure you want to delete "${formToDelete?.title}"? All questions will be permanently removed.`}
         confirmLabel="Delete Form"
         variant="danger"
+        loading={actionLoading}
       />
 
       {/* Confirm Status Change */}
@@ -389,6 +403,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
             : 'Totally Close'
         }
         variant={formStatusPending?.target === 'closed' ? 'danger' : undefined}
+        loading={actionLoading}
       />
 
       {/* Confirm Duplicate */}
@@ -400,14 +415,9 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         message={`Duplicate "${formToDuplicate?.title}"? A copy will be created as a draft.`}
         confirmLabel="Duplicate"
         variant="primary"
-      />
-
-      <AlertModal
-        isOpen={!!alertMessage}
-        onClose={() => setAlertMessage(null)}
-        title="Form Action"
-        message={alertMessage || ''}
+        loading={actionLoading}
       />
     </div>
   )
 }
+

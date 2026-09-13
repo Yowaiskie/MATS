@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Loading } from '@/components/Loading'
+import { Loading, Button, useToast } from '@/components'
 import { eventTaskService } from '@/services/eventTaskService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import type { EventTask, TaskStatus } from '@/types/event'
@@ -24,6 +24,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [selectedTask, setSelectedTask] = useState<EventTask | undefined>()
   const { canAction, profile } = useAuth()
+  const { toast } = useToast()
   const canManageTasks = isHeadOrCreator || canAction('canAssignTasks')
 
   const fetchTasks = async () => {
@@ -32,6 +33,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
       setTasks(data.filter(t => !t.isArchived))
     } catch (err) {
       console.error('Failed to load tasks:', err)
+      toast.error('Load Failed', 'Failed to load event tasks.')
     } finally {
       setLoading(false)
     }
@@ -49,9 +51,11 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
         assignedMemberName: profile.displayName,
         unreadByAssignee: false 
       }, profile?.email || 'System')
+      toast.success('Task Claimed', 'You have assigned this task to yourself.')
       fetchTasks()
     } catch (err) {
       console.error('Failed to take over task:', err)
+      toast.error('Action Failed', 'Failed to take over task.')
     }
   }
 
@@ -62,8 +66,10 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
       try {
         await eventTaskService.updateTask(taskId, { status: newStatus }, profile?.email || 'System')
+        toast.success('Status Updated', `Task status updated to "${newStatus}".`)
       } catch (err) {
         console.error('Failed to update task status:', err)
+        toast.error('Update Failed', 'Failed to update task status.')
         fetchTasks()
       }
     }
@@ -98,8 +104,10 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
       try {
         await eventTaskService.updateTask(taskId, { status: newStatus }, profile?.displayName || 'User')
+        toast.success('Task Moved', `Task moved to "${newStatus}".`)
       } catch (err) {
         console.error('Failed to update task status:', err)
+        toast.error('Update Failed', 'Failed to update task status.')
         fetchTasks()
       }
     }
@@ -112,23 +120,32 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
 
   if (loading) {
     return (
-      <div className="py-24 bg-white rounded-2xl border border-gray-200 shadow-xs mt-6">
+      <div className="py-24 bg-white rounded-2xl border border-slate-200 shadow-2xs mt-6">
         <Loading variant="spinner" label="Loading tasks..." />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-full bg-gray-50 -mx-4 sm:-mx-6 px-4 sm:px-6 py-6 border-y border-gray-200">
+    <div className="flex flex-col h-full bg-slate-50/60 -mx-4 sm:-mx-6 px-4 sm:px-6 py-6 border-y border-slate-200">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-lg font-bold text-gray-900">Task Board</h2>
+        <div>
+          <h2 className="text-lg font-bold text-slate-900">Task Board</h2>
+          <p className="text-xs text-slate-500 mt-0.5">Track deliverables, assignees, and progress across stages.</p>
+        </div>
         {canManageTasks && (
-          <button 
+          <Button 
+            variant="primary"
+            size="dense"
             onClick={openNewTaskModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
+            icon={
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+            }
           >
-            + Add Task
-          </button>
+            Add Task
+          </Button>
         )}
       </div>
 
@@ -139,19 +156,21 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
           return (
             <div 
               key={col.id} 
-              className="flex-shrink-0 w-80 flex flex-col bg-gray-100/50 rounded-xl border border-gray-200"
+              className="flex-shrink-0 w-80 flex flex-col bg-slate-100/70 rounded-2xl border border-slate-200 shadow-2xs"
               onDragOver={handleDragOver}
               onDrop={(e) => handleDrop(e, col.id)}
             >
-              <div className="p-3 border-b border-gray-200 bg-gray-100/80 rounded-t-xl flex justify-between items-center">
-                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider">{col.label}</h3>
-                <span className="text-[10px] font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded-full">{colTasks.length}</span>
+              <div className="p-3.5 border-b border-slate-200/80 bg-slate-100/90 rounded-t-2xl flex justify-between items-center">
+                <h3 className="text-xs font-black text-slate-700 uppercase tracking-wider">{col.label}</h3>
+                <span className="text-[10px] font-black text-slate-600 bg-white border border-slate-200 px-2 py-0.5 rounded-full shadow-2xs">
+                  {colTasks.length}
+                </span>
               </div>
               
-              <div className="p-3 flex-1 overflow-y-auto space-y-3 min-h-[150px]">
+              <div className="p-3 flex-1 overflow-y-auto space-y-3 min-h-[160px]">
                 {colTasks.length === 0 && (
-                  <div className="h-full flex items-center justify-center border-2 border-dashed border-gray-200 rounded-lg">
-                    <p className="text-xs font-medium text-gray-400">Drop tasks here</p>
+                  <div className="h-28 flex items-center justify-center border-2 border-dashed border-slate-200 rounded-xl bg-white/40">
+                    <p className="text-xs font-semibold text-slate-400">Drop tasks here</p>
                   </div>
                 )}
                 {colTasks.map(task => (
@@ -185,3 +204,4 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
     </div>
   )
 }
+

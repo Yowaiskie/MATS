@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { scheduleService } from '@/services/scheduleService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
+import { Button, useToast, BulkProgressBar } from '@/components'
 
 interface BulkDeleteMonthModalProps {
   isOpen: boolean
@@ -15,11 +16,11 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
   onSuccess
 }) => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   const [selectedMonth, setSelectedMonth] = useState('')
   const [deleteScope, setDeleteScope] = useState<'all' | 'sunday' | 'weekday'>('all')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [result, setResult] = useState<{ deleted: number; skipped: number } | null>(null)
 
   if (!isOpen) return null
 
@@ -31,7 +32,6 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
 
     setLoading(true)
     setError(null)
-    setResult(null)
 
     try {
       // Fetch schedules strictly for the selected month using server-side query
@@ -59,7 +59,12 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
         profile?.email || 'Admin'
       )
 
-      setResult({ deleted: deletedCount, skipped: skippedIds.length })
+      toast.success(
+        'Month Schedules Deleted',
+        `Successfully deleted ${deletedCount} schedule(s)${skippedIds.length > 0 ? ` (${skippedIds.length} skipped with existing attendance)` : ''}.`
+      )
+      onSuccess()
+      handleClose()
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to delete schedules.')
@@ -69,10 +74,6 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
   }
 
   const handleClose = () => {
-    if (result && result.deleted > 0) {
-      onSuccess()
-    }
-    setResult(null)
     setError(null)
     setSelectedMonth('')
     onClose()
@@ -103,116 +104,106 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
           </button>
         </div>
 
-        {result ? (
-          <div className="mb-6 space-y-3">
-            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-xs font-bold text-emerald-900 animate-fade-in">
-              <span className="font-black">Success!</span> Deleted {result.deleted} schedule(s).
+        <div className="mb-6 space-y-4 text-xs">
+          <p className="text-slate-600 font-medium leading-relaxed">
+            Select a month to permanently delete <strong>ALL</strong> schedules within that month. Schedules with attendance records will be skipped.
+          </p>
+          
+          {error && (
+            <div className="p-3.5 rounded-2xl border border-rose-200 bg-rose-50 text-xs text-rose-800 font-bold animate-fade-in">
+              {error}
             </div>
-            {result.skipped > 0 && (
-              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs font-bold text-amber-900 animate-fade-in">
-                <span className="font-black">Note:</span> {result.skipped} schedule(s) were skipped because they have existing attendance records.
-              </div>
-            )}
+          )}
+
+          <div>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+              Select Month
+            </label>
+            <input
+              type="month"
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              disabled={loading}
+              className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none transition-all"
+            />
           </div>
-        ) : (
-          <div className="mb-6 space-y-4 text-xs">
-            <p className="text-slate-600 font-medium leading-relaxed">
-              Select a month to permanently delete <strong>ALL</strong> schedules within that month. Schedules with attendance records will be skipped.
-            </p>
-            
-            {error && (
-              <div className="p-3.5 rounded-2xl border border-rose-200 bg-rose-50 text-xs text-rose-800 font-bold animate-fade-in">
-                {error}
-              </div>
-            )}
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
-                Select Month
-              </label>
-              <input
-                type="month"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(e.target.value)}
-                disabled={loading}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none transition-all"
-              />
+          <div>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">
+              Target Schedules to Delete:
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setDeleteScope('all')}
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  deleteScope === 'all'
+                    ? 'bg-rose-50 border-rose-500 text-rose-950 font-black shadow-xs ring-2 ring-rose-500/20'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
+                }`}
+              >
+                <span className="block text-xs">All Slots</span>
+                <span className="text-[9px] text-slate-400 block mt-0.5">Sun & Wkday</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeleteScope('sunday')}
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  deleteScope === 'sunday'
+                    ? 'bg-indigo-50 border-indigo-500 text-indigo-950 font-black shadow-xs ring-2 ring-indigo-500/20'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
+                }`}
+              >
+                <span className="block text-xs">Sundays</span>
+                <span className="text-[9px] text-slate-400 block mt-0.5">Sun & Anticipated</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setDeleteScope('weekday')}
+                className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                  deleteScope === 'weekday'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-black shadow-xs ring-2 ring-emerald-500/20'
+                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
+                }`}
+              >
+                <span className="block text-xs">Weekdays</span>
+                <span className="text-[9px] text-slate-400 block mt-0.5">Mon to Sat</span>
+              </button>
             </div>
+          </div>
+        </div>
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1.5">
-                Target Schedules to Delete:
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDeleteScope('all')}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                    deleteScope === 'all'
-                      ? 'bg-rose-50 border-rose-500 text-rose-950 font-black shadow-xs ring-2 ring-rose-500/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
-                  }`}
-                >
-                  <span className="block text-xs">All Slots</span>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Sun & Wkday</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDeleteScope('sunday')}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                    deleteScope === 'sunday'
-                      ? 'bg-indigo-50 border-indigo-500 text-indigo-950 font-black shadow-xs ring-2 ring-indigo-500/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
-                  }`}
-                >
-                  <span className="block text-xs">Sundays</span>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Sun & Anticipated</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setDeleteScope('weekday')}
-                  className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
-                    deleteScope === 'weekday'
-                      ? 'bg-emerald-50 border-emerald-500 text-emerald-950 font-black shadow-xs ring-2 ring-emerald-500/20'
-                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 font-bold'
-                  }`}
-                >
-                  <span className="block text-xs">Weekdays</span>
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Mon to Sat</span>
-                </button>
-              </div>
-            </div>
+        {loading && (
+          <div className="mb-4">
+            <BulkProgressBar
+              active={true}
+              label={`Deleting ${deleteScope === 'all' ? 'all' : deleteScope} schedules for ${selectedMonth}...`}
+              variant="rose"
+            />
           </div>
         )}
 
         <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="dense"
             onClick={handleClose}
             disabled={loading}
-            className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
           >
-            {result ? 'Close' : 'Cancel'}
-          </button>
-          {!result && (
-            <button
-              type="button"
-              onClick={handleDelete}
-              disabled={loading || !selectedMonth}
-              className="inline-flex items-center gap-2 rounded-xl bg-rose-600 px-5 py-2.5 text-xs font-black text-white hover:bg-rose-700 disabled:opacity-50 transition-all cursor-pointer shadow-md shadow-rose-500/20 active:scale-95"
-            >
-              {loading ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  <span>Deleting...</span>
-                </>
-              ) : (
-                'Permanently Delete Month'
-              )}
-            </button>
-          )}
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            variant="danger"
+            size="dense"
+            onClick={handleDelete}
+            disabled={!selectedMonth || loading}
+          >
+            Permanently Delete Month
+          </Button>
         </div>
       </div>
     </div>

@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import type { ScheduleTemplate } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
+import { CustomSelect, Button } from '@/components'
+
+const STATUS_OPTIONS = [
+  { value: 'draft', label: 'Draft (Temporary Closed)' },
+  { value: 'published', label: 'Published (Open for Scheduling)' },
+  { value: 'archived', label: 'Archived (Totally Closed & Locked)' },
+]
 
 interface Props {
   isOpen: boolean
@@ -226,27 +233,12 @@ export const PublicationFormModal: React.FC<Props> = ({
               </span>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
-                Publication Status & Link Access
-              </label>
-              <div className="relative">
-                <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as any)}
-                  className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
-                >
-                  <option value="draft">Draft (Temporary Closed)</option>
-                  <option value="published">Published (Open for Scheduling)</option>
-                  <option value="archived">Archived (Totally Closed & Locked)</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
-            </div>
+            <CustomSelect
+              label="Publication Status & Link Access"
+              value={status}
+              onChange={(e) => setStatus(e.target.value as any)}
+              options={STATUS_OPTIONS}
+            />
 
             {/* Limit Rules Section */}
             <div className="space-y-4 pt-2 border-t border-gray-100">
@@ -515,21 +507,25 @@ export const PublicationFormModal: React.FC<Props> = ({
         </div>
 
         <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 sticky bottom-0">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="dense"
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="pub-form"
-            disabled={isSubmitting}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+            variant="primary"
+            size="dense"
+            loading={isSubmitting}
+            loadingText="Saving..."
+            className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
           >
-            {isSubmitting ? 'Saving...' : 'Save Publication'}
-          </button>
+            Save Publication
+          </Button>
         </div>
       </div>
     </div>

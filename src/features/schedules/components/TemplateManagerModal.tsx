@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
 import { ConfirmModal } from '@/components/Dialog'
+import { CustomSelect } from '@/components'
 
 const formatTime12 = (timeStr: string) => {
   if (!timeStr) return ''
@@ -675,18 +676,18 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                       })}
                     </div>
                   ) : (
-                    <select
+                    <CustomSelect
                       value={selectedDays[0] || dayOfWeek}
                       onChange={(e) => {
                         setDayOfWeek(e.target.value)
                         setSelectedDays([e.target.value])
                       }}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-                    >
-                      {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d) => (
-                        <option key={d} value={d}>{d}</option>
-                      ))}
-                    </select>
+                      options={['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d) => ({
+                        value: d,
+                        label: d
+                      }))}
+                      className="!h-9 text-xs"
+                    />
                   )}
                 </div>
 

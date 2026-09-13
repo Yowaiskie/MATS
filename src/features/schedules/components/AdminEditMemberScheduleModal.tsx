@@ -6,6 +6,7 @@ import { scheduleService } from '@/services/scheduleService'
 import { getFullName } from '@/utils/member'
 import { formatTime12Hour, isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { Button, useToast } from '@/components'
 
 interface Props {
   isOpen: boolean
@@ -38,13 +39,13 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   allEligibleMembers,
   onSuccess
 }) => {
+  const { toast } = useToast()
   const [selectedMemberId, setSelectedMemberId] = useState<string>(initialMember?.id || '')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [markAsSubmitted, setMarkAsSubmitted] = useState<boolean>(true)
   const [loading, setLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   // Sync selected member when initialMember changes
   useEffect(() => {
@@ -63,14 +64,13 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   const loadSchedules = async () => {
     if (!publication) return
     setLoading(true)
-    setMessage(null)
     try {
       const schedList = await scheduleService.getSchedulesByDateRange(publication.startDate, publication.endDate)
       const valid = schedList.filter(s => isScheduleIncludedInPublication(s, publication))
       setSchedules(valid)
     } catch (err: any) {
       console.error('Failed to load schedules for editing:', err)
-      setMessage({ type: 'error', text: 'Failed to load publication schedules.' })
+      toast.error('Failed to load publication schedules.')
     } finally {
       setLoading(false)
     }
@@ -187,7 +187,6 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       }
       return next
     })
-    setMessage(null)
   }
 
   const handleClearSundays = () => {
@@ -197,7 +196,6 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       sundayIds.forEach(id => next.delete(id))
       return next
     })
-    setMessage(null)
   }
 
   const handleClearWeekdays = () => {
@@ -207,18 +205,15 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       weekdayIds.forEach(id => next.delete(id))
       return next
     })
-    setMessage(null)
   }
 
   const handleClearAll = () => {
     setSelectedScheduleIds(new Set())
-    setMessage(null)
   }
 
   const handleSave = async () => {
     if (!selectedMemberId || !publication) return
     setIsSaving(true)
-    setMessage(null)
 
     try {
       const selections = schedules.map(s => ({
@@ -234,18 +229,13 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         'Admin'
       )
 
-      setMessage({
-        type: 'success',
-        text: `Schedule successfully updated for ${currentMember ? getFullName(currentMember) : 'member'}!`
-      })
+      toast.success(`Schedule successfully updated for ${currentMember ? getFullName(currentMember) : 'member'}.`)
 
       onSuccess()
-      setTimeout(() => {
-        onClose()
-      }, 700)
+      onClose()
     } catch (err: any) {
       console.error('Failed to save admin schedule assignment:', err)
-      setMessage({ type: 'error', text: err.message || 'Failed to save schedule.' })
+      toast.error(err.message || 'Failed to save schedule.')
     } finally {
       setIsSaving(false)
     }
@@ -463,16 +453,6 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
 
         {/* Content Body: Slot Selection */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
-          {message && (
-            <div className={`p-3.5 rounded-2xl text-xs font-bold ${
-              message.type === 'success'
-                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                : 'bg-rose-50 text-rose-800 border border-rose-200'
-            }`}>
-              {message.text}
-            </div>
-          )}
-
           {loading ? (
             <div className="py-16 flex flex-col items-center justify-center space-y-3">
               <div className="w-8 h-8 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
@@ -570,24 +550,24 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
           </label>
 
           <div className="flex items-center justify-end gap-2.5">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="dense"
               onClick={onClose}
-              className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="primary"
+              size="dense"
               onClick={handleSave}
-              disabled={isSaving || loading || !selectedMemberId}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-indigo-600/20 cursor-pointer"
+              loading={isSaving}
+              disabled={loading || !selectedMemberId}
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-              <span>{isSaving ? 'Saving Changes...' : `Save Schedule (${selectedSundayCount + selectedWeekdayCount} slots)`}</span>
-            </button>
+              Save Schedule ({selectedSundayCount + selectedWeekdayCount} slots)
+            </Button>
           </div>
         </div>
 

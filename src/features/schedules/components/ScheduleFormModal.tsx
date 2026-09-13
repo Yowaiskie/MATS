@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { Schedule, ScheduleInput, ScheduleStatus } from '@/types/schedule'
 import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
 import { SCHEDULE_CATEGORIES } from '@/types/attendanceCategory'
+import { CustomSelect, Button } from '@/components'
 
 interface ScheduleFormModalProps {
   isOpen: boolean
@@ -25,6 +26,11 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   const [isCancelled, setIsCancelled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
+
+  const categoryOptions = [
+    { value: '', label: 'Auto-Detect from Title / Date (Default)' },
+    ...SCHEDULE_CATEGORIES.map(cat => ({ value: cat.key, label: cat.label })),
+  ]
 
   useEffect(() => {
     if (schedule) {
@@ -158,37 +164,15 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           </div>
 
           {/* Category Tag */}
-          <div>
-            <div className="flex items-center justify-between mb-1">
-              <label htmlFor="schedule-category" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-                Attendance Category (Optional / Auto-detected)
-              </label>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Used for OGF & Meeting evaluation
-              </span>
-            </div>
-            <div className="relative">
-              <select
-                id="schedule-category"
-                value={category}
-                onChange={(e) => setCategory(e.target.value as ScheduleCategoryKey | '')}
-                className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 disabled:opacity-50 transition cursor-pointer shadow-2xs"
-                disabled={loading}
-              >
-                <option value="">Auto-Detect from Title / Date (Default)</option>
-                {SCHEDULE_CATEGORIES.map(cat => (
-                  <option key={cat.key} value={cat.key}>
-                    {cat.label}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <CustomSelect
+            id="schedule-category"
+            label="Attendance Category (Optional / Auto-detected)"
+            helperText="Used for OGF & Meeting evaluation"
+            value={category}
+            onChange={(e) => setCategory(e.target.value as ScheduleCategoryKey | '')}
+            options={categoryOptions}
+            disabled={loading}
+          />
 
           {/* Date */}
           <div>
@@ -239,21 +223,25 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
 
           {/* Footer Actions */}
           <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100 bg-white">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="dense"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
               disabled={loading}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2.5 text-xs font-extrabold text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
-              disabled={loading}
+              variant="primary"
+              size="dense"
+              loading={loading}
+              loadingText="Saving..."
+              className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
             >
-              {loading ? 'Saving...' : 'Save Schedule'}
-            </button>
+              Save Schedule
+            </Button>
           </div>
         </form>
       </div>

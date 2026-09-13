@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Card } from '@/components/Card'
+import { Card, Loading, StatusBadge, EmptyState, CustomSelect } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
 import type { EventIncome, EventExpense, EventFundTransfer } from '@/types/eventFinance'
@@ -10,7 +10,6 @@ import { TransferToMainFundsModal } from './TransferToMainFundsModal'
 import { EventFinanceReportModal } from './EventFinanceReportModal'
 import { EventLiquidationModal } from './EventLiquidationModal'
 import { PasswordConfirmModal } from '@/components/Dialog'
-import { Loading } from '@/components/Loading'
 import { authService } from '@/services/authService'
 
 interface Props {
@@ -469,24 +468,15 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
             {/* Held By Filter Dropdown */}
             <div className="lg:col-span-3">
-              <div className="relative">
-                <select
-                  value={selectedHeldBy}
-                  onChange={(e) => setSelectedHeldBy(e.target.value)}
-                  className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer truncate transition"
-                >
-                  <option value="all">All Custodians (Lahat ng may hawak)</option>
-                  <option value="unassigned">Not Specified (Walang nakatalaga)</option>
-                  {uniqueCustodians.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
+              <CustomSelect
+                value={selectedHeldBy}
+                onChange={(e) => setSelectedHeldBy(e.target.value)}
+                options={[
+                  { value: 'all', label: 'All Custodians (Lahat ng may hawak)' },
+                  { value: 'unassigned', label: 'Not Specified (Walang nakatalaga)' },
+                  ...uniqueCustodians.map(c => ({ value: c, label: c }))
+                ]}
+              />
             </div>
 
             {/* Date Range Filter */}
@@ -684,9 +674,9 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                     <div className="flex flex-col">
                       <span>{inc.paymentMethod || 'Cash'}</span>
                       {inc.paymentMethod === 'Cheque' && (
-                        <span className={`text-[10px] font-bold uppercase mt-0.5 ${inc.encashmentStatus === 'encashed' ? 'text-green-600' : 'text-amber-600'}`}>
-                          {inc.encashmentStatus || 'pending'}
-                        </span>
+                        <div className="mt-1">
+                          <StatusBadge status={inc.encashmentStatus || 'pending'} size="sm" />
+                        </div>
                       )}
                     </div>
                   </td>
@@ -791,9 +781,9 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                     <div className="flex flex-col">
                       <span>{exp.paymentMethod || 'Cash'}</span>
                       {exp.paymentMethod === 'Cheque' && (
-                        <span className={`text-[10px] font-bold uppercase mt-0.5 ${exp.encashmentStatus === 'encashed' ? 'text-green-600' : 'text-amber-600'}`}>
-                          {exp.encashmentStatus || 'pending'}
-                        </span>
+                        <div className="mt-1">
+                          <StatusBadge status={exp.encashmentStatus || 'pending'} size="sm" />
+                        </div>
                       )}
                     </div>
                   </td>
@@ -843,31 +833,40 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                   <td className="px-4 py-3 text-sm text-gray-500 min-w-[150px]">{trans.remarks || '-'}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-blue-600">₱{trans.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm">
-                    {trans.status === 'reversed' ? (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs font-medium">Reversed</span>
-                    ) : (
-                      <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs font-medium">Completed</span>
-                    )}
+                    <StatusBadge status={trans.status === 'reversed' ? 'reversed' : 'completed'} size="sm" />
                   </td>
                 </tr>
               ))}
               
               {activeTab === 'income' && filteredIncomes.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-slate-400 text-xs font-semibold italic">
-                    {activeIncomes.length === 0 ? 'No income records found.' : 'No income records match your search or filter.'}
+                  <td colSpan={6} className="px-6 py-12">
+                    <EmptyState
+                      title={activeIncomes.length === 0 ? 'No income records' : 'No matching income records'}
+                      description={activeIncomes.length === 0 ? 'There are no income records found for this event.' : 'Try adjusting your search query or filter options.'}
+                    />
                   </td>
                 </tr>
               )}
               {activeTab === 'expenses' && filteredExpenses.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-6 py-12 text-center text-slate-400 text-xs font-semibold italic">
-                    {activeExpenses.length === 0 ? 'No expense records found.' : 'No expense records match your search or filter.'}
+                  <td colSpan={9} className="px-6 py-12">
+                    <EmptyState
+                      title={activeExpenses.length === 0 ? 'No expense records' : 'No matching expense records'}
+                      description={activeExpenses.length === 0 ? 'There are no expense records found for this event.' : 'Try adjusting your search query or filter options.'}
+                    />
                   </td>
                 </tr>
               )}
               {activeTab === 'transfers' && transfers.length === 0 && (
-                <tr><td colSpan={5} className="px-6 py-8 text-center text-gray-500">No transfers found.</td></tr>
+                <tr>
+                  <td colSpan={5} className="px-6 py-12">
+                    <EmptyState
+                      title="No fund transfers"
+                      description="No funds have been transferred to the main treasury yet."
+                    />
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>

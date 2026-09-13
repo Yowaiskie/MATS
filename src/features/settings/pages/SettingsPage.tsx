@@ -3,6 +3,7 @@ import { Card } from '@/components/Card'
 import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { Button, useToast } from '@/components'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -87,13 +88,13 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 export const SettingsPage: React.FC = () => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabId>('policy')
   const [template, setTemplate] = useState('')
   const [originalTemplate, setOriginalTemplate] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [copied, setCopied] = useState(false)
 
@@ -119,11 +120,10 @@ export const SettingsPage: React.FC = () => {
   const handleSave = async () => {
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
     try {
       await settingsService.saveReportTemplate(template, profile?.email || 'Admin')
       setOriginalTemplate(template)
-      setSuccessMsg('Template settings successfully saved!')
+      toast.success('Template settings successfully saved!')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to save template.')
@@ -193,19 +193,19 @@ export const SettingsPage: React.FC = () => {
         <div>
           {activeTab === 'policy' && (
             <PolicySettingsCard
-              onNotifySuccess={(msg) => setSuccessMsg(msg)}
+              onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => setError(msg)}
             />
           )}
           {activeTab === 'signatures' && (
             <SignatureSettingsCard
-              onNotifySuccess={(msg) => setSuccessMsg(msg)}
+              onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => setError(msg)}
             />
           )}
           {activeTab === 'maintenance' && (
             <MaintenanceSettingsCard
-              onNotifySuccess={(msg) => setSuccessMsg(msg)}
+              onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => setError(msg)}
             />
           )}
@@ -233,14 +233,16 @@ export const SettingsPage: React.FC = () => {
                       <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">Live Mock Preview</h3>
                     </div>
 
-                    <button
+                    <Button
                       type="button"
+                      variant="outline"
+                      size="dense"
                       onClick={handleCopyPreview}
-                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1.5 rounded-md transition-colors cursor-pointer min-h-[32px]"
+                      className="min-h-[32px] text-[11px]"
                     >
                       <CopyIcon className="w-3.5 h-3.5" />
                       {copied ? 'Copied!' : 'Copy Sample'}
-                    </button>
+                    </Button>
                   </div>
 
                   <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3">
@@ -279,14 +281,6 @@ export const SettingsPage: React.FC = () => {
         variant="error"
         title="Error"
         message={error ?? ''}
-      />
-
-      <AlertModal
-        isOpen={!!successMsg}
-        onClose={() => setSuccessMsg(null)}
-        variant="success"
-        title="Success"
-        message={successMsg ?? ''}
       />
     </div>
   )

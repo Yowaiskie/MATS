@@ -6,12 +6,16 @@ import type { Schedule } from '@/types/schedule'
 import { Card } from '@/components/Card'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
+import { Button } from '@/components/Button'
+import { FilterDropdown } from '@/components/FilterDropdown'
+import { QuickFilterPills } from '@/components/QuickFilterPills'
+import { StatusBadge } from '@/components/StatusBadge'
+import { EmptyState } from '@/components/EmptyState'
 
 export const AuditPage: React.FC = () => {
   const [logs, setLogs] = useState<AuditLog[]>([])
   const [schedulesMap, setSchedulesMap] = useState<Record<string, Schedule>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
 
   // Filters
@@ -25,7 +29,6 @@ export const AuditPage: React.FC = () => {
 
   const loadData = async () => {
     setLoading(true)
-    setError(null)
     try {
       const [logsData, schedulesData] = await Promise.all([
         auditService.getLogs(150),
@@ -40,7 +43,6 @@ export const AuditPage: React.FC = () => {
       setSchedulesMap(map)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load system audit logs.')
     } finally {
       setLoading(false)
     }
@@ -179,18 +181,6 @@ export const AuditPage: React.FC = () => {
     'EVENT_CHECKLIST_UPDATE', 'EVENT_ASSIGN_MEMBER', 'EVENT_ASSIGNMENT_UPDATE',
     'EVENT_ASSIGNMENT_REMOVE', 'EVENT_ROLE_CREATE'
   ]
-
-  // Badges color mapping
-  const categoryBadgeColors: Record<AuditCategory, string> = {
-    member: 'bg-indigo-50 border-indigo-200 text-indigo-700',
-    schedule: 'bg-blue-50 border-blue-200 text-blue-700',
-    attendance: 'bg-emerald-50 border-emerald-200 text-emerald-700',
-    settings: 'bg-amber-50 border-amber-200 text-amber-700',
-    system: 'bg-purple-50 border-purple-200 text-purple-700',
-    excuse: 'bg-teal-50 border-teal-200 text-teal-700',
-    finance: 'bg-rose-50 border-rose-200 text-rose-700',
-    events: 'bg-blue-50 border-blue-200 text-blue-700'
-  }
 
   const actionColors: Record<AuditAction, string> = {
     MEMBER_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -394,6 +384,14 @@ export const AuditPage: React.FC = () => {
     )
   }
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    logs.forEach(l => {
+      counts[l.category] = (counts[l.category] || 0) + 1
+    })
+    return counts
+  }, [logs])
+
   return (
     <div className="space-y-6">
       {/* Header Panel */}
@@ -402,11 +400,32 @@ export const AuditPage: React.FC = () => {
         <p className="text-sm text-gray-500 mt-1">Track and audit administrative activities and record updates.</p>
       </div>
 
+      {/* Quick Category Filter Pills */}
+      <div className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <QuickFilterPills
+          title="Category:"
+          pills={[
+            {
+              label: 'All Categories',
+              active: categoryFilter === 'all',
+              onClick: () => setCategoryFilter('all'),
+              count: logs.length,
+            },
+            ...categories.map((c) => ({
+              label: c.charAt(0).toUpperCase() + c.slice(1),
+              active: categoryFilter === c,
+              onClick: () => setCategoryFilter(c),
+              count: categoryCounts[c] || 0,
+            })),
+          ]}
+        />
+      </div>
+
       {/* Filter Control Toolbar */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-xs">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3.5 rounded-2xl border border-slate-200/80 bg-white shadow-2xs items-end">
         {/* Search */}
-        <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="audit-search" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        <div className="space-y-1.5">
+          <label htmlFor="audit-search" className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Search Audit Trail
           </label>
           <input
@@ -414,186 +433,174 @@ export const AuditPage: React.FC = () => {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-            placeholder="Search activity description or admin email..."
+            className="block w-full h-10 px-3.5 text-xs font-semibold rounded-xl border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
+            placeholder="Search activity description or email..."
           />
         </div>
 
         {/* Category Filter */}
-        <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="audit-category" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
+        <div className="space-y-1.5">
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Category
           </label>
-          <div className="relative">
-            <select
-              id="audit-category"
-              value={categoryFilter}
-              onChange={(e) => setCategoryFilter(e.target.value)}
-              className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-            >
-              <option value="all">All Categories</option>
-              {categories.map((c) => (
-                <option key={c} value={c} className="capitalize">{c}</option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
-          </div>
+          <FilterDropdown
+            label="All Categories"
+            value={categoryFilter}
+            onChange={setCategoryFilter}
+            allLabel="All Categories"
+            options={[
+              { key: 'all', label: 'All Categories' },
+              ...categories.map((c) => ({
+                key: c,
+                label: c.charAt(0).toUpperCase() + c.slice(1),
+                count: categoryCounts[c] || 0
+              }))
+            ]}
+          />
         </div>
 
         {/* Action Filter */}
-        <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="audit-action" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Action Type
-          </label>
-          <div className="relative">
-            <select
-              id="audit-action"
-              value={actionFilter}
-              onChange={(e) => setActionFilter(e.target.value)}
-              className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-            >
-              <option value="all">All Actions</option>
-              {actions.map((a) => (
-                <option key={a} value={a}>{a.replace('_', ' ')}</option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+              Action Type
+            </label>
+            {(categoryFilter !== 'all' || actionFilter !== 'all' || searchQuery) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCategoryFilter('all')
+                  setActionFilter('all')
+                  setSearchQuery('')
+                }}
+                className="text-[10px] text-blue-600 hover:text-blue-800 font-bold transition cursor-pointer"
+              >
+                Clear Filters
+              </button>
+            )}
           </div>
+          <FilterDropdown
+            label="All Actions"
+            value={actionFilter}
+            onChange={setActionFilter}
+            allLabel="All Actions"
+            options={[
+              { key: 'all', label: 'All Actions' },
+              ...actions.map((a) => ({
+                key: a,
+                label: a.replace(/_/g, ' ')
+              }))
+            ]}
+          />
         </div>
-
-        {/* Reset Filters Button */}
-        {(categoryFilter !== 'all' || actionFilter !== 'all' || searchQuery) && (
-          <div className="flex items-end justify-start">
-            <button
-              onClick={() => {
-                setCategoryFilter('all')
-                setActionFilter('all')
-                setSearchQuery('')
-              }}
-              className="text-xs text-blue-600 hover:text-blue-700 font-bold py-2 px-3 transition-colors cursor-pointer"
-            >
-              Clear Filters
-            </button>
-          </div>
-        )}
       </div>
 
       {/* Main Audit Data Table */}
       <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-40">
-                  Timestamp
-                </th>
-                <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-44">
-                  Admin
-                </th>
-                <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-28">
-                  Category
-                </th>
-                <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-36">
-                  Action
-                </th>
-                <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                  Activity Description
-                </th>
-                <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 w-28">
-                  Details
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-16 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-                      <span className="text-xs text-gray-500">Retrieving audit trail...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : error ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-sm text-red-600 font-medium">
-                    {error}
-                  </td>
-                </tr>
-              ) : filteredLogs.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-12 text-center text-xs text-gray-400 italic">
-                    No system activities found matching the filter criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredLogs.slice((currentPage - 1) * 10, currentPage * 10).map((log) => (
-                  <tr key={log.id} className="hover:bg-gray-50/30 transition-colors">
-                    {/* Timestamp */}
-                    <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
-                      {formatTimestamp(log.timestamp)}
-                    </td>
-
-                    {/* Actor */}
-                    <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-gray-700">
-                      {log.performedBy}
-                    </td>
-
-                    {/* Category */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold uppercase border ${categoryBadgeColors[log.category] || 'bg-gray-50 text-gray-500'}`}>
-                        {log.category}
-                      </span>
-                    </td>
-
-                    {/* Action */}
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold tracking-tight uppercase border ${actionColors[log.action] || 'bg-gray-50 text-gray-500'}`}>
-                        {log.action.replace('_', ' ')}
-                      </span>
-                    </td>
-
-                    {/* Description (Formatted & Clean) */}
-                    <td className="px-6 py-4 text-xs text-gray-700 font-medium leading-relaxed">
-                      {formatAuditDescription(log)}
-                    </td>
-
-                    {/* Action Details Toggle */}
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
-                      {log.details ? (
-                        <button
-                          onClick={() => {
-                            setSelectedLog(log)
-                            setShowRawJson(false)
-                          }}
-                          className="text-xs font-bold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded-md transition-colors cursor-pointer"
-                        >
-                          View Details
-                        </button>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 italic">None</span>
-                      )}
-                    </td>
+        {filteredLogs.length === 0 ? (
+          <EmptyState
+            title="No Audit Logs Found"
+            description="No system activities found matching the filter criteria."
+            action={{
+              label: 'Reset Filters',
+              onClick: () => {
+                setCategoryFilter('all')
+                setActionFilter('all')
+                setSearchQuery('')
+              }
+            }}
+          />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50">
+                    <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-40">
+                      Timestamp
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-44">
+                      Admin
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-28">
+                      Category
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400 w-36">
+                      Action
+                    </th>
+                    <th className="px-6 py-3.5 text-left text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                      Activity Description
+                    </th>
+                    <th className="px-6 py-3.5 text-right text-[10px] font-bold uppercase tracking-wider text-gray-400 w-28">
+                      Details
+                    </th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination
-          currentPage={currentPage}
-          totalItems={filteredLogs.length}
-          pageSize={10}
-          onPageChange={setCurrentPage}
-        />
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredLogs.slice((currentPage - 1) * 10, currentPage * 10).map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50/30 transition-colors">
+                      {/* Timestamp */}
+                      <td className="px-6 py-4 whitespace-nowrap text-xs text-gray-500 font-medium">
+                        {formatTimestamp(log.timestamp)}
+                      </td>
+
+                      {/* Actor */}
+                      <td className="px-6 py-4 whitespace-nowrap text-xs font-semibold text-gray-700">
+                        {log.performedBy}
+                      </td>
+
+                      {/* Category */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <StatusBadge
+                          status={log.category}
+                          size="sm"
+                        />
+                      </td>
+
+                      {/* Action */}
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <StatusBadge
+                          status={log.action.replace(/_/g, ' ')}
+                          size="sm"
+                          className={actionColors[log.action] || ''}
+                        />
+                      </td>
+
+                      {/* Description (Formatted & Clean) */}
+                      <td className="px-6 py-4 text-xs text-gray-700 font-medium leading-relaxed">
+                        {formatAuditDescription(log)}
+                      </td>
+
+                      {/* Action Details Toggle */}
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
+                        {log.details ? (
+                          <Button
+                            size="xs"
+                            variant="secondary"
+                            onClick={() => {
+                              setSelectedLog(log)
+                              setShowRawJson(false)
+                            }}
+                          >
+                            View Details
+                          </Button>
+                        ) : (
+                          <span className="text-[10px] text-gray-400 italic">None</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredLogs.length}
+              pageSize={10}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
       </Card>
 
       {/* Human-Friendly Details Modal */}
@@ -606,12 +613,12 @@ export const AuditPage: React.FC = () => {
           ></div>
 
           {/* Modal Container */}
-          <div className="relative w-full max-w-lg rounded-xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-lg rounded-2xl border border-gray-200 bg-white p-6 shadow-xl z-10 text-gray-800 flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
             {/* Header */}
             <div className="flex items-center justify-between pb-3 border-b border-gray-100">
               <div>
                 <h3 className="text-sm font-bold text-gray-900">Activity Details</h3>
-                <p className="text-[10px] text-gray-500 mt-0.5">{selectedLog.action.replace('_', ' ')} • {selectedLog.performedBy}</p>
+                <p className="text-[10px] text-gray-500 mt-0.5">{selectedLog.action.replace(/_/g, ' ')} • {selectedLog.performedBy}</p>
               </div>
               <button
                 type="button"
@@ -626,7 +633,7 @@ export const AuditPage: React.FC = () => {
             </div>
 
             {/* Description Summary */}
-            <div className="my-3 text-xs font-medium text-gray-700 bg-gray-50 p-3 rounded-lg border border-gray-200 leading-relaxed">
+            <div className="my-3 text-xs font-medium text-gray-700 bg-gray-50 p-3 rounded-xl border border-gray-200 leading-relaxed">
               <span className="font-bold text-gray-900">Activity Summary: </span>
               {formatAuditDescription(selectedLog)}
             </div>
@@ -636,19 +643,20 @@ export const AuditPage: React.FC = () => {
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
                 {showRawJson ? 'Technical JSON View' : 'Formatted Activity Data'}
               </span>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="xs"
                 onClick={() => setShowRawJson(!showRawJson)}
-                className="text-[11px] font-semibold text-blue-600 hover:underline cursor-pointer"
               >
-                {showRawJson ? '← Switch to Formatted View' : 'Show Raw JSON'}
-              </button>
+                {showRawJson ? 'Switch to Formatted View' : 'Show Raw JSON'}
+              </Button>
             </div>
 
             {/* Content Container */}
             <div className="flex-1 overflow-y-auto min-h-[150px] max-h-[350px] pr-1">
               {showRawJson ? (
-                <div className="bg-[#0f172a] rounded-lg p-4 font-mono text-[10px] text-emerald-400 border border-slate-800">
+                <div className="bg-[#0f172a] rounded-xl p-4 font-mono text-[10px] text-emerald-400 border border-slate-800">
                   <pre className="whitespace-pre-wrap">{JSON.stringify(selectedLog.details, null, 2)}</pre>
                 </div>
               ) : (
@@ -673,13 +681,14 @@ export const AuditPage: React.FC = () => {
 
             {/* Footer */}
             <div className="flex justify-end pt-3 border-t border-gray-100 mt-4">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="dense"
                 onClick={() => setSelectedLog(null)}
-                className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-bold text-gray-700 transition-colors cursor-pointer shadow-xs"
               >
                 Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import React from 'react'
 import { Modal } from '@/components/Modal'
+import { Button } from '@/components'
 import type { HolyHourServerStat } from '@/services/reportService'
 import { getOrderBadgeStyle } from '@/types/member'
 
@@ -149,13 +150,14 @@ export const HolyHourServiceHistoryModal: React.FC<Props> = ({
 
         {/* Footer Actions */}
         <div className="flex justify-end pt-2 border-t border-slate-100">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="dense"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition cursor-pointer"
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

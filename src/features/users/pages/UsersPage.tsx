@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { userService } from '@/services/userService'
 import { authService } from '@/services/authService'
 import { settingsService } from '@/services/settingsService'
@@ -12,6 +12,12 @@ import { ConfirmModal, AlertModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { Button } from '@/components/Button'
+import { CustomSelect } from '@/components/CustomSelect'
+import { QuickFilterPills } from '@/components/QuickFilterPills'
+import { StatusBadge } from '@/components/StatusBadge'
+import { EmptyState } from '@/components/EmptyState'
+import { useToast } from '@/context/ToastContext'
 
 const ALL_MODULES: { key: ModuleKey; label: string; description: string }[] = [
   { key: 'dashboard', label: 'Dashboard Overview', description: 'Access main metrics and overview dashboard' },
@@ -83,18 +89,19 @@ const MODULE_LABELS: Record<string, string> = {
 
 export const UsersPage: React.FC = () => {
   const { profile: currentAdmin, isAdmin } = useAuth()
+  const { toast } = useToast()
   const [users, setUsers] = useState<UserProfile[]>([])
   const [presets, setPresets] = useState<PermissionPreset[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'order_leader' | 'user'>('all')
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Presets Management Modal State
   const [isPresetsModalOpen, setIsPresetsModalOpen] = useState(false)
-  const [presetSuccessMsg, setPresetSuccessMsg] = useState<string | null>(null)
   const [presetEditing, setPresetEditing] = useState<PermissionPreset | null>(null)
   const [presetFormName, setPresetFormName] = useState('')
   const [presetFormDesc, setPresetFormDesc] = useState('')
@@ -640,7 +647,7 @@ export const UsersPage: React.FC = () => {
 
       await settingsService.savePermissionPresets(updatedPresets, currentAdmin?.email || 'Admin')
       setPresets(updatedPresets)
-      setPresetSuccessMsg(`Preset '${newPreset.name}' successfully saved!`)
+      toast.success('Preset Saved', `Preset '${newPreset.name}' successfully saved!`)
       handleOpenAddPreset()
     } catch (err: any) {
       console.error(err)
@@ -658,7 +665,7 @@ export const UsersPage: React.FC = () => {
       const updated = presets.filter(x => x.id !== presetId)
       await settingsService.savePermissionPresets(updated, currentAdmin?.email || 'Admin')
       setPresets(updated)
-      setPresetSuccessMsg(`Preset '${p.name}' was removed.`)
+      toast.success('Preset Removed', `Preset '${p.name}' was removed.`)
     } catch (err: any) {
       console.error(err)
       setError('Failed to delete permission preset.')
@@ -889,7 +896,6 @@ export const UsersPage: React.FC = () => {
 
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
     try {
       if (editingUser) {
         const isEditingCoordinator = editingUser.email.toLowerCase() === 'coordinator@mas.com'
@@ -926,7 +932,7 @@ export const UsersPage: React.FC = () => {
           currentAdmin?.email || 'Admin'
         )
 
-        setSuccessMsg(`User profile '${email.trim()}' successfully updated!`)
+        toast.success('User Profile Updated', `User profile '${email.trim()}' was successfully updated.`)
       } else {
         const selectedOrder = assignedOrder ? (assignedOrder as OrderGroup) : undefined
 
@@ -942,7 +948,7 @@ export const UsersPage: React.FC = () => {
           currentAdmin?.email || 'Admin'
         )
 
-        setSuccessMsg(`User account '${email.trim()}' registered in system with dynamic module permissions!`)
+        toast.success('User Registered', `User account '${email.trim()}' registered successfully.`)
       }
 
       setIsModalOpen(false)
@@ -988,7 +994,7 @@ export const UsersPage: React.FC = () => {
         deleteTarget.email,
         currentAdmin?.email || 'Admin'
       )
-      setSuccessMsg(`User '${deleteTarget.email}' permanently removed from system.`)
+      toast.success('User Removed', `User '${deleteTarget.email}' permanently removed from system.`)
       setDeleteTarget(null)
       await loadData(false)
     } catch (err: any) {
@@ -998,6 +1004,23 @@ export const UsersPage: React.FC = () => {
       setSaving(false)
     }
   }
+
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      if (roleFilter !== 'all') {
+        if (roleFilter === 'user' && u.role && u.role !== 'user') return false
+        if (roleFilter !== 'user' && u.role !== roleFilter) return false
+      }
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim()
+        const email = (u.email || '').toLowerCase()
+        const name = (u.displayName || '').toLowerCase()
+        const role = (u.role || '').toLowerCase()
+        if (!email.includes(q) && !name.includes(q) && !role.includes(q)) return false
+      }
+      return true
+    })
+  }, [users, roleFilter, searchQuery])
 
   if (!isAdmin) {
     return (
@@ -1024,172 +1047,213 @@ export const UsersPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">User Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage user accounts and configure custom module permissions.</p>
         </div>
-        <button
+        <Button
           onClick={handleOpenAddModal}
-          className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
+          variant="primary"
+          size="default"
+          icon={
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+          }
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          <span>Register New User</span>
-        </button>
+          Register New User
+        </Button>
+      </div>
+
+      {/* Quick Role Filters & Search Toolbar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <QuickFilterPills
+          title="Role:"
+          pills={[
+            {
+              label: 'All Users',
+              active: roleFilter === 'all',
+              onClick: () => { setRoleFilter('all'); setCurrentPage(1); },
+              count: users.length,
+            },
+            {
+              label: 'Administrators',
+              active: roleFilter === 'admin',
+              onClick: () => { setRoleFilter('admin'); setCurrentPage(1); },
+              count: users.filter(u => u.role === 'admin').length,
+            },
+            {
+              label: 'Order Leaders',
+              active: roleFilter === 'order_leader',
+              onClick: () => { setRoleFilter('order_leader'); setCurrentPage(1); },
+              count: users.filter(u => u.role === 'order_leader').length,
+            },
+            {
+              label: 'User Accounts',
+              active: roleFilter === 'user',
+              onClick: () => { setRoleFilter('user'); setCurrentPage(1); },
+              count: users.filter(u => !u.role || u.role === 'user').length,
+            },
+          ]}
+        />
+
+        <div className="w-full sm:w-72">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+            placeholder="Search email, name, or role..."
+            className="w-full h-9 px-3.5 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition"
+          />
+        </div>
       </div>
 
       {/* Main Users Table */}
       <Card className="p-0 overflow-hidden border border-gray-200 shadow-xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
-                <th className="px-6 py-3.5">User Email</th>
-                <th className="px-6 py-3.5">Display Name</th>
-                <th className="px-6 py-3.5">Role</th>
-                <th className="px-6 py-3.5">Assigned Preset</th>
-                <th className="px-6 py-3.5 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-100">
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-2">
-                      <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-                      <span className="text-xs text-gray-500">Loading user accounts...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : users.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-xs text-gray-400 italic">
-                    No user accounts found in database.
-                  </td>
-                </tr>
-              ) : (
-                users.slice((currentPage - 1) * 10, currentPage * 10).map((u) => {
-                  const isCurrent = u.uid === currentAdmin?.uid
+        {filteredUsers.length === 0 ? (
+          <EmptyState
+            title="No User Accounts Found"
+            description="No user accounts match your search or filter criteria."
+            action={{
+              label: 'Register New User',
+              onClick: handleOpenAddModal,
+            }}
+          />
+        ) : (
+          <>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
+                    <th className="px-6 py-3.5">User Email</th>
+                    <th className="px-6 py-3.5">Display Name</th>
+                    <th className="px-6 py-3.5">Role</th>
+                    <th className="px-6 py-3.5">Assigned Preset</th>
+                    <th className="px-6 py-3.5 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-100">
+                  {filteredUsers.slice((currentPage - 1) * 10, currentPage * 10).map((u) => {
+                    const isCurrent = u.uid === currentAdmin?.uid
 
-                  return (
-                    <tr key={u.uid} className="hover:bg-gray-50/40 transition-colors">
-                      <td className="px-6 py-4 text-xs font-bold text-gray-900 whitespace-nowrap">
-                        <div className="flex items-center gap-2">
-                          <span>{u.email}</span>
-                          {isCurrent && (
-                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
-                              You
-                            </span>
+                    return (
+                      <tr key={u.uid} className="hover:bg-gray-50/40 transition-colors">
+                        <td className="px-6 py-4 text-xs font-bold text-gray-900 whitespace-nowrap">
+                          <div className="flex items-center gap-2">
+                            <span>{u.email}</span>
+                            {isCurrent && (
+                              <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded">
+                                You
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-gray-600 whitespace-nowrap">
+                          {u.displayName || '--'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <StatusBadge
+                            status={u.role === 'admin' ? 'Administrator' : u.role === 'order_leader' ? `Order Leader${u.assignedOrder ? ` (${u.assignedOrder})` : ''}` : 'User Account'}
+                            size="sm"
+                          />
+                        </td>
+                        <td className="px-6 py-4 text-xs whitespace-nowrap">
+                          {(() => {
+                            if (u.role === 'admin') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                  Full System Access
+                                </span>
+                              )
+                            }
+
+                            const presetName = u.permissions?.presetName
+                            const mods = u.permissions?.allowedModules || []
+                            const modulesTooltip = mods.length > 0 ? `Allowed Modules: ${mods.map(m => MODULE_LABELS[m] || m).join(', ')}` : 'No custom module access'
+
+                            const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : undefined
+                            const presetIcon = matchedPreset ? PRESET_ICONS[matchedPreset.icon] : null
+
+                            if (presetName) {
+                              return (
+                                <span
+                                  title={modulesTooltip}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs cursor-help"
+                                >
+                                  {presetIcon && <span className="text-blue-600 shrink-0">{presetIcon}</span>}
+                                  <span>{presetName}</span>
+                                </span>
+                              )
+                            }
+
+                            if (mods.length >= ALL_MODULES.length) {
+                              return (
+                                <span
+                                  title={modulesTooltip}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 cursor-help"
+                                >
+                                  Full Module Access
+                                </span>
+                              )
+                            }
+
+                            if (mods.length > 0) {
+                              return (
+                                <span
+                                  title={modulesTooltip}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80 cursor-help"
+                                >
+                                  Custom Access ({mods.length} Modules)
+                                </span>
+                              )
+                            }
+
+                            return <span className="text-gray-400 italic text-[11px]">Default Access</span>
+                          })()}
+                        </td>
+                        <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-1.5">
+                          {/* Hide Edit/Remove for coordinator account unless you ARE the coordinator */}
+                          {!(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
+                            <Button
+                              size="xs"
+                              variant="secondary"
+                              onClick={() => handleOpenEditModal(u)}
+                              title="Edit Permissions"
+                              icon={
+                                <svg className="h-3.5 w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              }
+                            >
+                              Edit
+                            </Button>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-xs text-gray-600 whitespace-nowrap">
-                        {u.displayName || '--'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {u.role === 'admin' ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 border border-purple-200 text-purple-700">
-                            Administrator
-                          </span>
-                        ) : u.role === 'order_leader' ? (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-bold bg-amber-50 border border-amber-200 text-amber-700">
-                            Order Leader {u.assignedOrder ? `(${u.assignedOrder})` : ''}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium bg-gray-100 border border-gray-200 text-gray-700">
-                            User Account
-                          </span>
-                        )}
-                      </td>
-                      <td className="px-6 py-4 text-xs whitespace-nowrap">
-                        {(() => {
-                          if (u.role === 'admin') {
-                            return (
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
-                                ✨ Full System Access
-                              </span>
-                            )
-                          }
-
-                          const presetName = u.permissions?.presetName
-                          const mods = u.permissions?.allowedModules || []
-                          const modulesTooltip = mods.length > 0 ? `Allowed Modules: ${mods.map(m => MODULE_LABELS[m] || m).join(', ')}` : 'No custom module access'
-
-                          const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : undefined
-                          const presetIcon = matchedPreset ? PRESET_ICONS[matchedPreset.icon] : null
-
-                          if (presetName) {
-                            return (
-                              <span
-                                title={modulesTooltip}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs cursor-help"
-                              >
-                                {presetIcon && <span className="text-blue-600 shrink-0">{presetIcon}</span>}
-                                <span>{presetName}</span>
-                              </span>
-                            )
-                          }
-
-                          if (mods.length >= ALL_MODULES.length) {
-                            return (
-                              <span
-                                title={modulesTooltip}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80 cursor-help"
-                              >
-                                ✨ Full Module Access
-                              </span>
-                            )
-                          }
-
-                          if (mods.length > 0) {
-                            return (
-                              <span
-                                title={modulesTooltip}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80 cursor-help"
-                              >
-                                Custom Access ({mods.length} Modules)
-                              </span>
-                            )
-                          }
-
-                          return <span className="text-gray-400 italic text-[11px]">Default Access</span>
-                        })()}
-                      </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-1.5">
-                        {/* Hide Edit/Remove for coordinator account unless you ARE the coordinator */}
-                        {!(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
-                          <button
-                            onClick={() => handleOpenEditModal(u)}
-                            title="Edit Permissions"
-                            className="p-2 text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors cursor-pointer border border-blue-100 inline-flex items-center justify-center"
-                          >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                        )}
-                        {!isCurrent && !(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
-                          <button
-                            onClick={() => setDeleteTarget(u)}
-                            title="Remove User"
-                            className="p-2 text-red-600 hover:text-red-800 bg-red-50 hover:bg-red-100 rounded-lg transition-colors cursor-pointer border border-red-100 inline-flex items-center justify-center"
-                          >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        <Pagination
-          currentPage={currentPage}
-          totalItems={users.length}
-          pageSize={10}
-          onPageChange={setCurrentPage}
-        />
+                          {!isCurrent && !(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
+                            <Button
+                              size="xs"
+                              variant="danger"
+                              onClick={() => setDeleteTarget(u)}
+                              title="Remove User"
+                              icon={
+                                <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              }
+                            >
+                              Remove
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredUsers.length}
+              pageSize={10}
+              onPageChange={setCurrentPage}
+            />
+          </>
+        )}
       </Card>
 
       {/* Add / Edit User Modal */}
@@ -1520,25 +1584,17 @@ export const UsersPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-amber-800 mb-1">Assigned Order Group (Filter Scope)</label>
-                    <div className="relative w-full sm:w-64">
-                      <select
-                        value={assignedOrder}
-                        onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
-                        className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-amber-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-amber-500/20 focus:border-amber-600 transition cursor-pointer shadow-2xs"
-                      >
-                        <option value="">-- All Orders (Unrestricted Scope) --</option>
-                        {ORDER_GROUPS.map((grp) => (
-                          <option key={grp} value={grp}>{grp}</option>
-                        ))}
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-amber-500">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </div>
-                    </div>
-                    <p className="mt-1 text-[10px] text-amber-700">If selected, member reports will be filtered exclusively for this Order.</p>
+                    <CustomSelect
+                      label="Assigned Order Group (Filter Scope)"
+                      value={assignedOrder}
+                      onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
+                      containerClassName="w-full sm:w-72"
+                      options={[
+                        { value: '', label: '-- All Orders (Unrestricted Scope) --' },
+                        ...ORDER_GROUPS.map((grp) => ({ value: grp, label: grp }))
+                      ]}
+                      helperText="If selected, member reports will be filtered exclusively for this Order."
+                    />
                   </div>
                 </div>
 
@@ -1890,28 +1946,24 @@ export const UsersPage: React.FC = () => {
 
             {/* Modal Fixed Footer */}
             <div className="flex items-center justify-end space-x-3 p-4 border-t border-gray-100 bg-white shrink-0">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="dense"
                 onClick={() => setIsModalOpen(false)}
-                className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50 cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
                 form="user-form"
-                disabled={saving}
-                className="rounded-lg bg-blue-600 px-5 py-2 text-xs font-bold text-white hover:bg-blue-500 disabled:opacity-50 cursor-pointer shadow-sm flex items-center gap-1.5"
+                variant="primary"
+                size="dense"
+                loading={saving}
+                loadingText="Saving..."
               >
-                {saving ? (
-                  <>
-                    <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                    <span>Saving...</span>
-                  </>
-                ) : (
-                  <span>{editingUser ? 'Save Permissions' : 'Create Account'}</span>
-                )}
-              </button>
+                {editingUser ? 'Save Permissions' : 'Create Account'}
+              </Button>
             </div>
           </div>
         </div>
@@ -2003,26 +2055,20 @@ export const UsersPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Icon Style *</label>
-                    <div className="relative">
-                      <select
-                        value={presetFormIcon}
-                        onChange={(e) => setPresetFormIcon(e.target.value as any)}
-                        className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                      >
-                        <option value="clipboard">Clipboard (Attendance)</option>
-                        <option value="users">Group (Order Leader)</option>
-                        <option value="shield">Shield (Admin)</option>
-                        <option value="calendar">Calendar (Schedules)</option>
-                        <option value="chart">Chart (Reports)</option>
-                        <option value="settings">Settings (Config)</option>
-                      </select>
-                      <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                        </svg>
-                      </div>
-                    </div>
+                    <CustomSelect
+                      label="Icon Style"
+                      required
+                      value={presetFormIcon}
+                      onChange={(e) => setPresetFormIcon(e.target.value as any)}
+                      options={[
+                        { value: 'clipboard', label: 'Clipboard (Attendance)' },
+                        { value: 'users', label: 'Group (Order Leader)' },
+                        { value: 'shield', label: 'Shield (Admin)' },
+                        { value: 'calendar', label: 'Calendar (Schedules)' },
+                        { value: 'chart', label: 'Chart (Reports)' },
+                        { value: 'settings', label: 'Settings (Config)' }
+                      ]}
+                    />
                   </div>
                 </div>
 
@@ -2418,33 +2464,37 @@ export const UsersPage: React.FC = () => {
 
                 <div className="flex justify-end gap-2 pt-2 border-t border-gray-200">
                   {presetEditing && (
-                    <button
+                    <Button
                       type="button"
+                      variant="secondary"
+                      size="dense"
                       onClick={handleOpenAddPreset}
-                      className="px-3 py-1.5 text-xs font-semibold text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
                     >
                       Cancel Edit
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
                     type="submit"
-                    disabled={saving}
-                    className="px-4 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-xs cursor-pointer disabled:opacity-50"
+                    variant="primary"
+                    size="dense"
+                    loading={saving}
+                    loadingText="Saving..."
                   >
                     {presetEditing ? 'Update Preset' : 'Save New Preset'}
-                  </button>
+                  </Button>
                 </div>
               </form>
             </div>
 
             <div className="p-4 border-t border-gray-100 bg-white flex justify-end shrink-0">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="dense"
                 onClick={() => setIsPresetsModalOpen(false)}
-                className="px-4 py-2 text-xs font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
               >
                 Done / Close
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -2462,29 +2512,13 @@ export const UsersPage: React.FC = () => {
         loading={saving}
       />
 
-      {/* Alert Dialogs */}
+      {/* Alert Dialog for Errors */}
       <AlertModal
         isOpen={!!error}
         onClose={() => setError(null)}
         variant="error"
         title="User Management Error"
         message={error || ''}
-      />
-
-      <AlertModal
-        isOpen={!!successMsg}
-        onClose={() => setSuccessMsg(null)}
-        variant="success"
-        title="Success"
-        message={successMsg || ''}
-      />
-
-      <AlertModal
-        isOpen={!!presetSuccessMsg}
-        onClose={() => setPresetSuccessMsg(null)}
-        variant="success"
-        title="Preset Saved"
-        message={presetSuccessMsg || ''}
       />
     </div>
   )

@@ -3,7 +3,8 @@ import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } 
 import type { Member } from '@/types/member'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { Button, MemberSearchDropdown, CustomSelect } from '@/components'
+import { useToast } from '@/context/ToastContext'
 
 interface EditFormResponseModalProps {
   isOpen: boolean
@@ -26,6 +27,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
   membersMap
 }) => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -108,11 +110,14 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
         },
         profile?.displayName || profile?.email || 'Admin'
       )
+      toast.success('Response Updated', 'Form response has been successfully updated.')
       onSaved()
       onClose()
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to update form response:', err)
-      setError(err instanceof Error ? err.message : 'Failed to update response.')
+      const msg = err instanceof Error ? err.message : 'Failed to update response.'
+      setError(msg)
+      toast.error('Update Failed', msg)
     } finally {
       setSaving(false)
     }
@@ -170,7 +175,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                   mode="id"
                   title="Associate Altar Server"
                   placeholder="Guest / Non-Member"
-                  onChange={(val, item) => {
+                  onChange={(val: string, item?: any) => {
                     setRespondentMemberUid(val)
                     if (val && item?.rawMember) {
                       setRespondentName(`${item.rawMember.firstName} ${item.rawMember.lastName}`.trim())
@@ -252,7 +257,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
 
                     return (
                       <div className="space-y-2">
-                        <select
+                        <CustomSelect
                           value={isOther ? '__other__' : (currentVal !== undefined && currentVal !== null ? String(currentVal) : '')}
                           onChange={e => {
                             if (e.target.value === '__other__') {
@@ -261,18 +266,15 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                               handleAnswerChange(q.id, e.target.value)
                             }
                           }}
-                          className="w-full p-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
-                        >
-                          <option value="">-- Select option --</option>
-                          {(q.options || []).map((opt, oIdx) => (
-                            <option key={oIdx} value={opt}>
-                              {opt} {q.optionLimits?.[opt] ? `(Limit: ${q.optionLimits[opt]} slots)` : ''}
-                            </option>
-                          ))}
-                          {q.hasOtherOption && (
-                            <option value="__other__">{q.otherOptionLabel || 'Other'}</option>
-                          )}
-                        </select>
+                          options={[
+                            { value: '', label: '-- Select option --' },
+                            ...(q.options || []).map(opt => ({
+                              value: opt,
+                              label: `${opt}${q.optionLimits?.[opt] ? ` (Limit: ${q.optionLimits[opt]} slots)` : ''}`
+                            })),
+                            ...(q.hasOtherOption ? [{ value: '__other__', label: q.otherOptionLabel || 'Other' }] : [])
+                          ]}
+                        />
 
                         {isOther && (
                           <input
@@ -437,18 +439,17 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
 
                   {/* Member Selector */}
                   {q.type === 'member_selector' && (
-                    <select
+                    <CustomSelect
                       value={currentVal !== undefined && currentVal !== null ? String(currentVal) : ''}
                       onChange={e => handleAnswerChange(q.id, e.target.value)}
-                      className="w-full p-2.5 border border-slate-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
-                    >
-                      <option value="">-- Select Member --</option>
-                      {membersList.map(m => (
-                        <option key={m.id} value={m.id}>
-                          {m.lastName}, {m.firstName} {m.order ? `(${m.order})` : ''}
-                        </option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: '-- Select Member --' },
+                        ...membersList.map(m => ({
+                          value: m.id,
+                          label: `${m.lastName}, ${m.firstName}${m.order ? ` (${m.order})` : ''}`
+                        }))
+                      ]}
+                    />
                   )}
 
                   {/* Companion Repeater */}
@@ -507,21 +508,24 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
           </div>
 
           {/* Footer buttons inside form for submit */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-3 sticky bottom-0 bg-white">
-            <button
-              type="button"
+          <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2 sticky bottom-0 bg-white">
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={onClose}
-              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl transition cursor-pointer"
+              disabled={saving}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               type="submit"
+              loading={saving}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl transition cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
             >
-              {saving ? 'Saving Changes...' : 'Save Changes'}
-            </button>
+              Save Changes
+            </Button>
           </div>
         </form>
       </div>

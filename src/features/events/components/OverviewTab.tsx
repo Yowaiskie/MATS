@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { eventTaskService } from '@/services/eventTaskService'
-import type { Event, EventTask } from '@/types/event'
-import { Card } from '@/components/Card'
-import { Loading } from '@/components/Loading'
+import type { Event, EventTask, EventAssignment } from '@/types/event'
+import { Card, Loading, StatusBadge } from '@/components'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
-import type { EventAssignment } from '@/types/event'
 
 interface Props {
   event: Event
@@ -36,7 +34,7 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
 
   if (loading) {
     return (
-      <div className="py-24 bg-white rounded-2xl border border-gray-200 shadow-xs">
+      <div className="py-24 bg-white rounded-2xl border border-slate-200 shadow-2xs">
         <Loading variant="spinner" label="Calculating project metrics..." />
       </div>
     )
@@ -50,39 +48,39 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
     <div className="space-y-6">
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-6 border border-gray-200 shadow-xs flex flex-col justify-between">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Overall Progress</h3>
+        <Card className="p-6 border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Overall Progress</h3>
           <div className="flex items-end gap-2">
-            <span className="text-4xl font-black text-gray-900">{progressPercent}%</span>
-            <span className="text-sm font-medium text-gray-500 mb-1">completed</span>
+            <span className="text-3xl sm:text-4xl font-black text-slate-900">{progressPercent}%</span>
+            <span className="text-xs font-semibold text-slate-500 mb-1">completed</span>
           </div>
-          <div className="w-full bg-gray-100 rounded-full h-2.5 mt-4 overflow-hidden">
+          <div className="w-full bg-slate-100 rounded-full h-2.5 mt-4 overflow-hidden">
             <div 
-              className={`h-2.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-green-500' : 'bg-blue-600'}`} 
+              className={`h-2.5 rounded-full transition-all duration-500 ${progressPercent === 100 ? 'bg-emerald-500' : 'bg-blue-600'}`} 
               style={{ width: `${progressPercent}%` }} 
             />
           </div>
         </Card>
 
-        <Card className="p-6 border border-gray-200 shadow-xs flex flex-col justify-between">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Tasks Status</h3>
+        <Card className="p-6 border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Tasks Status</h3>
           <div className="flex items-end gap-2">
-            <span className="text-4xl font-black text-gray-900">{completedTasks}</span>
-            <span className="text-2xl font-black text-gray-400">/ {totalTasks}</span>
-            <span className="text-sm font-medium text-gray-500 mb-1 ml-1">tasks</span>
+            <span className="text-3xl sm:text-4xl font-black text-slate-900">{completedTasks}</span>
+            <span className="text-xl sm:text-2xl font-black text-slate-400">/ {totalTasks}</span>
+            <span className="text-xs font-semibold text-slate-500 mb-1 ml-1">tasks</span>
           </div>
-          <p className="text-xs font-semibold text-gray-500 mt-4">
+          <p className="text-xs font-semibold text-slate-500 mt-4">
             {tasks.filter(t => t.status === 'In Progress').length} in progress, {tasks.filter(t => t.status === 'Not Started').length} to do
           </p>
         </Card>
 
-        <Card className="p-6 border border-gray-200 shadow-xs flex flex-col justify-between">
-          <h3 className="text-sm font-bold text-gray-500 uppercase tracking-wider mb-2">Team Size</h3>
+        <Card className="p-6 border border-slate-200/80 shadow-2xs flex flex-col justify-between">
+          <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Team Size</h3>
           <div className="flex items-end gap-2">
-            <span className="text-4xl font-black text-gray-900">{assignments.length}</span>
-            <span className="text-sm font-medium text-gray-500 mb-1">members</span>
+            <span className="text-3xl sm:text-4xl font-black text-slate-900">{assignments.length}</span>
+            <span className="text-xs font-semibold text-slate-500 mb-1">members</span>
           </div>
-          <p className="text-xs font-semibold text-gray-500 mt-4">
+          <p className="text-xs font-semibold text-slate-500 mt-4">
             Led by {event.headName}
           </p>
         </Card>
@@ -90,43 +88,37 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
 
       {/* Details Row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card className="p-6 border border-gray-200 shadow-xs">
-          <h3 className="text-sm font-bold text-gray-900 mb-4">Event Details</h3>
-          <dl className="space-y-3 text-sm">
-            <div className="flex justify-between border-b border-gray-50 pb-2">
-              <dt className="font-semibold text-gray-500">Location</dt>
-              <dd className="font-medium text-gray-900 text-right">{event.location || 'No location set'}</dd>
+        <Card className="p-6 border border-slate-200/80 shadow-2xs">
+          <h3 className="text-sm font-bold text-slate-900 mb-4">Event Details</h3>
+          <dl className="space-y-3 text-xs sm:text-sm">
+            <div className="flex justify-between border-b border-slate-100 pb-2.5">
+              <dt className="font-semibold text-slate-500">Location</dt>
+              <dd className="font-bold text-slate-900 text-right">{event.location || 'No location set'}</dd>
             </div>
-            <div className="flex justify-between border-b border-gray-50 pb-2">
-              <dt className="font-semibold text-gray-500">Start</dt>
-              <dd className="font-medium text-gray-900 text-right">
+            <div className="flex justify-between border-b border-slate-100 pb-2.5">
+              <dt className="font-semibold text-slate-500">Start</dt>
+              <dd className="font-bold text-slate-900 text-right">
                 {event.startDate} {event.startTime ? `@ ${event.startTime}` : ''}
               </dd>
             </div>
-            <div className="flex justify-between border-b border-gray-50 pb-2">
-              <dt className="font-semibold text-gray-500">End</dt>
-              <dd className="font-medium text-gray-900 text-right">
+            <div className="flex justify-between border-b border-slate-100 pb-2.5">
+              <dt className="font-semibold text-slate-500">End</dt>
+              <dd className="font-bold text-slate-900 text-right">
                 {event.endDate ? `${event.endDate} ${event.endTime ? `@ ${event.endTime}` : ''}` : '-'}
               </dd>
             </div>
-            <div className="flex justify-between border-b border-gray-50 pb-2">
-              <dt className="font-semibold text-gray-500">Priority</dt>
-              <dd className="font-medium text-gray-900 text-right">
-                <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                  event.priority === 'Critical' ? 'bg-red-100 text-red-700'
-                  : event.priority === 'High' ? 'bg-orange-100 text-orange-700'
-                  : 'bg-gray-100 text-gray-600'
-                }`}>
-                  {event.priority}
-                </span>
+            <div className="flex justify-between border-b border-slate-100 pb-2.5 items-center">
+              <dt className="font-semibold text-slate-500">Priority</dt>
+              <dd className="font-bold text-slate-900 text-right">
+                <StatusBadge status={event.priority} size="sm" />
               </dd>
             </div>
           </dl>
         </Card>
 
-        <Card className="p-6 border border-gray-200 shadow-xs">
-          <h3 className="text-sm font-bold text-gray-900 mb-4">Description</h3>
-          <p className="text-sm text-gray-600 whitespace-pre-wrap leading-relaxed">
+        <Card className="p-6 border border-slate-200/80 shadow-2xs">
+          <h3 className="text-sm font-bold text-slate-900 mb-4">Description</h3>
+          <p className="text-xs sm:text-sm text-slate-600 whitespace-pre-wrap leading-relaxed font-medium">
             {event.description || 'No description provided.'}
           </p>
         </Card>
@@ -134,3 +126,4 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
     </div>
   )
 }
+

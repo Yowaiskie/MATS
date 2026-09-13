@@ -4,6 +4,8 @@ import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { userService } from '@/services/userService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { Button, CustomSelect } from '@/components'
+import { useToast } from '@/context/ToastContext'
 import type { EventStage, Priority, Event } from '@/types/event'
 import type { UserProfile } from '@/types/auth'
 
@@ -16,6 +18,7 @@ interface EventFormModalProps {
 
 export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose, onSaved, editItem }) => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -139,10 +142,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
           }
         }
       }
+      toast.success('Event Saved', editItem ? 'Event details updated successfully.' : 'New event workspace created.')
       onSaved()
     } catch (err) {
       console.error(err)
       setError('Failed to save event. Please try again.')
+      toast.error('Save Failed', 'Failed to save event. Please try again.')
     } finally {
       setSubmitting(false)
     }
@@ -242,57 +247,55 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Stage</label>
-                <div className="relative">
-                  <select
-                    value={stage}
-                    onChange={(e) => setStage(e.target.value as EventStage)}
-                    className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                  >
-                    <option value="Planning">Planning</option>
-                    <option value="Preparation">Preparation</option>
-                    <option value="Ready">Ready</option>
-                    <option value="Ongoing">Ongoing</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  value={stage}
+                  onChange={(e) => setStage(e.target.value as EventStage)}
+                  options={[
+                    { value: 'Planning', label: 'Planning' },
+                    { value: 'Preparation', label: 'Preparation' },
+                    { value: 'Ready', label: 'Ready' },
+                    { value: 'Ongoing', label: 'Ongoing' },
+                    { value: 'Completed', label: 'Completed' }
+                  ]}
+                />
               </div>
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Priority</label>
-                <div className="relative">
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as Priority)}
-                    className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Priority)}
+                  options={[
+                    { value: 'Low', label: 'Low' },
+                    { value: 'Medium', label: 'Medium' },
+                    { value: 'High', label: 'High' },
+                    { value: 'Critical', label: 'Critical' }
+                  ]}
+                />
               </div>
             </div>
           </form>
         </div>
         
         <div className="pt-4 border-t border-slate-100 flex justify-end gap-2 bg-white">
-          <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 shadow-2xs cursor-pointer">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onClose}
+            disabled={submitting}
+          >
             Cancel
-          </button>
+          </Button>
 
-          <button type="submit" form="eventForm" disabled={submitting} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-4 py-2 text-xs font-extrabold text-white transition-all disabled:opacity-50 shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer">
-            {submitting ? 'Saving...' : (editItem ? 'Save Changes' : 'Create Event')}
-          </button>
+          <Button
+            variant="primary"
+            size="sm"
+            type="submit"
+            form="eventForm"
+            loading={submitting}
+            disabled={submitting}
+          >
+            {editItem ? 'Save Changes' : 'Create Event'}
+          </Button>
         </div>
       </div>
     </div>

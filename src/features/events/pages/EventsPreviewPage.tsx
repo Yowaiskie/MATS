@@ -46,7 +46,14 @@ export const EventsPreviewPage: React.FC = () => {
               {dummyEvents.map((item) => (
                 <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                   <td className="px-6 py-4 font-extrabold text-indigo-600">{item.title}</td>
-                  <td className="px-6 py-4 font-semibold text-slate-600">📅 {item.date}</td>
+                  <td className="px-6 py-4 font-semibold text-slate-600">
+                    <span className="inline-flex items-center gap-1.5 text-slate-600">
+                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      {item.date}
+                    </span>
+                  </td>
                   <td className="px-6 py-4">
                     <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 text-indigo-700 border border-indigo-200/80">
                       {item.stage}

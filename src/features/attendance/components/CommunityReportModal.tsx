@@ -1,5 +1,7 @@
 import React, { useState } from 'react'
 
+import { Button } from '@/components'
+
 interface CommunityReportModalProps {
   isOpen: boolean
   onClose: () => void
@@ -72,18 +74,33 @@ export const CommunityReportModal: React.FC<CommunityReportModalProps> = ({
 
         {/* Footer Actions */}
         <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
-          <button
+          <Button
+            type="button"
+            variant="secondary"
+            size="dense"
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold hover:bg-slate-50 text-slate-700 transition-all cursor-pointer shadow-2xs"
           >
             Close
-          </button>
-          <button
+          </Button>
+          <Button
+            type="button"
+            variant="purple"
+            size="dense"
             onClick={handleCopy}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+            icon={
+              copied ? (
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              )
+            }
           >
-            {copied ? '✓ Copied to Clipboard!' : 'Copy to Clipboard'}
-          </button>
+            {copied ? 'Copied to Clipboard!' : 'Copy to Clipboard'}
+          </Button>
         </div>
       </div>
     </div>

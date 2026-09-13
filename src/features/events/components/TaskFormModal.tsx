@@ -2,8 +2,7 @@ import React, { useState } from 'react'
 import { eventTaskService } from '@/services/eventTaskService'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { ConfirmModal } from '@/components/Dialog'
-import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { ConfirmModal, MemberSearchDropdown, CustomSelect, Button, useToast } from '@/components'
 import type { EventTask, Priority, TaskStatus, EventAssignment } from '@/types/event'
 
 interface TaskFormModalProps {
@@ -15,8 +14,23 @@ interface TaskFormModalProps {
   isHeadOrCreator?: boolean
 }
 
+const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
+  { value: 'Not Started', label: 'To Do' },
+  { value: 'In Progress', label: 'In Progress' },
+  { value: 'Waiting', label: 'Waiting' },
+  { value: 'Completed', label: 'Completed' }
+]
+
+const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
+  { value: 'Low', label: 'Low' },
+  { value: 'Medium', label: 'Medium' },
+  { value: 'High', label: 'High' },
+  { value: 'Critical', label: 'Critical' }
+]
+
 export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSaved, eventId, existingTask, isHeadOrCreator }) => {
   const { profile, canAction } = useAuth()
+  const { toast } = useToast()
   
   const canEdit = !existingTask 
     ? true 
@@ -84,6 +98,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           dueDate: dueDate || null,
           assignedMemberName: assignedMemberName || null
         }, profile?.email || 'System')
+        toast.success('Task Updated', 'Event task updated successfully.')
       } else {
         await eventTaskService.createTask({
           eventId,
@@ -104,6 +119,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           createdByUid: profile?.uid || 'system',
           createdByName: profile?.displayName || profile?.email || 'System'
         }, profile?.email || 'System')
+        toast.success('Task Created', 'New task created successfully.')
       }
       
       onSaved()
@@ -121,6 +137,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
     setError(null)
     try {
       await eventTaskService.deleteTask(existingTask.id, profile?.email || 'System')
+      toast.success('Task Deleted', 'Task has been deleted successfully.')
       setShowDeleteConfirm(false)
       onSaved()
     } catch (err) {
@@ -168,67 +185,45 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
 
             <div>
               <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Task Title *</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-gray-50 disabled:text-gray-500" placeholder="e.g. Book the caterer" required />
+              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" placeholder="e.g. Coordinate venue setup and logistics" required />
             </div>
 
             <div>
               <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit || submitting} rows={3} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none disabled:bg-gray-50 disabled:text-gray-500" placeholder="Task details..." />
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit || submitting} rows={3} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" placeholder="Task details and instructions..." />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Status</label>
-                <div className="relative">
-                  <select
-                    value={status}
-                    onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                    disabled={!canEdit || submitting}
-                    className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs disabled:bg-gray-50 disabled:text-gray-500"
-                  >
-                    <option value="Not Started">To Do</option>
-                    <option value="In Progress">In Progress</option>
-                    <option value="Waiting">Waiting</option>
-                    <option value="Completed">Completed</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  label="Status"
+                  id="task-status-select"
+                  options={STATUS_OPTIONS}
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                  disabled={!canEdit || submitting}
+                />
               </div>
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Priority</label>
-                <div className="relative">
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value as Priority)}
-                    disabled={!canEdit || submitting}
-                    className="block w-full h-10 pl-3.5 pr-10 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs disabled:bg-gray-50 disabled:text-gray-500"
-                  >
-                    <option value="Low">Low</option>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                    <option value="Critical">Critical</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  label="Priority"
+                  id="task-priority-select"
+                  options={PRIORITY_OPTIONS}
+                  value={priority}
+                  onChange={(e) => setPriority(e.target.value as Priority)}
+                  disabled={!canEdit || submitting}
+                />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Start Date</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-gray-50 disabled:text-gray-500" />
+                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" />
               </div>
               <div>
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
-                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-gray-50 disabled:text-gray-500" />
+                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" />
               </div>
             </div>
 
@@ -237,7 +232,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Assign To</label>
                 {canEdit && profile?.displayName && (
                   <button type="button" onClick={() => setAssignedMemberName(profile.displayName!)} className="text-[10px] text-indigo-600 font-extrabold hover:text-indigo-800 cursor-pointer">
-                    + Assign to me
+                    Assign to me
                   </button>
                 )}
               </div>
@@ -252,7 +247,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
                 disabled={!canEdit || submitting}
                 title="Assign Team Member"
                 placeholder="-- Unassigned --"
-                onChange={(val) => setAssignedMemberName(val)}
+                onChange={(val: string) => setAssignedMemberName(val)}
               />
             </div>
           </form>
@@ -261,19 +256,37 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
         <div className="p-4 border-t border-slate-100 flex justify-between gap-2 bg-white sticky bottom-0">
           <div>
             {existingTask && (isHeadOrCreator || canAction('canDeleteTasks')) && (
-              <button type="button" onClick={() => setShowDeleteConfirm(true)} disabled={submitting} className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-50 transition-all cursor-pointer">
+              <Button
+                type="button"
+                variant="danger"
+                size="dense"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={submitting}
+              >
                 Delete Task
-              </button>
+              </Button>
             )}
           </div>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} disabled={submitting} className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer shadow-2xs">
+            <Button
+              type="button"
+              variant="secondary"
+              size="dense"
+              onClick={onClose}
+              disabled={submitting}
+            >
               {canEdit ? 'Cancel' : 'Close'}
-            </button>
+            </Button>
             {canEdit && (
-              <button type="submit" form="taskForm" disabled={submitting} className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer">
-                {submitting ? 'Saving...' : 'Save Task'}
-              </button>
+              <Button
+                type="submit"
+                form="taskForm"
+                variant="primary"
+                size="dense"
+                loading={submitting}
+              >
+                Save Task
+              </Button>
             )}
           </div>
         </div>
@@ -292,3 +305,4 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
     </div>
   )
 }
+

@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { PreviewNavigation } from '@/features/preview/PreviewNavigation'
+import { CustomSelect } from '@/components'
 
 export const AttendancePreviewPage: React.FC = () => {
   const [selectedSession, setSelectedSession] = useState('Today Mass - 06:00 AM')
@@ -36,15 +37,17 @@ export const AttendancePreviewPage: React.FC = () => {
       <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <span className="text-xs font-extrabold text-slate-500 uppercase tracking-wider whitespace-nowrap">Active Session:</span>
-          <select 
-            value={selectedSession}
-            onChange={(e) => setSelectedSession(e.target.value)}
-            className="w-full sm:w-72 px-3.5 py-2 rounded-xl border border-slate-200 bg-slate-50/40 text-xs font-bold text-slate-800 focus:bg-white focus:border-indigo-500 outline-none transition-all"
-          >
-            <option>Today Mass - 06:00 AM</option>
-            <option>Sunday High Mass - 09:00 AM</option>
-            <option>Evening Novena - 06:00 PM</option>
-          </select>
+          <div className="w-full sm:w-72">
+            <CustomSelect 
+              value={selectedSession}
+              onChange={(e) => setSelectedSession(e.target.value)}
+              options={[
+                { value: 'Today Mass - 06:00 AM', label: 'Today Mass - 06:00 AM' },
+                { value: 'Sunday High Mass - 09:00 AM', label: 'Sunday High Mass - 09:00 AM' },
+                { value: 'Evening Novena - 06:00 PM', label: 'Evening Novena - 06:00 PM' }
+              ]}
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

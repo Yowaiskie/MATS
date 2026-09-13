@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { MemberCombobox } from '@/components/MemberCombobox'
+import { CurrencyInput, CustomSelect, Button, useToast } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
 import { categoryService } from '@/services/finance/categoryService'
@@ -26,6 +27,7 @@ interface ReceiptItemForm {
 
 export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, eventName, onSuccess, editItem, allocations }) => {
   const { user, profile } = useAuth()
+  const { toast } = useToast()
   const [categories, setCategories] = useState<EventFinanceCategory[]>([])
   const [mainCategories, setMainCategories] = useState<FinanceCategory[]>([])
   const [loading, setLoading] = useState(false)
@@ -279,6 +281,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           user.uid,
           uName
         )
+        toast.success('Expense Updated', 'Event expense has been successfully updated.')
       } else {
         const payload: any = {
           eventId,
@@ -308,6 +311,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           uName,
           eventName
         )
+        toast.success('Expense Recorded', 'Event expense has been successfully recorded.')
       }
 
       onSuccess()
@@ -402,45 +406,36 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Amount (₱) *</label>
-            <input
-              type="text"
+            <CurrencyInput
+              label="Amount"
               required
               value={amount}
-              onChange={(e) => {
-                let val = e.target.value.replace(/,/g, '')
-                if (val === '') { setAmount(''); return; }
-                if (!/^\d*\.?\d*$/.test(val)) return;
-                const parts = val.split('.')
-                if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                setAmount(parts.join('.'))
-              }}
-              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+              onChange={(formatted) => setAmount(formatted)}
               placeholder="0.00"
             />
           </div>
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Date *</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Date *</label>
             <input
               type="date"
               required
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+              className="w-full h-10 border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all px-3.5 text-xs font-semibold text-slate-800 bg-white"
             />
           </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Spent On / Item *</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Spent On / Item *</label>
             <input
               type="text"
               required
               maxLength={100}
               value={spentOn}
               onChange={(e) => setSpentOn(e.target.value)}
-              className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+              className="w-full h-10 border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all px-3.5 text-xs font-semibold text-slate-800 bg-white"
               placeholder="e.g. Food, Venue"
             />
           </div>
@@ -464,99 +459,63 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         {/* Category fields */}
         {fundSource === 'main_funds' ? (
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-indigo-700 mb-1.5">Main Finance Category *</label>
-            <div className="relative">
-              <select
-                required
-                value={mainFinanceCategoryId}
-                onChange={(e) => setMainFinanceCategoryId(e.target.value)}
-                className="w-full h-11 pl-3.5 pr-10 border border-indigo-200 rounded-xl shadow-2xs text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all bg-indigo-50/50 hover:bg-white focus:bg-white cursor-pointer"
-              >
-                <option value="">Select Main Ministry Category</option>
-                {mainCategories.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-indigo-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Main Finance Category"
+              required
+              value={mainFinanceCategoryId}
+              onChange={(e) => setMainFinanceCategoryId(e.target.value)}
+              options={[
+                { value: '', label: 'Select Main Ministry Category' },
+                ...mainCategories.map(c => ({ value: c.id, label: c.name }))
+              ]}
+            />
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Event Category</label>
-              <div className="relative">
-                <select
-                  value={categoryId}
-                  onChange={(e) => setCategoryId(e.target.value)}
-                  className="w-full h-11 pl-3.5 pr-10 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all bg-white cursor-pointer"
-                >
-                  <option value="">Select Category (Optional)</option>
-                  {loading ? (
-                    <option disabled>Loading...</option>
-                  ) : (
-                    categories.map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))
-                  )}
-                  <option value="new" className="font-semibold text-blue-600">+ Add New Category</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
+              <CustomSelect
+                label="Event Category"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                options={[
+                  { value: '', label: loading ? 'Loading...' : 'Select Category (Optional)' },
+                  ...categories.map(c => ({ value: c.id, label: c.name })),
+                  { value: 'new', label: '+ Add New Category' }
+                ]}
+              />
             </div>
             
             <div>
-              <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Payment Method *</label>
-              <div className="relative">
-                <select
-                  required
-                  value={paymentMethod}
-                  onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                  className="w-full h-11 pl-3.5 pr-10 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all bg-white cursor-pointer"
-                >
-                  <option value="Cash">Cash</option>
-                  <option value="GCash">GCash</option>
-                  <option value="Cheque">Cheque</option>
-                  <option value="Bank Transfer">Bank Transfer</option>
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
+              <CustomSelect
+                label="Payment Method"
+                required
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                options={[
+                  { value: 'Cash', label: 'Cash' },
+                  { value: 'GCash', label: 'GCash' },
+                  { value: 'Cheque', label: 'Cheque' },
+                  { value: 'Bank Transfer', label: 'Bank Transfer' }
+                ]}
+              />
             </div>
           </div>
         )}
 
         {fundSource === 'main_funds' && (
           <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Payment Method *</label>
-            <div className="relative">
-              <select
-                required
-                value={paymentMethod}
-                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
-                className="w-full h-11 pl-3.5 pr-10 border border-slate-300 rounded-xl shadow-2xs text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all bg-white cursor-pointer"
-              >
-                <option value="Cash">Cash</option>
-                <option value="GCash">GCash</option>
-                <option value="Cheque">Cheque</option>
-                <option value="Bank Transfer">Bank Transfer</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Payment Method"
+              required
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+              options={[
+                { value: 'Cash', label: 'Cash' },
+                { value: 'GCash', label: 'GCash' },
+                { value: 'Cheque', label: 'Cheque' },
+                { value: 'Bank Transfer', label: 'Bank Transfer' }
+              ]}
+            />
           </div>
         )}
 
@@ -629,15 +588,15 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
                   </button>
                 </div>
 
-                {/* Amount (₱) */}
+                {/* Amount */}
                 <div className="relative w-full sm:w-32 shrink-0">
-                  <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400 pointer-events-none">₱</span>
+                  <span className="absolute left-2.5 top-1.5 text-xs font-bold text-slate-400 pointer-events-none">PHP</span>
                   <input
                     type="text"
                     value={r.amount}
                     onChange={(e) => handleUpdateReceipt(r.id, 'amount', e.target.value)}
                     placeholder="0.00"
-                    className="w-full border-slate-200 rounded-lg pl-6 pr-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-right font-medium"
+                    className="w-full border-slate-200 rounded-lg pl-10 pr-2.5 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-right font-medium"
                   />
                 </div>
 
@@ -666,7 +625,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
                   Total from {receipts.length} Receipts:
                 </span>
                 <span className="font-mono text-xs font-black text-indigo-700 bg-white px-2 py-0.5 rounded-md border border-indigo-200">
-                  ₱{totalReceiptsAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  PHP {totalReceiptsAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}
                 </span>
               </div>
               <button
@@ -684,14 +643,14 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         </div>
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Fund Allocation (Optional)</label>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Fund Allocation (Optional)</label>
           <input
             type="text"
             list="allocations-list"
             maxLength={50}
             value={allocation}
             onChange={(e) => setAllocation(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white text-sm"
+            className="w-full h-10 border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all px-3.5 text-xs font-semibold text-slate-800 bg-white"
             placeholder="e.g. AGAPE, Pilgrimage, General"
           />
           <datalist id="allocations-list">
@@ -740,7 +699,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
               maxLength={50}
               value={newCategoryName}
               onChange={(e) => setNewCategoryName(e.target.value)}
-              className="w-full border-blue-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-blue-50"
+              className="w-full border-blue-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-blue-50 text-xs font-bold"
               placeholder="e.g. Logistics"
               autoFocus
             />
@@ -748,36 +707,38 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         )}
 
         <div>
-          <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">Description (Optional)</label>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Description (Optional)</label>
           <textarea
             rows={2}
             maxLength={500}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full border-slate-200 rounded-xl shadow-xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all px-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white"
+            className="w-full border-slate-300 rounded-xl shadow-2xs focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition-all p-3 text-xs font-semibold text-slate-800 bg-white"
             placeholder="Additional notes about this expense..."
           />
         </div>
 
         <div className="mt-8 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-none cursor-pointer"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+            variant="primary"
+            loading={submitting}
+            loadingText={editItem ? 'Updating...' : 'Saving...'}
           >
-            {submitting ? 'Saving...' : editItem ? 'Update Expense' : 'Save Expense'}
-          </button>
+            {editItem ? 'Update Expense' : 'Save Expense'}
+          </Button>
         </div>
       </form>
     </Modal>
   )
 }
+
 

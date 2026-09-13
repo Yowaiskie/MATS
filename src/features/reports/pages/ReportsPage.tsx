@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { reportService } from '@/services/reportService'
 import type { ReportRawData, OverallSummary, MemberReportRow, ScheduleReportRow, MonthlyReportRow } from '@/services/reportService'
-import { Card } from '@/components/Card'
+import { Card, Button, EmptyState } from '@/components'
 import { FilterBar } from '../components/FilterBar'
 import { SummaryCards } from '../components/SummaryCards'
 import { AbsenceBreakdownModal } from '../components/AbsenceBreakdownModal'
@@ -188,15 +188,18 @@ export const ReportsPage: React.FC = () => {
 
         {/* Header Action Buttons */}
         {activeTab === 'member' && canExport && (
-          <button
+          <Button
+            type="button"
+            variant="outline"
+            size="dense"
             onClick={handleDownloadMemberPdf}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm flex items-center gap-1.5 self-start sm:self-auto"
+            className="self-start sm:self-auto shadow-2xs"
           >
             <svg className="h-4 w-4 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Download PDF
-          </button>
+            <span>Download PDF</span>
+          </Button>
         )}
       </div>
 
@@ -425,16 +428,19 @@ export const ReportsPage: React.FC = () => {
                           {/* View Breakdown Button */}
                           <td className="px-3 py-3 text-center">
                             {row.missedSchedules.length > 0 ? (
-                              <button
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="dense"
                                 onClick={() => handleViewBreakdown(row)}
-                                className="inline-flex items-center gap-1 text-[11px] font-semibold text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md transition-colors cursor-pointer border border-blue-200"
+                                className="!py-0.5 !px-2 text-[11px] text-blue-600 bg-blue-50/60 border-blue-200 hover:bg-blue-100"
                               >
                                 <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
-                                View
-                              </button>
+                                <span>View</span>
+                              </Button>
                             ) : (
                               <span className="text-[11px] text-gray-400">—</span>
                             )}
@@ -443,8 +449,11 @@ export const ReportsPage: React.FC = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={11} className="px-6 py-12 text-center text-sm text-gray-400">
-                          No member records found.
+                        <td colSpan={10} className="p-8">
+                          <EmptyState
+                            title="No member records found"
+                            description="No member attendance metrics match the active filters."
+                          />
                         </td>
                       </tr>
                     )}
@@ -502,8 +511,11 @@ export const ReportsPage: React.FC = () => {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-400">
-                          No schedule service records found.
+                        <td colSpan={10} className="p-8">
+                          <EmptyState
+                            title="No schedule service records found"
+                            description="No schedules found for the selected date range."
+                          />
                         </td>
                       </tr>
                     )}

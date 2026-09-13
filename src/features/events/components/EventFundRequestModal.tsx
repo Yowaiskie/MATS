@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
+import { CurrencyInput, Button, useToast } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { fundRequestService } from '@/services/finance/fundRequestService'
 import type { FundRequestSource } from '@/types/finance'
@@ -20,6 +21,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
   onSuccess
 }) => {
   const { user, profile } = useAuth()
+  const { toast } = useToast()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -83,6 +85,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
         true // Submit immediately as pending for Finance approval
       )
 
+      toast.success('Fund Request Submitted', 'Event fund requisition proposal has been successfully submitted.')
       onSuccess()
       onClose()
     } catch (err: any) {
@@ -205,92 +208,85 @@ export const EventFundRequestModal: React.FC<Props> = ({
         </div>
 
         <div>
-          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Request Title *</label>
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-700 mb-1">Request Title *</label>
           <input
             type="text"
             required
             maxLength={100}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            className="w-full h-10 border border-slate-300 rounded-xl px-3.5 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all shadow-2xs"
             placeholder="e.g. Seed Budget for Event"
           />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Requested Amount (₱) *</label>
-            <input
-              type="text"
+            <CurrencyInput
+              label="Requested Amount"
               required
               value={amount}
-              onChange={(e) => {
-                let val = e.target.value.replace(/,/g, '')
-                if (val === '') { setAmount(''); return; }
-                if (!/^\d*\.?\d*$/.test(val)) return;
-                const parts = val.split('.')
-                if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ",")
-                setAmount(parts.join('.'))
-              }}
-              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-mono"
+              onChange={(formatted) => setAmount(formatted)}
               placeholder="0.00"
             />
           </div>
           <div>
-            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Date Needed *</label>
+            <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">Date Needed *</label>
             <input
               type="date"
               required
               value={dateNeeded}
               onChange={(e) => setDateNeeded(e.target.value)}
-              className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+              className="w-full h-10 border border-slate-300 rounded-xl px-3.5 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all shadow-2xs"
             />
           </div>
         </div>
 
         <div>
-          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Purpose *</label>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">Purpose *</label>
           <input
             type="text"
             required
             maxLength={150}
             value={purpose}
             onChange={(e) => setPurpose(e.target.value)}
-            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            className="w-full h-10 border border-slate-300 rounded-xl px-3.5 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all shadow-2xs"
             placeholder="e.g. Venue Downpayment, Supplies"
           />
         </div>
 
         <div>
-          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Additional Notes / Description</label>
+          <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">Additional Notes / Description</label>
           <textarea
             rows={3}
             maxLength={500}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
-            className="w-full border border-slate-200 rounded-xl px-3.5 py-2.5 bg-slate-50 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+            className="w-full border border-slate-300 rounded-xl p-3 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 outline-none transition-all shadow-2xs"
             placeholder="Provide any breakdown or details for the finance team..."
           />
         </div>
 
         <div className="mt-6 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={onClose}
             disabled={submitting}
-            className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+            variant="primary"
+            loading={submitting}
+            loadingText="Submitting..."
           >
-            {submitting ? 'Submitting...' : 'Submit Request to Main Funds'}
-          </button>
+            Submit Request to Main Funds
+          </Button>
         </div>
       </form>
     </Modal>
   )
 }
+

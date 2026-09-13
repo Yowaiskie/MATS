@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { authService } from '@/services/authService'
 
+import { Button } from '@/components'
+
 interface UnlockSessionModalProps {
   isOpen: boolean
   onClose: () => void
@@ -127,28 +129,25 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
 
           {/* Footer Actions */}
           <div className="flex justify-end space-x-2.5 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="dense"
               onClick={handleClose}
               disabled={verifying}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer shadow-2xs"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
-              disabled={verifying}
-              className="inline-flex items-center gap-2 rounded-xl bg-amber-600 hover:bg-amber-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-amber-500/20 active:scale-95"
+              variant="primary"
+              size="dense"
+              loading={verifying}
+              loadingText="Verifying Password..."
+              className="!bg-amber-600 hover:!bg-amber-700 !shadow-amber-500/20"
             >
-              {verifying ? (
-                <>
-                  <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                  <span>Verifying Password...</span>
-                </>
-              ) : (
-                <span>Confirm & Unlock Session</span>
-              )}
-            </button>
+              Confirm & Unlock Session
+            </Button>
           </div>
         </form>
       </div>

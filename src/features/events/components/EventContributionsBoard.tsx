@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Card } from '@/components/Card'
-import { Loading } from '@/components/Loading'
+import { Card, Loading, StatusBadge, EmptyState, CustomSelect, Button, Modal, useToast } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventContributionService } from '@/services/eventContributionService'
 import { eventFinanceService } from '@/services/eventFinanceService'
@@ -13,8 +12,7 @@ import type { FinanceCategory } from '@/types/finance'
 import type { Event } from '@/types/event'
 import { EventContributionModal } from './EventContributionModal'
 import { ContributionPurposeModal } from './ContributionPurposeModal'
-import { ConfirmModal, AlertModal } from '@/components/Dialog'
-import { Modal } from '@/components/Modal'
+import { ConfirmModal } from '@/components/Dialog'
 import { EventContributionExportModal } from './EventContributionExportModal'
 
 interface Props {
@@ -25,6 +23,7 @@ interface Props {
 
 export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, isHeadOrCreator }) => {
   const { profile, canAction } = useAuth()
+  const { toast } = useToast()
   const [contributions, setContributions] = useState<EventContribution[]>([])
   const [purposes, setPurposes] = useState<EventContributionPurpose[]>([])
   const [financeCategories, setFinanceCategories] = useState<EventFinanceCategory[]>([])
@@ -35,8 +34,6 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
   const [isRecordModalOpen, setIsRecordModalOpen] = useState(false)
   const [editingContribution, setEditingContribution] = useState<EventContribution | null>(null)
   const [isPurposeModalOpen, setIsPurposeModalOpen] = useState(false)
-  const [alertMessage, setAlertMessage] = useState<string | null>(null)
-  const [alertTitle, setAlertTitle] = useState('Contribution Tracker')
 
   // Single & Bulk Link to Finance states
   const [linkTarget, setLinkTarget] = useState<EventContribution | null>(null)
@@ -115,8 +112,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
       setSelectedIds([]) // Reset selections on refresh
     } catch (err) {
       console.error('Failed to load contributions board data:', err)
-      setAlertTitle('Load Failed')
-      setAlertMessage('Could not retrieve contribution tracking logs.')
+      toast.error('Load Failed', 'Could not retrieve contribution tracking logs.')
     } finally {
       setLoading(false)
     }
@@ -256,12 +252,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     setSubmitting(true)
     try {
       await eventContributionService.voidContribution(voidTarget.id, eventId, profile.displayName || profile.email)
-      setAlertTitle('Record Voided')
-      setAlertMessage('The contribution has been voided and removed from active metrics.')
+      toast.success('Record Voided', 'The contribution has been voided and removed from active metrics.')
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Void Action Failed')
-      setAlertMessage(err.message || 'Could not void contribution record.')
+      toast.error('Void Action Failed', err.message || 'Could not void contribution record.')
     } finally {
       setSubmitting(false)
       setVoidTarget(null)
@@ -274,12 +268,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     setSubmitting(true)
     try {
       await eventContributionService.archiveContribution(archiveTarget.id, eventId, profile.displayName || profile.email)
-      setAlertTitle('Record Archived')
-      setAlertMessage('The contribution record has been archived.')
+      toast.success('Record Archived', 'The contribution record has been archived.')
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Archive Failed')
-      setAlertMessage(err.message || 'Could not archive contribution record.')
+      toast.error('Archive Failed', err.message || 'Could not archive contribution record.')
     } finally {
       setSubmitting(false)
       setArchiveTarget(null)
@@ -291,12 +283,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     setSubmitting(true)
     try {
       await eventContributionService.restoreContribution(c.id, eventId, profile.displayName || profile.email)
-      setAlertTitle('Record Restored')
-      setAlertMessage('The contribution record has been restored.')
+      toast.success('Record Restored', 'The contribution record has been restored.')
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Restore Failed')
-      setAlertMessage(err.message || 'Could not restore contribution record.')
+      toast.error('Restore Failed', err.message || 'Could not restore contribution record.')
     } finally {
       setSubmitting(false)
     }
@@ -311,12 +301,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         unlinkTarget.id,
         profile.displayName || profile.email
       )
-      setAlertTitle('Unlink Successful')
-      setAlertMessage('All finance links for this contribution have been removed.')
+      toast.success('Unlink Successful', 'All finance links for this contribution have been removed.')
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Unlink Failed')
-      setAlertMessage(err.message || 'Could not unlink contribution record.')
+      toast.error('Unlink Failed', err.message || 'Could not unlink contribution record.')
     } finally {
       setSubmitting(false)
       setUnlinkTarget(null)
@@ -333,8 +321,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         profile.displayName || profile.email,
         unlinkAllocTarget.allocationId
       )
-      setAlertTitle('Portion Unlinked')
-      setAlertMessage(`Successfully unlinked ₱${unlinkAllocTarget.amount.toLocaleString()} from ${unlinkAllocTarget.label}.`)
+      toast.success('Portion Unlinked', `Successfully unlinked ₱${unlinkAllocTarget.amount.toLocaleString()} from ${unlinkAllocTarget.label}.`)
       await fetchData()
       // If modal was open, refresh target
       if (manageAllocTarget && manageAllocTarget.id === unlinkAllocTarget.contributionId) {
@@ -350,8 +337,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         }
       }
     } catch (err: any) {
-      setAlertTitle('Unlink Failed')
-      setAlertMessage(err.message || 'Could not unlink this finance portion.')
+      toast.error('Unlink Failed', err.message || 'Could not unlink this finance portion.')
     } finally {
       setSubmitting(false)
       setUnlinkAllocTarget(null)
@@ -368,12 +354,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         eventId,
         profile.displayName || profile.email
       )
-      setAlertTitle('Record Deleted')
-      setAlertMessage('The contribution record has been permanently deleted.')
+      toast.success('Record Deleted', 'The contribution record has been permanently deleted.')
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Delete Failed')
-      setAlertMessage(err.message || 'Could not delete contribution record.')
+      toast.error('Delete Failed', err.message || 'Could not delete contribution record.')
     } finally {
       setSubmitting(false)
       setDeleteTarget(null)
@@ -441,8 +425,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     e.preventDefault()
     if (!linkTarget || !profile || !selectedFinanceCategory) return
     if (linkDestination === 'other_event' && !targetEventId) {
-      setAlertTitle('Selection Required')
-      setAlertMessage('Please select a target event.')
+      toast.error('Selection Required', 'Please select a target event.')
       return
     }
 
@@ -450,13 +433,11 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     const linkAmt = customLinkAmount !== '' ? Number(customLinkAmount) : summary.remainingToLink
 
     if (isNaN(linkAmt) || linkAmt <= 0) {
-      setAlertTitle('Invalid Amount')
-      setAlertMessage('Please enter a valid amount greater than ₱0.00.')
+      toast.error('Invalid Amount', 'Please enter a valid amount greater than ₱0.00.')
       return
     }
     if (linkAmt > summary.remainingToLink) {
-      setAlertTitle('Amount Exceeded')
-      setAlertMessage(`Hindi pwedeng sumobra sa remaining unlinked amount na ₱${summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`)
+      toast.error('Amount Exceeded', `Hindi pwedeng sumobra sa remaining unlinked amount na ₱${summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`)
       return
     }
 
@@ -484,17 +465,16 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         : linkDestination === 'other_event' 
           ? `Event: ${targetEventObj?.title || 'Selected Event'}` 
           : 'Event Finance'
-      setAlertTitle('Link Successful')
       const remaining = summary.remainingToLink - linkAmt
-      setAlertMessage(
+      toast.success(
+        'Link Successful',
         remaining > 0 
           ? `₱${linkAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })} has been recorded into ${destLabel}. Meron pang natitirang ₱${remaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} na available para i-link.`
           : `Buong ₱${linkAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })} ay matagumpay na naitala sa ${destLabel}.`
       )
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Linking Failed')
-      setAlertMessage(err.message || 'Failed to link record to Finance.')
+      toast.error('Linking Failed', err.message || 'Failed to link record to Finance.')
     } finally {
       setSubmitting(false)
       setLinkTarget(null)
@@ -509,8 +489,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     e.preventDefault()
     if (selectedIds.length === 0 || !profile || !selectedFinanceCategory) return
     if (linkDestination === 'other_event' && !targetEventId) {
-      setAlertTitle('Selection Required')
-      setAlertMessage('Please select a target event.')
+      toast.error('Selection Required', 'Please select a target event.')
       return
     }
 
@@ -537,12 +516,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         : linkDestination === 'other_event' 
           ? `Event: ${targetEventObj?.title || 'Selected Event'}` 
           : 'Event Finance'
-      setAlertTitle('Bulk Link Successful')
-      setAlertMessage(`Successfully recorded ${count} contributions into ${destLabel}.`)
+      toast.success('Bulk Link Successful', `Successfully recorded ${count} contributions into ${destLabel}.`)
       await fetchData()
     } catch (err: any) {
-      setAlertTitle('Bulk Link Failed')
-      setAlertMessage(err.message || 'Failed to complete bulk linking.')
+      toast.error('Bulk Link Failed', err.message || 'Failed to complete bulk linking.')
     } finally {
       setSubmitting(false)
       setSelectedFinanceCategory('')
@@ -763,70 +740,45 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
           {/* Held By Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Held By (Hawak ni)</label>
-            <div className="relative">
-              <select
-                value={selectedHeldBy}
-                onChange={(e) => setSelectedHeldBy(e.target.value)}
-                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs truncate cursor-pointer transition"
-              >
-                <option value="all">All Custodians</option>
-                <option value="unassigned">Not Specified</option>
-                {uniqueCustodians.map(c => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Held By (Hawak ni)"
+              value={selectedHeldBy}
+              onChange={(e) => setSelectedHeldBy(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Custodians' },
+                { value: 'unassigned', label: 'Not Specified' },
+                ...uniqueCustodians.map(c => ({ value: c, label: c }))
+              ]}
+            />
           </div>
 
           {/* Purpose Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Purpose Category</label>
-            <div className="relative">
-              <select
-                value={selectedPurposeId}
-                onChange={(e) => setSelectedPurposeId(e.target.value)}
-                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs truncate cursor-pointer transition"
-              >
-                <option value="all">All Purposes</option>
-                {purposes.map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Purpose Category"
+              value={selectedPurposeId}
+              onChange={(e) => setSelectedPurposeId(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Purposes' },
+                ...purposes.map(p => ({ value: p.id, label: p.name }))
+              ]}
+            />
           </div>
 
           {/* Payment Method Filter */}
           <div>
-            <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Payment Method</label>
-            <div className="relative">
-              <select
-                value={selectedPaymentMethod}
-                onChange={(e) => setSelectedPaymentMethod(e.target.value)}
-                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs truncate cursor-pointer transition"
-              >
-                <option value="all">All Methods</option>
-                <option value="cash">Cash</option>
-                <option value="gcash">GCash</option>
-                <option value="bank_transfer">Bank Transfer</option>
-                <option value="other">Other</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Payment Method"
+              value={selectedPaymentMethod}
+              onChange={(e) => setSelectedPaymentMethod(e.target.value)}
+              options={[
+                { value: 'all', label: 'All Methods' },
+                { value: 'cash', label: 'Cash' },
+                { value: 'gcash', label: 'GCash' },
+                { value: 'bank_transfer', label: 'Bank Transfer' },
+                { value: 'other', label: 'Other' }
+              ]}
+            />
           </div>
 
           {/* Date Filter */}
@@ -1012,8 +964,11 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredContributions.length === 0 ? (
                 <tr>
-                  <td colSpan={canLinkFinance ? 10 : 9} className="px-6 py-12 text-center text-gray-400 text-xs font-medium italic">
-                    No contributions found matching your search or filters.
+                  <td colSpan={canLinkFinance ? 10 : 9} className="px-6 py-12">
+                    <EmptyState
+                      title={contributions.length === 0 ? 'No contributions yet' : 'No matching contributions'}
+                      description={contributions.length === 0 ? 'Start tracking collections by recording the first contribution.' : 'Try adjusting your search query or filter options.'}
+                    />
                   </td>
                 </tr>
               ) : (
@@ -1143,19 +1098,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {c.isArchived ? (
-                          <span className="inline-flex px-2.5 py-0.5 bg-gray-100 text-gray-600 border border-gray-200 font-bold rounded-full text-[10px] uppercase">
-                            Archived
-                          </span>
-                        ) : c.status === 'voided' ? (
-                          <span className="inline-flex px-2.5 py-0.5 bg-red-50 text-red-700 border border-red-200 font-bold rounded-full text-[10px] uppercase line-through">
-                            Voided
-                          </span>
-                        ) : (
-                          <span className="inline-flex px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold rounded-full text-[10px] uppercase">
-                            Active
-                          </span>
-                        )}
+                        <StatusBadge
+                          status={c.isArchived ? 'archived' : c.status}
+                          size="sm"
+                        />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
                         <div className="flex items-center justify-end gap-1.5">
@@ -1476,44 +1422,38 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
               {/* Target Event Dropdown (if destination is other_event) */}
               {linkDestination === 'other_event' && (
                 <div>
-                  <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Target Event *</label>
                   {loadingDestCategories && otherEvents.length === 0 ? (
                     <div className="text-xs text-gray-400 py-2">Loading events...</div>
                   ) : (
-                    <select
+                    <CustomSelect
+                      label="Target Event"
                       required
                       value={targetEventId}
                       onChange={(e) => handleTargetEventChange(e.target.value)}
-                      className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs"
-                    >
-                      <option value="">-- Choose Target Event --</option>
-                      {otherEvents.map(evt => (
-                        <option key={evt.id} value={evt.id}>{evt.title}</option>
-                      ))}
-                    </select>
+                      options={[
+                        { value: '', label: '-- Choose Target Event --' },
+                        ...otherEvents.map(evt => ({ value: evt.id, label: evt.title }))
+                      ]}
+                    />
                   )}
                 </div>
               )}
 
               {/* Finance Category Dropdown */}
               <div>
-                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                  {linkDestination === 'main_funds' ? 'Main Finance Category *' : 'Event Finance Category *'}
-                </label>
                 {loadingDestCategories ? (
                   <div className="text-xs text-gray-400 py-2">Loading categories...</div>
                 ) : (
-                  <select
+                  <CustomSelect
+                    label={linkDestination === 'main_funds' ? 'Main Finance Category' : 'Event Finance Category'}
                     required
                     value={selectedFinanceCategory}
                     onChange={(e) => setSelectedFinanceCategory(e.target.value)}
-                    className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs"
-                  >
-                    <option value="">-- Choose Category --</option>
-                    {activeCategoriesList.map(cat => (
-                      <option key={cat.id} value={cat.id}>{cat.name}</option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: '-- Choose Category --' },
+                      ...activeCategoriesList.map(cat => ({ value: cat.id, label: cat.name }))
+                    ]}
+                  />
                 )}
               </div>
 
@@ -1529,8 +1469,10 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
               </div>
 
               <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="dense"
                   onClick={() => { 
                     setShowLinkModal(false)
                     setLinkTarget(null)
@@ -1539,17 +1481,18 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                     setTargetEventId('')
                     setCustomLinkAmount('')
                   }}
-                  className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="submit"
+                  variant="success"
+                  size="dense"
+                  loading={submitting}
                   disabled={submitting || !selectedFinanceCategory || (linkDestination === 'other_event' && !targetEventId) || isAmountInvalid}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 cursor-pointer shadow-xs transition-opacity"
                 >
-                  {submitting ? 'Linking...' : 'Confirm Link'}
-                </button>
+                  Confirm Link
+                </Button>
               </div>
             </form>
           </Modal>
@@ -1658,16 +1601,17 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                   </button>
                 ) : <div />}
 
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="dense"
                   onClick={() => {
                     setShowManageAllocModal(false)
                     setManageAllocTarget(null)
                   }}
-                  className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
                 >
                   Close
-                </button>
+                </Button>
               </div>
             </div>
           </Modal>
@@ -1725,44 +1669,38 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
             {/* Target Event Dropdown (if destination is other_event) */}
             {linkDestination === 'other_event' && (
               <div>
-                <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Target Event *</label>
                 {loadingDestCategories && otherEvents.length === 0 ? (
                   <div className="text-xs text-gray-400 py-2">Loading events...</div>
                 ) : (
-                  <select
+                  <CustomSelect
+                    label="Target Event"
                     required
                     value={targetEventId}
                     onChange={(e) => handleTargetEventChange(e.target.value)}
-                    className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs"
-                  >
-                    <option value="">-- Choose Target Event --</option>
-                    {otherEvents.map(evt => (
-                      <option key={evt.id} value={evt.id}>{evt.title}</option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: '', label: '-- Choose Target Event --' },
+                      ...otherEvents.map(evt => ({ value: evt.id, label: evt.title }))
+                    ]}
+                  />
                 )}
               </div>
             )}
 
             {/* Finance Category Dropdown */}
             <div>
-              <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">
-                {linkDestination === 'main_funds' ? 'Main Finance Category *' : 'Event Finance Category *'}
-              </label>
               {loadingDestCategories ? (
                 <div className="text-xs text-gray-400 py-2">Loading categories...</div>
               ) : (
-                <select
+                <CustomSelect
+                  label={linkDestination === 'main_funds' ? 'Main Finance Category' : 'Event Finance Category'}
                   required
                   value={selectedFinanceCategory}
                   onChange={(e) => setSelectedFinanceCategory(e.target.value)}
-                  className="w-full text-xs font-medium border border-gray-200 rounded-xl px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-500 shadow-xs"
-                >
-                  <option value="">-- Choose Category --</option>
-                  {activeCategoriesList.map(cat => (
-                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                  ))}
-                </select>
+                  options={[
+                    { value: '', label: '-- Choose Category --' },
+                    ...activeCategoriesList.map(cat => ({ value: cat.id, label: cat.name }))
+                  ]}
+                />
               )}
             </div>
 
@@ -1778,25 +1716,28 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
             </div>
 
             <div className="flex justify-end gap-2 pt-3 border-t border-gray-100">
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="dense"
                 onClick={() => {
                   setShowBulkLinkModal(false)
                   setLinkDestination('current_event')
                   setSelectedFinanceCategory('')
                   setTargetEventId('')
                 }}
-                className="px-4 py-2 border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-xs font-bold cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
+                variant="success"
+                size="dense"
+                loading={submitting}
                 disabled={submitting || !selectedFinanceCategory || (linkDestination === 'other_event' && !targetEventId)}
-                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold disabled:opacity-50 cursor-pointer shadow-xs"
               >
-                {submitting ? 'Processing Bulk Link...' : 'Confirm Bulk Link'}
-              </button>
+                Confirm Bulk Link
+              </Button>
             </div>
           </form>
         </Modal>
@@ -1855,14 +1796,6 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
         message={`Are you sure you want to void the contribution of ₱${voidTarget?.amount.toLocaleString()} from ${voidTarget?.contributorName}? This action is irreversible for audit trails.`}
         confirmLabel="Void Record"
         variant="danger"
-      />
-
-      {/* Alert modal */}
-      <AlertModal
-        isOpen={!!alertMessage}
-        onClose={() => setAlertMessage(null)}
-        title={alertTitle}
-        message={alertMessage || ''}
       />
 
       {/* Dynamic PDF Export Modal with Signatures */}

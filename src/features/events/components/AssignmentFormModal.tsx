@@ -5,6 +5,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getMemberOrders } from '@/types/member'
 import type { EventRole, EventAssignment } from '@/types/event'
+import { Button, useToast } from '@/components'
 
 interface Props {
   isOpen: boolean
@@ -16,6 +17,7 @@ interface Props {
 
 export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved, eventId, editItem }) => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [members, setMembers] = useState<Member[]>([])
   const [roles, setRoles] = useState<EventRole[]>([])
@@ -53,7 +55,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
   const loadData = async () => {
     try {
       const [membersData, rolesData, assignmentsData] = await Promise.all([
-        memberService.getMembers(), // only active members
+        memberService.getMembers(),
         eventAssignmentService.getRoles(eventId),
         eventAssignmentService.getAssignmentsByEventId(eventId)
       ])
@@ -115,6 +117,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
           },
           profile?.displayName || 'System'
         )
+        toast.success('Assignment Updated', 'Event member assignment updated successfully.')
       } else {
         await Promise.all(selectedMemberIds.map(async (memberId) => {
           const member = members.find(m => m.id === memberId)
@@ -134,6 +137,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
             assignedByName: profile?.displayName || 'System'
           }, profile?.displayName || 'System')
         }))
+        toast.success('Member Assigned', `${selectedMemberIds.length} member(s) assigned to event successfully.`)
       }
 
       onSaved()
@@ -146,7 +150,6 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
   }
 
   const handleBulkSelect = (groupName: string) => {
-    // Find members belonging to this order/group or rank
     const membersToSelect = members.filter(m => getMemberOrders(m.order).includes(groupName) || m.rank === groupName)
     
     if (membersToSelect.length === 0) {
@@ -154,7 +157,6 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
       return
     }
 
-    // Filter out those already assigned
     const unassignedIds = membersToSelect
       .filter(m => !existingAssignments.some(a => a.memberUid === m.id))
       .map(m => m.id)
@@ -205,12 +207,14 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
 
           <form id="assignmentForm" onSubmit={handleSave} className="space-y-4">
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1 flex justify-between">
-                <span>Select Members ({selectedMemberIds.length} selected)</span>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                  Select Members ({selectedMemberIds.length} selected)
+                </label>
                 {!editItem && selectedMemberIds.length > 0 && (
                   <button type="button" onClick={() => setSelectedMemberIds([])} className="text-xs text-indigo-600 hover:underline font-bold cursor-pointer">Clear</button>
                 )}
-              </label>
+              </div>
 
               {/* Quick Search Input */}
               <div className="mb-2">
@@ -219,7 +223,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                   placeholder="Search member name or order..."
                   value={memberSearchTerm}
                   onChange={e => setMemberSearchTerm(e.target.value)}
-                  className="w-full px-3.5 py-2 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all"
+                  className="w-full px-3.5 py-2 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all shadow-2xs"
                 />
               </div>
 
@@ -288,7 +292,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                 value={committeeInput}
                 onChange={e => setCommitteeInput(e.target.value)}
                 placeholder="e.g. Program & Liturgy, Logistics"
-                className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all"
+                className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all shadow-2xs"
               />
             </div>
 
@@ -300,7 +304,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                 value={roleInput}
                 onChange={e => setRoleInput(e.target.value)}
                 placeholder="e.g. Committee Head, Member"
-                className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all"
+                className="w-full px-3.5 py-2.5 text-xs font-bold border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none bg-slate-50 text-slate-900 focus:bg-white transition-all shadow-2xs"
               />
             </div>
 
@@ -358,22 +362,22 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
         </div>
 
         <div className="p-4 border-t border-slate-100 flex justify-end gap-2.5 bg-white sticky bottom-0">
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={onClose}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-50 transition-all cursor-pointer shadow-2xs"
             disabled={loading}
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             form="assignmentForm"
-            className="rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
-            disabled={loading}
+            variant="primary"
+            loading={loading}
           >
-            {loading ? 'Saving...' : (editItem ? 'Save Changes' : `Assign ${selectedMemberIds.length > 0 ? selectedMemberIds.length : ''} Members`)}
-          </button>
+            {editItem ? 'Save Changes' : `Assign ${selectedMemberIds.length > 0 ? selectedMemberIds.length : ''} Members`}
+          </Button>
         </div>
       </div>
     </div>

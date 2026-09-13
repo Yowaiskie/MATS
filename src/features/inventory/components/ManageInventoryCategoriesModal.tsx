@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Modal } from '@/components/Modal'
+import { Button, useToast } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { inventoryService } from '@/services/inventoryService'
 import { type InventoryItem, type InventoryCategory } from '@/types/inventory'
@@ -18,6 +19,7 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
   items
 }) => {
   const { user, profile } = useAuth()
+  const { toast } = useToast()
   
   const [newCatName, setNewCatName] = useState('')
   const [newCatDesc, setNewCatDesc] = useState('')
@@ -53,6 +55,7 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
       const userUid = user?.uid || 'system'
       const userName = profile?.displayName || user?.email || 'Ministry Officer'
       await inventoryService.createCategory(newCatName.trim(), newCatDesc.trim(), userUid, userName)
+      toast.success('Category Created', `Category "${newCatName.trim()}" was created successfully.`)
       setNewCatName('')
       setNewCatDesc('')
     } catch (err: any) {
@@ -159,13 +162,15 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
               placeholder="Category Name (e.g. Board Games, Outdoor Gear)..."
               className="flex-1 px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-bold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
             />
-            <button
+            <Button
               type="submit"
-              disabled={adding}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black transition-all shadow-md shadow-indigo-500/20 cursor-pointer active:scale-95 disabled:opacity-50 shrink-0 flex items-center justify-center gap-1"
+              variant="purple"
+              size="default"
+              loading={adding}
+              loadingText="Adding..."
             >
-              {adding ? 'Adding...' : 'Add Category'}
-            </button>
+              Add Category
+            </Button>
           </div>
         </form>
 
@@ -193,14 +198,16 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
                 <div className="text-xs text-slate-500 font-medium">
                   No custom categories configured yet.
                 </div>
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="dense"
                   onClick={handleSeedDefaults}
-                  disabled={seeding}
-                  className="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                  loading={seeding}
+                  loadingText="Loading Defaults..."
                 >
-                  {seeding ? 'Loading Defaults...' : '+ Click to Load Default Preset Categories'}
-                </button>
+                  + Click to Load Default Preset Categories
+                </Button>
               </div>
             ) : (
               categories.map((cat) => {
@@ -217,21 +224,24 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
                           onChange={(e) => setEditName(e.target.value)}
                           className="flex-1 px-2.5 py-1.5 bg-white border border-blue-400 rounded-lg text-xs font-bold text-slate-800 focus:outline-none"
                         />
-                        <button
+                        <Button
                           type="button"
+                          variant="primary"
+                          size="dense"
                           onClick={() => handleSaveEdit(cat.id)}
-                          disabled={savingEdit}
-                          className="px-2.5 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-bold cursor-pointer hover:bg-blue-700"
+                          loading={savingEdit}
+                          loadingText="Saving..."
                         >
                           Save
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                           type="button"
+                          variant="secondary"
+                          size="dense"
                           onClick={() => setEditingCatId(null)}
-                          className="px-2.5 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold cursor-pointer hover:bg-slate-200"
                         >
                           Cancel
-                        </button>
+                        </Button>
                       </div>
                     ) : (
                       <>
@@ -279,13 +289,14 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
 
         {/* Footer */}
         <div className="flex justify-end pt-3 border-t border-slate-100">
-          <button
+          <Button
             type="button"
+            variant="secondary"
+            size="default"
             onClick={onClose}
-            className="px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition-all cursor-pointer"
           >
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </Modal>

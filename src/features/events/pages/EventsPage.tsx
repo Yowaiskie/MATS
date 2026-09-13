@@ -2,9 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { eventService } from '@/services/eventService'
 import type { Event } from '@/types/event'
-import { Card } from '@/components/Card'
-import { Pagination } from '@/components/Pagination'
-import { Loading } from '@/components/Loading'
+import { Card, Pagination, Loading, Button, StatusBadge, EmptyState } from '@/components'
 import { EventFormModal } from '../components/EventFormModal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { dashboardService } from '@/services/dashboardService'
@@ -62,18 +60,22 @@ export const EventsPage: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">Manage event workspaces, assignments, and tasks.</p>
         </div>
         {(canAction('canCreateProjects') || canAction('canManageEvents')) && (
-          <button 
+          <Button 
+            variant="primary"
+            size="md"
             onClick={() => setIsModalOpen(true)}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-semibold shadow-sm transition-colors cursor-pointer"
           >
             + Create Event
-          </button>
+          </Button>
         )}
       </div>
 
       <Card className="p-0 border border-gray-200 shadow-xs overflow-hidden">
         {events.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 font-semibold text-xs">No events found. Create one to get started.</div>
+          <EmptyState
+            title="No events found"
+            description="Create an event workspace to get started."
+          />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -96,12 +98,15 @@ export const EventsPage: React.FC = () => {
                         </Link>
                       </td>
                       <td className="px-6 py-4 text-xs font-semibold text-slate-600">
-                        📅 {event.startDate}
+                        <span className="inline-flex items-center gap-1.5 text-slate-600">
+                          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          {event.startDate}
+                        </span>
                       </td>
                       <td className="px-6 py-4">
-                        <span className="inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-indigo-50 text-indigo-700 border border-indigo-200/80">
-                          {event.stage}
-                        </span>
+                        <StatusBadge status={event.stage} size="sm" />
                       </td>
                       <td className="px-6 py-4 text-xs text-slate-700 font-semibold">
                         {event.headName}
@@ -109,7 +114,7 @@ export const EventsPage: React.FC = () => {
                       <td className="px-6 py-4 text-right">
                         <Link 
                           to={`/events/${event.id}`}
-                          className="text-xs font-bold text-slate-700 hover:text-indigo-600 border border-slate-200/80 rounded-xl px-3.5 py-1.5 shadow-2xs hover:border-indigo-200 bg-white hover:bg-indigo-50/50 transition-all"
+                          className="inline-flex items-center text-xs font-bold text-slate-700 hover:text-indigo-600 border border-slate-200/80 rounded-xl px-3.5 py-1.5 shadow-2xs hover:border-indigo-200 bg-white hover:bg-indigo-50/50 transition-all"
                         >
                           Open Workspace
                         </Link>

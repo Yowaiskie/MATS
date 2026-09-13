@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
+import { Button, CustomSelect, useToast } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { inventoryService } from '@/services/inventoryService'
 import { 
@@ -27,6 +28,7 @@ export const InventoryItemModal: React.FC<Props> = ({
   onSuccess
 }) => {
   const { user, profile } = useAuth()
+  const { toast } = useToast()
   
   const [name, setName] = useState('')
   const [category, setCategory] = useState<string>('Recreation & Sports')
@@ -70,7 +72,6 @@ export const InventoryItemModal: React.FC<Props> = ({
   }, [item, isOpen])
 
   const handleQuantityChange = (val: string) => {
-    // Numbers only
     const cleaned = val.replace(/\D/g, '')
     setQuantity(cleaned)
   }
@@ -102,7 +103,6 @@ export const InventoryItemModal: React.FC<Props> = ({
       const userName = profile?.displayName || user?.email || 'Ministry Officer'
 
       if (item) {
-        // Edit existing item
         await inventoryService.updateItem(
           item.id,
           {
@@ -111,15 +111,15 @@ export const InventoryItemModal: React.FC<Props> = ({
             quantity: numQty,
             unit: unit.trim() || 'pcs',
             condition,
-            storageLocation: storageLocation.trim() || 'Ministry Storage',
-            donorOrSource: donorOrSource.trim() || '',
-            notes: notes.trim() || ''
+            storageLocation: storageLocation.trim() || undefined,
+            donorOrSource: donorOrSource.trim() || undefined,
+            notes: notes.trim() || undefined
           },
           userUid,
           userName
         )
+        toast.success('Item Updated', `"${name.trim()}" has been updated in inventory.`)
       } else {
-        // Create new item
         await inventoryService.createItem({
           name: name.trim(),
           category: finalCategory,
@@ -127,52 +127,67 @@ export const InventoryItemModal: React.FC<Props> = ({
           unit: unit.trim() || 'pcs',
           condition,
           status: 'In Stock',
-          storageLocation: storageLocation.trim() || 'Ministry Storage',
-          donorOrSource: donorOrSource.trim() || '',
-          notes: notes.trim() || '',
+          storageLocation: storageLocation.trim() || '',
+          donorOrSource: donorOrSource.trim() || undefined,
+          notes: notes.trim() || undefined,
           createdByUid: userUid,
           createdByName: userName
         })
+        toast.success('Item Added', `"${name.trim()}" has been added to inventory.`)
       }
 
       onSuccess()
       onClose()
     } catch (err: any) {
-      console.error('Failed to save inventory item:', err)
-      setError(err.message || 'Failed to save item. Please try again.')
+      console.error(err)
+      setError(err.message || 'Failed to save inventory item.')
+      toast.error('Save Failed', err.message || 'Failed to save inventory item.')
     } finally {
       setSaving(false)
     }
   }
 
-  // Dynamic categories with fallback to defaults if empty, plus current item category
   const allCategoryOptions = useMemo(() => {
-    const list = categories.length > 0
-      ? categories.map(c => c.name)
-      : [...DEFAULT_INVENTORY_CATEGORIES]
-    if (item?.category && !list.includes(item.category)) {
-      list.push(item.category)
-    }
-    return Array.from(new Set(list)).sort()
-  }, [categories, item])
+    const namesFromProps = categories.map(c => c.name)
+    const combined = Array.from(new Set([...DEFAULT_INVENTORY_CATEGORIES, ...namesFromProps]))
+    return combined.sort()
+  }, [categories])
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={item ? 'Edit Inventory Item' : 'Add New Equipment / Item'}
-      subtitle="Track parish and ministry assets, condition, and storage location"
-      badge="Asset Masterlist"
-      icon={
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-        </svg>
+      title={item ? 'Edit Inventory Item' : 'Add Inventory Item'}
+      subtitle="Manage physical ministry assets, gear, and supplies"
+      badge="Inventory"
+      maxWidth="lg"
+      footer={
+        <>
+          <Button
+            type="button"
+            variant="secondary"
+            size="dense"
+            onClick={onClose}
+            disabled={saving}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="inventory-item-form"
+            variant="primary"
+            size="dense"
+            loading={saving}
+            loadingText={item ? 'Saving...' : 'Adding...'}
+          >
+            {item ? 'Save Changes' : 'Add Item'}
+          </Button>
+        </>
       }
-      maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+      <form id="inventory-item-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
-          <div className="p-3.5 bg-rose-50 text-rose-800 text-xs font-bold rounded-2xl border border-rose-200 animate-fade-in">
+          <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
             {error}
           </div>
         )}
@@ -188,48 +203,37 @@ export const InventoryItemModal: React.FC<Props> = ({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="e.g. Spalding Basketball, Chess Set, GoG, Altar Bell..."
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+            className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
           />
         </div>
 
         {/* Category & Custom Category */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Category <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                value={isCustomCategory ? 'custom' : category}
-                onChange={(e) => {
-                  if (e.target.value === 'custom') {
-                    setIsCustomCategory(true)
-                  } else {
-                    setIsCustomCategory(false)
-                    setCategory(e.target.value)
-                  }
-                }}
-                className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-              >
-                {allCategoryOptions.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-                <option value="custom">+ Type Custom Category...</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Category"
+              required
+              value={isCustomCategory ? 'custom' : category}
+              onChange={(e) => {
+                const val = e.target.value
+                if (val === 'custom') {
+                  setIsCustomCategory(true)
+                } else {
+                  setIsCustomCategory(false)
+                  setCategory(val)
+                }
+              }}
+              options={[
+                ...allCategoryOptions.map((cat) => ({ value: cat, label: cat })),
+                { value: 'custom', label: '+ Type Custom Category...' }
+              ]}
+            />
           </div>
 
           {isCustomCategory ? (
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Custom Category Name <span className="text-red-500">*</span>
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+                Custom Category Name *
               </label>
               <input
                 type="text"
@@ -237,156 +241,91 @@ export const InventoryItemModal: React.FC<Props> = ({
                 value={customCategory}
                 onChange={(e) => setCustomCategory(e.target.value)}
                 placeholder="e.g. Musical Instruments"
-                className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
+                className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
               />
             </div>
           ) : (
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">
-                Condition <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <select
-                  value={condition}
-                  onChange={(e) => setCondition(e.target.value as ItemCondition)}
-                  className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                >
-                  {INVENTORY_CONDITIONS.map((cond) => (
-                    <option key={cond} value={cond}>
-                      {cond}
-                    </option>
-                  ))}
-                </select>
-                <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </div>
-              </div>
+              <CustomSelect
+                label="Condition"
+                required
+                value={condition}
+                onChange={(e) => setCondition(e.target.value as ItemCondition)}
+                options={INVENTORY_CONDITIONS.map((cond) => ({ value: cond, label: cond }))}
+              />
             </div>
           )}
         </div>
 
         {isCustomCategory && (
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Condition <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <select
-                value={condition}
-                onChange={(e) => setCondition(e.target.value as ItemCondition)}
-                className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-              >
-                {INVENTORY_CONDITIONS.map((cond) => (
-                  <option key={cond} value={cond}>
-                    {cond}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Condition"
+              required
+              value={condition}
+              onChange={(e) => setCondition(e.target.value as ItemCondition)}
+              options={INVENTORY_CONDITIONS.map((cond) => ({ value: cond, label: cond }))}
+            />
           </div>
         )}
 
         {/* Quantity & Unit */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Quantity <span className="text-red-500">*</span>
+            <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+              Quantity *
             </label>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => {
-                  const q = Math.max(0, (parseInt(quantity, 10) || 0) - 1)
-                  setQuantity(String(q))
-                }}
-                className="px-3 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm cursor-pointer active:scale-95 transition"
-              >
-                -
-              </button>
-              <input
-                type="text"
-                inputMode="numeric"
-                required
-                value={quantity}
-                onChange={(e) => handleQuantityChange(e.target.value)}
-                className="w-full text-center h-10 px-3 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const q = (parseInt(quantity, 10) || 0) + 1
-                  setQuantity(String(q))
-                }}
-                className="px-3 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-bold text-sm cursor-pointer active:scale-95 transition"
-              >
-                +
-              </button>
-            </div>
+            <input
+              type="text"
+              required
+              value={quantity}
+              onChange={(e) => handleQuantityChange(e.target.value)}
+              placeholder="1"
+              className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
+            />
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">
-              Unit
-            </label>
-            <div className="relative">
-              <select
-                value={unit}
-                onChange={(e) => setUnit(e.target.value)}
-                className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-              >
-                {INVENTORY_UNITS.map((u) => (
-                  <option key={u} value={u}>
-                    {u}
-                  </option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Unit"
+              value={unit}
+              onChange={(e) => setUnit(e.target.value)}
+              options={INVENTORY_UNITS.map((u) => ({ value: u, label: u }))}
+            />
           </div>
         </div>
 
         {/* Storage Location */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Storage Location / Shelf
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+            Storage Location (Optional)
           </label>
           <input
             type="text"
             value={storageLocation}
             onChange={(e) => setStorageLocation(e.target.value)}
-            placeholder="e.g. Ministry Locker 1, Sacristy Cabinet A, Gym Storage..."
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g. Sacristy Cabinet 2, Altar Server Room Locker 4..."
+            className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
           />
         </div>
 
         {/* Donor / Source */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
-            Donor / Acquisition Source (Optional)
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
+            Donor / Source / Procurement (Optional)
           </label>
           <input
             type="text"
             value={donorOrSource}
             onChange={(e) => setDonorOrSource(e.target.value)}
             placeholder="e.g. Donated by Batch 2024, Parish Allocation..."
-            className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500"
+            className="w-full h-10 px-3.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
           />
         </div>
 
         {/* Notes / Remarks */}
         <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">
+          <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
             Notes / Remarks (Optional)
           </label>
           <textarea
@@ -394,34 +333,8 @@ export const InventoryItemModal: React.FC<Props> = ({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g. Complete pieces with timer, size Medium, etc."
-            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
           />
-        </div>
-
-        {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={saving}
-            className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-          >
-            {saving ? (
-              <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Saving...</span>
-              </>
-            ) : (
-              <span>{item ? 'Save Changes' : 'Add Item'}</span>
-            )}
-          </button>
         </div>
       </form>
     </Modal>

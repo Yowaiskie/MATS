@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { Modal } from '@/components/Modal'
+import { Button } from '@/components'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
 import type { SignatureConfig } from '@/types/signature'
 import { DEFAULT_MINISTRY_NAME, DEFAULT_PARISH_NAME } from '@/types/signature'
@@ -125,37 +126,28 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
 
         {/* Action Buttons */}
         <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
-          <button
+          <Button
             type="button"
+            variant="outline"
+            size="dense"
             onClick={onClose}
             disabled={isGenerating}
-            className="px-4 py-2.5 text-xs font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer shadow-2xs"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="primary"
+            size="dense"
             onClick={handleDownload}
-            disabled={isGenerating || rows.length === 0}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition-all cursor-pointer"
+            loading={isGenerating}
+            disabled={rows.length === 0}
           >
-            {isGenerating ? (
-              <>
-                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-                <span>Compiling PDF...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                </svg>
-                <span>Generate & Download PDF</span>
-              </>
-            )}
-          </button>
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            <span>Generate & Download PDF</span>
+          </Button>
         </div>
       </div>
     </Modal>

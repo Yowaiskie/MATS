@@ -1,4 +1,5 @@
 import React from 'react'
+import { FilterDropdown } from '@/components'
 
 interface FilterBarProps {
   activeTab: 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour' | 'qualifications'
@@ -29,57 +30,61 @@ export const FilterBar: React.FC<FilterBarProps> = ({
 }) => {
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i)
 
-  // Check if startDate and endDate represent a specific full month (YYYY-MM)
-  const monthValue = (() => {
-    if (!startDate || !endDate) return ''
-    const sParts = startDate.split('-')
-    const eParts = endDate.split('-')
-    if (sParts.length === 3 && eParts.length === 3) {
-      const [sY, sM, sD] = sParts
-      const [eY, eM, eD] = eParts
-      if (sY === eY && sM === eM && sD === '01') {
-        const lastDay = new Date(parseInt(sY, 10), parseInt(sM, 10), 0).getDate()
-        if (parseInt(eD, 10) === lastDay) {
-          return `${sY}-${sM}`
-        }
-      }
-    }
-    return ''
-  })()
-
   return (
     <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-slate-200/80 bg-white shadow-2xs select-none">
-      {/* Date range & Month Picker filters (Used by Summary, Member, Schedule tabs) */}
+      {/* Date Presets for Member / Schedule tabs */}
+      {(activeTab === 'member' || activeTab === 'schedule') && (
+        <div className="flex flex-col space-y-1.5">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Quick Date Presets
+          </label>
+          <div className="flex flex-wrap gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date()
+                const start = new Date(now.getFullYear(), now.getMonth(), 1)
+                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+                onStartDateChange(start.toISOString().split('T')[0])
+                onEndDateChange(end.toISOString().split('T')[0])
+              }}
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date()
+                const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+                const end = new Date(now.getFullYear(), now.getMonth(), 0)
+                onStartDateChange(start.toISOString().split('T')[0])
+                onEndDateChange(end.toISOString().split('T')[0])
+              }}
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+            >
+              Last Month
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date()
+                const start = new Date(now.getFullYear(), 0, 1)
+                const end = new Date(now.getFullYear(), 11, 31)
+                onStartDateChange(start.toISOString().split('T')[0])
+                onEndDateChange(end.toISOString().split('T')[0])
+              }}
+              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+            >
+              This Year
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Date Range Pickers */}
       {activeTab !== 'monthly' && (
         <>
-          <div className="flex flex-col space-y-1.5 w-full md:w-52">
-            <label htmlFor="filter-month-select" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              Select Month
-            </label>
-            <input
-              id="filter-month-select"
-              type="month"
-              value={monthValue}
-              onChange={(e) => {
-                const val = e.target.value
-                if (!val) {
-                  onStartDateChange('')
-                  onEndDateChange('')
-                  return
-                }
-                const [yearStr, monthStr] = val.split('-')
-                const year = parseInt(yearStr, 10)
-                const month = parseInt(monthStr, 10)
-                const firstDay = `${year}-${String(month).padStart(2, '0')}-01`
-                const lastDayNum = new Date(year, month, 0).getDate()
-                const lastDay = `${year}-${String(month).padStart(2, '0')}-${String(lastDayNum).padStart(2, '0')}`
-                onStartDateChange(firstDay)
-                onEndDateChange(lastDay)
-              }}
-              className="block w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
-            />
-          </div>
-
           <div className="flex flex-col space-y-1.5 flex-1">
             <label htmlFor="filter-start" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Start Date
@@ -111,54 +116,39 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Year filter (Only used by Monthly tab) */}
       {activeTab === 'monthly' && (
         <div className="flex flex-col space-y-1.5 w-full md:w-48">
-          <label htmlFor="filter-year" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Select Year
           </label>
-          <div className="relative">
-            <select
-              id="filter-year"
-              value={selectedYear}
-              onChange={(e) => onYearChange(Number(e.target.value))}
-              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-            >
-              {years.map(y => (
-                <option key={y} value={y}>{y}</option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
-          </div>
+          <FilterDropdown
+            value={String(selectedYear)}
+            onChange={(val) => onYearChange(Number(val))}
+            options={years.map(y => ({
+              key: String(y),
+              label: String(y),
+              dot: 'bg-indigo-500',
+            }))}
+          />
         </div>
       )}
 
       {/* Suspension Status Filter (Only for Member tab) */}
       {activeTab === 'member' && onStatusFilterChange && (
         <div className="flex flex-col space-y-1.5 w-full md:w-56">
-          <label htmlFor="filter-suspension" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Evaluation Status
           </label>
-          <div className="relative">
-            <select
-              id="filter-suspension"
-              value={statusFilter}
-              onChange={(e) => onStatusFilterChange(e.target.value)}
-              className="block w-full h-9 pl-3 pr-9 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-slate-800 appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-            >
-              <option value="all">All Statuses</option>
-              <option value="active">Active / Good Standing</option>
-              <option value="warning">Warning Only</option>
-              <option value="suspended">Suspended Only</option>
-              <option value="inactive">Inactive (0 Serves)</option>
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
-          </div>
+          <FilterDropdown
+            value={statusFilter}
+            onChange={(val) => onStatusFilterChange(val)}
+            allLabel="All Statuses"
+            options={[
+              { key: 'all', label: 'All Statuses', dot: 'bg-slate-400' },
+              { key: 'active', label: 'Active / Good Standing', dot: 'bg-emerald-500' },
+              { key: 'warning', label: 'Warning Only', dot: 'bg-amber-500' },
+              { key: 'suspended', label: 'Suspended Only', dot: 'bg-rose-500' },
+              { key: 'inactive', label: 'Inactive (0 Serves)', dot: 'bg-slate-300' },
+            ]}
+          />
         </div>
       )}
 

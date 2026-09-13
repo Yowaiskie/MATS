@@ -1,8 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import type { ReportRawData, ServiceServerStat, ScheduleCategorySelection } from '@/services/reportService'
 import { reportService } from '@/services/reportService'
-import { Card } from '@/components/Card'
-import { Pagination } from '@/components/Pagination'
+import { Card, Pagination, CustomSelect } from '@/components'
 import { HolyHourServiceHistoryModal } from './HolyHourServiceHistoryModal'
 import { getOrderBadgeStyle, ORDER_GROUPS } from '@/types/member'
 
@@ -538,81 +537,52 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
 
           {/* Order Group Filter */}
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-              Order / Group
-            </label>
-            <div className="relative">
-              <select
-                value={selectedOrder}
-                onChange={(e) => {
-                  setSelectedOrder(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
-              >
-                <option value="all">All Orders / Groups</option>
-                {ORDER_GROUPS.map(og => (
-                  <option key={og} value={og}>{og}</option>
-                ))}
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Order / Group"
+              value={selectedOrder}
+              onChange={(e) => {
+                setSelectedOrder(e.target.value)
+                setCurrentPage(1)
+              }}
+              options={[
+                { value: 'all', label: 'All Orders / Groups' },
+                ...ORDER_GROUPS.map(og => ({ value: og, label: og }))
+              ]}
+            />
           </div>
 
           {/* Serving Activity Filter */}
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-              Participation
-            </label>
-            <div className="relative">
-              <select
-                value={servedFilter}
-                onChange={(e) => {
-                  setServedFilter(e.target.value as any)
-                  setCurrentPage(1)
-                }}
-                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
-              >
-                <option value="all">All Members ({reportSummary.servers.length})</option>
-                <option value="served">Served at least once ({reportSummary.uniqueServersCount})</option>
-                <option value="zero">Zero Serves ({reportSummary.servers.length - reportSummary.uniqueServersCount})</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Participation"
+              value={servedFilter}
+              onChange={(e) => {
+                setServedFilter(e.target.value as any)
+                setCurrentPage(1)
+              }}
+              options={[
+                { value: 'all', label: `All Members (${reportSummary.servers.length})` },
+                { value: 'served', label: `Served at least once (${reportSummary.uniqueServersCount})` },
+                { value: 'zero', label: `Zero Serves (${reportSummary.servers.length - reportSummary.uniqueServersCount})` }
+              ]}
+            />
           </div>
 
           {/* Sort By */}
           <div>
-            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400 mb-1">
-              Sort Ranking By
-            </label>
-            <div className="relative">
-              <select
-                value={sortBy}
-                onChange={(e) => {
-                  setSortBy(e.target.value as any)
-                  setCurrentPage(1)
-                }}
-                className="w-full h-10 pl-3.5 pr-10 text-xs font-semibold border border-slate-300 rounded-xl bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
-              >
-                <option value="most_served">Most Services Completed</option>
-                <option value="rate">Highest Attendance Rate %</option>
-                <option value="name">Server Name (A to Z)</option>
-              </select>
-              <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                </svg>
-              </div>
-            </div>
+            <CustomSelect
+              label="Sort Ranking By"
+              value={sortBy}
+              onChange={(e) => {
+                setSortBy(e.target.value as any)
+                setCurrentPage(1)
+              }}
+              options={[
+                { value: 'most_served', label: 'Most Services Completed' },
+                { value: 'rate', label: 'Highest Attendance Rate %' },
+                { value: 'name', label: 'Server Name (A to Z)' }
+              ]}
+            />
           </div>
 
           {/* Title Keyword Matcher */}

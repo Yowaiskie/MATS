@@ -13,6 +13,7 @@ import type { Member } from '@/types/member'
 import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
 import { FormattedText } from '@/components/FormattedText'
+import { CustomSelect } from '@/components'
 
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
@@ -1060,54 +1061,44 @@ export const PublicEventFormPage: React.FC = () => {
 
                   return (
                     <div className="space-y-2">
-                      <div className="relative">
-                        <select
-                          value={isOtherSelected ? '__other__' : (answers[q.id] || '')}
-                          onChange={e => {
-                            const val = e.target.value
-                            if (val === '__other__') {
-                              const text = customText
-                              handleInputChange(q.id, text.trim() ? `Other: ${text.trim()}` : '__other__')
-                            } else {
-                              handleInputChange(q.id, val)
-                            }
-                          }}
-                          className="w-full h-11 pl-3.5 pr-10 border border-slate-300 rounded-xl text-xs sm:text-sm font-semibold bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs transition cursor-pointer"
-                        >
-                          <option value="">Select an option...</option>
-                          {(q.options || []).map((opt, oIdx) => {
-                            const slotInfo = getOptionSlotInfo(q, opt)
-                            if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
-                              return null
-                            }
-                            return (
-                              <option
-                                key={oIdx}
-                                value={opt}
-                                disabled={slotInfo.isFull}
-                                className={slotInfo.isFull ? 'text-slate-400 bg-slate-100' : ''}
-                              >
-                                {opt}
-                                {slotInfo.hasLimit
-                                  ? slotInfo.isFull
-                                    ? ' — [FULL / No Slots Left]'
-                                    : ` (${slotInfo.openSlots} / ${slotInfo.maxSlots} open slots)`
-                                  : ''}
-                              </option>
-                            )
-                          })}
-                          {q.hasOtherOption && (
-                            <option value="__other__">
-                              {q.otherOptionLabel || 'Other (Please specify...)'}
-                            </option>
-                          )}
-                        </select>
-                        <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                          </svg>
-                        </div>
-                      </div>
+                      <CustomSelect
+                        value={isOtherSelected ? '__other__' : (answers[q.id] || '')}
+                        onChange={e => {
+                          const val = e.target.value
+                          if (val === '__other__') {
+                            const text = customText
+                            handleInputChange(q.id, text.trim() ? `Other: ${text.trim()}` : '__other__')
+                          } else {
+                            handleInputChange(q.id, val)
+                          }
+                        }}
+                        options={[
+                          { value: '', label: 'Select an option...' },
+                          ...(q.options || [])
+                            .filter(opt => {
+                              const slotInfo = getOptionSlotInfo(q, opt)
+                              return !(slotInfo.isFull && q.fullOptionBehavior === 'hide')
+                            })
+                            .map(opt => {
+                              const slotInfo = getOptionSlotInfo(q, opt)
+                              const extraText = slotInfo.hasLimit
+                                ? slotInfo.isFull
+                                  ? ' — [FULL / No Slots Left]'
+                                  : ` (${slotInfo.openSlots} / ${slotInfo.maxSlots} open slots)`
+                                : ''
+                              return {
+                                value: opt,
+                                label: `${opt}${extraText}`,
+                                disabled: slotInfo.isFull
+                              }
+                            }),
+                          ...(q.hasOtherOption ? [{
+                            value: '__other__',
+                            label: q.otherOptionLabel || 'Other (Please specify...)'
+                          }] : [])
+                        ]}
+                        className="!h-11 text-xs sm:text-sm font-semibold"
+                      />
 
                       {isOtherSelected && (
                         <div className="animate-in fade-in slide-in-from-top-1">
@@ -1539,16 +1530,16 @@ export const PublicEventFormPage: React.FC = () => {
                                 </div>
 
                                 <div>
-                                  <label className="block text-[11px] font-bold text-slate-700 mb-1">Relationship</label>
-                                  <select
+                                  <CustomSelect
+                                    label="Relationship"
                                     value={comp.relationship || 'Parent'}
                                     onChange={e => handleUpdateCompanion(comp.id, { relationship: e.target.value })}
-                                    className="w-full p-2.5 border border-slate-300 rounded-xl text-xs bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-                                  >
-                                    <option value="Guardian">Guardian</option>
-                                    <option value="Parent">Parent</option>
-                                    <option value="Sibling">Sibling</option>
-                                  </select>
+                                    options={[
+                                      { value: 'Guardian', label: 'Guardian' },
+                                      { value: 'Parent', label: 'Parent' },
+                                      { value: 'Sibling', label: 'Sibling' }
+                                    ]}
+                                  />
                                 </div>
                               </div>
                             </div>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { Card } from '@/components/Card'
+import { Card, Button, CustomSelect } from '@/components'
 import { settingsService, DEFAULT_POLICY_SETTINGS } from '@/services/settingsService'
 import type { SuspensionPolicySettings } from '@/services/settingsService'
 
@@ -165,21 +165,24 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
               <label className="block text-xs font-semibold text-gray-700 mb-1.5">
                 Or Duration (Months) <span className="text-red-500">*</span>
               </label>
-              <select
-                value={policy.evaluationMonths}
-                onChange={(e) => setPolicy(p => ({ ...p, evaluationMonths: parseInt(e.target.value, 10), evaluationMonthStr: '' }))}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow cursor-pointer bg-white font-medium"
-              >
-                <option value={1}>1 Month (Last 30 Days)</option>
-                <option value={2}>2 Months (Last 60 Days)</option>
-                <option value={3}>3 Months (Quarterly / 90 Days)</option>
-                <option value={4}>4 Months</option>
-                <option value={5}>5 Months</option>
-                <option value={6}>6 Months (Semi-annual)</option>
-                <option value={9}>9 Months</option>
-                <option value={12}>12 Months (1 Year)</option>
-                <option value={0}>All Time (No cutoff date)</option>
-              </select>
+              <CustomSelect
+                value={String(policy.evaluationMonths)}
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                  const val = parseInt(e.target.value, 10)
+                  setPolicy(p => ({ ...p, evaluationMonths: val, evaluationMonthStr: '' }))
+                }}
+                options={[
+                  { value: '1', label: '1 Month (Last 30 Days)' },
+                  { value: '2', label: '2 Months (Last 60 Days)' },
+                  { value: '3', label: '3 Months (Quarterly / 90 Days)' },
+                  { value: '4', label: '4 Months' },
+                  { value: '5', label: '5 Months' },
+                  { value: '6', label: '6 Months (Semi-annual)' },
+                  { value: '9', label: '9 Months' },
+                  { value: '12', label: '12 Months (1 Year)' },
+                  { value: '0', label: 'All Time (No cutoff date)' }
+                ]}
+              />
               <p className="mt-1 text-xs text-gray-400">Relative sliding timeframe</p>
             </div>
           </div>
@@ -366,13 +369,16 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
         </div>
 
         <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-3 pt-4 border-t border-gray-100">
-          <button
+          <Button
             type="submit"
-            disabled={saving || !isDirty}
-            className="w-full sm:w-auto rounded-lg bg-amber-600 hover:bg-amber-700 disabled:opacity-40 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed px-6 py-2.5 text-sm font-bold text-white transition-colors shadow-sm cursor-pointer min-h-[44px]"
+            variant="primary"
+            size="default"
+            loading={saving}
+            disabled={!isDirty}
+            className="w-full sm:w-auto min-h-[44px] !bg-amber-600 hover:!bg-amber-700"
           >
-            {saving ? 'Saving Rules...' : 'Save Policy Settings'}
-          </button>
+            Save Policy Settings
+          </Button>
         </div>
       </form>
     </Card>

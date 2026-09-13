@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import type { SignatoryItem, SignatureConfig, SignaturePreset } from '@/types/signature'
 import {
+  COMMON_SIGNATURE_LABELS,
   DEFAULT_PARISH_NAME,
   DEFAULT_MINISTRY_NAME,
   DEFAULT_PARISH_PRIEST_NAME,
@@ -15,6 +16,126 @@ import { memberService } from '@/services/memberService'
 import { settingsService } from '@/services/settingsService'
 import type { Member } from '@/types/member'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { Button } from '@/components/Button'
+
+interface RoleSelectDropdownProps {
+  value: string
+  onChange: (val: string) => void
+  onCustomMode: () => void
+}
+
+const RoleSelectDropdown: React.FC<RoleSelectDropdownProps> = ({
+  value,
+  onChange,
+  onCustomMode
+}) => {
+  const [isOpen, setIsOpen] = useState(false)
+  const ref = React.useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [])
+
+  const isStandard = (COMMON_SIGNATURE_LABELS as readonly string[]).includes(value)
+  const displayLabel = isStandard ? value : (value ? `Custom: ${value}` : 'Select Role...')
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className={`h-8 px-3 rounded-xl border bg-white flex items-center justify-between gap-2 text-xs font-bold transition shadow-2xs cursor-pointer select-none min-w-[170px] ${
+          isOpen
+            ? 'border-indigo-500 ring-2 ring-indigo-500/20 bg-indigo-50/30 text-indigo-950'
+            : 'border-slate-200/90 text-slate-800 hover:border-indigo-300 hover:bg-slate-50/60'
+        }`}
+      >
+        <div className="flex items-center gap-1.5 truncate">
+          <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />
+          <span className="truncate">{displayLabel}</span>
+        </div>
+        <svg
+          className={`w-3.5 h-3.5 text-slate-400 shrink-0 transition-transform duration-150 ${
+            isOpen ? 'rotate-180 text-indigo-600' : ''
+          }`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 top-full mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-1.5 min-w-[220px] max-h-64 overflow-y-auto space-y-0.5 animate-in fade-in zoom-in-95 duration-100">
+          <div className="px-2.5 py-1 text-[10px] font-black text-slate-400 uppercase tracking-wider">
+            Signatory Role
+          </div>
+          {COMMON_SIGNATURE_LABELS.map((lbl) => {
+            const isSelected = value === lbl
+            return (
+              <button
+                key={lbl}
+                type="button"
+                onClick={() => {
+                  onChange(lbl)
+                  setIsOpen(false)
+                }}
+                className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                  isSelected
+                    ? 'bg-indigo-50 text-indigo-950 font-bold'
+                    : 'text-slate-700 hover:bg-slate-100 font-medium'
+                }`}
+              >
+                <span>{lbl}</span>
+                {isSelected && (
+                  <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                  </svg>
+                )}
+              </button>
+            )
+          })}
+          <div className="border-t border-slate-100 pt-1 mt-1">
+            <button
+              type="button"
+              onClick={() => {
+                onCustomMode()
+                setIsOpen(false)
+              }}
+              className={`w-full text-left px-2.5 py-1.5 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                !isStandard
+                  ? 'bg-indigo-50 text-indigo-950 font-bold'
+                  : 'text-indigo-600 hover:bg-indigo-50 font-semibold'
+              }`}
+            >
+              <span>Custom Role Label...</span>
+              {!isStandard && (
+                <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 interface DynamicSignatureConfigProps {
   value: SignatureConfig
@@ -523,233 +644,190 @@ export const DynamicSignatureConfig: React.FC<DynamicSignatureConfigProps> = ({
                 </div>
               ) : (
                 <div className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-                  {value.signatories.map((sig, idx) => (
-                    <div
-                      key={sig.id}
-                      className="p-3.5 rounded-2xl border border-slate-200/90 bg-white hover:border-indigo-300 transition-all space-y-3 shadow-2xs"
-                    >
-                      {/* Top Bar: Order #, Label Badge, Column Toggle, Move, Delete */}
-                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="w-5 h-5 flex items-center justify-center rounded-lg bg-indigo-50 text-[10px] font-black text-indigo-700 border border-indigo-100">
-                            {idx + 1}
-                          </span>
-                          <span className="text-xs font-black text-slate-900">
-                            {sig.label || `Signatory #${idx + 1}`}
-                          </span>
-                          <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md ${
-                            sig.column === 1
-                              ? 'bg-slate-100 text-slate-700'
-                              : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                          }`}>
-                            {sig.column === 1 ? 'Left Column (Col 1)' : 'Right Column (Col 2)'}
-                          </span>
-                        </div>
+                  {value.signatories.map((sig, idx) => {
+                    const isStandardLabel = (COMMON_SIGNATURE_LABELS as readonly string[]).includes(sig.label)
 
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {/* Column Placement Switch */}
-                          <div className="flex items-center rounded-xl border border-slate-200 bg-slate-50 p-0.5 text-[10px] font-bold">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateSignatory(sig.id, { column: 1 })}
-                              className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                                sig.column === 1 || !sig.column
-                                  ? 'bg-white text-indigo-700 font-black shadow-2xs border border-slate-200/80'
-                                  : 'text-slate-500 hover:text-slate-800'
-                              }`}
-                            >
-                              Left
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateSignatory(sig.id, { column: 2 })}
-                              className={`px-2.5 py-1 rounded-lg transition cursor-pointer ${
-                                sig.column === 2
-                                  ? 'bg-white text-indigo-700 font-black shadow-2xs border border-slate-200/80'
-                                  : 'text-slate-500 hover:text-slate-800'
-                              }`}
-                            >
-                              Right
-                            </button>
-                          </div>
+                    return (
+                        <div
+                          key={sig.id}
+                          className="p-4 rounded-2xl border border-slate-200/80 bg-slate-50/50 hover:bg-white hover:border-slate-300 transition-all space-y-3 shadow-2xs"
+                        >
+                          {/* Top Bar: Order #, Role Dropdown, Column Toggle, Move, Delete */}
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+                            {/* Role Label Selector / Editor */}
+                            <div className="flex items-center gap-2 flex-1 min-w-[220px]">
+                              <span className="w-5 h-5 flex items-center justify-center rounded-lg bg-indigo-100 text-[10px] font-black text-indigo-700 shrink-0">
+                                {idx + 1}
+                              </span>
+                              <RoleSelectDropdown
+                                value={sig.label}
+                                onChange={(val) => handleUpdateSignatory(sig.id, { label: val })}
+                                onCustomMode={() => handleUpdateSignatory(sig.id, { label: '' })}
+                              />
 
-                          {/* Move Up / Down */}
-                          <div className="flex items-center bg-slate-50 border border-slate-200 rounded-xl p-0.5">
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSignatory(idx, 'up')}
-                              disabled={idx === 0}
-                              className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-20 rounded-lg cursor-pointer"
-                              title="Move Up"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
-                              </svg>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSignatory(idx, 'down')}
-                              disabled={idx === value.signatories.length - 1}
-                              className="p-1 text-slate-500 hover:text-slate-800 disabled:opacity-20 rounded-lg cursor-pointer"
-                              title="Move Down"
-                            >
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                              </svg>
-                            </button>
-                          </div>
+                              {!isStandardLabel && (
+                                <input
+                                  type="text"
+                                  value={sig.label}
+                                  onChange={e => handleUpdateSignatory(sig.id, { label: e.target.value })}
+                                  placeholder="Type custom role..."
+                                  className="h-8 px-3 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 flex-1 min-w-[140px] shadow-2xs"
+                                  autoFocus
+                                />
+                              )}
+                            </div>
 
-                          {/* Remove Signatory */}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveSignatory(sig.id)}
-                            className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-xl border border-rose-200/60 transition cursor-pointer"
-                            title="Remove Signatory"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Inputs Grid */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                        {/* 1. Role / Label Selection & Quick Chips */}
-                        <div className="sm:col-span-2 space-y-1.5">
-                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                            Role / Prefix Header Label
-                          </label>
-
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={sig.label}
-                              onChange={e => handleUpdateSignatory(sig.id, { label: e.target.value })}
-                              placeholder="e.g. Prepared by:, Noted by:, Approved by:"
-                              className="flex-1 p-2 text-xs font-bold border border-slate-300 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 transition"
-                            />
-                          </div>
-
-                          {/* Quick Role Select Chips */}
-                          <div className="flex flex-wrap gap-1 pt-0.5">
-                            {POPULAR_ROLE_PILLS.map(lbl => {
-                              const isCurrent = sig.label === lbl
-                              return (
+                            {/* Column Switch, Up/Down, Delete */}
+                            <div className="flex items-center gap-2 shrink-0">
+                              {/* Left/Right Column Toggle */}
+                              <div className="flex items-center rounded-lg border border-slate-200 bg-white p-0.5 text-[10px] font-bold shadow-2xs">
                                 <button
-                                  key={lbl}
                                   type="button"
-                                  onClick={() => handleUpdateSignatory(sig.id, { label: lbl })}
-                                  className={`text-[10px] font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
-                                    isCurrent
-                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow-2xs'
-                                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:border-indigo-300 hover:text-indigo-700 hover:bg-white'
+                                  onClick={() => handleUpdateSignatory(sig.id, { column: 1 })}
+                                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                                    sig.column === 1 || !sig.column
+                                      ? 'bg-indigo-600 text-white font-black'
+                                      : 'text-slate-500 hover:text-slate-800'
                                   }`}
                                 >
-                                  {lbl}
+                                  Left
                                 </button>
-                              )
-                            })}
-                          </div>
-                        </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleUpdateSignatory(sig.id, { column: 2 })}
+                                  className={`px-2 py-0.5 rounded-md transition cursor-pointer ${
+                                    sig.column === 2
+                                      ? 'bg-indigo-600 text-white font-black'
+                                      : 'text-slate-500 hover:text-slate-800'
+                                  }`}
+                                >
+                                  Right
+                                </button>
+                              </div>
 
-                        {/* 2. Signatory Name with Member Search Dropdown & Quick Autofill */}
-                        <div>
-                          <div className="flex items-center justify-between mb-1">
-                            <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500">
-                              Signatory Name (Bold in PDF)
-                            </label>
-                            <div className="flex items-center gap-1">
+                              {/* Move Up / Down Buttons */}
+                              <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveSignatory(idx, 'up')}
+                                  disabled={idx === 0}
+                                  className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20 cursor-pointer rounded"
+                                  title="Move Up"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMoveSignatory(idx, 'down')}
+                                  disabled={idx === value.signatories.length - 1}
+                                  className="p-1 text-slate-400 hover:text-slate-700 disabled:opacity-20 cursor-pointer rounded"
+                                  title="Move Down"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                              </div>
+
+                              {/* Remove Signatory */}
                               <button
                                 type="button"
-                                onClick={() => handleFillParishPriest(sig.id)}
-                                className="text-[9px] font-black px-1.5 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 transition cursor-pointer"
-                                title="Auto-fill Parish Priest (Rev. Fr. ILDEFONSO DE GUZMAN JR.)"
+                                onClick={() => handleRemoveSignatory(sig.id)}
+                                className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg border border-transparent hover:border-rose-200 transition cursor-pointer"
+                                title="Remove Signatory"
                               >
-                                Parish Priest
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFillCoordinator(sig.id)}
-                                className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-50 hover:bg-indigo-100 text-indigo-800 border border-indigo-200 transition cursor-pointer"
-                                title="Auto-fill Coordinator (Bro. KYLE VINCENT MADRIAGA)"
-                              >
-                                Coordinator
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => handleFillTreasurer(sig.id)}
-                                className="text-[9px] font-black px-1.5 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 transition cursor-pointer"
-                                title="Auto-fill Treasurer (Bro. CHRYSLER DAVID)"
-                              >
-                                Treasurer
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
                               </button>
                             </div>
                           </div>
 
-                          <MemberSearchDropdown
-                            members={members}
-                            value={sig.name}
-                            mode="name"
-                            title="Select Officer / Altar Server"
-                            placeholder="Search officer / member..."
-                            formatDisplayName={(m) => `Bro. ${m.firstName} ${m.lastName}`.toUpperCase()}
-                            onChange={(val, item) => {
-                              if (item?.rawMember) {
-                                handleSelectMember(sig.id, item.rawMember)
-                              } else {
-                                handleUpdateSignatory(sig.id, { name: val })
-                              }
-                            }}
-                          />
-                        </div>
+                          {/* Signatory Body Form */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            {/* Signatory Name */}
+                            <div className="space-y-1">
+                              <div className="flex items-center justify-between">
+                                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                  Signatory Name <span className="text-rose-500">*</span>
+                                </label>
+                                <div className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-600">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFillParishPriest(sig.id)}
+                                    className="hover:underline cursor-pointer"
+                                  >
+                                    Priest
+                                  </button>
+                                  <span className="text-slate-300">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFillCoordinator(sig.id)}
+                                    className="hover:underline cursor-pointer"
+                                  >
+                                    Coord
+                                  </button>
+                                  <span className="text-slate-300">•</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFillTreasurer(sig.id)}
+                                    className="hover:underline cursor-pointer"
+                                  >
+                                    Treas
+                                  </button>
+                                </div>
+                              </div>
 
-                        {/* 3. Title / Designation */}
-                        <div>
-                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                            Position / Title (Line 1)
-                          </label>
-                          <input
-                            type="text"
-                            value={sig.title}
-                            onChange={e => handleUpdateSignatory(sig.id, { title: e.target.value })}
-                            placeholder="e.g. Coordinator, Ministry of Altar Servers"
-                            className="w-full p-2 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600"
-                          />
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {COMMON_POSITION_SUGGESTIONS.slice(0, 4).map(pos => (
-                              <button
-                                key={pos}
-                                type="button"
-                                onClick={() => handleUpdateSignatory(sig.id, { title: pos })}
-                                className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md border transition cursor-pointer ${
-                                  sig.title === pos
-                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
-                                    : 'bg-white border-slate-200 text-slate-500 hover:text-slate-800'
-                                }`}
-                              >
-                                {pos.replace(`, ${DEFAULT_MINISTRY_NAME}`, '')}
-                              </button>
-                            ))}
+                              <MemberSearchDropdown
+                                members={members}
+                                value={sig.name}
+                                mode="name"
+                                title="Select Officer / Altar Server"
+                                placeholder="Search officer or type name..."
+                                formatDisplayName={(m) => `Bro. ${m.firstName} ${m.lastName}`.toUpperCase()}
+                                onChange={(val, item) => {
+                                  if (item?.rawMember) {
+                                    handleSelectMember(sig.id, item.rawMember)
+                                  } else {
+                                    handleUpdateSignatory(sig.id, { name: val })
+                                  }
+                                }}
+                              />
+                            </div>
+
+                            {/* Position / Title Line 1 */}
+                            <div className="space-y-1">
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Position / Title (Line 1)
+                              </label>
+                              <input
+                                type="text"
+                                value={sig.title}
+                                onChange={e => handleUpdateSignatory(sig.id, { title: e.target.value })}
+                                placeholder="e.g. Treasurer, Ministry of Altar Servers"
+                                className="w-full h-8 px-3 text-xs font-semibold border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs"
+                              />
+                            </div>
+
+                            {/* Parish / Organization Line 2 */}
+                            <div className="sm:col-span-2 space-y-1">
+                              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                                Parish / Organization (Line 2)
+                              </label>
+                              <input
+                                type="text"
+                                value={sig.organization || ''}
+                                onChange={e => handleUpdateSignatory(sig.id, { organization: e.target.value })}
+                                placeholder={DEFAULT_PARISH_NAME}
+                                className="w-full h-8 px-3 text-xs font-semibold border border-slate-200 rounded-lg bg-white text-slate-800 placeholder-slate-400 focus:outline-none focus:border-indigo-500 shadow-2xs"
+                              />
+                            </div>
                           </div>
                         </div>
-
-                        {/* 4. Organization / Parish Line */}
-                        <div className="sm:col-span-2">
-                          <label className="block text-[10px] font-black uppercase tracking-wider text-slate-500 mb-1">
-                            Parish / Organization (Line 2)
-                          </label>
-                          <input
-                            type="text"
-                            value={sig.organization || ''}
-                            onChange={e => handleUpdateSignatory(sig.id, { organization: e.target.value })}
-                            placeholder={DEFAULT_PARISH_NAME}
-                            className="w-full p-2 text-xs font-semibold border border-slate-300 rounded-xl bg-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+                      )
+                    })}
                 </div>
               )}
 
@@ -865,26 +943,30 @@ export const DynamicSignatureConfig: React.FC<DynamicSignatureConfigProps> = ({
               value={newPresetName}
               onChange={e => setNewPresetName(e.target.value)}
               placeholder="e.g. Audit & Verified Approval"
-              className="w-full p-2.5 text-xs font-bold border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600"
+              className="w-full px-3.5 py-2 text-xs font-bold border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-600 shadow-2xs"
               autoFocus
             />
 
             <div className="flex items-center justify-end gap-2 pt-2">
-              <button
+              <Button
                 type="button"
+                variant="secondary"
+                size="dense"
                 onClick={() => setShowSavePresetModal(false)}
-                className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
+                variant="primary"
+                size="dense"
                 onClick={handleSavePreset}
                 disabled={!newPresetName.trim() || isSavingPreset}
-                className="px-4 py-1.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-xs cursor-pointer"
+                loading={isSavingPreset}
+                loadingText="Saving..."
               >
-                {isSavingPreset ? 'Saving...' : 'Save Preset'}
-              </button>
+                Save Preset
+              </Button>
             </div>
           </div>
         </div>

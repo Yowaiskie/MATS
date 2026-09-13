@@ -9,11 +9,20 @@ import {
 } from '@/types/inventory'
 import { InventoryItemModal } from '../components/InventoryItemModal'
 import { ManageInventoryCategoriesModal } from '../components/ManageInventoryCategoriesModal'
-import { PasswordConfirmModal } from '@/components/Dialog'
-import { Card } from '@/components/Card'
+import { 
+  Button, 
+  Card, 
+  FilterDropdown, 
+  QuickFilterPills, 
+  StatusBadge, 
+  EmptyState, 
+  PasswordConfirmModal, 
+  useToast 
+} from '@/components'
 
 export const InventoryPage: React.FC = () => {
   const { user, profile, canAction } = useAuth()
+  const { toast } = useToast()
   
   const [items, setItems] = useState<InventoryItem[]>([])
   const [categories, setCategories] = useState<InventoryCategory[]>([])
@@ -80,51 +89,45 @@ export const InventoryPage: React.FC = () => {
     return counts
   }, [items])
 
-  // Filtered items
+  // Filtered Items
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      // Category Filter
+      // Category filter
       if (selectedCategory !== 'all' && item.category !== selectedCategory) {
         return false
       }
-      // Condition Filter
+      // Condition filter
       if (selectedCondition !== 'all' && item.condition !== selectedCondition) {
         return false
       }
-      // Search Query
+      // Search query
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase()
-        const matchName = item.name.toLowerCase().includes(query)
-        const matchCat = (item.category || '').toLowerCase().includes(query)
-        const matchLoc = (item.storageLocation || '').toLowerCase().includes(query)
-        const matchNotes = (item.notes || '').toLowerCase().includes(query)
-        const matchDonor = (item.donorOrSource || '').toLowerCase().includes(query)
-        if (!matchName && !matchCat && !matchLoc && !matchNotes && !matchDonor) {
-          return false
-        }
+        const q = searchQuery.toLowerCase()
+        const matchName = item.name.toLowerCase().includes(q)
+        const matchLoc = (item.storageLocation || '').toLowerCase().includes(q)
+        const matchNotes = (item.notes || '').toLowerCase().includes(q)
+        const matchDonor = (item.donorOrSource || '').toLowerCase().includes(q)
+        return matchName || matchLoc || matchNotes || matchDonor
       }
       return true
     })
   }, [items, selectedCategory, selectedCondition, searchQuery])
 
-  // KPI Metrics
+  // Metrics KPI
   const metrics = useMemo(() => {
-    const activeList = items.filter(i => !i.isArchived)
-    const totalItems = activeList.length
-    const totalUnits = activeList.reduce((sum, i) => sum + (Number(i.quantity) || 0), 0)
-    const goodConditionCount = activeList.filter(i => i.condition === 'Good' || i.condition === 'Brand New').length
-    const damagedCount = activeList.filter(i => i.condition === 'Damaged / For Repair').length
-    return {
-      totalItems,
-      totalUnits,
-      goodConditionCount,
-      damagedCount
-    }
+    const totalItems = items.length
+    const totalUnits = items.reduce((acc, curr) => acc + (curr.quantity || 0), 0)
+    const goodConditionCount = items.filter(i => i.condition === 'Good' || i.condition === 'Brand New').length
+    const damagedCount = items.filter(i => i.condition === 'Damaged / For Repair').length
+    return { totalItems, totalUnits, goodConditionCount, damagedCount }
   }, [items])
 
-  // Quick Quantity Adjustment
+  // Quick adjust quantity
   const handleQuickAdjust = async (item: InventoryItem, delta: number) => {
     if (!isAuthorized) return
+    const newQty = Math.max(0, (item.quantity || 0) + delta)
+    if (newQty === item.quantity) return
+
     try {
       const userUid = user?.uid || 'system'
       const userName = profile?.displayName || user?.email || 'Ministry Officer'
@@ -136,8 +139,10 @@ export const InventoryPage: React.FC = () => {
         userUid,
         userName
       )
+      toast.success('Quantity Updated', `Adjusted quantity of "${item.name}" to ${newQty} ${item.unit || 'pcs'}.`)
     } catch (err) {
       console.error('Failed to adjust quantity:', err)
+      toast.error('Adjustment Failed', 'Could not update inventory quantity.')
     }
   }
 
@@ -149,6 +154,10 @@ export const InventoryPage: React.FC = () => {
       const userUid = user.uid
       const userName = profile.displayName || user.email || 'Ministry Officer'
       await inventoryService.archiveItem(archiveConfirm.id, !archiveConfirm.isArchived, userUid, userName)
+      toast.success(
+        archiveConfirm.isArchived ? 'Item Restored' : 'Item Archived',
+        `"${archiveConfirm.name}" has been ${archiveConfirm.isArchived ? 'restored to active inventory' : 'moved to archives'}.`
+      )
       setArchiveConfirm({ isOpen: false, id: '', name: '', isArchived: false })
     } catch (err: any) {
       console.error(err)
@@ -162,6 +171,7 @@ export const InventoryPage: React.FC = () => {
     try {
       await authService.verifyPassword(password)
       await inventoryService.deleteItem(deleteConfirm.id)
+      toast.success('Item Deleted', `"${deleteConfirm.name}" was permanently removed.`)
       setDeleteConfirm({ isOpen: false, id: '', name: '' })
     } catch (err: any) {
       console.error(err)
@@ -186,15 +196,15 @@ export const InventoryPage: React.FC = () => {
 
   const getStatusBadge = (status: string, qty: number) => {
     if (qty === 0 || status === 'Out of Stock') {
-      return <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-red-100 text-red-700 uppercase">Out of Stock</span>
+      return <StatusBadge status="error" size="sm" className="!text-red-700 !bg-red-50 !border-red-200" />
     }
     if (status === 'Under Maintenance') {
-      return <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-rose-100 text-rose-800 uppercase">Maintenance</span>
+      return <StatusBadge status="warning" size="sm" className="!text-rose-800 !bg-rose-50 !border-rose-200" />
     }
     if (qty <= 2 || status === 'Low Stock') {
-      return <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-amber-100 text-amber-800 uppercase">Low Stock</span>
+      return <StatusBadge status="pending" size="sm" className="!text-amber-800 !bg-amber-50 !border-amber-200" />
     }
-    return <span className="px-2 py-0.5 text-[10px] font-black rounded-full bg-emerald-100 text-emerald-800 uppercase">In Stock</span>
+    return <StatusBadge status="active" size="sm" className="!text-emerald-800 !bg-emerald-50 !border-emerald-200" />
   }
 
   return (
@@ -212,31 +222,36 @@ export const InventoryPage: React.FC = () => {
 
         {isAuthorized && (
           <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="default"
               onClick={() => setIsCategoriesModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs sm:text-sm font-bold border border-slate-200/80 transition-all cursor-pointer active:scale-95 shrink-0"
-              title="Manage Inventory Categories"
+              icon={
+                <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+              }
             >
-              <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-              </svg>
-              <span>Categories</span>
-            </button>
+              Categories
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="default"
               onClick={() => {
                 setEditingItem(undefined)
                 setIsModalOpen(true)
               }}
-              className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs sm:text-sm font-bold shadow-md shadow-blue-500/25 transition-all cursor-pointer active:scale-95 shrink-0"
+              icon={
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+              }
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              <span>Add Item</span>
-            </button>
+              Add Item
+            </Button>
           </div>
         )}
       </div>
@@ -294,33 +309,24 @@ export const InventoryPage: React.FC = () => {
 
       {/* Modern Swipeable Segmented Category Navigation Bar */}
       <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden py-0.5 px-0.5 flex-1">
-          {[
-            { key: 'all', label: 'All Items' },
-            ...allCategoryNames.map(c => ({ key: c, label: c }))
-          ].map((cat) => {
-            const isActive = selectedCategory === cat.key
-            const count = categoryCounts[cat.key] || 0
-            return (
-              <button
-                key={cat.key}
-                type="button"
-                onClick={() => setSelectedCategory(cat.key)}
-                className={`inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
-                  isActive
-                    ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
-                }`}
-              >
-                <span className="whitespace-nowrap">{cat.label}</span>
-                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-black leading-none ${
-                  isActive ? 'bg-white text-blue-700' : 'bg-slate-200 text-slate-700'
-                }`}>
-                  {count}
-                </span>
-              </button>
-            )
-          })}
+        <div className="flex-1 min-w-0">
+          <QuickFilterPills
+            title=""
+            pills={[
+              {
+                label: 'All Items',
+                active: selectedCategory === 'all',
+                onClick: () => setSelectedCategory('all'),
+                count: categoryCounts['all'] || 0
+              },
+              ...allCategoryNames.map(c => ({
+                label: c,
+                active: selectedCategory === c,
+                onClick: () => setSelectedCategory(c),
+                count: categoryCounts[c] || 0
+              }))
+            ]}
+          />
         </div>
 
         {/* Global Archive Filter Toggle */}
@@ -357,27 +363,18 @@ export const InventoryPage: React.FC = () => {
           />
         </div>
 
-        {/* Condition Filter */}
+        {/* Condition Filter & View Switcher */}
         <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-          <div className="relative">
-            <select
-              value={selectedCondition}
-              onChange={(e) => setSelectedCondition(e.target.value)}
-              className="h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
-            >
-              <option value="all">All Conditions</option>
-              {INVENTORY_CONDITIONS.map((cond) => (
-                <option key={cond} value={cond}>
-                  {cond}
-                </option>
-              ))}
-            </select>
-            <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-              </svg>
-            </div>
-          </div>
+          <FilterDropdown
+            label="Condition"
+            allLabel="All Conditions"
+            value={selectedCondition}
+            onChange={setSelectedCondition}
+            options={[
+              { key: 'all', label: 'All Conditions' },
+              ...INVENTORY_CONDITIONS.map((cond) => ({ key: cond, label: cond }))
+            ]}
+          />
 
           {/* View Mode Toggle (Grid / Table) */}
           <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200/80">
@@ -415,17 +412,14 @@ export const InventoryPage: React.FC = () => {
           <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent" />
         </div>
       ) : filteredItems.length === 0 ? (
-        <div className="text-center py-16 px-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
-          <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
-            </svg>
-          </div>
-          <h3 className="text-sm font-bold text-slate-800">No inventory items found</h3>
-          <p className="text-xs text-slate-500 max-w-sm mx-auto">
-            {searchQuery ? 'Try adjusting your search query or filters.' : 'Click "+ Add Item" above to start cataloging ministry equipment.'}
-          </p>
-        </div>
+        <EmptyState
+          title="No Inventory Items Found"
+          description={searchQuery ? 'Try adjusting your search query or condition filters.' : 'Click "+ Add Item" above to start cataloging ministry equipment.'}
+          action={isAuthorized && !searchQuery ? {
+            label: '+ Add Item',
+            onClick: () => { setEditingItem(undefined); setIsModalOpen(true); }
+          } : undefined}
+        />
       ) : viewMode === 'grid' ? (
         /* Grid Cards View */
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

@@ -14,20 +14,22 @@ import { EventFormModal } from '../components/EventFormModal'
 import { dashboardService } from '@/services/dashboardService'
 import { eventTaskService } from '@/services/eventTaskService'
 import { authService } from '@/services/authService'
-import { PasswordConfirmModal, AlertModal } from '@/components/Dialog'
+import { PasswordConfirmModal } from '@/components/Dialog'
+import { Button, StatusBadge } from '@/components'
+import { useToast } from '@/context/ToastContext'
 
 type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms' | 'contributions'
 
 export const EventDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
   const [accessDenied, setAccessDenied] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('tasks')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
-  const [isAlertOpen, setIsAlertOpen] = useState(false)
   const { profile, canAction } = useAuth()
 
   const fetchEvent = async () => {
@@ -78,10 +80,13 @@ export const EventDetailsPage: React.FC = () => {
       await authService.verifyPassword(password)
       await eventService.deleteEvent(id, profile?.email || 'System')
       setIsConfirmDeleteOpen(false)
+      toast.success('Workspace Deleted', 'The event workspace has been permanently deleted.')
       navigate('/events')
     } catch (err: any) {
       console.error('Failed to delete event:', err)
-      throw new Error(err.message || 'Verification failed. Password may be incorrect.')
+      const msg = err.message || 'Verification failed. Password may be incorrect.'
+      toast.error('Delete Failed', msg)
+      throw new Error(msg)
     }
   }
   
@@ -124,24 +129,24 @@ export const EventDetailsPage: React.FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {(canAction('canDeleteEvents') || canAction('canManageEvents') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
-            <button
+            <Button
+              variant="danger"
+              size="sm"
               onClick={handleDeleteEvent}
-              className="px-3 py-1.5 text-xs font-bold text-red-600 bg-red-50 hover:bg-red-100 rounded-lg border border-red-200 transition-colors cursor-pointer"
             >
               Delete Workspace
-            </button>
+            </Button>
           )}
           {(canAction('canEditProjects') || canAction('canManageEvents') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setIsEditModalOpen(true)}
-              className="px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition-colors cursor-pointer"
             >
               Edit Event
-            </button>
+            </Button>
           )}
-          <span className="inline-flex px-3 py-1 rounded-full text-[11px] font-bold uppercase bg-blue-50 text-blue-700 border border-blue-200">
-            {event.stage}
-          </span>
+          <StatusBadge status={event.stage} />
         </div>
       </div>
 
@@ -214,13 +219,6 @@ export const EventDetailsPage: React.FC = () => {
         title="Delete Workspace"
         message={`Are you sure you want to delete the event workspace "${event.title}"? This cannot be undone. Please enter your password to confirm.`}
         confirmLabel="Delete Workspace"
-      />
-
-      <AlertModal
-        isOpen={isAlertOpen}
-        onClose={() => setIsAlertOpen(false)}
-        title="Delete Failed"
-        message="Failed to delete event. Please try again."
       />
     </div>
   )

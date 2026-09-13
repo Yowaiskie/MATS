@@ -5,6 +5,7 @@ import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
 import { formatDocCodeWithDate } from '@/utils/pdfFooterHelper'
+import { Button } from '@/components'
 import {
   downloadSchedulePdfLongLandscape,
   printSchedulePdf,
@@ -1310,32 +1311,42 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
           </div>
 
           <div className="flex items-center gap-3">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="dense"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+              disabled={isExporting || loading}
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 6 2 18 2 18 9" />
+                  <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                  <rect width="12" height="8" x="6" y="14" />
+                </svg>
+              }
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="6 9 6 2 18 2 18 9" />
-                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-                <rect width="12" height="8" x="6" y="14" />
-              </svg>
-              <span>Print</span>
-            </button>
+              Print
+            </Button>
 
-            <button
+            <Button
               type="button"
+              variant="primary"
+              size="dense"
               onClick={handleDownloadPdf}
               disabled={isExporting || loading}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95 disabled:opacity-50"
+              loading={isExporting}
+              loadingText="Generating PDF..."
+              icon={
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" x2="12" y1="15" y2="3" />
+                </svg>
+              }
+              className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
             >
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" x2="12" y1="15" y2="3" />
-              </svg>
-              <span>{isExporting ? 'Generating PDF...' : 'Download PDF (Long 8.5×13 Landscape)'}</span>
-            </button>
+              Download PDF (Long 8.5×13 Landscape)
+            </Button>
           </div>
         </div>
 

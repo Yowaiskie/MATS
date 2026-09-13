@@ -131,46 +131,6 @@ export const DashboardLayout: React.FC = () => {
     }
   }, [run])
 
-  // Swipe to open/close mobile menu
-  const [touchStartX, setTouchStartX] = useState<number | null>(null)
-  const [touchEndX, setTouchEndX] = useState<number | null>(null)
-  const [touchStartY, setTouchStartY] = useState<number | null>(null)
-  const [touchEndY, setTouchEndY] = useState<number | null>(null)
-
-  const minSwipeDistance = 50
-
-  const onTouchStart = (e: React.TouchEvent) => {
-    setTouchEndX(null)
-    setTouchEndY(null)
-    setTouchStartX(e.targetTouches[0].clientX)
-    setTouchStartY(e.targetTouches[0].clientY)
-  }
-
-  const onTouchMove = (e: React.TouchEvent) => {
-    setTouchEndX(e.targetTouches[0].clientX)
-    setTouchEndY(e.targetTouches[0].clientY)
-  }
-
-  const onTouchEndEvent = () => {
-    if (!touchStartX || !touchEndX || !touchStartY || !touchEndY) return
-    
-    const distanceX = touchStartX - touchEndX
-    const distanceY = touchStartY - touchEndY
-    
-    // Check if swipe is mostly horizontal
-    if (Math.abs(distanceX) > Math.abs(distanceY)) {
-      const isLeftSwipe = distanceX > minSwipeDistance
-      const isRightSwipe = distanceX < -minSwipeDistance
-
-      if (isRightSwipe && !mobileMenuOpen) {
-        setMobileMenuOpen(true)
-      }
-      if (isLeftSwipe && mobileMenuOpen) {
-        setMobileMenuOpen(false)
-      }
-    }
-  }
-
   const handleLogout = async () => {
     setLoggingOut(true)
     try {
@@ -215,12 +175,7 @@ export const DashboardLayout: React.FC = () => {
   }
 
   return (
-    <div 
-      className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden"
-      onTouchStart={onTouchStart}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEndEvent}
-    >
+    <div className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden">
       <Joyride
         steps={steps}
         run={run}

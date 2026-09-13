@@ -3,6 +3,7 @@ import type { Member } from '@/types/member'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { getFullName } from '@/utils/member'
+import { CustomSelect } from '@/components'
 
 const formatTime12 = (timeStr: string) => {
   if (!timeStr) return ''
@@ -350,24 +351,19 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                         <span className="text-[10px] font-semibold text-gray-800 flex-1">
                           {name}
                         </span>
-                        <div className="relative flex-1">
-                          <select
-                            className="w-full h-8 pl-2.5 pr-8 text-xs font-semibold border border-slate-300 rounded-lg bg-white text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 shadow-2xs cursor-pointer transition"
+                        <div className="flex-1">
+                          <CustomSelect
+                            className="!h-8 text-xs font-semibold"
                             value={manualMemberMap[name] || ''}
                             onChange={(e) => handleManualMapChange(name, e.target.value)}
-                          >
-                            <option value="">-- Exclude / Skip --</option>
-                            {activeMembers.map(m => (
-                              <option key={m.id} value={m.id}>
-                                {getFullName(m)}
-                              </option>
-                            ))}
-                          </select>
-                          <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
-                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                            </svg>
-                          </div>
+                            options={[
+                              { value: '', label: '-- Exclude / Skip --' },
+                              ...activeMembers.map(m => ({
+                                value: m.id,
+                                label: getFullName(m)
+                              }))
+                            ]}
+                          />
                         </div>
                       </div>
                     ))}

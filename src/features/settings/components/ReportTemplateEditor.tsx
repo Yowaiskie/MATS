@@ -1,4 +1,5 @@
 import React, { useRef, useState } from 'react'
+import { Button, CustomSelect } from '@/components'
 
 type TokenCategory = 'datetime' | 'members' | 'stats'
 
@@ -115,26 +116,28 @@ export const ReportTemplateEditor: React.FC<ReportTemplateEditorProps> = ({
             <p className="text-xs text-gray-500 mt-0.5">Customize the layout for generated Facebook/Messenger reports</p>
           </div>
           <div className="flex items-center gap-2">
-            <select
-              onChange={(e) => {
-                const selected = PRESETS.find(p => p.name === e.target.value)
-                if (selected) onChange(selected.template)
-              }}
-              defaultValue=""
-              className="text-xs bg-white border border-gray-200 rounded-lg px-2.5 py-2 font-medium text-gray-700 focus:outline-none focus:border-blue-500 cursor-pointer shadow-sm min-h-[36px]"
-            >
-              <option value="" disabled>Load Preset...</option>
-              {PRESETS.map((p) => (
-                <option key={p.name} value={p.name}>{p.name}</option>
-              ))}
-            </select>
-            <button
+            <div className="w-44">
+              <CustomSelect
+                value=""
+                onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                  const selected = PRESETS.find(p => p.name === e.target.value)
+                  if (selected) onChange(selected.template)
+                }}
+                options={[
+                  { value: '', label: 'Load Preset...', disabled: true },
+                  ...PRESETS.map(p => ({ value: p.name, label: p.name }))
+                ]}
+              />
+            </div>
+            <Button
               type="button"
+              variant="ghost"
+              size="dense"
               onClick={onRestoreDefault}
-              className="text-xs font-semibold text-gray-500 hover:text-red-600 transition-colors px-2.5 py-2 cursor-pointer min-h-[36px]"
+              className="text-gray-500 hover:text-red-600"
             >
               Reset
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -193,14 +196,16 @@ export const ReportTemplateEditor: React.FC<ReportTemplateEditorProps> = ({
         <span className={`text-xs font-medium ${isDirty ? 'text-amber-600' : 'text-gray-400'}`}>
           {isDirty ? '\u25CF Unsaved changes' : 'All changes saved'}
         </span>
-        <button
+        <Button
           type="button"
+          variant="primary"
+          size="default"
           onClick={onSave}
-          disabled={saving || !isDirty}
-          className="rounded-lg bg-blue-600 hover:bg-blue-700 disabled:opacity-40 px-5 py-2.5 text-sm font-semibold text-white transition-colors cursor-pointer shadow-sm flex items-center gap-1.5 min-h-[44px]"
+          loading={saving}
+          disabled={!isDirty}
         >
-          {saving ? 'Saving...' : 'Save Template'}
-        </button>
+          Save Template
+        </Button>
       </div>
     </div>
   )

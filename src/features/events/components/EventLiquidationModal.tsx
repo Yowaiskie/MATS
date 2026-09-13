@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
+import { Button, useToast } from '@/components'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
 import type { SignatureConfig, SignatoryItem } from '@/types/signature'
 import { DEFAULT_SIGNATURE_PRESETS } from '@/types/signature'
@@ -231,6 +232,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
   expenses
 }) => {
   const { user, profile } = useAuth()
+  const { toast } = useToast()
 
   // Header & Letter Fields
   const [docDate, setDocDate] = useState(new Date().toISOString().slice(0, 10))
@@ -590,6 +592,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
         sectionSpacing,
         signatureTopMargin
       })
+      toast.success('Liquidation PDF Generated', 'Official event liquidation report PDF has been downloaded.')
     } catch (err: any) {
       console.error('Failed to generate liquidation PDF:', err)
       setErrorMsg(err.message || 'Failed to generate liquidation PDF report.')
@@ -1163,25 +1166,29 @@ export const EventLiquidationModal: React.FC<Props> = ({
 
         {/* Modal Footer Actions */}
         <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
-          <button
+          <Button
             type="button"
+            variant="secondary"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition cursor-pointer"
           >
             Cancel
-          </button>
+          </Button>
 
-          <button
+          <Button
             type="button"
+            variant="success"
             onClick={handleGeneratePdf}
-            disabled={isGenerating || (budgetSources.length === 0 && liquidationExpenses.length === 0)}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-xl text-xs font-black shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer"
+            loading={isGenerating}
+            loadingText="Generating PDF..."
+            disabled={budgetSources.length === 0 && liquidationExpenses.length === 0}
+            icon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            }
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            <span>{isGenerating ? 'Generating PDF...' : 'Download Official Liquidation PDF'}</span>
-          </button>
+            Download Official Liquidation PDF
+          </Button>
         </div>
       </div>
     </Modal>

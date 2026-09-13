@@ -6,8 +6,14 @@ import type { ExcuseRequest } from '@/types/excuse'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { ReviewExcuseModal } from './ReviewExcuseModal'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
+import { Loading } from '@/components/Loading'
+import { Button } from '@/components/Button'
+import { QuickFilterPills } from '@/components/QuickFilterPills'
+import { StatusBadge } from '@/components/StatusBadge'
+import { EmptyState } from '@/components/EmptyState'
+import { useToast } from '@/context/ToastContext'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 
@@ -15,6 +21,7 @@ const PAGE_SIZE = 10
 
 export const AdminExcusePage: React.FC = () => {
   const { profile } = useAuth()
+  const { toast } = useToast()
   const [requests, setRequests] = useState<ExcuseRequest[]>([])
   const [membersMap, setMembersMap] = useState<Map<string, Member>>(new Map())
   const [schedulesMap, setSchedulesMap] = useState<Map<string, Schedule>>(new Map())
@@ -23,7 +30,6 @@ export const AdminExcusePage: React.FC = () => {
   const [selectedRequest, setSelectedRequest] = useState<ExcuseRequest | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; trackingNumber: string; name: string } | null>(null)
   const [deleting, setDeleting] = useState(false)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant: 'error' | 'success' | 'info' } | null>(null)
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
@@ -47,6 +53,7 @@ export const AdminExcusePage: React.FC = () => {
       setSchedulesMap(schedMap)
     } catch (err) {
       console.error('Failed to load excuse requests data:', err)
+      toast.error('Data Load Error', 'Failed to load excuse requests.')
     } finally {
       setLoading(false)
     }
@@ -122,39 +129,56 @@ export const AdminExcusePage: React.FC = () => {
           <p className="text-sm font-medium text-slate-500 mt-1">Review, approve, or reject altar server excuse submissions.</p>
         </div>
         <div className="flex items-center gap-2">
-          <button 
+          <Button 
+            variant="secondary"
+            size="dense"
             onClick={() => {
-              const url = `${window.location.origin}/public/excuse`;
-              navigator.clipboard.writeText(url);
-              setAlertModal({ variant: 'success', title: 'Link Copied', message: 'Public excuse submission portal link copied to clipboard!' });
+              const url = `${window.location.origin}/public/excuse`
+              navigator.clipboard.writeText(url)
+              toast.success('Link Copied', 'Public excuse submission portal link copied to clipboard!')
             }}
-            className="flex items-center gap-2 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 px-4 py-2.5 rounded-xl text-xs font-extrabold transition-colors cursor-pointer border border-indigo-100 shadow-2xs"
+            icon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+            }
           >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
             Copy Public Portal Link
-          </button>
+          </Button>
         </div>
       </div>
 
       {/* Filter & Search Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
-        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
-          {(['all', 'pending', 'approved', 'rejected'] as const).map((st) => (
-            <button
-              key={st}
-              onClick={() => { setStatusFilter(st); setCurrentPage(1); }}
-              className={`px-3 py-1.5 rounded-xl text-xs font-extrabold capitalize transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === st
-                  ? 'bg-indigo-600 text-white shadow-2xs'
-                  : 'bg-slate-100/80 text-slate-600 hover:bg-slate-200/70'
-              }`}
-            >
-              {st === 'all' ? `All Requests (${requests.length})` : `${st} (${requests.filter(r => r.status === st).length})`}
-            </button>
-          ))}
-        </div>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
+        <QuickFilterPills
+          title="Status:"
+          pills={[
+            {
+              label: 'All Requests',
+              active: statusFilter === 'all',
+              onClick: () => { setStatusFilter('all'); setCurrentPage(1); },
+              count: requests.length,
+            },
+            {
+              label: 'Pending',
+              active: statusFilter === 'pending',
+              onClick: () => { setStatusFilter('pending'); setCurrentPage(1); },
+              count: requests.filter(r => r.status === 'pending').length,
+            },
+            {
+              label: 'Approved',
+              active: statusFilter === 'approved',
+              onClick: () => { setStatusFilter('approved'); setCurrentPage(1); },
+              count: requests.filter(r => r.status === 'approved').length,
+            },
+            {
+              label: 'Rejected',
+              active: statusFilter === 'rejected',
+              onClick: () => { setStatusFilter('rejected'); setCurrentPage(1); },
+              count: requests.filter(r => r.status === 'rejected').length,
+            },
+          ]}
+        />
 
         <div className="w-full sm:w-72">
           <input
@@ -162,7 +186,7 @@ export const AdminExcusePage: React.FC = () => {
             value={searchQuery}
             onChange={e => { setSearchQuery(e.target.value); setCurrentPage(1); }}
             placeholder="Search server name, tracking #..."
-            className="w-full px-3.5 py-1.5 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="w-full h-9 px-3.5 text-xs font-semibold rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
           />
         </div>
       </div>
@@ -170,15 +194,14 @@ export const AdminExcusePage: React.FC = () => {
       {/* Requests Table */}
       <div className="bg-white rounded-2xl shadow-2xs border border-slate-200/80 overflow-hidden">
         {loading ? (
-          <div className="p-12 text-center text-slate-500 font-bold text-xs">
-            <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent mb-2"></div>
-            <div>Loading excuse submissions...</div>
+          <div className="py-16">
+            <Loading variant="spinner" label="Loading excuse submissions..." />
           </div>
         ) : filteredRequests.length === 0 ? (
-          <div className="p-12 text-center text-slate-500 font-semibold text-xs space-y-1">
-            <p className="font-bold text-slate-700">No Excuse Requests Found</p>
-            <p className="text-slate-400">There are no excuse requests matching your current filter criteria.</p>
-          </div>
+          <EmptyState
+            title="No Excuse Requests Found"
+            description="There are no excuse requests matching your current filter criteria."
+          />
         ) : (
           <>
             <div className="overflow-x-auto">
@@ -196,9 +219,6 @@ export const AdminExcusePage: React.FC = () => {
                 <tbody className="divide-y divide-slate-100 font-semibold text-slate-800">
                   {paginatedRequests.map(req => {
                     const member = membersMap.get(req.memberId)
-                    const isApproved = req.status === 'approved'
-                    const isRejected = req.status === 'rejected'
-                    const isPending = !isApproved && !isRejected
 
                     return (
                       <tr key={req.id || req.trackingNumber} className="hover:bg-slate-50/60 transition-colors">
@@ -237,13 +257,7 @@ export const AdminExcusePage: React.FC = () => {
 
                         {/* Status */}
                         <td className="px-5 py-4 align-top whitespace-nowrap">
-                          <span className={`inline-flex px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                            isPending ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                            : isApproved ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                            : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}>
-                            {isApproved ? '✓ Approved' : isRejected ? '✕ Rejected' : '🟡 Pending'}
-                          </span>
+                          <StatusBadge status={req.status} size="sm" />
                         </td>
 
                         {/* Tracking # */}
@@ -256,23 +270,25 @@ export const AdminExcusePage: React.FC = () => {
                         {/* Actions */}
                         <td className="px-5 py-4 align-top text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-2">
-                            <button 
+                            <Button 
+                              variant="primary"
+                              size="xs"
                               onClick={() => setSelectedRequest(req)}
-                              className="px-3.5 py-1.5 bg-indigo-600 text-white rounded-xl text-xs font-extrabold hover:bg-indigo-700 transition shadow-2xs cursor-pointer"
                             >
                               Review
-                            </button>
-                            <button 
+                            </Button>
+                            <Button 
+                              variant="danger"
+                              size="xs"
                               onClick={() => setDeleteConfirm({ 
                                 id: req.id!, 
                                 trackingNumber: req.trackingNumber, 
                                 name: getMemberDisplayName(req) 
                               })}
-                              className="px-2.5 py-1.5 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-xl text-xs font-extrabold border border-rose-200 transition cursor-pointer"
                               title="Delete excuse request"
                             >
                               Delete
-                            </button>
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -317,18 +333,10 @@ export const AdminExcusePage: React.FC = () => {
             )
             setDeleteConfirm(null)
             loadData()
-            setAlertModal({
-              variant: 'success',
-              title: 'Excuse Deleted',
-              message: `Excuse request ${deleteConfirm.trackingNumber} has been permanently deleted.`
-            })
+            toast.success('Excuse Request Deleted', `Excuse request ${deleteConfirm.trackingNumber} has been permanently deleted.`)
           } catch (err) {
             console.error(err)
-            setAlertModal({
-              variant: 'error',
-              title: 'Deletion Failed',
-              message: 'Failed to delete excuse request.'
-            })
+            toast.error('Deletion Failed', 'Failed to delete excuse request.')
           } finally {
             setDeleting(false)
           }
@@ -338,14 +346,6 @@ export const AdminExcusePage: React.FC = () => {
         confirmLabel="Yes, Delete"
         loading={deleting}
         variant="danger"
-      />
-
-      <AlertModal
-        isOpen={!!alertModal}
-        onClose={() => setAlertModal(null)}
-        variant={alertModal?.variant || 'info'}
-        title={alertModal?.title || 'Alert'}
-        message={alertModal?.message || ''}
       />
     </div>
   )

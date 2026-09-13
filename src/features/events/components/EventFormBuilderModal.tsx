@@ -12,9 +12,7 @@ import type {
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
-import { FormattedText } from '@/components/FormattedText'
-import { RichTextEditor } from '@/components/RichTextEditor'
+import { ConfirmModal, FormattedText, RichTextEditor, CustomSelect, Button, useToast } from '@/components'
 
 interface EventFormBuilderModalProps {
   isOpen: boolean
@@ -167,9 +165,9 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 }) => {
   const { profile } = useAuth()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<'questions' | 'settings'>('questions')
   const [saving, setSaving] = useState(false)
-  const [alertMessage, setAlertMessage] = useState<string | null>(null)
   const [showSaveConfirm, setShowSaveConfirm] = useState(false)
   const [showCancelConfirm, setShowCancelConfirm] = useState(false)
   const [showConditionEditorId, setShowConditionEditorId] = useState<string | null>(null)
@@ -333,7 +331,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
   const handleDeleteQuestion = (id: string) => {
     if (questions.length <= 1) {
-      setAlertMessage('A form must contain at least one question.')
+      toast.warning('Form Validation', 'A form must contain at least one question.')
       return
     }
     const filtered = questions.filter(q => q.id !== id)
@@ -349,7 +347,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
   const handleSave = async () => {
     if (!title.trim()) {
-      setAlertMessage('Please enter a form title.')
+      toast.warning('Form Title Required', 'Please enter a title for this form.')
       return
     }
 
@@ -364,7 +362,8 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
       if (cleanSlug) {
         const existingFormWithSlug = await eventFormService.getFormById(cleanSlug)
         if (existingFormWithSlug && existingFormWithSlug.id !== formId) {
-          setAlertMessage(
+          toast.error(
+            'Slug Unavailable',
             `The custom link URL slug "${cleanSlug}" is already in use by another form. Please choose a different link or title.`
           )
           setSaving(false)
@@ -403,8 +402,10 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
       if (formId) {
         await eventFormService.updateForm(formId, formPayload, profile?.email || 'Organizer')
+        toast.success('Form Updated', `"${title.trim()}" has been updated successfully.`)
       } else {
         formId = await eventFormService.createForm(formPayload, profile?.email || 'Organizer')
+        toast.success('Form Created', `"${title.trim()}" has been created successfully.`)
       }
 
       // Save questions
@@ -417,7 +418,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
       onClose()
     } catch (err) {
       console.error('Failed to save form:', err)
-      setAlertMessage('Failed to save form. Please check permissions and try again.')
+      toast.error('Save Failed', 'Failed to save form. Please check permissions and try again.')
     } finally {
       setSaving(false)
     }
@@ -458,26 +459,30 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
             </div>
 
             {/* Right Action Buttons */}
-            <div className="flex items-center space-x-1.5 shrink-0">
-              <button
+            <div className="flex items-center space-x-2 shrink-0">
+              <Button
                 type="button"
+                variant="secondary"
+                size="dense"
                 onClick={() => setShowCancelConfirm(true)}
-                className="px-2.5 sm:px-4 py-1.5 sm:py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 transition cursor-pointer shadow-2xs"
               >
                 Cancel
-              </button>
+              </Button>
 
-              <button
+              <Button
                 type="button"
+                variant="primary"
+                size="dense"
                 onClick={() => setShowSaveConfirm(true)}
-                disabled={saving}
-                className="inline-flex items-center gap-1 px-3 sm:px-5 py-1.5 sm:py-2 bg-indigo-600 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition active:scale-95 disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20"
+                loading={saving}
+                icon={
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                }
               >
-                <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                <span>{saving ? 'Saving...' : 'Save'}</span>
-              </button>
+                Save
+              </Button>
             </div>
           </div>
 
@@ -657,8 +662,8 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                               <div key={c.id || cIdx} className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
                                 <div className="flex items-center justify-between gap-2">
                                   <div className="flex items-center space-x-1.5 flex-1">
-                                    <div className="relative">
-                                      <select
+                                    <div className="w-44 shrink-0">
+                                      <CustomSelect
                                         value={c.type}
                                         onChange={e => {
                                           const nextType = e.target.value as ContactType
@@ -668,17 +673,9 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                             label: pr ? pr.defaultLabel : c.label
                                           })
                                         }}
-                                        className="h-8 pl-2.5 pr-7 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs cursor-pointer"
-                                      >
-                                        {CONTACT_PRESETS.map(p => (
-                                          <option key={p.type} value={p.type}>{p.label}</option>
-                                        ))}
-                                      </select>
-                                      <div className="absolute inset-y-0 right-0 pr-2 flex items-center pointer-events-none text-slate-400">
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                        </svg>
-                                      </div>
+                                        options={CONTACT_PRESETS.map(p => ({ value: p.type, label: p.label }))}
+                                        className="!h-8 text-xs font-semibold"
+                                      />
                                     </div>
 
                                     <input
@@ -777,11 +774,8 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                           </div>
 
                           {/* Inline Question Type Selector with Uniform MATS UI */}
-                          <div className="w-full sm:w-64 shrink-0 relative">
-                            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-indigo-600">
-                              <QuestionTypeIcon type={q.type} className="w-4 h-4" />
-                            </span>
-                            <select
+                          <div className="w-full sm:w-64 shrink-0">
+                            <CustomSelect
                               value={q.type}
                               onChange={e => {
                                 const nextType = e.target.value as QuestionType
@@ -796,36 +790,15 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                 }
                                 handleUpdateQuestion(q.id, { type: nextType, options: newOpts })
                               }}
-                              className="w-full h-10 pl-9 pr-9 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-800 appearance-none shadow-2xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 focus:outline-hidden cursor-pointer transition"
-                            >
-                              <optgroup label="Basic Choices">
-                                <option value="multiple_choice">Multiple Choice</option>
-                                <option value="checkbox">Checkboxes</option>
-                                <option value="dropdown">Dropdown</option>
-                                <option value="yes_no">Yes / No</option>
-                              </optgroup>
-                              <optgroup label="Text & Numbers">
-                                <option value="short_text">Short Text</option>
-                                <option value="long_text">Long Text (Paragraph)</option>
-                                <option value="number">Number</option>
-                                <option value="date">Date</option>
-                                <option value="time">Time</option>
-                              </optgroup>
-                              <optgroup label="MATS Parish Selectors">
-                                <option value="member_selector">Member Selector (Parish DB)</option>
-                                <option value="name_selector">Participant Name</option>
-                                <option value="relationship_selector">Relationship Selector</option>
-                                <option value="companion_repeater">Companions / Group List</option>
-                              </optgroup>
-                              <optgroup label="Layout Structure">
-                                <option value="section_header">Section Header / Info Block</option>
-                              </optgroup>
-                            </select>
-                            <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                              </svg>
-                            </div>
+                              options={QUESTION_TYPES.map(t => ({
+                                value: t.type,
+                                label: t.label,
+                                description: t.description,
+                                icon: <QuestionTypeIcon type={t.type} className="w-4 h-4 text-indigo-600" />
+                              }))}
+                              icon={<QuestionTypeIcon type={q.type} className="w-4 h-4 text-indigo-600" />}
+                              className="!h-10 text-xs font-bold"
+                            />
                           </div>
                         </div>
 
@@ -836,7 +809,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                           </label>
                           <RichTextEditor
                             value={q.description || ''}
-                            onChange={val => handleUpdateQuestion(q.id, { description: val })}
+                            onChange={(val: string) => handleUpdateQuestion(q.id, { description: val })}
                             placeholder={isSectionHeader ? 'Optional section instructions...' : 'Optional help text for respondents...'}
                             minHeight="min-h-[3.5rem]"
                             compact
@@ -1066,32 +1039,24 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                               <p className="text-[11px] text-slate-500">Filter which active member profiles can be selected.</p>
                             </div>
 
-                            <div className="relative">
-                              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                                <QuestionTypeIcon type="member_selector" className="w-4 h-4" />
-                              </span>
-                              <select
-                                value={q.memberFilterType || 'all'}
-                                onChange={e => {
-                                  const filterType = e.target.value as 'all' | 'order' | 'rank'
-                                  const defaultVals = filterType === 'order' ? ['Order of San Pedro'] : filterType === 'rank' ? ['Chevaliers'] : []
-                                  handleUpdateQuestion(q.id, {
-                                    memberFilterType: filterType,
-                                    memberFilterValue: defaultVals
-                                  })
-                                }}
-                                className="w-full h-9 pl-9 pr-9 border border-slate-300 rounded-xl text-xs bg-white font-bold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs cursor-pointer"
-                              >
-                                <option value="all">All Active Members</option>
-                                <option value="order">Filter by Order Groups (Checkboxes)</option>
-                                <option value="rank">Filter by Member Ranks (Checkboxes)</option>
-                              </select>
-                              <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-slate-400">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                </svg>
-                              </div>
-                            </div>
+                            <CustomSelect
+                              value={q.memberFilterType || 'all'}
+                              onChange={e => {
+                                const filterType = e.target.value as 'all' | 'order' | 'rank'
+                                const defaultVals = filterType === 'order' ? ['Order of San Pedro'] : filterType === 'rank' ? ['Chevaliers'] : []
+                                handleUpdateQuestion(q.id, {
+                                  memberFilterType: filterType,
+                                  memberFilterValue: defaultVals
+                                })
+                              }}
+                              options={[
+                                { value: 'all', label: 'All Active Members' },
+                                { value: 'order', label: 'Filter by Order Groups (Checkboxes)' },
+                                { value: 'rank', label: 'Filter by Member Ranks (Checkboxes)' }
+                              ]}
+                              icon={<QuestionTypeIcon type="member_selector" className="w-4 h-4 text-slate-400" />}
+                              className="!h-9 text-xs font-bold"
+                            />
 
                             {q.memberFilterType === 'order' && (() => {
                               const currentVals: string[] = Array.isArray(q.memberFilterValue)
@@ -1178,68 +1143,55 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                 Close
                               </button>
                             </div>
-                            <div className="relative">
-                              <select
-                                value={q.visibilityCondition?.questionId || ''}
-                                onChange={e => {
-                                  const val = e.target.value
-                                  if (!val) {
-                                    handleUpdateQuestion(q.id, { visibilityCondition: undefined })
-                                  } else {
-                                    handleUpdateQuestion(q.id, {
-                                      visibilityCondition: {
-                                        questionId: val,
-                                        operator: q.visibilityCondition?.operator || 'equals',
-                                        value: q.visibilityCondition?.value || ''
-                                      }
-                                    })
-                                  }
-                                }}
-                                className="w-full h-9 pl-3 pr-8 border border-slate-300 rounded-xl text-xs bg-white font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs cursor-pointer"
-                              >
-                                <option value="">-- Always Visible --</option>
-                                {questions
+                            <CustomSelect
+                              value={q.visibilityCondition?.questionId || ''}
+                              onChange={e => {
+                                const val = e.target.value
+                                if (!val) {
+                                  handleUpdateQuestion(q.id, { visibilityCondition: undefined })
+                                } else {
+                                  handleUpdateQuestion(q.id, {
+                                    visibilityCondition: {
+                                      questionId: val,
+                                      operator: q.visibilityCondition?.operator || 'equals',
+                                      value: q.visibilityCondition?.value || ''
+                                    }
+                                  })
+                                }
+                              }}
+                              options={[
+                                { value: '', label: '-- Always Visible --' },
+                                ...questions
                                   .filter(other => other.id !== q.id && other.order < q.order)
-                                  .map(other => (
-                                    <option key={other.id} value={other.id}>
-                                      Depends on Question #{other.order + 1}: {other.question}
-                                    </option>
-                                  ))}
-                              </select>
-                              <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
-                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                </svg>
-                              </div>
-                            </div>
+                                  .map(other => ({
+                                    value: other.id,
+                                    label: `Depends on Question #${other.order + 1}: ${other.question}`
+                                  }))
+                              ]}
+                              className="!h-9 text-xs font-semibold"
+                            />
 
                             {q.visibilityCondition?.questionId && (
                               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                                <div className="relative">
-                                  <select
-                                    value={q.visibilityCondition.operator}
-                                    onChange={e =>
-                                      handleUpdateQuestion(q.id, {
-                                        visibilityCondition: {
-                                          ...q.visibilityCondition!,
-                                          operator: e.target.value as ConditionOperator
-                                        }
-                                      })
-                                    }
-                                    className="w-full h-9 pl-3 pr-8 border border-slate-300 rounded-xl text-xs bg-white font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs cursor-pointer"
-                                  >
-                                    <option value="equals">Equals (Exact Match)</option>
-                                    <option value="not_equals">Does Not Equal</option>
-                                    <option value="is_filled">Is Filled (Has Any Answer)</option>
-                                    <option value="is_empty">Is Empty (Unanswered)</option>
-                                    <option value="contains">Contains Text</option>
-                                  </select>
-                                  <div className="absolute inset-y-0 right-0 pr-2.5 flex items-center pointer-events-none text-slate-400">
-                                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                                    </svg>
-                                  </div>
-                                </div>
+                                <CustomSelect
+                                  value={q.visibilityCondition.operator}
+                                  onChange={e =>
+                                    handleUpdateQuestion(q.id, {
+                                      visibilityCondition: {
+                                        ...q.visibilityCondition!,
+                                        operator: e.target.value as ConditionOperator
+                                      }
+                                    })
+                                  }
+                                  options={[
+                                    { value: 'equals', label: 'Equals (Exact Match)' },
+                                    { value: 'not_equals', label: 'Does Not Equal' },
+                                    { value: 'is_filled', label: 'Is Filled (Has Any Answer)' },
+                                    { value: 'is_empty', label: 'Is Empty (Unanswered)' },
+                                    { value: 'contains', label: 'Contains Text' }
+                                  ]}
+                                  className="!h-9 text-xs font-semibold"
+                                />
 
                                 {q.visibilityCondition.operator !== 'is_filled' &&
                                   q.visibilityCondition.operator !== 'is_empty' && (
@@ -1572,25 +1524,19 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Form Status</label>
-                <div className="relative">
-                  <select
-                    value={status}
-                    onChange={e => setStatus(e.target.value as EventForm['status'])}
-                    className="w-full h-10 pl-3.5 pr-10 border border-slate-300 rounded-xl text-xs sm:text-sm bg-white font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-600 shadow-2xs cursor-pointer"
-                  >
-                    <option value="draft">Draft (Private / In Preparation)</option>
-                    <option value="published">Published (Live & accepting responses)</option>
-                    <option value="temporary_closed">Temporary Closed (Pansamantalang Sarado)</option>
-                    <option value="closed">Closed (Totally Closed - Submissions locked)</option>
-                    <option value="archived">Archived (Totally Closed & Stored)</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  label="Form Status"
+                  id="form-status-select"
+                  options={[
+                    { value: 'draft', label: 'Draft (Private / In Preparation)' },
+                    { value: 'published', label: 'Published (Live & accepting responses)' },
+                    { value: 'temporary_closed', label: 'Temporary Closed (Pansamantalang Sarado)' },
+                    { value: 'closed', label: 'Closed (Totally Closed - Submissions locked)' },
+                    { value: 'archived', label: 'Archived (Totally Closed & Stored)' }
+                  ]}
+                  value={status}
+                  onChange={e => setStatus(e.target.value as EventForm['status'])}
+                />
               </div>
 
               <div>
@@ -1603,7 +1549,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                     onChange={e => setIsPublic(e.target.checked)}
                     className="h-4 w-4 text-indigo-600 rounded-md border-slate-300"
                   />
-                  <label htmlFor="isPublicCheck" className="text-xs font-semibold text-slate-800">
+                  <label htmlFor="isPublicCheck" className="text-xs font-semibold text-slate-800 cursor-pointer">
                     Accessible via shareable link without login
                   </label>
                 </div>
@@ -1673,13 +1619,6 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         )}
 
       </div>
-
-      <AlertModal
-        isOpen={!!alertMessage}
-        onClose={() => setAlertMessage(null)}
-        title="Form Builder"
-        message={alertMessage || ''}
-      />
 
       {/* Confirm Save */}
       <ConfirmModal

@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
+import { CustomSelect, Button } from '@/components'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
 import type { SignatureConfig } from '@/types/signature'
 import { DEFAULT_MINISTRY_NAME, DEFAULT_PARISH_NAME } from '@/types/signature'
@@ -300,77 +301,44 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
           {scopeType === 'order' && (
             <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
-                  Choose Order Group:
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedOrder}
-                    onChange={e => setSelectedOrder(e.target.value)}
-                    className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                  >
-                    <option value="all">All Orders</option>
-                    {ORDER_GROUPS.map(g => (
-                      <option key={g} value={g}>{g}</option>
-                    ))}
-                    <option value="none">Unassigned / No Order</option>
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  label="Choose Order Group"
+                  value={selectedOrder}
+                  onChange={e => setSelectedOrder(e.target.value)}
+                  options={[
+                    { value: 'all', label: 'All Orders' },
+                    ...ORDER_GROUPS.map(g => ({ value: g, label: g })),
+                    { value: 'none', label: 'Unassigned / No Order' }
+                  ]}
+                />
               </div>
 
               <div>
-                <label className="block text-[10px] font-black uppercase text-slate-500 tracking-wider mb-1">
-                  Filter by Rank (Optional):
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedRank}
-                    onChange={e => setSelectedRank(e.target.value)}
-                    className="w-full h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                  >
-                    <option value="all">All Ranks</option>
-                    {MEMBER_RANKS.map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+                <CustomSelect
+                  label="Filter by Rank (Optional)"
+                  value={selectedRank}
+                  onChange={e => setSelectedRank(e.target.value)}
+                  options={[
+                    { value: 'all', label: 'All Ranks' },
+                    ...MEMBER_RANKS.map(r => ({ value: r, label: r }))
+                  ]}
+                />
               </div>
             </div>
           )}
 
           {scopeType === 'all' && (
             <div className="p-3 bg-slate-50/90 rounded-xl border border-slate-200 mt-2">
-              <div className="flex items-center gap-3">
-                <label className="text-[10px] font-black uppercase text-slate-500 tracking-wider">
-                  Filter Rank:
-                </label>
-                <div className="relative">
-                  <select
-                    value={selectedRank}
-                    onChange={e => setSelectedRank(e.target.value)}
-                    className="h-10 pl-3.5 pr-10 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 appearance-none focus:outline-hidden focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition cursor-pointer shadow-2xs"
-                  >
-                    <option value="all">All Ranks</option>
-                    {MEMBER_RANKS.map(r => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                  <div className="absolute inset-y-0 right-0 pr-3.5 flex items-center pointer-events-none text-slate-400">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-                    </svg>
-                  </div>
-                </div>
+              <div className="max-w-xs">
+                <CustomSelect
+                  label="Filter Rank"
+                  value={selectedRank}
+                  onChange={e => setSelectedRank(e.target.value)}
+                  options={[
+                    { value: 'all', label: 'All Ranks' },
+                    ...MEMBER_RANKS.map(r => ({ value: r, label: r }))
+                  ]}
+                />
               </div>
             </div>
           )}
@@ -469,41 +437,31 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="default"
               onClick={onClose}
               disabled={isExporting}
-              className="px-4 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant={format === 'pdf' ? 'danger' : 'success'}
+              size="default"
               onClick={handleDownload}
               disabled={isExporting || exportMembers.length === 0}
-              className={`inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white rounded-xl shadow-md active:scale-95 transition cursor-pointer disabled:opacity-50 ${
-                format === 'pdf'
-                  ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-500/20'
-                  : 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-500/20'
-              }`}
+              loading={isExporting}
+              loadingText={`Generating ${format.toUpperCase()}...`}
+              icon={
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              }
             >
-              {isExporting ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  <span>Generating {format.toUpperCase()}...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>Download {format.toUpperCase()}</span>
-                </>
-              )}
-            </button>
+              Download {format.toUpperCase()}
+            </Button>
           </div>
         </div>
       </div>

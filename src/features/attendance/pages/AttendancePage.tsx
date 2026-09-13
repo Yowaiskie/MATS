@@ -5,7 +5,7 @@ import { memberService } from '@/services/memberService'
 import { attendanceService } from '@/services/attendanceService'
 import { settingsService } from '@/services/settingsService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { Card } from '@/components/Card'
+import { Card, Button, EmptyState, useToast } from '@/components'
 import { AttendanceHeader } from '../components/AttendanceHeader'
 import { AttendanceRow } from '../components/AttendanceRow'
 import { CommunityReportModal } from '../components/CommunityReportModal'
@@ -36,6 +36,7 @@ export const AttendancePage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const scheduleId = searchParams.get('scheduleId')
   const { user } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
 
   const [schedule, setSchedule] = useState<Schedule | null>(null)
@@ -56,7 +57,6 @@ export const AttendancePage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
   const [reportModalOpen, setReportModalOpen] = useState(false)
   const [template, setTemplate] = useState('')
 
@@ -150,7 +150,6 @@ export const AttendancePage: React.FC = () => {
 
     setLoading(true)
     setError(null)
-    setSuccessMsg(null)
 
     try {
       // 1. Load target schedule & same-day schedules for conflict validation
@@ -262,14 +261,13 @@ export const AttendancePage: React.FC = () => {
     if (!schedule) return
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
     try {
       const activeIds = allMembersProfiles
         .filter((m) => m.status === 'active')
         .map((m) => m.id)
       await scheduleService.assignMembers(schedule.id, activeIds, user?.email || 'Admin')
       await loadData()
-      setSuccessMsg('All active servers are now assigned to this schedule.')
+      toast.success('Assigned All Servers', 'All active servers are now assigned to this schedule.')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to assign all active servers.')
@@ -281,12 +279,11 @@ export const AttendancePage: React.FC = () => {
   const handleSaveAssignments = async (targetScheduleId: string, assignedIds: string[]) => {
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
     try {
       await scheduleService.assignMembers(targetScheduleId, assignedIds, user?.email || 'Admin')
       setAssignmentOpen(false)
       await loadData()
-      setSuccessMsg('Assigned servers updated successfully.')
+      toast.success('Updated Assignments', 'Assigned servers updated successfully.')
     } catch (err: any) {
       console.error(err)
       setError(err.message || 'Failed to update assigned servers.')
@@ -302,7 +299,6 @@ export const AttendancePage: React.FC = () => {
 
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
 
     try {
       const isOther = formState[memberId]?.isOtherServer
@@ -336,7 +332,7 @@ export const AttendancePage: React.FC = () => {
         return next
       })
 
-      setSuccessMsg(`${memberName} was removed from this attendance list.`)
+      toast.success('Server Removed', `${memberName} was removed from this attendance list.`)
     } catch (err: any) {
       console.error(err)
       setError(err?.message || 'Failed to remove server. Please try again.')
@@ -385,7 +381,6 @@ export const AttendancePage: React.FC = () => {
 
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
 
     try {
       const inputs = allSessionMembers.map((m) => ({
@@ -413,7 +408,7 @@ export const AttendancePage: React.FC = () => {
         setPendingDeleteIds([])
       }
 
-      setSuccessMsg('Attendance records successfully saved!')
+      toast.success('Attendance Saved', 'Attendance records have been successfully saved.')
       
       // Re-fetch updated records to refresh document IDs and reset baseline without full page reload
       const records = await attendanceService.getAttendanceForSession(session.id)
@@ -456,11 +451,10 @@ export const AttendancePage: React.FC = () => {
     if (!session || !schedule) return
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
     try {
       const adminEmail = user?.email || 'Admin'
       await attendanceService.setSessionLockState(session.id, false, adminEmail, schedule.title)
-      setSuccessMsg('Attendance session unlocked successfully.')
+      toast.success('Session Unlocked', 'Attendance session unlocked successfully.')
       await loadData()
     } catch (err: any) {
       console.error(err)
@@ -476,7 +470,6 @@ export const AttendancePage: React.FC = () => {
     setLockConfirm(null)
     setSaving(true)
     setError(null)
-    setSuccessMsg(null)
     try {
       const adminEmail = user?.email || 'Admin'
       
@@ -516,9 +509,10 @@ export const AttendancePage: React.FC = () => {
       }
 
       await attendanceService.setSessionLockState(session.id, nextLocked, adminEmail, schedule.title)
-      setSuccessMsg(
+      toast.success(
+        nextLocked ? 'Session Locked' : 'Session Unlocked',
         nextLocked
-          ? 'Attendance session finalized and locked successfully!'
+          ? 'Attendance session finalized and locked successfully.'
           : 'Attendance session unlocked successfully.'
       )
       await loadData()
@@ -532,10 +526,16 @@ export const AttendancePage: React.FC = () => {
 
   // Intercept back action to check dirty state — shows modal instead of browser confirm
   const handleBackNavigation = (e: React.MouseEvent) => {
+    e.preventDefault()
     if (isDirty) {
-      e.preventDefault()
-      setPendingNavTarget('/schedules')
+      setPendingNavTarget(window.history.length > 1 ? '__BACK__' : '/schedules')
       setBackConfirmOpen(true)
+      return
+    }
+    if (window.history.length > 1) {
+      navigate(-1)
+    } else {
+      navigate('/schedules')
     }
   }
 
@@ -729,33 +729,30 @@ export const AttendancePage: React.FC = () => {
               />
             ))
           ) : (
-            <div className="py-12 px-4 text-center flex flex-col items-center justify-center space-y-3">
-              <div className="h-12 w-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100 shadow-xs">
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-              </div>
+            <div className="p-6">
               {searchQuery.trim() ? (
-                <p className="text-sm font-medium text-gray-500">No active servers match search query "{searchQuery}"</p>
+                <EmptyState
+                  title="No Matching Servers"
+                  description={`No active servers match search query "${searchQuery}".`}
+                />
               ) : (
-                <>
-                  <h4 className="text-sm font-bold text-gray-900">No Servers Assigned Yet</h4>
-                  <p className="text-xs text-gray-500 max-w-sm">
-                    No members are assigned to this service schedule. Add or assign servers now to start taking attendance.
-                  </p>
-                  {!(session?.locked ?? false) && (
-                    <button
-                      type="button"
-                      onClick={() => setAssignmentOpen(true)}
-                      className="mt-2 inline-flex items-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2.5 text-xs font-bold text-white transition-all cursor-pointer shadow-sm"
-                    >
-                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                      </svg>
-                      <span>Add / Assign Servers</span>
-                    </button>
-                  )}
-                </>
+                <EmptyState
+                  title="No Servers Assigned Yet"
+                  description="No members are assigned to this service schedule. Add or assign servers now to start taking attendance."
+                  action={
+                    !(session?.locked ?? false)
+                      ? {
+                          label: 'Add / Assign Servers',
+                          onClick: () => setAssignmentOpen(true),
+                          icon: (
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                            </svg>
+                          ),
+                        }
+                      : undefined
+                  }
+                />
               )}
             </div>
           )}
@@ -766,17 +763,21 @@ export const AttendancePage: React.FC = () => {
           <div className="flex items-center justify-between p-4 border-t border-gray-100 bg-gray-50 rounded-b-xl flex-wrap gap-4">
             <div>
               {!isMeetingSchedule && (
-                <button
+                <Button
                   type="button"
+                  variant="secondary"
+                  size="dense"
                   onClick={() => setAddOtherServerOpen(true)}
                   disabled={saving}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 px-4 py-2.5 text-xs font-bold text-emerald-700 transition-all disabled:opacity-40 cursor-pointer shadow-2xs"
+                  icon={
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                    </svg>
+                  }
+                  className="!border-emerald-200 !bg-emerald-50/70 hover:!bg-emerald-100 !text-emerald-700"
                 >
-                  <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                  </svg>
-                  <span>Add Other Server</span>
-                </button>
+                  Add Other Server
+                </Button>
               )}
             </div>
 
@@ -787,16 +788,22 @@ export const AttendancePage: React.FC = () => {
                 </span>
               )}
               {displayMembers.length > 0 && (
-                <button
+                <Button
+                  type="button"
+                  variant="primary"
+                  size="dense"
                   onClick={handleSave}
                   disabled={saving || !isDirty}
-                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed px-5 py-2.5 text-xs font-bold text-white transition-all shadow-md shadow-blue-600/20 cursor-pointer"
+                  loading={saving}
+                  loadingText="Saving changes..."
+                  icon={
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  }
                 >
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  <span>{saving ? 'Saving changes...' : 'Save Attendance Records'}</span>
-                </button>
+                  Save Attendance Records
+                </Button>
               )}
             </div>
           </div>
@@ -897,7 +904,13 @@ export const AttendancePage: React.FC = () => {
         onClose={() => { setBackConfirmOpen(false); setPendingNavTarget(null) }}
         onConfirm={() => {
           setBackConfirmOpen(false)
-          if (pendingNavTarget) navigate(pendingNavTarget)
+          if (pendingNavTarget === '__BACK__') {
+            navigate(-1)
+          } else if (pendingNavTarget) {
+            navigate(pendingNavTarget)
+          } else {
+            navigate('/schedules')
+          }
         }}
         variant="warning"
         title="Unsaved Changes"
@@ -912,15 +925,6 @@ export const AttendancePage: React.FC = () => {
         variant="error"
         title="Error"
         message={error ?? ''}
-      />
-
-      {/* Success Alert Modal */}
-      <AlertModal
-        isOpen={!!successMsg}
-        onClose={() => setSuccessMsg(null)}
-        variant="success"
-        title="Success"
-        message={successMsg ?? ''}
       />
     </div>
   )
