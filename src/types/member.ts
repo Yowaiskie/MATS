@@ -106,6 +106,19 @@ export const formatMemberOrders = (orders: string[]): string => {
   return orders.filter(Boolean).join(', ')
 }
 
+export type SuspensionDurationType = 'indefinite' | '1_month' | '2_months' | '3_months' | 'custom'
+
+export interface SuspensionRecord {
+  id: string
+  reason: string
+  startDate: string
+  endDate?: string
+  durationType?: SuspensionDurationType
+  completedAt?: string // YYYY-MM-DD
+  liftedBy?: string // 'System (Auto-Expired)' | user email
+  remarks?: string
+}
+
 export interface Member {
   id: string
   firstName: string
@@ -122,6 +135,11 @@ export interface Member {
   dateOfInvestiture?: string
   position?: string
   order?: string
+  suspensionReason?: string
+  suspensionStartDate?: string
+  suspensionEndDate?: string
+  suspensionDurationType?: SuspensionDurationType
+  suspensionHistory?: SuspensionRecord[]
   createdAt: any // Firestore Timestamp
   updatedAt: any // Firestore Timestamp
 }
@@ -141,4 +159,9 @@ export interface MemberInput {
   dateOfInvestiture?: string
   position?: string
   order?: string
+  suspensionReason?: string
+  suspensionStartDate?: string
+  suspensionEndDate?: string
+  suspensionDurationType?: SuspensionDurationType
+  suspensionHistory?: SuspensionRecord[]
 }

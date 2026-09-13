@@ -113,8 +113,29 @@ export class SuspensionLifecycleService {
    * Lifts a suspension for a member, updating their status and logging an audit event.
    */
   async liftSuspension(member: Member, adminEmail = 'Admin', remarks?: string): Promise<void> {
+    const d = new Date()
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+    const completedRecord = {
+      id: `susp-${Date.now()}-${member.id.slice(0, 5)}`,
+      reason: member.suspensionReason || 'Manual Suspension',
+      startDate: member.suspensionStartDate || '',
+      endDate: member.suspensionEndDate || todayStr,
+      durationType: member.suspensionDurationType || 'custom',
+      completedAt: todayStr,
+      liftedBy: adminEmail,
+      remarks: remarks || 'Suspension cleared by administrator.'
+    }
+
+    const updatedHistory = [...(member.suspensionHistory || []), completedRecord]
+
     await memberService.updateMember(member.id, {
-      status: 'active'
+      status: 'active',
+      suspensionHistory: updatedHistory,
+      suspensionReason: '',
+      suspensionStartDate: '',
+      suspensionEndDate: '',
+      suspensionDurationType: undefined
     })
 
     await auditService.logAction(
@@ -122,7 +143,7 @@ export class SuspensionLifecycleService {
       'member',
       `Lifted suspension for ${member.firstName} ${member.lastName}. Status restored to Active. ${remarks ? `(${remarks})` : ''}`,
       adminEmail,
-      { memberId: member.id, previousStatus: member.status, newStatus: 'active', remarks }
+      { memberId: member.id, previousStatus: member.status, newStatus: 'active', remarks, completedSuspension: completedRecord }
     )
   }
 }

@@ -81,7 +81,7 @@ export const MembersPreviewPage: React.FC = () => {
 
         {/* Filter Pills */}
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
-          {['all', 'active', 'inactive', 'archived'].map((st) => (
+          {['all', 'active', 'inactive', 'suspended', 'archived'].map((st) => (
             <button
               key={st}
               onClick={() => setStatusFilter(st)}

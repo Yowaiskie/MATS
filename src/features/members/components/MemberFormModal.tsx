@@ -1,7 +1,35 @@
 import React, { useState, useEffect } from 'react'
-import type { Member, MemberInput } from '@/types/member'
+import type { Member, MemberInput, SuspensionDurationType } from '@/types/member'
 import { ORDER_GROUPS, MEMBER_RANKS, ORDER_COLORS, getMemberOrders, formatMemberOrders } from '@/types/member'
 import { isDuplicateName } from '@/utils/member'
+
+const SUSPENSION_PRESET_REASONS = [
+  'Attendance Infractions',
+  'Disciplinary Action',
+  'Leave of Absence / Academic',
+  'Personal / Health',
+  'Conduct Violation',
+  'Other / Custom'
+]
+
+const getTodayString = (): string => {
+  const d = new Date()
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dt = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dt}`
+}
+
+const addMonthsToDate = (dateStr: string, months: number): string => {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-').map(Number)
+  if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) return ''
+  const d = new Date(parts[0], parts[1] - 1 + months, parts[2])
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dt = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dt}`
+}
 
 interface MemberFormModalProps {
   isOpen: boolean
@@ -32,6 +60,14 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
   const [contactMode, setContactMode] = useState<'mobile' | 'landline'>('mobile')
+  const [showHistoryOpen, setShowHistoryOpen] = useState(false)
+
+  // Suspension Configuration State
+  const [suspensionReason, setSuspensionReason] = useState('')
+  const [selectedPresetReason, setSelectedPresetReason] = useState<string>('Attendance Infractions')
+  const [suspensionStartDate, setSuspensionStartDate] = useState(getTodayString())
+  const [suspensionDurationType, setSuspensionDurationType] = useState<SuspensionDurationType>('1_month')
+  const [suspensionEndDate, setSuspensionEndDate] = useState(addMonthsToDate(getTodayString(), 1))
 
   useEffect(() => {
     if (member) {
@@ -55,6 +91,23 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         setContactMode('mobile')
       }
       setDateOfBirth(member.dateOfBirth || '')
+
+      // Populate suspension state if already suspended
+      const sReason = member.suspensionReason || ''
+      setSuspensionReason(sReason)
+      if (SUSPENSION_PRESET_REASONS.includes(sReason)) {
+        setSelectedPresetReason(sReason)
+      } else if (sReason) {
+        setSelectedPresetReason('Other / Custom')
+      } else {
+        setSelectedPresetReason('Attendance Infractions')
+      }
+
+      const sStart = member.suspensionStartDate || getTodayString()
+      setSuspensionStartDate(sStart)
+      const sDur = member.suspensionDurationType || (member.suspensionEndDate ? 'custom' : '1_month')
+      setSuspensionDurationType(sDur)
+      setSuspensionEndDate(member.suspensionEndDate || (sDur === 'indefinite' ? '' : addMonthsToDate(sStart, 1)))
     } else {
       setFirstName('')
       setMiddleName('')
@@ -68,9 +121,41 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       setPhoneNumber('')
       setContactMode('mobile')
       setDateOfBirth('')
+      setSuspensionReason('')
+      setSelectedPresetReason('Attendance Infractions')
+      const todayStr = getTodayString()
+      setSuspensionStartDate(todayStr)
+      setSuspensionDurationType('1_month')
+      setSuspensionEndDate(addMonthsToDate(todayStr, 1))
     }
     setErrors({})
   }, [member, isOpen])
+
+  // Recalculate end date whenever duration type or start date changes
+  const handleDurationTypeChange = (type: SuspensionDurationType) => {
+    setSuspensionDurationType(type)
+    const baseStart = suspensionStartDate || getTodayString()
+    if (type === '1_month') {
+      setSuspensionEndDate(addMonthsToDate(baseStart, 1))
+    } else if (type === '2_months') {
+      setSuspensionEndDate(addMonthsToDate(baseStart, 2))
+    } else if (type === '3_months') {
+      setSuspensionEndDate(addMonthsToDate(baseStart, 3))
+    } else if (type === 'indefinite') {
+      setSuspensionEndDate('')
+    }
+  }
+
+  const handleStartDateChange = (newStartDate: string) => {
+    setSuspensionStartDate(newStartDate)
+    if (suspensionDurationType === '1_month') {
+      setSuspensionEndDate(addMonthsToDate(newStartDate, 1))
+    } else if (suspensionDurationType === '2_months') {
+      setSuspensionEndDate(addMonthsToDate(newStartDate, 2))
+    } else if (suspensionDurationType === '3_months') {
+      setSuspensionEndDate(addMonthsToDate(newStartDate, 3))
+    }
+  }
 
   if (!isOpen) return null
 
@@ -135,6 +220,27 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       const allOrdersCombined = Array.from(new Set([...standardSelected, ...customOnes]))
       const finalOrder = formatMemberOrders(allOrdersCombined) || undefined
 
+      const finalSuspensionReason = status === 'suspended'
+        ? (selectedPresetReason === 'Other / Custom' ? suspensionReason.trim() : (suspensionReason.trim() || selectedPresetReason))
+        : undefined
+
+      let finalHistory = member?.suspensionHistory || []
+      if (member && member.status === 'suspended' && status !== 'suspended') {
+        const d = new Date()
+        const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+        const completedRecord = {
+          id: `susp-${Date.now()}-${member.id.slice(0, 5)}`,
+          reason: member.suspensionReason || 'Manual Suspension',
+          startDate: member.suspensionStartDate || '',
+          endDate: member.suspensionEndDate || todayStr,
+          durationType: member.suspensionDurationType || 'custom',
+          completedAt: todayStr,
+          liftedBy: 'Administrator',
+          remarks: 'Restored to Active via profile edit.'
+        }
+        finalHistory = [...finalHistory, completedRecord]
+      }
+
       await onSubmit({
         firstName: firstName.trim(),
         middleName: middleName.trim() || undefined,
@@ -146,6 +252,11 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         status,
         phoneNumber: phoneNumber.trim() || undefined,
         dateOfBirth: dateOfBirth.trim(),
+        suspensionReason: status === 'suspended' ? finalSuspensionReason : undefined,
+        suspensionStartDate: status === 'suspended' ? suspensionStartDate : undefined,
+        suspensionEndDate: status === 'suspended' ? (suspensionDurationType === 'indefinite' ? undefined : suspensionEndDate) : undefined,
+        suspensionDurationType: status === 'suspended' ? suspensionDurationType : undefined,
+        suspensionHistory: finalHistory,
       })
       onClose()
     } catch (err) {
@@ -502,6 +613,224 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Dedicated Suspension Configuration Panel */}
+          {status === 'suspended' && (
+            <div className="rounded-2xl border border-rose-200/90 bg-rose-50/40 p-4 space-y-4 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-2 border-b border-rose-100">
+                <div className="flex items-center gap-2">
+                  <div className="h-7 w-7 rounded-lg bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-rose-950 uppercase tracking-wide">Suspension Parameters</h4>
+                    <p className="text-[11px] font-semibold text-rose-700/80">Configure reason, period, and clearance duration</p>
+                  </div>
+                </div>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-rose-200/70 text-rose-800 border border-rose-300/50">
+                  Suspension Active
+                </span>
+              </div>
+
+              {/* Suspension Reason Section */}
+              <div className="space-y-2">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-rose-900">
+                  Reason for Suspension *
+                </label>
+
+                {/* Preset Chips */}
+                <div className="flex flex-wrap gap-1.5">
+                  {SUSPENSION_PRESET_REASONS.map((preset) => {
+                    const isSelected = selectedPresetReason === preset
+                    return (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => {
+                          setSelectedPresetReason(preset)
+                          if (preset !== 'Other / Custom') {
+                            setSuspensionReason(preset)
+                          }
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-rose-50/60 hover:border-rose-300'
+                        }`}
+                      >
+                        {preset}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Optional Custom Note / Reason Specification */}
+                <div className="pt-1">
+                  <input
+                    type="text"
+                    value={suspensionReason}
+                    onChange={(e) => setSuspensionReason(e.target.value)}
+                    placeholder={selectedPresetReason === 'Other / Custom' ? 'Specify custom suspension reason...' : 'Add remarks or specific details (optional)...'}
+                    className="block w-full rounded-xl border border-rose-200 bg-white px-3 py-2 text-xs text-slate-800 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20 focus:outline-none transition shadow-2xs font-medium"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              {/* Duration & Period Picker */}
+              <div className="space-y-3 pt-1 border-t border-rose-100">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-rose-900">
+                    Suspension Duration & Calendar Period
+                  </label>
+                  <span className="text-[10px] font-bold text-rose-600 uppercase">
+                    Mode: {suspensionDurationType.replace('_', ' ')}
+                  </span>
+                </div>
+
+                {/* Duration Presets */}
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                  {[
+                    { key: '1_month', label: '1 Month' },
+                    { key: '2_months', label: '2 Months' },
+                    { key: '3_months', label: '3 Months' },
+                    { key: 'custom', label: 'Custom Date' },
+                    { key: 'indefinite', label: 'Indefinite' },
+                  ].map((dur) => {
+                    const isSelected = suspensionDurationType === dur.key
+                    return (
+                      <button
+                        key={dur.key}
+                        type="button"
+                        onClick={() => handleDurationTypeChange(dur.key as SuspensionDurationType)}
+                        className={`py-1.5 px-2 rounded-xl text-xs font-bold text-center border transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-rose-700 text-white border-rose-700 shadow-2xs ring-1 ring-rose-400'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-rose-50/60'
+                        }`}
+                      >
+                        {dur.label}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Start Date and End Date Pickers */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      Start Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={suspensionStartDate}
+                      onChange={(e) => handleStartDateChange(e.target.value)}
+                      className="block w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-800 focus:border-rose-500 focus:outline-none focus:ring-2 focus:ring-rose-500/20 transition shadow-2xs font-semibold"
+                      disabled={loading}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
+                      {suspensionDurationType === 'indefinite' ? 'End Date (Indefinite)' : 'End Date (Clearance Target)'}
+                    </label>
+                    {suspensionDurationType === 'indefinite' ? (
+                      <div className="h-9 px-3 rounded-xl border border-dashed border-rose-300 bg-rose-50/30 flex items-center text-xs font-bold text-rose-700">
+                        Until Manually Cleared
+                      </div>
+                    ) : (
+                      <input
+                        type="date"
+                        value={suspensionEndDate}
+                        onChange={(e) => setSuspensionEndDate(e.target.value)}
+                        disabled={loading || suspensionDurationType !== 'custom'}
+                        className={`block w-full rounded-xl border px-3 py-2 text-xs font-semibold transition shadow-2xs ${
+                          suspensionDurationType === 'custom'
+                            ? 'border-slate-300 bg-white text-slate-800 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                            : 'border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed'
+                        }`}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Live Summary Preview */}
+                <div className="p-3 rounded-xl bg-white border border-rose-200 flex items-center gap-2.5 text-xs text-rose-900 font-semibold shadow-2xs">
+                  <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <div className="min-w-0">
+                    <span>Active Period: </span>
+                    <strong className="text-slate-900 font-black">{suspensionStartDate || 'Today'}</strong>
+                    <span> to </span>
+                    <strong className="text-slate-900 font-black">{suspensionDurationType === 'indefinite' ? 'Indefinite' : (suspensionEndDate || 'None')}</strong>
+                    {suspensionReason && (
+                      <span className="text-rose-700 block text-[11px] truncate mt-0.5">
+                        Reason: {suspensionReason}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Past Suspension History Accordion (if member has completed past suspensions) */}
+          {member && member.suspensionHistory && member.suspensionHistory.length > 0 && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-3.5 space-y-2">
+              <button
+                type="button"
+                onClick={() => setShowHistoryOpen(prev => !prev)}
+                className="w-full flex items-center justify-between text-left cursor-pointer group"
+              >
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="text-xs font-black text-slate-800">
+                      Suspension History Log ({member.suspensionHistory.length})
+                    </span>
+                    <p className="text-[10px] text-slate-500 font-medium">Record of all previous served suspensions</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1 text-slate-400 group-hover:text-slate-700 transition">
+                  <span className="text-[10px] font-bold uppercase tracking-wider">{showHistoryOpen ? 'Hide' : 'View'}</span>
+                  <svg className={`w-3.5 h-3.5 transition-transform ${showHistoryOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </div>
+              </button>
+
+              {showHistoryOpen && (
+                <div className="space-y-2 pt-2 border-t border-slate-200/80 animate-in fade-in duration-100">
+                  {member.suspensionHistory.map((rec, idx) => (
+                    <div key={rec.id || idx} className="p-2.5 rounded-xl bg-white border border-slate-200 text-xs space-y-1">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <span className="font-extrabold text-slate-900">{rec.reason}</span>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Cleared / Completed
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 flex items-center justify-between flex-wrap gap-1">
+                        <span>Period: {rec.startDate} → {rec.endDate || 'Indefinite'}</span>
+                        <span className="text-[10px] text-slate-400">Lifted by: {rec.liftedBy || 'System'}</span>
+                      </div>
+                      {rec.remarks && (
+                        <p className="text-[10px] text-slate-400 italic pt-0.5 border-t border-slate-100">
+                          {rec.remarks}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">

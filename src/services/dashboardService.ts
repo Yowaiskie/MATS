@@ -80,30 +80,59 @@ export const dashboardService = {
 
     // Calculate dates for current month
     const today = new Date()
-    const currentMonthStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+    const currentYear = today.getFullYear()
+    const currentMonthNum = today.getMonth() + 1
+    const currentMonthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`
     const startDate = `${currentMonthStr}-01`
-    const endDate = `${currentMonthStr}-31`
+    const lastDayOfMonth = new Date(currentYear, currentMonthNum, 0).getDate()
+    const endDate = `${currentMonthStr}-${String(lastDayOfMonth).padStart(2, '0')}`
+
     let suspendedMembersCount = 0
     let userOrderSuspendedCount = 0
     let monthSchedules: Schedule[] = []
 
+    const suspendedMemberIds = new Set<string>()
+
+    // 1. Collect members whose profile status is explicitly 'suspended' (and active in this month)
+    allMembers.forEach(m => {
+      if (m.status === 'suspended') {
+        const sStart = m.suspensionStartDate || ''
+        const sEnd = m.suspensionEndDate || ''
+
+        // Check if suspension period overlaps with current month
+        const isSuspensionActiveThisMonth = !sStart || (
+          sStart <= endDate && (!sEnd || sEnd >= startDate)
+        )
+
+        if (isSuspensionActiveThisMonth) {
+          suspendedMemberIds.add(m.id)
+        }
+      }
+    })
+
+    // 2. Combine with dynamic attendance policy infraction suspensions for this month
     try {
       const reportData = await reportService.loadReportData(startDate, endDate, allMembers)
       monthSchedules = reportData.schedules
       const memberRows = reportService.generateMemberReport(reportData)
-      const allSuspended = memberRows.filter(r => r.warningStatus === 'suspended')
-      suspendedMembersCount = allSuspended.length
-
-      if (userOrder) {
-        userOrderSuspendedCount = allSuspended.filter(r => {
-          const m = allMembers.find(mem => mem.id === r.memberId)
-          return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
-        }).length
-      } else {
-        userOrderSuspendedCount = suspendedMembersCount
-      }
+      memberRows.forEach(r => {
+        if (r.warningStatus === 'suspended') {
+          suspendedMemberIds.add(r.memberId)
+        }
+      })
     } catch (err) {
-      console.warn('Could not calculate suspended members count:', err)
+      console.warn('Could not calculate suspended members count from reports:', err)
+    }
+
+    suspendedMembersCount = suspendedMemberIds.size
+
+    if (userOrder) {
+      userOrderSuspendedCount = Array.from(suspendedMemberIds).filter(id => {
+        const m = allMembers.find(mem => mem.id === id)
+        return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
+      }).length
+    } else {
+      userOrderSuspendedCount = suspendedMembersCount
     }
 
     // 1. Calculate statistics
@@ -216,9 +245,8 @@ export const dashboardService = {
     })
 
     // 4. Calculate Birthdays for the current month
-    const currentMonth = today.getMonth() + 1 // 1-12
+    const currentMonth = currentMonthNum // 1-12
     const currentDay = today.getDate()
-    const currentYear = today.getFullYear()
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'

@@ -47,7 +47,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   const canManage = isAdmin || canAction('canManageMembers')
   const canDelete = isAdmin || canAction('canDeleteMembers')
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended'>('all')
   const [orderFilter, setOrderFilter] = useState<string>('all')
   const [rankFilter, setRankFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<SortField>('name')
@@ -416,6 +416,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
                       statusFilter === 'active' ? 'bg-emerald-500' :
                       statusFilter === 'inactive' ? 'bg-amber-500' :
+                      statusFilter === 'suspended' ? 'bg-rose-500' :
                       'bg-slate-400'
                     }`} />
                     <span className="truncate capitalize">
@@ -436,6 +437,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       { key: 'all', label: 'All Status', dot: 'bg-slate-400', count: members.length },
                       { key: 'active', label: 'Active', dot: 'bg-emerald-500', count: members.filter(m => m.status === 'active').length },
                       { key: 'inactive', label: 'Inactive', dot: 'bg-amber-500', count: members.filter(m => m.status === 'inactive').length },
+                      { key: 'suspended', label: 'Suspended', dot: 'bg-rose-500', count: members.filter(m => m.status === 'suspended').length },
                     ].map((s) => {
                       const isSelected = statusFilter === s.key
                       return (
@@ -480,6 +482,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
               { label: 'All', active: orderFilter === 'all' && rankFilter === 'all' && statusFilter === 'all', onClick: () => { setOrderFilter('all'); setRankFilter('all'); setStatusFilter('all'); } },
               { label: 'Active', active: statusFilter === 'active', onClick: () => setStatusFilter(statusFilter === 'active' ? 'all' : 'active') },
               { label: 'Inactive', active: statusFilter === 'inactive', onClick: () => setStatusFilter(statusFilter === 'inactive' ? 'all' : 'inactive') },
+              { label: 'Suspended', active: statusFilter === 'suspended', onClick: () => setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended') },
               ...ORDER_GROUPS.slice(0, 4).map(grp => ({
                 label: grp,
                 active: orderFilter === grp,
@@ -858,15 +861,29 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                         )}
                       </td>
                       <td className="p-4 whitespace-nowrap">
-                        <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold capitalize border ${
-                          member.status === 'active'
-                            ? 'bg-green-50 border border-green-100 text-green-600'
-                            : member.status === 'inactive'
-                            ? 'bg-amber-50 border border-amber-100 text-amber-600'
-                            : 'bg-gray-50 border border-gray-200 text-gray-600'
-                        }`}>
-                          {member.status}
-                        </span>
+                        <div className="flex flex-col items-start gap-0.5">
+                          <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold capitalize border ${
+                            member.status === 'active'
+                              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
+                              : member.status === 'inactive'
+                              ? 'bg-amber-50 border border-amber-200 text-amber-700'
+                              : member.status === 'suspended'
+                              ? 'bg-rose-50 border border-rose-200 text-rose-700'
+                              : 'bg-gray-50 border border-gray-200 text-gray-600'
+                          }`}>
+                            {member.status}
+                          </span>
+                          {member.status === 'suspended' && (
+                            <span 
+                              className="text-[9.5px] font-semibold text-rose-600/90 max-w-[140px] truncate cursor-help"
+                              title={member.suspensionReason ? `Reason: ${member.suspensionReason}${member.suspensionEndDate ? ` (Until ${member.suspensionEndDate})` : ''}` : undefined}
+                            >
+                              {member.suspensionEndDate 
+                                ? `Until ${member.suspensionEndDate}` 
+                                : (member.suspensionReason || 'Indefinite')}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-4 text-gray-500 hidden sm:table-cell">
                         {member.phoneNumber || '--'}

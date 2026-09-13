@@ -321,12 +321,17 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                             </span>
                           )}
                           {member.status === 'suspended' && (
-                            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-extrabold ${
-                              isMeetingOrFormation
-                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}>
-                              {isMeetingOrFormation ? 'SUSPENDED (Meeting Allowed)' : 'SUSPENDED'}
+                            <span 
+                              className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-extrabold cursor-help ${
+                                isMeetingOrFormation
+                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                  : 'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}
+                              title={member.suspensionReason ? `Suspension Reason: ${member.suspensionReason}${member.suspensionEndDate ? ` (Until ${member.suspensionEndDate})` : ''}` : undefined}
+                            >
+                              {isMeetingOrFormation 
+                                ? 'SUSPENDED (Meeting Allowed)' 
+                                : `SUSPENDED${member.suspensionEndDate ? ` (Until ${member.suspensionEndDate})` : ''}`}
                             </span>
                           )}
                         </div>
@@ -391,7 +396,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       <ConfirmModal
         isOpen={!!suspendedConfirmMember}
         title="Assign Suspended Server?"
-        message={`Bro. ${suspendedConfirmMember ? getFullName(suspendedConfirmMember) : ''} is currently marked as SUSPENDED. Are you sure you want to override and assign them to this schedule?`}
+        message={`Bro. ${suspendedConfirmMember ? getFullName(suspendedConfirmMember) : ''} is currently marked as SUSPENDED${suspendedConfirmMember?.suspensionReason ? ` (Reason: ${suspendedConfirmMember.suspensionReason})` : ''}${suspendedConfirmMember?.suspensionEndDate ? ` until ${suspendedConfirmMember.suspensionEndDate}` : ''}. Are you sure you want to override and assign them to this schedule?`}
         confirmLabel="Yes, Override & Assign"
         cancelLabel="Cancel"
         variant="warning"

@@ -27,6 +27,75 @@ export const memberService = {
       id: doc.id,
       ...doc.data()
     })) as Member[]
+
+    // Check for members with expired suspension periods and auto-unsuspend them while recording history
+    const d = new Date()
+    const todayStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+    const expiredSuspensions = members.filter(
+      m => m.status === 'suspended' && m.suspensionEndDate && m.suspensionEndDate < todayStr
+    )
+
+    if (expiredSuspensions.length > 0) {
+      // Process auto-unsuspensions
+      expiredSuspensions.forEach(async (m) => {
+        const completedRecord = {
+          id: `susp-${Date.now()}-${m.id.slice(0, 5)}`,
+          reason: m.suspensionReason || 'Suspension period served',
+          startDate: m.suspensionStartDate || '',
+          endDate: m.suspensionEndDate,
+          durationType: m.suspensionDurationType || 'custom',
+          completedAt: todayStr,
+          liftedBy: 'System (Auto-Expired)',
+          remarks: 'Completed suspension period. Automatically restored to Active.'
+        }
+
+        const newHistory = [...(m.suspensionHistory || []), completedRecord]
+
+        try {
+          const docRef = doc(db, MEMBERS_COLLECTION, m.id)
+          await updateDoc(docRef, {
+            status: 'active',
+            suspensionHistory: newHistory,
+            suspensionReason: '',
+            suspensionStartDate: '',
+            suspensionEndDate: '',
+            suspensionDurationType: '',
+            updatedAt: serverTimestamp()
+          })
+
+          await auditService.logAction(
+            'MEMBER_UPDATE',
+            'member',
+            `Suspension period completed for ${m.firstName} ${m.lastName} (ended ${m.suspensionEndDate}). Automatically restored to Active.`,
+            'System (Auto-Expired)',
+            { memberId: m.id, previousStatus: 'suspended', newStatus: 'active', completedSuspension: completedRecord }
+          )
+        } catch (err) {
+          console.warn(`Failed to auto-unsuspend member ${m.id}:`, err)
+        }
+      })
+
+      // Update in-memory objects immediately
+      expiredSuspensions.forEach(m => {
+        const completedRecord = {
+          id: `susp-${Date.now()}-${m.id.slice(0, 5)}`,
+          reason: m.suspensionReason || 'Suspension period served',
+          startDate: m.suspensionStartDate || '',
+          endDate: m.suspensionEndDate,
+          durationType: m.suspensionDurationType || 'custom',
+          completedAt: todayStr,
+          liftedBy: 'System (Auto-Expired)',
+          remarks: 'Completed suspension period. Automatically restored to Active.'
+        }
+        m.status = 'active'
+        m.suspensionHistory = [...(m.suspensionHistory || []), completedRecord]
+        m.suspensionReason = undefined
+        m.suspensionStartDate = undefined
+        m.suspensionEndDate = undefined
+        m.suspensionDurationType = undefined
+      })
+    }
     
     if (includeArchived === 'archived_only') {
       // Archived Members tab: show ONLY archived members
@@ -71,6 +140,11 @@ export const memberService = {
       dateOfInvestiture: input.dateOfInvestiture?.trim() || '',
       position: input.position?.trim() || '',
       order: input.order?.trim() || '',
+      suspensionReason: input.suspensionReason?.trim() || '',
+      suspensionStartDate: input.suspensionStartDate?.trim() || '',
+      suspensionEndDate: input.suspensionEndDate?.trim() || '',
+      suspensionDurationType: input.suspensionDurationType || '',
+      suspensionHistory: input.suspensionHistory || [],
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
@@ -103,12 +177,25 @@ export const memberService = {
     if (input.homeAddress !== undefined) updateData.homeAddress = input.homeAddress.trim()
     if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth.trim()
     if (input.rank !== undefined) updateData.rank = input.rank.trim()
-    if (input.status !== undefined) updateData.status = input.status
+    if (input.status !== undefined) {
+      updateData.status = input.status
+      if (input.status === 'active' && input.suspensionReason === undefined) {
+        updateData.suspensionReason = ''
+        updateData.suspensionStartDate = ''
+        updateData.suspensionEndDate = ''
+        updateData.suspensionDurationType = ''
+      }
+    }
     if (input.phoneNumber !== undefined) updateData.phoneNumber = input.phoneNumber.trim()
     if (input.monthJoined !== undefined) updateData.monthJoined = input.monthJoined.trim()
     if (input.dateOfInvestiture !== undefined) updateData.dateOfInvestiture = input.dateOfInvestiture.trim()
     if (input.position !== undefined) updateData.position = input.position.trim()
     if (input.order !== undefined) updateData.order = input.order.trim()
+    if (input.suspensionReason !== undefined) updateData.suspensionReason = input.suspensionReason.trim()
+    if (input.suspensionStartDate !== undefined) updateData.suspensionStartDate = input.suspensionStartDate.trim()
+    if (input.suspensionEndDate !== undefined) updateData.suspensionEndDate = input.suspensionEndDate.trim()
+    if (input.suspensionDurationType !== undefined) updateData.suspensionDurationType = input.suspensionDurationType
+    if (input.suspensionHistory !== undefined) updateData.suspensionHistory = input.suspensionHistory
     
     await updateDoc(docRef, updateData)
 
@@ -198,6 +285,10 @@ export const memberService = {
           if (input.dateOfInvestiture?.trim()) updateData.dateOfInvestiture = input.dateOfInvestiture.trim()
           if (input.position?.trim()) updateData.position = input.position.trim()
           if (input.order?.trim()) updateData.order = input.order.trim()
+          if (input.suspensionReason?.trim()) updateData.suspensionReason = input.suspensionReason.trim()
+          if (input.suspensionStartDate?.trim()) updateData.suspensionStartDate = input.suspensionStartDate.trim()
+          if (input.suspensionEndDate?.trim()) updateData.suspensionEndDate = input.suspensionEndDate.trim()
+          if (input.suspensionDurationType) updateData.suspensionDurationType = input.suspensionDurationType
           
           batch.update(docRef, updateData)
         } else {
@@ -218,6 +309,10 @@ export const memberService = {
             dateOfInvestiture: input.dateOfInvestiture?.trim() || '',
             position: input.position?.trim() || '',
             order: input.order?.trim() || '',
+            suspensionReason: input.suspensionReason?.trim() || '',
+            suspensionStartDate: input.suspensionStartDate?.trim() || '',
+            suspensionEndDate: input.suspensionEndDate?.trim() || '',
+            suspensionDurationType: input.suspensionDurationType || '',
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp()
           })
