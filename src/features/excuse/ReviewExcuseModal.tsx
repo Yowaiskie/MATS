@@ -27,11 +27,13 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
   schedulesMap,
   onUpdated 
 }) => {
-  const { profile } = useAuth()
+  const { user, profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
-  const [isDeleting, setIsDeleting] = useState(false)
+  const [isArchiving, setIsArchiving] = useState(false)
+
+  const canDelete = isAdmin || canAction('canDeleteExcuses')
 
   useEffect(() => {
     if (request) {
@@ -55,21 +57,21 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
       if (status === 'approved') {
         await excuseService.approveExcuseRequest(
           request.id!, 
-          request.trackingNumber, 
+          request.trackingNumber || request.id!, 
           remarks.trim(), 
           uId, 
           uName
         )
-        toast.success('Excuse Approved', `Excuse request ${request.trackingNumber} has been approved.`)
+        toast.success('Excuse Approved', `Excuse request for ${memberDisplayName} has been approved.`)
       } else {
         await excuseService.rejectExcuseRequest(
           request.id!, 
-          request.trackingNumber, 
+          request.trackingNumber || request.id!, 
           remarks.trim(), 
           uId, 
           uName
         )
-        toast.success('Excuse Rejected', `Excuse request ${request.trackingNumber} has been rejected.`)
+        toast.success('Excuse Rejected', `Excuse request for ${memberDisplayName} has been rejected.`)
       }
       onUpdated()
       onClose()
@@ -81,23 +83,24 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
     }
   }
 
-  const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to permanently delete this excuse request?')) return
-    setIsDeleting(true)
+  const handleArchive = async () => {
+    if (!user?.uid || !request?.id) return
+    setIsArchiving(true)
     try {
-      await excuseService.deleteExcuseRequest(
-        request.id!,
-        request.trackingNumber,
+      await excuseService.archiveExcuseRequest(
+        request.id,
+        request.trackingNumber || request.id,
+        user.uid,
         profile?.displayName || 'Officer'
       )
-      toast.success('Excuse Deleted', `Excuse request ${request.trackingNumber} has been deleted.`)
+      toast.success('Excuse Request Archived', `Excuse request for ${memberDisplayName} was moved to the Archived tab.`)
       onUpdated()
       onClose()
     } catch (err: any) {
       console.error(err)
-      toast.error('Deletion Failed', err.message || 'Failed to delete excuse request.')
+      toast.error('Archive Failed', err.message || 'Failed to archive excuse request.')
     } finally {
-      setIsDeleting(false)
+      setIsArchiving(false)
     }
   }
 
@@ -105,13 +108,15 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
     ? `${member.lastName}, ${member.firstName}` 
     : request.memberName || `Server #${request.memberId.substring(0, 8)}`
 
+  const isApproved = request.status === 'approved'
+
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Review & Process Excuse Request"
-      subtitle="Validate reasons, view supporting documents, and approve or reject"
-      badge="Excuse Processing"
+      title={request.isArchived ? "Archived Excuse Details" : isApproved ? "Approved Excuse Details" : "Review & Process Excuse Request"}
+      subtitle={request.isArchived ? "View details of this soft-deleted excuse request" : isApproved ? "Viewing finalized and approved excuse request" : "Validate reasons, view supporting documents, and approve or reject"}
+      badge={request.isArchived ? "Archived" : isApproved ? "Approved" : "Excuse Processing"}
       icon={
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -120,6 +125,32 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
       maxWidth="2xl"
     >
       <div className="space-y-5 p-1 text-xs">
+        {/* Archive Notice Banner */}
+        {request.isArchived && (
+          <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-amber-900 text-xs font-semibold flex items-center gap-2.5">
+            <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+            <div>
+              <span className="font-black block">Archived Request (Soft-Deleted)</span>
+              <span className="text-[11px] text-amber-800 font-medium">This excuse request is hidden from active review lists. You can restore it anytime from the Archived tab.</span>
+            </div>
+          </div>
+        )}
+
+        {/* Approved & Locked Banner */}
+        {!request.isArchived && isApproved && (
+          <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 text-xs font-semibold flex items-center gap-2.5">
+            <svg className="w-5 h-5 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <span className="font-black block">Approved & Finalized</span>
+              <span className="text-[11px] text-emerald-800 font-medium">This excuse request has already been approved and attendance records have been marked. The decision is final and cannot be modified.</span>
+            </div>
+          </div>
+        )}
+
         {/* Member Card */}
         <div className="bg-slate-50 p-4 rounded-2xl border border-slate-200/80 space-y-2">
           <div className="flex items-center justify-between flex-wrap gap-2">
@@ -138,22 +169,27 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                   {member.rank}
                 </span>
               )}
+              {request.isArchived && (
+                <span className="px-2 py-0.5 bg-amber-100 text-amber-800 rounded-lg text-xs font-extrabold border border-amber-200">
+                  Archived
+                </span>
+              )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-200/60 text-xs items-center">
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase block">Tracking Reference</span>
-              <span className="font-mono font-black text-indigo-600">{request.trackingNumber}</span>
-            </div>
+          <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
             <div>
               <span className="text-[10px] text-slate-400 font-bold uppercase block mb-1">Current Status</span>
               <StatusBadge status={request.status} size="sm" />
             </div>
-            <div>
-              <span className="text-[10px] text-slate-400 font-bold uppercase block">Contact Number</span>
-              <span className="font-bold text-slate-700">{member?.phoneNumber || 'N/A'}</span>
-            </div>
+            {request.submittedAt && (
+              <div className="text-right">
+                <span className="text-[10px] text-slate-400 font-bold uppercase block mb-0.5">Submitted</span>
+                <span className="text-xs font-semibold text-slate-600">
+                  {request.submittedAt?.toDate ? request.submittedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent'}
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -217,34 +253,43 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
         {/* Admin / Coordinator Remarks */}
         <div>
           <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
-            Admin / Coordinator Remarks (Visible to Server upon Tracking)
+            Admin / Coordinator Remarks {request.isArchived || isApproved ? '' : '(Visible to Server upon Tracking)'}
           </label>
-          <textarea 
-            value={remarks} 
-            onChange={e => setRemarks(e.target.value)} 
-            className="w-full border border-slate-300 rounded-2xl p-3 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
-            rows={3} 
-            placeholder="e.g. Excused due to medical certificate submitted; or specify reason if rejected..."
-          />
+          {request.isArchived || isApproved ? (
+            <div className="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-medium text-slate-700">
+              {remarks || <span className="text-slate-400 italic">No remarks recorded.</span>}
+            </div>
+          ) : (
+            <textarea 
+              value={remarks} 
+              onChange={e => setRemarks(e.target.value)} 
+              className="w-full border border-slate-300 rounded-2xl p-3 text-xs sm:text-sm font-medium text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" 
+              rows={3} 
+              placeholder="e.g. Excused due to medical certificate submitted; or specify reason if rejected..."
+            />
+          )}
         </div>
 
         {/* Modal Actions */}
         <div className="flex items-center justify-between pt-3 border-t border-slate-100 flex-wrap gap-2 sticky bottom-0 bg-white">
-          <Button 
-            type="button"
-            variant="danger"
-            size="dense"
-            loading={isDeleting}
-            loadingText="Deleting..."
-            onClick={handleDelete}
-            icon={
-              <svg className="w-4 h-4 text-white shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-            }
-          >
-            Delete Request
-          </Button>
+          {canDelete && !request.isArchived ? (
+            <Button 
+              type="button"
+              variant="secondary"
+              size="dense"
+              loading={isArchiving}
+              loadingText="Archiving..."
+              onClick={handleArchive}
+              className="text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
+              icon={
+                <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                </svg>
+              }
+            >
+              Archive Request
+            </Button>
+          ) : <div />}
 
           <div className="flex gap-2.5 justify-end flex-wrap">
             <Button 
@@ -253,28 +298,32 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
               size="dense"
               onClick={onClose} 
             >
-              Cancel
+              {request.isArchived || isApproved ? 'Close' : 'Cancel'}
             </Button>
-            <Button 
-              type="button"
-              variant="danger"
-              size="dense"
-              loading={loading}
-              loadingText="Processing..."
-              onClick={() => handleUpdate('rejected')} 
-            >
-              Reject Request
-            </Button>
-            <Button 
-              type="button"
-              variant="success"
-              size="dense"
-              loading={loading}
-              loadingText="Processing..."
-              onClick={() => handleUpdate('approved')} 
-            >
-              Approve Excuse
-            </Button>
+            {!request.isArchived && !isApproved && (
+              <>
+                <Button 
+                  type="button"
+                  variant="danger"
+                  size="dense"
+                  loading={loading}
+                  loadingText="Processing..."
+                  onClick={() => handleUpdate('rejected')} 
+                >
+                  Reject Request
+                </Button>
+                <Button 
+                  type="button"
+                  variant="success"
+                  size="dense"
+                  loading={loading}
+                  loadingText="Processing..."
+                  onClick={() => handleUpdate('approved')} 
+                >
+                  Approve Excuse
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </div>

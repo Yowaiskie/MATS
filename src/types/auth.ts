@@ -106,6 +106,10 @@ export interface UserPermissions {
   // Excuse actions
   canReviewExcuses?: boolean
   canApproveExcuses?: boolean
+  canDeleteExcuses?: boolean
+
+  // Broadcast actions
+  canBroadcast?: boolean
 }
 
 export interface PermissionPreset {
@@ -195,6 +199,10 @@ export interface PermissionPreset {
   // Excuse actions
   canReviewExcuses?: boolean
   canApproveExcuses?: boolean
+  canDeleteExcuses?: boolean
+
+  // Broadcast actions
+  canBroadcast?: boolean
 }
 
 export interface UserProfile {
@@ -205,6 +213,11 @@ export interface UserProfile {
   assignedOrder?: OrderGroup
   presetName?: string
   permissions?: Partial<UserPermissions>
+  memberId?: string
+  memberName?: string
+  pushEnabled?: boolean
+  fcmTokensCount?: number
   createdAt?: string
   updatedAt?: string
 }
+

@@ -1,12 +1,12 @@
 import {
   collection,
   doc,
+  setDoc,
   getDocs,
   getDoc,
   updateDoc,
   deleteDoc,
   serverTimestamp,
-  runTransaction,
   query,
   where
 } from 'firebase/firestore'
@@ -16,80 +16,60 @@ import { attendanceService } from '@/services/attendanceService'
 import type { ExcuseRequest, ExcuseStatus } from '@/types/excuse'
 
 const EXCUSES_COLLECTION = 'excuseRequests'
-const COUNTERS_COLLECTION = 'counters'
-const COUNTER_DOC = 'excuses'
 
 export const excuseService = {
   /**
-   * Submit a new excuse request. Generates a sequential tracking number.
+   * Submit a new excuse request. Generates a collision-free tracking number.
    */
   async submitExcuseRequest(
     data: Omit<ExcuseRequest, 'trackingNumber' | 'status' | 'submittedAt'>,
     performedBy: string = 'Public Portal'
   ): Promise<string> {
     try {
-      const trackingNumber = await runTransaction(db, async (transaction) => {
-        const counterRef = doc(db, COUNTERS_COLLECTION, COUNTER_DOC)
-        const counterDoc = await transaction.get(counterRef)
+      const date = new Date()
+      const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000)
+      const generatedTrackingNumber = `EX-${yearMonth}-${randomSuffix}`
 
-        let currentCount = 0
-        if (counterDoc.exists()) {
-          currentCount = counterDoc.data().currentSeq || 0
-        }
-
-        const newCount = currentCount + 1
-        const date = new Date()
-        const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
-        const paddedCount = newCount.toString().padStart(5, '0')
-        const generatedTrackingNumber = `EX-${yearMonth}-${paddedCount}`
-
-        // Update or create counter using standard currentSeq
-        if (counterDoc.exists()) {
-          transaction.update(counterRef, { currentSeq: newCount })
-        } else {
-          transaction.set(counterRef, { currentSeq: newCount })
-        }
-
-        const excuseRef = doc(collection(db, EXCUSES_COLLECTION))
-        transaction.set(excuseRef, {
-          ...data,
-          trackingNumber: generatedTrackingNumber,
-          status: 'pending' as ExcuseStatus,
-          submittedAt: serverTimestamp()
-        })
-
-        // Create the public status mapping document (accessible via get)
-        const statusRef = doc(db, 'excuseStatus', generatedTrackingNumber)
-        transaction.set(statusRef, {
-          status: 'pending' as ExcuseStatus,
-          reason: data.reason,
-          rejectionReason: '',
-          adminRemarks: '',
-          submittedAt: serverTimestamp()
-        })
-
-        return generatedTrackingNumber
+      const excuseRef = doc(collection(db, EXCUSES_COLLECTION))
+      await setDoc(excuseRef, {
+        ...data,
+        trackingNumber: generatedTrackingNumber,
+        status: 'pending' as ExcuseStatus,
+        submittedAt: serverTimestamp(),
+        isArchived: false
       })
 
-      await auditService.logAction(
+      // Create the public status mapping document (accessible via get)
+      const statusRef = doc(db, 'excuseStatus', generatedTrackingNumber)
+      await setDoc(statusRef, {
+        status: 'pending' as ExcuseStatus,
+        reason: data.reason,
+        rejectionReason: '',
+        adminRemarks: '',
+        submittedAt: serverTimestamp()
+      })
+
+      // Non-blocking audit log
+      auditService.logAction(
         'EXCUSE_SUBMITTED',
         'excuse',
-        `Submitted excuse request ${trackingNumber}`,
+        `Submitted excuse request ${generatedTrackingNumber}`,
         performedBy,
-        { trackingNumber, memberId: data.memberId }
-      )
+        { trackingNumber: generatedTrackingNumber, memberId: data.memberId }
+      ).catch(() => {})
 
-      return trackingNumber
-    } catch (error) {
+      return generatedTrackingNumber
+    } catch (error: any) {
       console.error('Error submitting excuse request:', error)
-      throw new Error('Failed to submit excuse request.')
+      throw new Error(error.message || 'Failed to submit excuse request.')
     }
   },
 
   /**
    * Fetch all excuse requests with optional filters.
    */
-  async getExcuseRequests(filters?: { status?: ExcuseStatus; memberId?: string }): Promise<ExcuseRequest[]> {
+  async getExcuseRequests(filters?: { status?: ExcuseStatus; memberId?: string; includeArchived?: boolean }): Promise<ExcuseRequest[]> {
     try {
       let q = query(collection(db, EXCUSES_COLLECTION))
 
@@ -101,10 +81,17 @@ export const excuseService = {
       }
 
       const snapshot = await getDocs(q)
-      const list = snapshot.docs.map(doc => ({
+      let list = snapshot.docs.map(doc => ({
         id: doc.id,
         ...doc.data()
       })) as ExcuseRequest[]
+
+      // Filter by archive status if requested
+      if (filters?.includeArchived === false) {
+        list = list.filter(r => !r.isArchived)
+      } else if (filters?.includeArchived === true) {
+        list = list.filter(r => r.isArchived === true)
+      }
 
       // Client-side in-memory sorting to prevent composite index errors
       return list.sort((a, b) => {
@@ -122,7 +109,7 @@ export const excuseService = {
    * Fetch all excuse requests filed by a specific member.
    */
   async getExcuseRequestsByMemberId(memberId: string): Promise<ExcuseRequest[]> {
-    return this.getExcuseRequests({ memberId })
+    return this.getExcuseRequests({ memberId, includeArchived: false })
   },
 
   /**
@@ -208,6 +195,13 @@ export const excuseService = {
   ): Promise<void> {
     try {
       const ref = doc(db, EXCUSES_COLLECTION, id)
+      const snap = await getDoc(ref)
+      const existing = snap.exists() ? (snap.data() as ExcuseRequest) : null
+
+      if (existing?.status === 'approved') {
+        throw new Error('Approved excuse requests are locked and cannot be changed or rejected.')
+      }
+
       await updateDoc(ref, {
         status: 'rejected' as ExcuseStatus,
         rejectionReason,
@@ -237,7 +231,68 @@ export const excuseService = {
   },
 
   /**
-   * Delete an excuse request document and its tracking status document.
+   * Soft-delete / Archive an excuse request.
+   */
+  async archiveExcuseRequest(
+    id: string,
+    trackingNumber: string,
+    performedByUid: string,
+    performedByName = 'Officer'
+  ): Promise<void> {
+    try {
+      const ref = doc(db, EXCUSES_COLLECTION, id)
+      await updateDoc(ref, {
+        isArchived: true,
+        archivedAt: serverTimestamp(),
+        archivedByUid: performedByUid,
+        archivedByName: performedByName
+      })
+
+      await auditService.logAction(
+        'EXCUSE_ARCHIVED' as any,
+        'excuse',
+        `Archived (soft-deleted) excuse request ${trackingNumber || id}`,
+        performedByName,
+        { trackingNumber, excuseId: id }
+      )
+    } catch (error) {
+      console.error('Error archiving excuse request:', error)
+      throw new Error('Failed to archive excuse request.')
+    }
+  },
+
+  /**
+   * Restore an archived excuse request back to active list.
+   */
+  async restoreExcuseRequest(
+    id: string,
+    trackingNumber: string,
+    performedByName = 'Officer'
+  ): Promise<void> {
+    try {
+      const ref = doc(db, EXCUSES_COLLECTION, id)
+      await updateDoc(ref, {
+        isArchived: false,
+        archivedAt: null,
+        archivedByUid: null,
+        archivedByName: null
+      })
+
+      await auditService.logAction(
+        'EXCUSE_RESTORED' as any,
+        'excuse',
+        `Restored archived excuse request ${trackingNumber || id}`,
+        performedByName,
+        { trackingNumber, excuseId: id }
+      )
+    } catch (error) {
+      console.error('Error restoring excuse request:', error)
+      throw new Error('Failed to restore excuse request.')
+    }
+  },
+
+  /**
+   * Permanently delete an excuse request document and its tracking status document (Hard Delete).
    */
   async deleteExcuseRequest(
     id: string,
@@ -256,7 +311,7 @@ export const excuseService = {
       await auditService.logAction(
         'EXCUSE_DELETED',
         'excuse',
-        `Deleted excuse request ${trackingNumber || id}`,
+        `Permanently deleted excuse request ${trackingNumber || id}`,
         performedBy,
         { trackingNumber, excuseId: id }
       )

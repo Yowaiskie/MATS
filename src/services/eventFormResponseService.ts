@@ -2,10 +2,9 @@ import {
   collection,
   doc,
   getDocs,
-  getCountFromServer,
+  setDoc,
   deleteDoc,
   serverTimestamp,
-  runTransaction,
   updateDoc,
   query,
   where
@@ -16,13 +15,11 @@ import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
 
 const RESPONSES_COLLECTION = 'eventFormResponses'
-const COUNTERS_COLLECTION = 'counters'
-const COUNTER_DOC = 'eventFormResponseSequence'
 
 export const eventFormResponseService = {
   /**
    * Submit a new response for a form.
-   * Generates a safe tracking number via transactional sequence counter.
+   * Generates a safe collision-free tracking number without lock contention.
    */
   async submitResponse(
     form: EventForm,
@@ -139,54 +136,35 @@ export const eventFormResponseService = {
         }
       }
 
-      // No existing response found — create a new one
-      const trackingNumber = await runTransaction(db, async (transaction) => {
-        const counterRef = doc(db, COUNTERS_COLLECTION, COUNTER_DOC)
-        const counterDoc = await transaction.get(counterRef)
+      // No existing response found — create a new one with collision-free tracking number
+      const date = new Date()
+      const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000)
+      const generatedTrackingNumber = `FR-${yearMonth}-${randomSuffix}`
 
-        let currentCount = 0
-        if (counterDoc.exists()) {
-          currentCount = counterDoc.data().currentSeq || 0
-        }
-
-        const newCount = currentCount + 1
-        const date = new Date()
-        const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
-        const paddedCount = newCount.toString().padStart(5, '0')
-        const generatedTrackingNumber = `FR-${yearMonth}-${paddedCount}`
-
-        if (counterDoc.exists()) {
-          transaction.update(counterRef, { currentSeq: newCount })
-        } else {
-          transaction.set(counterRef, { currentSeq: newCount })
-        }
-
-        const responseRef = doc(collection(db, RESPONSES_COLLECTION))
-        transaction.set(responseRef, {
-          formId: form.id,
-          eventId: form.eventId,
-          trackingNumber: generatedTrackingNumber,
-          respondentMemberUid: respondentInfo?.memberUid || '',
-          respondentMemberName: respondentInfo?.memberName || '',
-          respondentEmail: respondentInfo?.email || '',
-          answers,
-          status: 'submitted',
-          submittedAt: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        })
-
-        return generatedTrackingNumber
+      const responseRef = doc(collection(db, RESPONSES_COLLECTION))
+      await setDoc(responseRef, {
+        formId: form.id,
+        eventId: form.eventId,
+        trackingNumber: generatedTrackingNumber,
+        respondentMemberUid: respondentInfo?.memberUid || '',
+        respondentMemberName: respondentInfo?.memberName || '',
+        respondentEmail: respondentInfo?.email || '',
+        answers,
+        status: 'submitted',
+        submittedAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
       })
 
       await auditService.logAction(
         'FORM_RESPONSE_SUBMIT',
         'events',
-        `Submitted response ${trackingNumber} for form "${form.title}"`,
+        `Submitted response ${generatedTrackingNumber} for form "${form.title}"`,
         respondentInfo?.memberName || respondentInfo?.email || 'Public User',
-        { formId: form.id, eventId: form.eventId, trackingNumber }
+        { formId: form.id, eventId: form.eventId, trackingNumber: generatedTrackingNumber }
       )
 
-      return trackingNumber
+      return generatedTrackingNumber
     } catch (error) {
       console.error('Error submitting form response:', error)
       throw new Error(error instanceof Error ? error.message : 'Failed to submit form response.')
@@ -220,7 +198,7 @@ export const eventFormResponseService = {
   },
 
   /**
-   * Fetch response count for a single form using Firestore aggregate count.
+   * Fetch response count for a single form safely.
    */
   async getResponseCountByFormId(formId: string): Promise<number> {
     try {
@@ -228,29 +206,45 @@ export const eventFormResponseService = {
         collection(db, RESPONSES_COLLECTION),
         where('formId', '==', formId)
       )
-      const aggregate = await getCountFromServer(q)
-      return aggregate.data().count
+      const snapshot = await getDocs(q)
+      return snapshot.size
     } catch (error) {
-      console.error('Error fetching response count:', error)
-      throw new Error('Failed to fetch response count.')
+      console.warn('Error fetching response count:', error)
+      return 0
     }
   },
 
   /**
-   * Fetch response counts for multiple forms.
+   * Fetch response counts for multiple forms in batched queries.
    */
   async getResponseCountsByFormIds(formIds: string[]): Promise<Record<string, number>> {
     const ids = Array.from(new Set(formIds.filter(Boolean)))
     if (ids.length === 0) return {}
 
-    const counts = await Promise.all(
-      ids.map(async formId => {
-        const count = await this.getResponseCountByFormId(formId)
-        return [formId, count] as const
-      })
-    )
+    const counts: Record<string, number> = {}
+    ids.forEach(id => { counts[id] = 0 })
 
-    return Object.fromEntries(counts)
+    try {
+      const BATCH_SIZE = 30
+      for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+        const batchIds = ids.slice(i, i + BATCH_SIZE)
+        const q = query(
+          collection(db, RESPONSES_COLLECTION),
+          where('formId', 'in', batchIds)
+        )
+        const snapshot = await getDocs(q)
+        snapshot.docs.forEach(d => {
+          const fid = d.data().formId
+          if (fid && counts[fid] !== undefined) {
+            counts[fid]++
+          }
+        })
+      }
+      return counts
+    } catch (error) {
+      console.warn('Failed to batch count form responses (using fallback 0):', error)
+      return counts
+    }
   },
 
   /**

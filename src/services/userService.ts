@@ -40,7 +40,16 @@ export const userService = {
    * Uses a secondary app instance so the active admin session is NOT logged out.
    */
   async registerNewUserWithAuth(
-    data: { email: string; password?: string; displayName?: string; role: UserRole; assignedOrder?: OrderGroup; permissions?: Partial<UserPermissions> },
+    data: { 
+      email: string
+      password?: string
+      displayName?: string
+      role: UserRole
+      assignedOrder?: OrderGroup
+      memberId?: string
+      memberName?: string
+      permissions?: Partial<UserPermissions> 
+    },
     performedBy = 'System'
   ): Promise<void> {
     let uid = ''
@@ -84,6 +93,8 @@ export const userService = {
         displayName: data.displayName,
         role: data.role,
         assignedOrder: data.assignedOrder,
+        memberId: data.memberId,
+        memberName: data.memberName,
         permissions: data.permissions
       },
       performedBy
@@ -94,7 +105,16 @@ export const userService = {
    * Creates or updates a user profile in Firestore.
    */
   async saveUserProfile(
-    profileData: { uid: string; email: string; displayName?: string; role: UserRole; assignedOrder?: OrderGroup; permissions?: Partial<UserPermissions> },
+    profileData: { 
+      uid: string
+      email: string
+      displayName?: string
+      role: UserRole
+      assignedOrder?: OrderGroup
+      memberId?: string
+      memberName?: string
+      permissions?: Partial<UserPermissions> 
+    },
     performedBy = 'System'
   ): Promise<void> {
     const userDocRef = doc(db, USERS_COLLECTION, profileData.uid)
@@ -106,6 +126,8 @@ export const userService = {
       displayName: profileData.displayName?.trim() || '',
       role: profileData.role,
       assignedOrder: profileData.assignedOrder || '',
+      memberId: profileData.memberId || '',
+      memberName: profileData.memberName || '',
       permissions: profileData.permissions || null,
       updatedAt: serverTimestamp(),
       ...(existingSnap.exists() ? {} : { createdAt: serverTimestamp() })

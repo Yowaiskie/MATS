@@ -186,6 +186,10 @@ export const UsersPage: React.FC = () => {
   // Excuses Preset state
   const [presetFormReviewExcuses, setPresetFormReviewExcuses] = useState(false)
   const [presetFormApproveExcuses, setPresetFormApproveExcuses] = useState(false)
+  const [presetFormDeleteExcuses, setPresetFormDeleteExcuses] = useState(false)
+
+  // Broadcast Preset state
+  const [presetFormBroadcast, setPresetFormBroadcast] = useState(false)
 
   // Register / Edit User Form state
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -279,6 +283,10 @@ export const UsersPage: React.FC = () => {
   // Excuses permissions state
   const [canReviewExcuses, setCanReviewExcuses] = useState(false)
   const [canApproveExcuses, setCanApproveExcuses] = useState(false)
+  const [canDeleteExcuses, setCanDeleteExcuses] = useState(false)
+
+  // Broadcast permissions state
+  const [canBroadcast, setCanBroadcast] = useState(false)
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
@@ -384,6 +392,8 @@ export const UsersPage: React.FC = () => {
 
     setCanReviewExcuses(p.canReviewExcuses ?? false)
     setCanApproveExcuses(p.canApproveExcuses ?? false)
+    setCanDeleteExcuses(p.canDeleteExcuses ?? false)
+    setCanBroadcast(p.canBroadcast ?? false)
 
     if (p.assignedOrder) {
       setAssignedOrder(p.assignedOrder)
@@ -469,6 +479,8 @@ export const UsersPage: React.FC = () => {
 
     setPresetFormReviewExcuses(false)
     setPresetFormApproveExcuses(false)
+    setPresetFormDeleteExcuses(false)
+    setPresetFormBroadcast(false)
   }
 
   const handleOpenEditPreset = (p: PermissionPreset) => {
@@ -548,6 +560,8 @@ export const UsersPage: React.FC = () => {
 
     setPresetFormReviewExcuses(p.canReviewExcuses ?? false)
     setPresetFormApproveExcuses(p.canApproveExcuses ?? false)
+    setPresetFormDeleteExcuses(p.canDeleteExcuses ?? false)
+    setPresetFormBroadcast(p.canBroadcast ?? false)
   }
 
   const handleSavePreset = async (e: React.FormEvent) => {
@@ -635,7 +649,9 @@ export const UsersPage: React.FC = () => {
         canDeleteMembers: presetFormDeleteMembers,
 
         canReviewExcuses: presetFormReviewExcuses,
-        canApproveExcuses: presetFormApproveExcuses
+        canApproveExcuses: presetFormApproveExcuses,
+        canDeleteExcuses: presetFormDeleteExcuses,
+        canBroadcast: presetFormBroadcast
       }
 
       let updatedPresets: PermissionPreset[] = []
@@ -681,6 +697,8 @@ export const UsersPage: React.FC = () => {
     setPassword('')
     setConfirmPassword('')
     setDisplayName('')
+    setSelectedMemberId('')
+    setSelectedMemberName('')
     if (presets.length > 0) {
       applyPreset(presets[0])
     }
@@ -694,7 +712,9 @@ export const UsersPage: React.FC = () => {
     setCurrentPassword('')
     setPassword('')
     setConfirmPassword('')
-    setDisplayName(userToEdit.displayName || '')
+    setDisplayName(userToEdit.displayName || userToEdit.memberName || '')
+    setSelectedMemberId(userToEdit.memberId || '')
+    setSelectedMemberName(userToEdit.memberName || userToEdit.displayName || '')
     setRole(userToEdit.role || 'user')
     setAssignedOrder(userToEdit.assignedOrder || '')
 
@@ -773,6 +793,8 @@ export const UsersPage: React.FC = () => {
 
       setCanReviewExcuses(perms.canReviewExcuses ?? false)
       setCanApproveExcuses(perms.canApproveExcuses ?? false)
+      setCanDeleteExcuses(perms.canDeleteExcuses ?? false)
+      setCanBroadcast(perms.canBroadcast ?? false)
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
@@ -889,6 +911,8 @@ export const UsersPage: React.FC = () => {
 
       canReviewExcuses,
       canApproveExcuses,
+      canDeleteExcuses,
+      canBroadcast,
 
       ...(assignedOrder ? { assignedOrder } : {}),
       ...(activePresetName ? { presetName: activePresetName } : {})
@@ -927,6 +951,8 @@ export const UsersPage: React.FC = () => {
             displayName: displayName.trim() || undefined,
             role,
             assignedOrder: selectedOrder,
+            memberId: selectedMemberId || undefined,
+            memberName: selectedMemberName || displayName.trim() || undefined,
             permissions: permissionsPayload
           },
           currentAdmin?.email || 'Admin'
@@ -943,6 +969,8 @@ export const UsersPage: React.FC = () => {
             displayName: displayName.trim() || undefined,
             role,
             assignedOrder: selectedOrder,
+            memberId: selectedMemberId || undefined,
+            memberName: selectedMemberName || displayName.trim() || undefined,
             permissions: permissionsPayload
           },
           currentAdmin?.email || 'Admin'
@@ -1005,22 +1033,81 @@ export const UsersPage: React.FC = () => {
     }
   }
 
+  const [pushStatusFilter, setPushStatusFilter] = useState<'all' | 'enabled' | 'not_enabled'>('all')
+  const [broadcastFilter, setBroadcastFilter] = useState<'all' | 'can_broadcast'>('all')
+  const [selectedMemberId, setSelectedMemberId] = useState<string>('')
+  const [selectedMemberName, setSelectedMemberName] = useState<string>('')
+
+  const handleToggleBroadcastPermission = async (userToToggle: UserProfile) => {
+    if (userToToggle.role === 'admin' || userToToggle.role === 'coordinator') {
+      toast.info('Admin Privilege', 'Administrators inherently have broadcast permissions.')
+      return
+    }
+
+    const currentVal = Boolean(userToToggle.permissions?.canBroadcast)
+    const nextVal = !currentVal
+
+    const updatedPerms: UserPermissions = {
+      ...(userToToggle.permissions as UserPermissions || {
+        allowedModules: ['dashboard', 'attendance'],
+        canTakeAttendance: true,
+        canFinalizeAttendance: false,
+        canViewSchedules: true,
+        canManageSchedules: false,
+        canViewReports: false,
+        canExportReports: false
+      }),
+      canBroadcast: nextVal
+    }
+
+    try {
+      await userService.saveUserProfile(
+        {
+          uid: userToToggle.uid,
+          email: userToToggle.email,
+          displayName: userToToggle.displayName,
+          role: userToToggle.role,
+          assignedOrder: userToToggle.assignedOrder,
+          memberId: userToToggle.memberId,
+          memberName: userToToggle.memberName,
+          permissions: updatedPerms
+        },
+        currentAdmin?.email || 'Admin'
+      )
+      toast.success(
+        nextVal ? 'Broadcast Access Granted' : 'Broadcast Access Revoked',
+        `User '${userToToggle.email}' ${nextVal ? 'can now' : 'can no longer'} dispatch ministry broadcasts.`
+      )
+      await loadData(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Failed to Update', err.message || 'Could not update broadcast permission.')
+    }
+  }
+
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
       if (roleFilter !== 'all') {
         if (roleFilter === 'user' && u.role && u.role !== 'user') return false
         if (roleFilter !== 'user' && u.role !== roleFilter) return false
       }
+      if (pushStatusFilter === 'enabled' && !u.pushEnabled) return false
+      if (pushStatusFilter === 'not_enabled' && u.pushEnabled) return false
+      if (broadcastFilter === 'can_broadcast') {
+        const canBc = u.role === 'admin' || u.role === 'coordinator' || Boolean(u.permissions?.canBroadcast)
+        if (!canBc) return false
+      }
+
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim()
         const email = (u.email || '').toLowerCase()
-        const name = (u.displayName || '').toLowerCase()
+        const name = (u.displayName || u.memberName || '').toLowerCase()
         const role = (u.role || '').toLowerCase()
         if (!email.includes(q) && !name.includes(q) && !role.includes(q)) return false
       }
       return true
     })
-  }, [users, roleFilter, searchQuery])
+  }, [users, roleFilter, pushStatusFilter, broadcastFilter, searchQuery])
 
   if (!isAdmin) {
     return (
@@ -1061,34 +1148,71 @@ export const UsersPage: React.FC = () => {
         </Button>
       </div>
 
+      {/* Push Notification Coverage & User Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Total User Accounts</span>
+          <div className="text-2xl font-black text-slate-900">{users.length}</div>
+          <span className="text-[11px] text-slate-500">Registered officers & admins</span>
+        </div>
+
+        <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-100 shadow-2xs space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Push Notifications Active</span>
+          <div className="text-2xl font-black text-emerald-800">
+            {users.filter(u => u.pushEnabled).length}
+          </div>
+          <span className="text-[11px] text-emerald-600">Subscribed & receiving live alerts</span>
+        </div>
+
+        <div className="p-4 bg-amber-50/50 rounded-2xl border border-amber-100 shadow-2xs space-y-1">
+          <span className="text-[10px] font-black uppercase tracking-wider text-amber-700">Push Not Enabled</span>
+          <div className="text-2xl font-black text-amber-800">
+            {users.filter(u => !u.pushEnabled).length}
+          </div>
+          <span className="text-[11px] text-amber-600">Need to enable in Settings/PWA</span>
+        </div>
+      </div>
+
       {/* Quick Role Filters & Search Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3 rounded-2xl border border-slate-200/80 shadow-2xs">
         <QuickFilterPills
-          title="Role:"
+          title="Filter:"
           pills={[
             {
               label: 'All Users',
-              active: roleFilter === 'all',
-              onClick: () => { setRoleFilter('all'); setCurrentPage(1); },
+              active: roleFilter === 'all' && pushStatusFilter === 'all' && broadcastFilter === 'all',
+              onClick: () => { setRoleFilter('all'); setPushStatusFilter('all'); setBroadcastFilter('all'); setCurrentPage(1); },
               count: users.length,
+            },
+            {
+              label: 'Can Broadcast',
+              active: broadcastFilter === 'can_broadcast',
+              onClick: () => { setBroadcastFilter('can_broadcast'); setRoleFilter('all'); setPushStatusFilter('all'); setCurrentPage(1); },
+              count: users.filter(u => u.role === 'admin' || u.role === 'coordinator' || Boolean(u.permissions?.canBroadcast)).length,
+            },
+            {
+              label: 'Push Active',
+              active: pushStatusFilter === 'enabled',
+              onClick: () => { setPushStatusFilter('enabled'); setBroadcastFilter('all'); setCurrentPage(1); },
+              count: users.filter(u => u.pushEnabled).length,
+            },
+            {
+              label: 'Push Pending',
+              active: pushStatusFilter === 'not_enabled',
+              onClick: () => { setPushStatusFilter('not_enabled'); setBroadcastFilter('all'); setCurrentPage(1); },
+              count: users.filter(u => !u.pushEnabled).length,
             },
             {
               label: 'Administrators',
               active: roleFilter === 'admin',
-              onClick: () => { setRoleFilter('admin'); setCurrentPage(1); },
+              onClick: () => { setRoleFilter('admin'); setBroadcastFilter('all'); setCurrentPage(1); },
               count: users.filter(u => u.role === 'admin').length,
             },
             {
               label: 'Order Leaders',
               active: roleFilter === 'order_leader',
-              onClick: () => { setRoleFilter('order_leader'); setCurrentPage(1); },
+              onClick: () => { setRoleFilter('order_leader'); setBroadcastFilter('all'); setCurrentPage(1); },
               count: users.filter(u => u.role === 'order_leader').length,
-            },
-            {
-              label: 'User Accounts',
-              active: roleFilter === 'user',
-              onClick: () => { setRoleFilter('user'); setCurrentPage(1); },
-              count: users.filter(u => !u.role || u.role === 'user').length,
             },
           ]}
         />
@@ -1122,8 +1246,10 @@ export const UsersPage: React.FC = () => {
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
                     <th className="px-6 py-3.5">User Email</th>
-                    <th className="px-6 py-3.5">Display Name</th>
+                    <th className="px-6 py-3.5">Linked Member / Name</th>
                     <th className="px-6 py-3.5">Role</th>
+                    <th className="px-6 py-3.5">Broadcast Access</th>
+                    <th className="px-6 py-3.5">Push Status</th>
                     <th className="px-6 py-3.5">Assigned Preset</th>
                     <th className="px-6 py-3.5 text-right">Actions</th>
                   </tr>
@@ -1145,13 +1271,59 @@ export const UsersPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 text-xs text-gray-600 whitespace-nowrap">
-                          {u.displayName || '--'}
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-slate-800">{u.displayName || u.memberName || '--'}</span>
+                            {u.memberId && (
+                              <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60">
+                                Linked
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <StatusBadge
                             status={u.role === 'admin' ? 'Administrator' : u.role === 'order_leader' ? `Order Leader${u.assignedOrder ? ` (${u.assignedOrder})` : ''}` : 'User Account'}
                             size="sm"
                           />
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {u.role === 'admin' || u.role === 'coordinator' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                              <svg className="w-3.5 h-3.5 text-purple-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.115-1.564-.442a22.25 22.25 0 01-1.332-2.918m2.031-1.314A22.5 22.5 0 0019.5 12a22.5 22.5 0 00-7.16-3.84m0 9.18A22.5 22.5 0 0119.5 12m0 0a22.5 22.5 0 00-7.16-3.84" />
+                              </svg>
+                              Admin Default
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleToggleBroadcastPermission(u)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer border ${
+                                u.permissions?.canBroadcast
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 shadow-2xs'
+                                  : 'bg-slate-50 text-slate-400 border-slate-200 hover:bg-slate-100 hover:text-slate-600'
+                              }`}
+                              title={u.permissions?.canBroadcast ? 'Click to revoke broadcast permission' : 'Click to grant broadcast permission'}
+                            >
+                              <svg className={`w-3.5 h-3.5 shrink-0 ${u.permissions?.canBroadcast ? 'text-indigo-600' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.34 15.84c-.688-.06-1.386-.09-2.09-.09H7.5a4.5 4.5 0 110-9h.75c.704 0 1.402-.03 2.09-.09m0 9.18c.253.962.584 1.892.985 2.783.247.55.06 1.21-.463 1.511l-.657.38c-.551.318-1.26.115-1.564-.442a22.25 22.25 0 01-1.332-2.918m2.031-1.314A22.5 22.5 0 0019.5 12a22.5 22.5 0 00-7.16-3.84m0 9.18A22.5 22.5 0 0119.5 12m0 0a22.5 22.5 0 00-7.16-3.84" />
+                              </svg>
+                              <span>{u.permissions?.canBroadcast ? 'Allowed' : 'Disabled'}</span>
+                            </button>
+                          )}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {u.pushEnabled ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Subscribed
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200/80">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                              Not Enabled
+                            </span>
+                          )}
                         </td>
                         <td className="px-6 py-4 text-xs whitespace-nowrap">
                           {(() => {
@@ -1312,7 +1484,16 @@ export const UsersPage: React.FC = () => {
                       title="Select Officer / Altar Server"
                       placeholder="-- No Real Name Assigned --"
                       formatDisplayName={(m) => `${m.firstName} ${m.lastName}`.trim()}
-                      onChange={(val) => setDisplayName(val)}
+                      onChange={(val, item) => {
+                        setDisplayName(val)
+                        if (item?.rawMember) {
+                          setSelectedMemberId(item.rawMember.id)
+                          setSelectedMemberName(`${item.rawMember.firstName} ${item.rawMember.lastName}`.trim())
+                        } else if (!val) {
+                          setSelectedMemberId('')
+                          setSelectedMemberName('')
+                        }
+                      }}
                     />
                   </div>
                 </div>
@@ -1925,9 +2106,10 @@ export const UsersPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-bold text-rose-950">Excuse Requests</span>
                       <button type="button" onClick={() => {
-                        const val = !(canReviewExcuses && canApproveExcuses)
+                        const val = !(canReviewExcuses && canApproveExcuses && canDeleteExcuses)
                         setCanReviewExcuses(val)
                         setCanApproveExcuses(val)
+                        setCanDeleteExcuses(val)
                       }} className="text-[10px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer">Toggle All</button>
                     </div>
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
@@ -1938,7 +2120,30 @@ export const UsersPage: React.FC = () => {
                       <input type="checkbox" checked={canApproveExcuses} onChange={e => setCanApproveExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-4 w-4" />
                       <span>Can Approve/Reject Excuses</span>
                     </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={canDeleteExcuses} onChange={e => setCanDeleteExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-4 w-4" />
+                      <span>Can Archive & Delete Excuses</span>
+                    </label>
                   </div>
+                </div>
+
+                {/* Broadcast Announcements Permissions */}
+                <div className="p-3.5 rounded-xl border border-indigo-200 bg-indigo-50/40 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-indigo-950">Broadcast Announcements & Alerts</span>
+                  </div>
+                  <label className="flex items-start gap-2.5 text-xs text-gray-700 cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      checked={canBroadcast} 
+                      onChange={e => setCanBroadcast(e.target.checked)} 
+                      className="rounded border-gray-300 text-indigo-600 h-4 w-4 mt-0.5" 
+                    />
+                    <div className="space-y-0.5">
+                      <span className="font-semibold text-slate-900">Can Dispatch Ministry Broadcasts</span>
+                      <p className="text-[11px] text-slate-500">Allows sending urgent/important announcements with top floating cards and notifications to members.</p>
+                    </div>
+                  </label>
                 </div>
 
               </div>
@@ -2445,9 +2650,10 @@ export const UsersPage: React.FC = () => {
                   <div className="flex items-center justify-between mb-2">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-rose-700">Excuse Requests (Preset)</h4>
                     <button type="button" onClick={() => {
-                      const val = !(presetFormReviewExcuses && presetFormApproveExcuses)
+                      const val = !(presetFormReviewExcuses && presetFormApproveExcuses && presetFormDeleteExcuses)
                       setPresetFormReviewExcuses(val)
                       setPresetFormApproveExcuses(val)
+                      setPresetFormDeleteExcuses(val)
                     }} className="text-[10px] font-semibold text-rose-600 hover:text-rose-800 cursor-pointer">Toggle All</button>
                   </div>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -2458,6 +2664,23 @@ export const UsersPage: React.FC = () => {
                     <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
                       <input type="checkbox" checked={presetFormApproveExcuses} onChange={e => setPresetFormApproveExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-3.5 w-3.5" />
                       <span>Can Approve/Reject Excuses</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormDeleteExcuses} onChange={e => setPresetFormDeleteExcuses(e.target.checked)} className="rounded border-gray-300 text-rose-600 h-3.5 w-3.5" />
+                      <span>Can Archive & Delete Excuses</span>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Broadcast Announcements (Preset) */}
+                <div className="space-y-4 pt-2 border-t border-gray-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700">Broadcast Announcements (Preset)</h4>
+                  </div>
+                  <div className="grid grid-cols-1 gap-1.5">
+                    <label className="flex items-center gap-2 text-xs text-gray-700 cursor-pointer">
+                      <input type="checkbox" checked={presetFormBroadcast} onChange={e => setPresetFormBroadcast(e.target.checked)} className="rounded border-gray-300 text-indigo-600 h-3.5 w-3.5" />
+                      <span>Can Dispatch Ministry Broadcasts</span>
                     </label>
                   </div>
                 </div>

@@ -19,6 +19,10 @@ export interface ExcuseRequest {
   reviewedAt?: any // Firestore Timestamp
   reviewedByUid?: string
   reviewedByName?: string
+  isArchived?: boolean
+  archivedAt?: any // Firestore Timestamp
+  archivedByUid?: string
+  archivedByName?: string
 }
 
 export interface ExcuseConfig {

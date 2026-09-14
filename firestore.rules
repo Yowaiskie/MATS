@@ -73,6 +73,11 @@ service cloud.firestore {
         (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
         isValidString(request.resource.data.email, 3, 100)
       );
+
+      // Device FCM registration tokens
+      match /fcmTokens/{tokenId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      }
     }
 
     // members collection
@@ -105,7 +110,7 @@ service cloud.firestore {
 
     // settings collection
     match /settings/{settingsId} {
-      allow read: if isAuthenticated() || settingsId == 'maintenanceMode';
+      allow read: if true; // Public for maintenance mode checks and app configurations
       allow write: if isSuperAdmin();
     }
 
@@ -389,6 +394,15 @@ service cloud.firestore {
     match /inventory_categories/{catId} {
       allow read: if isAuthenticated();
       allow create, update, delete: if isAuthenticated();
+    }
+
+    // ==========================================
+    // Push & System Notifications Collection
+    // ==========================================
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isSuperAdmin() || hasPermission('canManageSchedules');
+      allow update: if isAuthenticated();
     }
   }
 }

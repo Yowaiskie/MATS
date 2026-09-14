@@ -15,4 +15,27 @@ const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
 export const db = getFirestore(app)
+
+let messagingInstance: any = null
+
+export const getFirebaseMessaging = async (): Promise<any | null> => {
+  if (typeof window !== 'undefined') {
+    try {
+      const { isSupported, getMessaging } = await import('firebase/messaging')
+      if (await isSupported()) {
+        if (!messagingInstance) {
+          messagingInstance = getMessaging(app)
+        }
+        return messagingInstance
+      }
+    } catch (err) {
+      console.warn('Firebase messaging not supported or failed to load:', err)
+      return null
+    }
+  }
+  return null
+}
+
 export default app
+
+

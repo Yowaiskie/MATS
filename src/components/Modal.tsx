@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface ModalProps {
   isOpen: boolean
@@ -48,8 +49,8 @@ export const Modal: React.FC<ModalProps> = ({
     'full': 'max-w-full m-4',
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true">
       {/* Glassmorphic Backdrop */}
       <div 
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" 
@@ -97,13 +98,14 @@ export const Modal: React.FC<ModalProps> = ({
           {children}
         </div>
 
-        {/* Optional Standard Footer */}
-        {footer && (
-          <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 sm:px-6 border-t border-slate-100 bg-slate-50/50 shrink-0">
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
+          {/* Optional Standard Footer */}
+          {footer && (
+            <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 sm:px-6 border-t border-slate-100 bg-slate-50/50 shrink-0">
+              {footer}
+            </div>
+          )}
+        </div>
+      </div>,
+      document.body
+    )
+  }

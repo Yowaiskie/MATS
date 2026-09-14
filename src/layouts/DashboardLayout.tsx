@@ -4,6 +4,10 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import type { ModuleKey } from '@/types/auth'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { InstallPWAButton } from '@/components/InstallPWAButton'
+import { NotificationBell } from '@/components/NotificationBell'
+import { NotificationActions } from '@/components/NotificationActions'
+import { BroadcastHeaderBanner } from '@/components/BroadcastHeaderBanner'
+import { EnablePushModal } from '@/components/EnablePushModal'
 import { Joyride } from 'react-joyride'
 import { useTutorial } from '@/context/TutorialContext'
 import { useTutorialSteps } from '@/hooks/useTutorialSteps'
@@ -256,6 +260,8 @@ export const DashboardLayout: React.FC = () => {
 
           {/* Top Nav Right Actions */}
           <div className="flex items-center space-x-2 sm:space-x-3">
+            <NotificationActions />
+            <NotificationBell />
             <button
               onClick={() => startTutorial(globalSteps)}
               className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs cursor-pointer focus:outline-none"
@@ -521,7 +527,13 @@ export const DashboardLayout: React.FC = () => {
 
         {/* Main Content Pane */}
         <main className="flex-1 min-w-0 p-4 sm:p-8 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-7xl mx-auto space-y-6">
+            {/* Active Ministry Broadcast Announcement Card */}
+            <BroadcastHeaderBanner />
+
+            {/* Persistent Push Notification Setup Prompt */}
+            <EnablePushModal />
+
             {/* Outlet renders the matched nested route child */}
             <Outlet />
           </div>

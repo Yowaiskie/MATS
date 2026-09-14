@@ -15,6 +15,7 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    include: ['firebase/app', 'firebase/auth', 'firebase/firestore', 'firebase/messaging'],
     exclude: ['pdfjs-dist'],
   },
 })

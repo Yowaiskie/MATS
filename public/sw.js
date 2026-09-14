@@ -126,3 +126,68 @@ self.addEventListener('fetch', (event) => {
       })
   );
 });
+
+// ============================================================================
+// Push Notification Event Handlers (FCM / Web Push API)
+// ============================================================================
+
+self.addEventListener('push', (event) => {
+  let title = 'MATS Notification';
+  let options = {
+    body: 'You have a new ministry update.',
+    icon: '/favicon/icon-192.png',
+    badge: '/favicon/favicon-32x32.png',
+    tag: 'mats-general',
+    renotify: true,
+    data: {
+      url: '/'
+    }
+  };
+
+  if (event.data) {
+    try {
+      const payload = event.data.json();
+      const notificationData = payload.notification || payload.data || {};
+      title = notificationData.title || title;
+      options = {
+        ...options,
+        body: notificationData.body || options.body,
+        icon: notificationData.icon || options.icon,
+        tag: notificationData.tag || options.tag,
+        data: {
+          url: notificationData.click_action || notificationData.url || (payload.data && payload.data.url) || '/',
+          ...payload.data
+        }
+      };
+    } catch {
+      // If plain text payload
+      options.body = event.data.text() || options.body;
+    }
+  }
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const targetUrl = (event.notification.data && event.notification.data.url) ? event.notification.data.url : '/';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If client is already open, focus it and navigate
+      for (const client of windowClients) {
+        if (client.url && 'focus' in client) {
+          if (client.url.includes(self.location.origin)) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+      }
+      // Otherwise open new window
+      if (self.clients.openWindow) {
+        return self.clients.openWindow(targetUrl);
+      }
+    })
+  );
+});
+

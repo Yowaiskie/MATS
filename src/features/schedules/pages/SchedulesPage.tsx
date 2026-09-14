@@ -15,11 +15,13 @@ import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
-import { FilterDropdown } from '@/components'
+import { FilterDropdown, BulkProgressBar } from '@/components'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
+import type { PushNotificationProgress } from '@/types/notification'
 import { attendanceService } from '@/services/attendanceService'
+import { notificationService } from '@/services/notificationService'
 import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useToast } from '@/context/ToastContext'
@@ -194,6 +196,10 @@ export const SchedulesPage: React.FC = () => {
   // Dialog state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'success' | 'error' | 'warning' | 'info' } | null>(null)
+
+  // Push Notification state
+  const [bulkReminderProgress, setBulkReminderProgress] = useState<PushNotificationProgress | null>(null)
+  const [isReminding, setIsReminding] = useState(false)
 
   const loadData = async (showSpinner = true, targetMonthDate?: Date) => {
     if (showSpinner) setLoading(true)
@@ -476,6 +482,33 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
+  const handleRemindPendingAttendance = async () => {
+    if (isReminding) return
+    setIsReminding(true)
+    try {
+      const res = await notificationService.sendBulkAttendanceReminders(
+        (progress) => {
+          setBulkReminderProgress(progress)
+        },
+        profile?.displayName || profile?.email || 'Admin'
+      )
+
+      if (res.schedulesReminded === 0) {
+        toast.info('No schedules currently have pending untaken attendance for today.')
+      } else {
+        toast.success(
+          `Sent attendance reminders for ${res.schedulesReminded} schedule(s) to ${res.officersNotified} officer device(s)!`
+        )
+      }
+    } catch (err: any) {
+      console.error('Error sending attendance reminders:', err)
+      toast.error(err.message || 'Failed to send attendance reminders.')
+    } finally {
+      setIsReminding(false)
+      setTimeout(() => setBulkReminderProgress(null), 3500)
+    }
+  }
+
   // ── Filter & paginate ─────────────────────────────────────────
   const formatTime12 = (timeStr: string) => {
     if (!timeStr) return ''
@@ -668,6 +701,20 @@ export const SchedulesPage: React.FC = () => {
               {canManage && (
                 <>
                   <button
+                    onClick={handleRemindPendingAttendance}
+                    disabled={isReminding}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-800 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs ${
+                      isReminding ? 'opacity-70 cursor-not-allowed' : ''
+                    }`}
+                    title="Send Push Notifications to all assigned officers with untaken attendance today"
+                  >
+                    <svg className={`w-4 h-4 text-amber-600 ${isReminding ? 'animate-bounce' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span>{isReminding ? 'Reminding...' : 'Remind Untaken'}</span>
+                  </button>
+
+                  <button
                     onClick={() => setTemplatesOpen(true)}
                     className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
                   >
@@ -718,6 +765,18 @@ export const SchedulesPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {bulkReminderProgress && bulkReminderProgress.active && (
+        <div className="my-2">
+          <BulkProgressBar
+            active={bulkReminderProgress.active}
+            label={bulkReminderProgress.statusLabel}
+            itemCount={bulkReminderProgress.total}
+            progress={bulkReminderProgress.percentage}
+            variant="amber"
+          />
+        </div>
+      )}
 
       {activeTab === 'publications' ? (
         <PublicationsTab />

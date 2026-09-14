@@ -6,7 +6,7 @@ import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import type { ExcuseRequest } from '@/types/excuse'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
-import { Button, ContactInput, StatusBadge, EmptyState, useToast } from '@/components'
+import { Button, StatusBadge, EmptyState, useToast } from '@/components'
 
 export const PublicExcusePage: React.FC = () => {
   const { toast } = useToast()
@@ -24,13 +24,10 @@ export const PublicExcusePage: React.FC = () => {
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [verificationError, setVerificationError] = useState('')
   
-  // Submit Step 2: Excuse Request State & Contact Input
-  const [contactNumber, setContactNumber] = useState('')
-  const [isContactValid, setIsContactValid] = useState(true)
+  // Submit Step 2: Excuse Request State
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [reason, setReason] = useState('')
-  const [trackingNumber, setTrackingNumber] = useState('')
   const [loading, setLoading] = useState(false)
 
   // Track Status State & Member Picker
@@ -112,12 +109,6 @@ export const PublicExcusePage: React.FC = () => {
       return
     }
 
-    // Set phone number default if available
-    if (member.phoneNumber) {
-      setContactNumber(member.phoneNumber)
-      setIsContactValid(true)
-    }
-
     // Load member's schedules and filter out already approved excuses
     setLoading(true)
     try {
@@ -166,26 +157,20 @@ export const PublicExcusePage: React.FC = () => {
       toast.error('Missing Information', 'Please state your reason for filing an excuse.')
       return
     }
-    if (contactNumber && !isContactValid) {
-      toast.error('Invalid Contact Number', 'Please enter a valid 11-digit mobile number starting with 09 or a valid landline.')
-      return
-    }
 
     const member = members.find(m => m.id === selectedMemberId)
 
     setLoading(true)
     try {
-      const trackNo = await excuseService.submitExcuseRequest({
+      await excuseService.submitExcuseRequest({
         memberId: selectedMemberId,
         memberName: member ? `${member.firstName} ${member.lastName}`.trim() : undefined,
         memberOrder: member?.order,
         memberRank: member?.rank,
         schedules: Array.from(selectedScheduleIds),
-        reason: reason.trim(),
-        additionalNotes: contactNumber ? `Contact Number: ${contactNumber}` : undefined
+        reason: reason.trim()
       })
-      setTrackingNumber(trackNo)
-      toast.success('Excuse Request Submitted', `Tracking Reference Number: ${trackNo}`)
+      toast.success('Excuse Request Submitted', 'Your excuse request has been successfully submitted.')
       setStep(3)
     } catch (err) {
       toast.error('Submission Failed', 'Failed to submit excuse request. Please try again.')
@@ -255,23 +240,28 @@ export const PublicExcusePage: React.FC = () => {
         <h1 className="text-2xl font-black text-center text-slate-900 mb-1 tracking-tight">Excuse Management</h1>
         <p className="text-xs font-semibold text-center text-slate-500 mb-6">Ministry of Altar Servers • Self-Service Portal</p>
 
-        {/* Tab Navigation */}
-        <div className="flex border-b border-slate-200 mb-6">
+        {/* Sleek Modern Segmented Tabs Bar */}
+        <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 mb-6">
           <button 
-            className={`flex-1 pb-3 text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+            type="button"
+            className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-extrabold rounded-xl transition-all duration-200 cursor-pointer ${
               mode === 'submit' 
-                ? 'border-b-2 border-indigo-600 text-indigo-600' 
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
             }`}
             onClick={() => { setMode('submit'); setStep(1); }}
           >
-            File an Excuse
+            <svg className={`w-4 h-4 ${mode === 'submit' ? 'text-white' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span>File an Excuse</span>
           </button>
           <button 
-            className={`flex-1 pb-3 text-xs sm:text-sm font-extrabold transition-all cursor-pointer ${
+            type="button"
+            className={`flex-1 inline-flex items-center justify-center gap-2 py-2.5 px-4 text-xs sm:text-sm font-extrabold rounded-xl transition-all duration-200 cursor-pointer ${
               mode === 'track' 
-                ? 'border-b-2 border-indigo-600 text-indigo-600' 
-                : 'text-slate-400 hover:text-slate-600'
+                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20' 
+                : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
             }`}
             onClick={() => { 
               setMode('track'); 
@@ -281,7 +271,10 @@ export const PublicExcusePage: React.FC = () => {
               }
             }}
           >
-            Track Status
+            <svg className={`w-4 h-4 ${mode === 'track' ? 'text-white' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+            <span>Track Status</span>
           </button>
         </div>
 
@@ -531,16 +524,6 @@ export const PublicExcusePage: React.FC = () => {
               />
             </div>
 
-            <ContactInput
-              value={contactNumber}
-              onChange={(digits, isValid) => {
-                setContactNumber(digits)
-                setIsContactValid(isValid)
-              }}
-              label="Contact Number (Mobile / Landline)"
-              helperText="Optional contact number in case coordinators need to reach you regarding this request."
-            />
-
             <div className="flex gap-2">
               <Button 
                 type="button" 
@@ -577,12 +560,6 @@ export const PublicExcusePage: React.FC = () => {
             <div>
               <h2 className="text-xl font-black text-slate-900">Excuse Submitted Successfully</h2>
               <p className="text-slate-500 text-xs mt-1">Your excuse request has been queued for Coordinator/Admin review.</p>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl space-y-1">
-              <span className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Tracking Reference Number</span>
-              <span className="block text-xl font-black tracking-widest text-indigo-600 select-all font-mono">{trackingNumber}</span>
-              <p className="text-[10px] text-slate-500 pt-1">You can track your status anytime by selecting your name in the <strong>Track Status</strong> tab.</p>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-2 pt-2">
@@ -766,10 +743,10 @@ export const PublicExcusePage: React.FC = () => {
                   const isRejected = excuse.status === 'rejected'
 
                   return (
-                    <div key={excuse.id || excuse.trackingNumber} className="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3 shadow-2xs">
+                    <div key={excuse.id || Math.random().toString()} className="p-4 border border-slate-200 rounded-2xl bg-slate-50/60 space-y-3 shadow-2xs">
                       <div className="flex items-center justify-between flex-wrap gap-2">
-                        <span className="font-mono text-xs font-black text-indigo-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
-                          {excuse.trackingNumber}
+                        <span className="text-[11px] font-bold text-slate-500">
+                          {excuse.submittedAt?.toDate ? excuse.submittedAt.toDate().toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Excuse Request'}
                         </span>
                         <StatusBadge status={excuse.status} size="sm" />
                       </div>
