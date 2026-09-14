@@ -1,20 +1,22 @@
-const CACHE_NAME = 'mats-static-v3';
+const CACHE_NAME = 'mats-static-v5';
 
-// Static assets to pre-cache on install
+// Static assets to pre-cache on install (with correct /favicon/ subdirectory paths)
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
   '/ministy_logo.jpg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/icon-512-maskable.png',
-  '/android-chrome-192x192.png',
-  '/android-chrome-512x512.png',
-  '/apple-touch-icon.png',
-  '/favicon.ico',
-  '/favicon-16x16.png',
-  '/favicon-32x32.png'
+  '/parish-logo.png',
+  '/favicon/favicon.png',
+  '/favicon/icon-192.png',
+  '/favicon/icon-512.png',
+  '/favicon/icon-512-maskable.png',
+  '/favicon/android-chrome-192x192.png',
+  '/favicon/android-chrome-512x512.png',
+  '/favicon/apple-touch-icon.png',
+  '/favicon/favicon.ico',
+  '/favicon/favicon-16x16.png',
+  '/favicon/favicon-32x32.png'
 ];
 
 // Helper to determine if a request is targeting Firebase/Firestore or dynamic data APIs
@@ -33,8 +35,20 @@ function isFirebaseOrApiRequest(url) {
 self.addEventListener('install', (event) => {
   self.skipWaiting();
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      // Safely pre-cache assets without letting a single missing file fail the entire service worker installation
+      await Promise.allSettled(
+        PRECACHE_ASSETS.map(async (url) => {
+          try {
+            const res = await fetch(url);
+            if (res.ok) {
+              await cache.put(url, res);
+            }
+          } catch (err) {
+            console.warn('Failed to pre-cache asset:', url, err);
+          }
+        })
+      );
     })
   );
 });
@@ -45,12 +59,19 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheName !== CACHE_NAME) {
+            console.log('Purging old service worker cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
     }).then(() => self.clients.claim())
   );
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('fetch', (event) => {
