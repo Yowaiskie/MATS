@@ -32,10 +32,13 @@ import type { SignatureConfig } from '@/types/signature'
 import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
 
+export type PaperSize = 'long' | 'a4' | 'letter'
+
 export interface MemberPdfOptions {
   dateRange?: { start?: string; end?: string }
   documentTitle?: string
   signatureConfig?: SignatureConfig
+  paperSize?: PaperSize
 }
 
 /**
@@ -52,17 +55,27 @@ export const downloadMembersReportPdf = async (
   const timeStr = formatTime(now)
 
   // Normalize options parameter (support legacy dateRange or new MemberPdfOptions)
-  const opts: MemberPdfOptions = options && ('signatureConfig' in options || 'documentTitle' in options)
+  const opts: MemberPdfOptions = options && ('signatureConfig' in options || 'documentTitle' in options || 'paperSize' in options)
     ? (options as MemberPdfOptions)
     : { dateRange: options as { start?: string; end?: string } }
+
+  const paperSize: PaperSize = opts.paperSize || 'long'
+  let docFormat: string | [number, number] = [215.9, 330.2]
+  if (paperSize === 'a4') {
+    docFormat = 'a4'
+  } else if (paperSize === 'letter') {
+    docFormat = 'letter'
+  }
 
   const doc = new jsPDF({
     orientation: 'landscape',
     unit: 'mm',
-    format: 'a4',
+    format: docFormat,
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
+  const leftMargin = 14
+  const rightMargin = 14
 
   // 1. Prepare Logos for Header
   let logoParish: HTMLImageElement | null = null
@@ -99,18 +112,18 @@ export const downloadMembersReportPdf = async (
     doc.setFont('times', 'bolditalic')
     doc.setFontSize(16)
     doc.setTextColor(15, 23, 42)
-    doc.text('Ministry of Altar Servers', 14, 14)
+    doc.text('Ministry of Altar Servers', leftMargin, 14)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(10)
     doc.setTextColor(51, 65, 85)
-    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', leftMargin, 19.5)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', leftMargin, 24)
 
     // Horizontal Header Divider Line
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
-    doc.line(14, 28, pageWidth - 14, 28)
+    doc.line(leftMargin, 28, pageWidth - rightMargin, 28)
   }
 
   // 3. Document Title (Centered & Bold Underline Style matching Finance)
@@ -136,10 +149,10 @@ export const downloadMembersReportPdf = async (
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Covered Period: ${rangeSubtitle}`, 14, 45)
+  doc.text(`Covered Period: ${rangeSubtitle}`, leftMargin, 45)
   doc.text(
     `Generated: ${dateStr} at ${timeStr} • Total Records: ${rows.length}`,
-    pageWidth - 14,
+    pageWidth - rightMargin,
     45,
     { align: 'right' }
   )
@@ -219,7 +232,7 @@ export const downloadMembersReportPdf = async (
       8: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },                             // Status Badge
       9: { fontSize: 7.5, cellWidth: 'auto' },                                               // Triggering Absences
     },
-    margin: { left: 14, right: 14, top: 49, bottom: 16 },
+    margin: { left: leftMargin, right: rightMargin, top: 49, bottom: 16 },
     didParseCell: (data) => {
       // Style Status column (Column 8)
       if (data.section === 'body' && data.column.index === 8) {
@@ -260,8 +273,8 @@ export const downloadMembersReportPdf = async (
   // 7. Draw dynamic signatures if enabled
   if (opts.signatureConfig?.enabled && opts.signatureConfig.signatories.length > 0) {
     currentY = renderPdfSignatures(doc, opts.signatureConfig.signatories, currentY, {
-      leftMargin: 14,
-      rightMargin: 14,
+      leftMargin,
+      rightMargin,
       bottomMargin: 18,
       topMarginOnNewPage: 49
     })
@@ -276,7 +289,7 @@ export const downloadMembersReportPdf = async (
 
   // Apply uniform standard footer across all pages
   const docCode = formatDocCodeWithDate('MEM', now)
-  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
+  applyStandardPdfFooters(doc, docCode, { leftMargin, rightMargin })
 
   const filename = `Ministry_Members_Report_${now.toISOString().split('T')[0]}.pdf`
   doc.save(filename)

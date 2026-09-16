@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { notificationService } from '@/services/notificationService'
 import type { AppNotification } from '@/types/notification'
-import { StatusBadge, useToast } from '@/components'
+import { useToast } from '@/components'
 
 const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -352,13 +352,25 @@ export const NotificationBell: React.FC = () => {
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           {isAttendanceReminder ? (
-                            <StatusBadge status="warning" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              Reminder
+                            </span>
                           ) : notif.priority === 'urgent' ? (
-                            <StatusBadge status="rejected" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                              Urgent
+                            </span>
                           ) : notif.priority === 'important' ? (
-                            <StatusBadge status="pending" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                              Announcement
+                            </span>
                           ) : (
-                            <StatusBadge status="active" />
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                              Notice
+                            </span>
                           )}
                           <span className="text-[10px] font-bold text-slate-400">
                             {notif.createdByName || 'System'}

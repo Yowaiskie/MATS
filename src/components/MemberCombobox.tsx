@@ -198,7 +198,7 @@ export const MemberCombobox: React.FC<MemberComboboxProps> = ({
       {label && (
         <div className="flex items-center justify-between mb-1.5">
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-            {label} {required && <span className="text-rose-500">*</span>}
+            {typeof label === 'string' ? label.replace(/\s*\*\s*$/, '') : label} {required && <span className="text-rose-500">*</span>}
           </label>
           {sublabel && <div>{sublabel}</div>}
         </div>
@@ -215,7 +215,7 @@ export const MemberCombobox: React.FC<MemberComboboxProps> = ({
           onFocus={() => setIsOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={resolvedPlaceholder}
-          className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+          className={`w-full pl-9 ${inputValue && !disabled ? 'pr-16' : 'pr-8'} py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all`}
         />
 
         {/* Left User Icon */}

@@ -15,6 +15,12 @@ export const EnablePushModal: React.FC = () => {
   // Check if push notifications are fully active
   const isSupported = notificationService.isSupported()
   const isPushActive = profile?.pushEnabled === true && permissionState === 'granted'
+  const handleDismiss = () => {
+    setIsOpen(false)
+    try {
+      localStorage.setItem('mats_push_prompt_dismissed_at', String(Date.now()))
+    } catch {}
+  }
 
   useEffect(() => {
     // Only check if user is logged in and browser supports notifications
@@ -23,12 +29,39 @@ export const EnablePushModal: React.FC = () => {
     const currentPermission = notificationService.getPermissionState()
     setPermissionState(currentPermission)
 
-    // If notifications are not active, prompt the user
-    const timer = setTimeout(() => {
-      if (profile?.pushEnabled !== true || currentPermission !== 'granted') {
-        setIsOpen(true)
+    // 1. If browser permission is ALREADY granted, automatically sync & activate in background!
+    if (currentPermission === 'granted') {
+      if (profile?.pushEnabled !== true) {
+        notificationService.requestPermissionAndSaveToken(user.uid).catch((err) => {
+          console.warn('Auto-sync push token error:', err)
+        })
       }
-    }, 1200)
+      setIsOpen(false)
+      return
+    }
+
+    // 2. If browser permission is denied, do not pop up modal automatically
+    if (currentPermission === 'denied') {
+      setIsOpen(false)
+      return
+    }
+
+    // 3. If user previously dismissed the prompt, suppress it for 7 days
+    try {
+      const dismissedAt = localStorage.getItem('mats_push_prompt_dismissed_at')
+      if (dismissedAt) {
+        const dismissedTime = parseInt(dismissedAt, 10)
+        if (!isNaN(dismissedTime) && Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
+          setIsOpen(false)
+          return
+        }
+      }
+    } catch {}
+
+    // 4. Prompt only if permission is 'default' (undecided)
+    const timer = setTimeout(() => {
+      setIsOpen(true)
+    }, 1500)
 
     return () => clearTimeout(timer)
   }, [user?.uid, profile?.pushEnabled, isSupported])
@@ -74,7 +107,7 @@ export const EnablePushModal: React.FC = () => {
       {/* Backdrop */}
       <div 
         className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
-        onClick={() => setIsOpen(false)}
+        onClick={handleDismiss}
       />
 
       {/* Modal Card */}
@@ -185,7 +218,7 @@ export const EnablePushModal: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
+              onClick={handleDismiss}
               className="w-full py-2 text-center text-xs font-bold text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
             >
               Remind Me Later

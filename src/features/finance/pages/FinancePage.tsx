@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { Loading } from '@/components/Loading'
-import { AlertModal, PasswordConfirmModal } from '@/components/Dialog'
+import { PasswordConfirmModal } from '@/components/Dialog'
 import { CustomSelect, BulkProgressBar } from '@/components'
 import { authService } from '@/services/authService'
 
@@ -34,11 +34,12 @@ import { financeEngine } from '@/utils/financeEngine'
 import { FinanceExportModal } from '@/features/finance/components/FinanceExportModal'
 import { FundRequisitionExportModal } from '@/features/finance/components/FundRequisitionExportModal'
 import { LiquidationExportModal } from '@/features/finance/components/LiquidationExportModal'
+import { DirectLiquidationModal } from '@/features/finance/components/DirectLiquidationModal'
 import { MemberCombobox } from '@/components/MemberCombobox'
 import { useToast } from '@/context/ToastContext'
 
 export const FinancePage: React.FC = () => {
-  const { hasModuleAccess, canAction, profile } = useAuth()
+  const { hasModuleAccess, canAction, profile, isAdmin } = useAuth()
   const { toast } = useToast()
 
   // Tab state
@@ -56,16 +57,12 @@ export const FinancePage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [bulkActionLoading, setBulkActionLoading] = useState(false)
-  const [errorMsg, setErrorMsgState] = useState<string | null>(null)
-  const [successMsg, setSuccessMsgState] = useState<string | null>(null)
 
   const setErrorMsg = (msg: string | null) => {
-    setErrorMsgState(msg)
     if (msg) toast.error('Finance Notice', msg)
   }
 
   const setSuccessMsg = (msg: string | null) => {
-    setSuccessMsgState(msg)
     if (msg) toast.success('Operation Complete', msg)
   }
 
@@ -173,7 +170,7 @@ export const FinancePage: React.FC = () => {
 
   // Form states - Fund Request (Formatted Text & Dynamic Items)
   const [reqFundSource, setReqFundSource] = useState<FundRequestSource>('main_funds')
-  const [fundSourceFilter, setFundSourceFilter] = useState<'all' | 'main_funds' | 'parish'>('all')
+  const [fundSourceFilter, setFundSourceFilter] = useState<'all' | 'main_funds' | 'parish' | 'outside'>('all')
   const [reqTitle, setReqTitle] = useState('')
   const [reqPurpose, setReqPurpose] = useState('')
   const [reqAmount, setReqAmount] = useState('')
@@ -187,11 +184,15 @@ export const FinancePage: React.FC = () => {
     { id: 'item-1', intendedUse: '', unitPrice: '', quantity: '', amount: 0 }
   ])
 
-  // Form states - Release (Formatted Text)
+  // Form states - Release (Formatted Text & Parish Office Tracking)
   const [relToName, setRelToName] = useState('')
   const [relAmount, setRelAmount] = useState('')
   const [relDate, setRelDate] = useState(getLocalYYYYMMDD())
   const [relRemarks, setRelRemarks] = useState('')
+  const [relParishOfficeDisbursedBy, setRelParishOfficeDisbursedBy] = useState('Parish Office / Secretary')
+  const [relParishOfficeReceivedBy, setRelParishOfficeReceivedBy] = useState('')
+  const [relParishOfficeRemarks, setRelParishOfficeRemarks] = useState('')
+  const [isOutsideLiquidationModalOpen, setIsOutsideLiquidationModalOpen] = useState(false)
 
   // Form states - Liquidation (Dynamic Tables & Summary)
   const [liqTo, setLiqTo] = useState('Rev. Fr. ILDEFONSO DE GUZMAN JR., Parish Priest')
@@ -689,9 +690,14 @@ export const FinancePage: React.FC = () => {
     }
   }
 
-  // Check if current user is the requester (to prevent self-approval)
+  // Check if current user is the requester (to prevent self-approval, except for admins/coordinators)
   const isSelfRequest = (req: FinanceFundRequest) => {
     if (!profile) return false
+    // Admin / Coordinator exemption: Administrators have authority to approve requests even if submitted by themselves
+    if (isAdmin || profile.role === 'admin' || profile.role === 'coordinator') {
+      return false
+    }
+
     const currentUid = profile.uid?.trim()
     const currentName = profile.displayName?.trim().toLowerCase()
     const reqUid = req.requestedByUid?.trim() || req.createdByUid?.trim()
@@ -827,7 +833,10 @@ export const FinancePage: React.FC = () => {
         reqId,
         'Approved by leader/treasurer',
         profile?.uid || 'Admin',
-        profile?.displayName || 'Admin'
+        profile?.displayName || 'Admin',
+        undefined,
+        profile?.role,
+        isAdmin || profile?.role === 'admin' || profile?.role === 'coordinator'
       )
       setSuccessMsg('Request approved.')
       await fetchData()
@@ -937,6 +946,11 @@ export const FinancePage: React.FC = () => {
     setSelectedRequest(req)
     setRelToName(req.requestedByName)
     setRelAmount(req.requestedAmount.toLocaleString())
+    setRelDate(getLocalYYYYMMDD())
+    setRelRemarks('')
+    setRelParishOfficeDisbursedBy('Parish Office / Secretary')
+    setRelParishOfficeReceivedBy(req.requestedByName)
+    setRelParishOfficeRemarks('')
     setIsReleaseModalOpen(true)
   }
 
@@ -951,13 +965,19 @@ export const FinancePage: React.FC = () => {
     setSaving(true)
     setErrorMsg(null)
     try {
+      const isParish = selectedRequest.fundSource === 'parish'
       await fundRequestService.releaseFunds(
         selectedRequest.id,
         {
-          releasedToName: relToName.trim(),
+          releasedToName: isParish ? (relParishOfficeReceivedBy.trim() || relToName.trim()) : relToName.trim(),
           releasedAmount: parseAmount(relAmount),
           releasedDate: relDate,
-          remarks: relRemarks.trim()
+          remarks: relRemarks.trim(),
+          parishOfficeDisbursedDate: relDate,
+          parishOfficeDisbursedAmount: parseAmount(relAmount),
+          parishOfficeDisbursedBy: relParishOfficeDisbursedBy.trim(),
+          parishOfficeReceivedBy: relParishOfficeReceivedBy.trim() || relToName.trim(),
+          parishOfficeRemarks: relParishOfficeRemarks.trim()
         },
         profile?.uid || 'System',
         profile?.displayName || 'Admin'
@@ -965,7 +985,8 @@ export const FinancePage: React.FC = () => {
       setIsReleaseModalOpen(false)
       setSelectedRequest(null)
       setRelRemarks('')
-      setSuccessMsg('Funds released successfully.')
+      setRelParishOfficeRemarks('')
+      setSuccessMsg(isParish ? 'Parish funds release and recipient logged successfully.' : 'Funds released successfully.')
       await fetchData()
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to release funds.')
@@ -2526,7 +2547,7 @@ export const FinancePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setFundSourceFilter('all')}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
                         fundSourceFilter === 'all'
                           ? 'bg-white text-slate-900 shadow-xs'
                           : 'text-slate-600 hover:text-slate-900'
@@ -2537,19 +2558,19 @@ export const FinancePage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setFundSourceFilter('main_funds')}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
                         fundSourceFilter === 'main_funds'
                           ? 'bg-blue-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-blue-700'
                       }`}
                     >
                       <span>Main Funds</span>
-                      <span className="text-[10px] opacity-80 font-mono">({requests.filter(r => r.fundSource !== 'parish').length})</span>
+                      <span className="text-[10px] opacity-80 font-mono">({requests.filter(r => r.fundSource === 'main_funds' || (!r.fundSource && r.fundSource !== 'parish' && r.fundSource !== 'outside')).length})</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setFundSourceFilter('parish')}
-                      className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                      className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
                         fundSourceFilter === 'parish'
                           ? 'bg-emerald-600 text-white shadow-xs'
                           : 'text-slate-600 hover:text-emerald-700'
@@ -2558,11 +2579,35 @@ export const FinancePage: React.FC = () => {
                       <span>Parish</span>
                       <span className="text-[10px] opacity-80 font-mono">({requests.filter(r => r.fundSource === 'parish').length})</span>
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => setFundSourceFilter('outside')}
+                      className={`px-2.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                        fundSourceFilter === 'outside'
+                          ? 'bg-purple-600 text-white shadow-xs'
+                          : 'text-slate-600 hover:text-purple-700'
+                      }`}
+                    >
+                      <span>Outside</span>
+                      <span className="text-[10px] opacity-80 font-mono">({requests.filter(r => r.fundSource === 'outside').length})</span>
+                    </button>
                   </div>
 
                   <button
+                    type="button"
+                    onClick={() => setIsOutsideLiquidationModalOpen(true)}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 bg-purple-50 hover:bg-purple-100 text-purple-800 border border-purple-200/80 rounded-xl text-xs font-bold cursor-pointer shadow-2xs transition-all shrink-0"
+                    title="Record an outside liquidation report without touching church funds"
+                  >
+                    <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>+ Outside Liquidation</span>
+                  </button>
+
+                  <button
                     onClick={() => setIsRequestModalOpen(true)}
-                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all w-full sm:w-auto shrink-0"
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold cursor-pointer shadow-md shadow-blue-600/20 transition-all w-full sm:w-auto shrink-0"
                   >
                     <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -2635,8 +2680,9 @@ export const FinancePage: React.FC = () => {
               <div className="md:hidden space-y-3">
                 {(() => {
                   const filtered = requests.filter(r => {
-                    if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                    if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
                     if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                    if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
                     return true
                   })
 
@@ -2658,7 +2704,7 @@ export const FinancePage: React.FC = () => {
 
                         {filtered.length === 0 ? (
                           <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
-                            No requests found matching the "{fundSourceFilter === 'parish' ? 'Parish' : 'Main Funds'}" filter.
+                            No requests found matching the "{fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.
                           </div>
                         ) : (
                           filtered.map((req, idx) => (
@@ -2669,7 +2715,7 @@ export const FinancePage: React.FC = () => {
                               } ${selectedIds.has(req.id) ? 'ring-2 ring-blue-500/30 border-blue-300 bg-blue-50/20' : ''}`}
                             >
                               {/* Top Row: Select, Reference, Fund Source & Status */}
-                              <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
                                 <div className="flex items-center gap-1.5 flex-wrap">
                                   <input
                                     type="checkbox"
@@ -2684,9 +2730,18 @@ export const FinancePage: React.FC = () => {
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                                       Parish
                                     </span>
+                                  ) : req.fundSource === 'outside' ? (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                                      Outside
+                                    </span>
                                   ) : (
                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
                                       Main Funds
+                                    </span>
+                                  )}
+                                  {req.fundSource === 'parish' && req.parishApprovedByFr && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-0.5">
+                                      <span>✓ Fr. Approved</span>
                                     </span>
                                   )}
                                   {req.isArchived && (
@@ -2699,14 +2754,14 @@ export const FinancePage: React.FC = () => {
                                 <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
                                   req.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                                   req.status === 'rejected' ? 'bg-red-50 text-red-700 border border-red-200' :
-                                  req.status === 'released' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                  req.status === 'released' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
                                   req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
                                   req.status === 'closed' ? 'bg-gray-100 text-gray-700 border border-gray-200' :
                                   req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
                                   req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                                   'bg-blue-50 text-blue-700 border border-blue-200'
                                 }`}>
-                                  {req.status}
+                                  {req.status === 'released' ? 'Waiting for Liquidation' : req.status}
                                 </span>
                               </div>
 
@@ -2724,6 +2779,20 @@ export const FinancePage: React.FC = () => {
                         )}
                         {req.purpose && (
                           <p className="text-xs text-gray-500 mt-1 line-clamp-2">{req.purpose}</p>
+                        )}
+                        {req.fundSource === 'parish' && (req.parishOfficeReceivedBy || req.parishOfficeDisbursedBy) && (
+                          <div className="mt-1.5 p-2 bg-emerald-50/70 border border-emerald-200/80 rounded-lg text-[11px] space-y-0.5">
+                            <div className="font-bold text-emerald-900 flex items-center gap-1 text-[10px] uppercase">
+                              <svg className="w-3 h-3 text-emerald-700 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                              </svg>
+                              <span>Parish Office Handover</span>
+                            </div>
+                            <div className="text-emerald-950 font-medium">
+                              Received by: <strong>{req.parishOfficeReceivedBy || req.releasedToName}</strong>
+                              {req.parishOfficeDisbursedBy && <span className="text-emerald-700"> (from {req.parishOfficeDisbursedBy})</span>}
+                            </div>
+                          </div>
                         )}
                         {req.status === 'released' && req.liquidationRevisionReason && (
                           <div className="mt-2 p-2.5 bg-amber-50 border border-amber-200 rounded-xl space-y-1">
@@ -3193,16 +3262,18 @@ export const FinancePage: React.FC = () => {
                   type="checkbox"
                   checked={(() => {
                     const filtered = requests.filter(r => {
-                      if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                      if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
                       if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                      if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
                       return true
                     })
                     return filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))
                   })()}
                   onChange={() => {
                     const filtered = requests.filter(r => {
-                      if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                      if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
                       if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                      if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
                       return true
                     })
                     handleSelectAll(filtered.map(r => r.id))
@@ -3221,8 +3292,9 @@ export const FinancePage: React.FC = () => {
           <tbody>
             {(() => {
               const filtered = requests.filter(r => {
-                if (fundSourceFilter === 'main_funds') return r.fundSource !== 'parish'
+                if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
                 if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+                if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
                 return true
               })
 
@@ -3232,7 +3304,7 @@ export const FinancePage: React.FC = () => {
                     <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
                       {requests.length === 0 
                         ? 'No fund requests found.'
-                        : `No fund requests found matching the "${fundSourceFilter === 'parish' ? 'Parish' : 'Main Funds'}" filter.`}
+                        : `No fund requests found matching the "${fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.`}
                     </td>
                   </tr>
                 )
@@ -3263,9 +3335,18 @@ export const FinancePage: React.FC = () => {
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                           Parish
                         </span>
+                      ) : req.fundSource === 'outside' ? (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-100 text-purple-800 border border-purple-200">
+                          Outside
+                        </span>
                       ) : (
                         <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
                           Main Funds
+                        </span>
+                      )}
+                      {req.fundSource === 'parish' && req.parishApprovedByFr && (
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-0.5">
+                          <span>✓ Fr. Approved</span>
                         </span>
                       )}
                       {req.targetEventName && (
@@ -3285,6 +3366,15 @@ export const FinancePage: React.FC = () => {
                       </button>
                     </div>
                     <div className="text-[10px] text-gray-400 mt-0.5">{req.purpose}</div>
+                    {req.fundSource === 'parish' && (req.parishOfficeReceivedBy || req.parishOfficeDisbursedBy) && (
+                      <div className="mt-1 text-[11px] text-emerald-800 font-medium flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span>
+                          Office Handover: Received by <strong>{req.parishOfficeReceivedBy || req.releasedToName}</strong>
+                          {req.parishOfficeDisbursedBy && <span className="text-gray-500"> (from {req.parishOfficeDisbursedBy})</span>}
+                        </span>
+                      </div>
+                    )}
                     {req.status === 'released' && req.liquidationRevisionReason && (
                       <div className="mt-1.5 p-2 bg-amber-50 border border-amber-200 rounded-lg text-xs space-y-0.5 max-w-md">
                         <div className="flex items-center gap-1 text-[10px] font-bold uppercase text-amber-800">
@@ -3308,14 +3398,14 @@ export const FinancePage: React.FC = () => {
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                         req.status === 'approved' ? 'bg-emerald-50 text-emerald-700' :
                         req.status === 'rejected' ? 'bg-red-50 text-red-700' :
-                        req.status === 'released' ? 'bg-amber-50 text-amber-700' :
+                        req.status === 'released' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
                         req.status === 'liquidated' ? 'bg-indigo-50 text-indigo-700' :
                         req.status === 'closed' ? 'bg-gray-100 text-gray-600' :
                         req.status === 'cancelled' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
                         req.status === 'voided' ? 'bg-rose-50 text-rose-700 border border-rose-200' :
                         'bg-gray-50 text-gray-600'
                       }`}>
-                        {req.status}
+                        {req.status === 'released' ? 'Waiting for Liquidation' : req.status}
                       </span>
                     )}
                   </td>
@@ -4598,7 +4688,7 @@ export const FinancePage: React.FC = () => {
                 {/* Fund Source Selection Cards */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">Request Source / Charge To *</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => setReqFundSource('main_funds')}
@@ -4653,6 +4743,35 @@ export const FinancePage: React.FC = () => {
                         </div>
                         <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
                           Requested from Parish Priest / Parish Treasury
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setReqFundSource('outside')}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        reqFundSource === 'outside'
+                          ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${reqFundSource === 'outside' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${reqFundSource === 'outside' ? 'text-purple-950' : 'text-slate-800'}`}>
+                            Outside / Sponsor Funds
+                          </span>
+                          {reqFundSource === 'outside' && (
+                            <span className="h-2 w-2 rounded-full bg-purple-600"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          Sponsors or personal advances (Zero Ledger impact)
                         </p>
                       </div>
                     </button>
@@ -4909,7 +5028,7 @@ export const FinancePage: React.FC = () => {
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Channel & Core Request Info</h5>
                 <div>
                   <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5">Fund Source / Channel *</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     <button
                       type="button"
                       onClick={() => setEditReqFundSource('main_funds')}
@@ -4964,6 +5083,35 @@ export const FinancePage: React.FC = () => {
                         </div>
                         <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
                           Requested from Parish Priest / Parish Treasury
+                        </p>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setEditReqFundSource('outside')}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 transition-all cursor-pointer ${
+                        editReqFundSource === 'outside'
+                          ? 'bg-purple-50/80 border-purple-500 ring-2 ring-purple-500/20 shadow-xs'
+                          : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-600'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg ${editReqFundSource === 'outside' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-600'}`}>
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center justify-between">
+                          <span className={`text-xs font-black ${editReqFundSource === 'outside' ? 'text-purple-950' : 'text-slate-800'}`}>
+                            Outside / Sponsor Funds
+                          </span>
+                          {editReqFundSource === 'outside' && (
+                            <span className="h-2 w-2 rounded-full bg-purple-600"></span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                          Sponsors or personal advances (Zero Ledger impact)
                         </p>
                       </div>
                     </button>
@@ -5193,10 +5341,16 @@ export const FinancePage: React.FC = () => {
             {/* Modal Header */}
             <div className="p-3.5 sm:p-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/50">
               <div>
-                <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-100">
-                  Disbursement Authorization
+                <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-md border ${
+                  selectedRequest.fundSource === 'parish'
+                    ? 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                    : 'text-amber-600 bg-amber-50 border-amber-100'
+                }`}>
+                  {selectedRequest.fundSource === 'parish' ? 'Parish Office Disbursement' : 'Disbursement Authorization'}
                 </span>
-                <h4 className="text-base font-black text-gray-900 mt-0.5">Release Approved Allocation</h4>
+                <h4 className="text-base font-black text-gray-900 mt-0.5">
+                  {selectedRequest.fundSource === 'parish' ? 'Record Parish Cash Release & Handover' : 'Release Approved Allocation'}
+                </h4>
                 <p className="text-[10px] font-mono text-gray-500">Ref: {selectedRequest.referenceNumber}</p>
               </div>
               <button
@@ -5227,53 +5381,141 @@ export const FinancePage: React.FC = () => {
                 </div>
               )}
 
+              {/* Parish Workflow Notice */}
+              {selectedRequest.fundSource === 'parish' && (
+                <div className="p-3 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-950 leading-relaxed flex items-start gap-2.5">
+                  <div className="p-1.5 rounded-lg bg-emerald-600 text-white shrink-0 mt-0.5">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <span className="font-black text-emerald-900 uppercase text-[10px] block tracking-wide">Parish Fund Workflow Tracking</span>
+                    <p className="text-emerald-800 text-[11px] mt-0.5">
+                      Log who in the ministry received the cash from the Parish Office. Once recorded, status will transition to <strong>Waiting for Liquidation</strong>. This does not deduct from the ministry treasury ledger.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Disbursement Details Card */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
-                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">Disbursement Details</h5>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <MemberCombobox
-                      label="Released To (Person / Custodian)"
-                      placeholder="Search member or type recipient..."
-                      value={relToName}
-                      required
-                      allowCustom={true}
-                      onChange={(name) => setRelToName(name)}
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Released Amount (₱) *</label>
-                    <input 
-                      type="text" 
-                      required 
-                      placeholder="0.00" 
-                      value={relAmount} 
-                      onChange={(e) => handleNumberChange(e.target.value, setRelAmount)} 
-                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 font-bold text-xs" 
-                    />
-                    <span className="text-[10px] text-gray-400 mt-1 block">Requested: ₱{selectedRequest.requestedAmount.toLocaleString()}</span>
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Date *</label>
-                  <input 
-                    type="date" 
-                    required 
-                    value={relDate} 
-                    onChange={(e) => setRelDate(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 font-semibold text-xs" 
-                  />
-                </div>
-                <div>
-                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Remarks / Voucher Notes</label>
-                  <textarea 
-                    value={relRemarks} 
-                    onChange={(e) => setRelRemarks(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 text-xs" 
-                    rows={2}
-                    placeholder="Disbursement authorization note or reference number..."
-                  ></textarea>
-                </div>
+                <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">
+                  {selectedRequest.fundSource === 'parish' ? 'Parish Office Release & Handover Details' : 'Disbursement Details'}
+                </h5>
+
+                {selectedRequest.fundSource === 'parish' ? (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                          Disbursed By (Parish Office / Secretary) *
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={relParishOfficeDisbursedBy}
+                          onChange={(e) => setRelParishOfficeDisbursedBy(e.target.value)}
+                          placeholder="e.g. Parish Secretary / Office Staff"
+                          className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-medium text-xs"
+                        />
+                      </div>
+                      <div>
+                        <MemberCombobox
+                          label="Received from Office By (Ministry Rep)"
+                          placeholder="Search member or type recipient..."
+                          value={relParishOfficeReceivedBy}
+                          required
+                          allowCustom={true}
+                          onChange={(name) => setRelParishOfficeReceivedBy(name)}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount Released (₱) *</label>
+                        <input 
+                          type="text" 
+                          required 
+                          placeholder="0.00" 
+                          value={relAmount} 
+                          onChange={(e) => handleNumberChange(e.target.value, setRelAmount)} 
+                          className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-bold text-xs" 
+                        />
+                        <span className="text-[10px] text-gray-400 mt-1 block">Requested: ₱{selectedRequest.requestedAmount.toLocaleString()}</span>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release / Handover Date *</label>
+                        <input 
+                          type="date" 
+                          required 
+                          value={relDate} 
+                          onChange={(e) => setRelDate(e.target.value)} 
+                          className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Parish Office Voucher / Remarks</label>
+                      <textarea 
+                        value={relParishOfficeRemarks} 
+                        onChange={(e) => setRelParishOfficeRemarks(e.target.value)} 
+                        className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 text-xs" 
+                        rows={2}
+                        placeholder="e.g. Office Voucher #1234, cash received in envelope..."
+                      ></textarea>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <MemberCombobox
+                          label="Released To (Person / Custodian)"
+                          placeholder="Search member or type recipient..."
+                          value={relToName}
+                          required
+                          allowCustom={true}
+                          onChange={(name) => setRelToName(name)}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Released Amount (₱) *</label>
+                        <input 
+                          type="text" 
+                          required 
+                          placeholder="0.00" 
+                          value={relAmount} 
+                          onChange={(e) => handleNumberChange(e.target.value, setRelAmount)} 
+                          className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 font-bold text-xs" 
+                        />
+                        <span className="text-[10px] text-gray-400 mt-1 block">Requested: ₱{selectedRequest.requestedAmount.toLocaleString()}</span>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Date *</label>
+                      <input 
+                        type="date" 
+                        required 
+                        value={relDate} 
+                        onChange={(e) => setRelDate(e.target.value)} 
+                        className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 font-semibold text-xs" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Remarks / Voucher Notes</label>
+                      <textarea 
+                        value={relRemarks} 
+                        onChange={(e) => setRelRemarks(e.target.value)} 
+                        className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-amber-500 text-xs" 
+                        rows={2}
+                        placeholder="Disbursement authorization note or reference number..."
+                      ></textarea>
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Sticky Footer */}
@@ -5288,9 +5530,13 @@ export const FinancePage: React.FC = () => {
                 <button 
                   type="submit" 
                   disabled={saving} 
-                  className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-md shadow-amber-600/20 disabled:opacity-50 transition cursor-pointer"
+                  className={`px-5 py-2 text-white text-xs font-bold rounded-xl shadow-md disabled:opacity-50 transition cursor-pointer ${
+                    selectedRequest.fundSource === 'parish'
+                      ? 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/20'
+                      : 'bg-amber-600 hover:bg-amber-700 shadow-amber-600/20'
+                  }`}
                 >
-                  {saving ? 'Releasing...' : 'Execute Release'}
+                  {saving ? 'Recording Release...' : selectedRequest.fundSource === 'parish' ? 'Confirm Parish Release' : 'Execute Release'}
                 </button>
               </div>
             </form>
@@ -5832,22 +6078,6 @@ export const FinancePage: React.FC = () => {
         </div>
       )}
 
-      {/* Alert Dialogs */}
-      <AlertModal
-        isOpen={!!errorMsg}
-        onClose={() => setErrorMsg(null)}
-        variant="error"
-        title="Finance Error"
-        message={errorMsg ?? ''}
-      />
-
-      <AlertModal
-        isOpen={!!successMsg}
-        onClose={() => setSuccessMsg(null)}
-        variant="success"
-        title="Success"
-        message={successMsg ?? ''}
-      />
 
       {/* Password Confirmation Modal for Permanent Deletion */}
       <PasswordConfirmModal
@@ -6327,6 +6557,13 @@ export const FinancePage: React.FC = () => {
           setLiquidationExportRequest(null)
         }}
         request={liquidationExportRequest}
+      />
+
+      {/* Outside / Direct Liquidation Modal */}
+      <DirectLiquidationModal
+        isOpen={isOutsideLiquidationModalOpen}
+        onClose={() => setIsOutsideLiquidationModalOpen(false)}
+        onSuccess={fetchData}
       />
     </div>
   )

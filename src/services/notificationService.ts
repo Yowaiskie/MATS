@@ -40,6 +40,41 @@ export interface UntakenScheduleInfo {
 
 class NotificationService {
   private vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || ''
+  private notifiedIds = new Set<string>()
+
+  constructor() {
+    this.loadNotifiedIds()
+  }
+
+  private loadNotifiedIds() {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem('mats_notified_ids')
+        if (stored) {
+          const parsed = JSON.parse(stored)
+          if (Array.isArray(parsed)) {
+            parsed.forEach((id: string) => this.notifiedIds.add(id))
+          }
+        }
+      }
+    } catch {}
+  }
+
+  private markNotified(id: string) {
+    if (!id) return
+    this.notifiedIds.add(id)
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        // Retain only the latest 200 notified IDs to prevent unbounded storage
+        const idsArray = Array.from(this.notifiedIds).slice(-200)
+        localStorage.setItem('mats_notified_ids', JSON.stringify(idsArray))
+      }
+    } catch {}
+  }
+
+  public hasBeenNotified(id: string): boolean {
+    return this.notifiedIds.has(id)
+  }
 
   /**
    * Fetch list of all untaken / unfinalized schedules along with account mapping
@@ -163,7 +198,7 @@ class NotificationService {
         try {
           swRegistration = await navigator.serviceWorker.getRegistration('/firebase-messaging-sw.js')
           if (!swRegistration) {
-            swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js')
+            swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', { scope: '/' })
           }
         } catch {
           swRegistration = await navigator.serviceWorker.ready
@@ -267,40 +302,53 @@ class NotificationService {
 
   /**
    * Show a native/local browser notification (foreground fallback or PWA confirmation)
+   * Guaranteed to work across mobile PWA and desktop browsers
    */
-  async showLocalNotification(title: string, options?: NotificationOptions): Promise<boolean> {
+  async showLocalNotification(title: string, options?: NotificationOptions & Record<string, any>): Promise<boolean> {
     if (!this.isSupported() || this.getPermission() !== 'granted') return false
 
+    const defaultOptions: any = {
+      icon: '/favicon/icon-192.png',
+      badge: '/favicon/favicon-32x32.png',
+      vibrate: [200, 100, 200],
+      renotify: true,
+      tag: options?.tag || 'mats-notification',
+      ...options
+    }
+
     try {
+      // 1. Prioritize Service Worker showNotification (Mandatory for Android & mobile PWA)
       if ('serviceWorker' in navigator) {
-        let registration: ServiceWorkerRegistration | undefined
+        let registration: ServiceWorkerRegistration | null = null
+
         try {
-          registration = await navigator.serviceWorker.ready
+          registration = await Promise.race([
+            navigator.serviceWorker.ready,
+            new Promise<ServiceWorkerRegistration | null>((resolve) =>
+              setTimeout(() => resolve(null), 1200)
+            )
+          ])
         } catch {}
 
         if (!registration) {
           try {
-            registration = await navigator.serviceWorker.getRegistration()
+            registration = (await navigator.serviceWorker.getRegistration()) || null
           } catch {}
         }
 
         if (registration && registration.showNotification) {
-          await registration.showNotification(title, {
-            icon: '/favicon/icon-192.png',
-            badge: '/favicon/favicon-32x32.png',
-            vibrate: [200, 100, 200],
-            ...options
-          } as any)
+          await registration.showNotification(title, defaultOptions)
           return true
         }
       }
 
-      new Notification(title, {
-        icon: '/favicon/icon-192.png',
-        badge: '/favicon/favicon-32x32.png',
-        ...options
-      } as any)
-      return true
+      // 2. Desktop browser fallback constructor
+      if (typeof Notification !== 'undefined') {
+        new Notification(title, defaultOptions)
+        return true
+      }
+
+      return false
     } catch (err) {
       console.warn('Local notification trigger notice:', err)
       return false
@@ -349,8 +397,12 @@ class NotificationService {
 
     await setDoc(notifRef, payload)
 
+    // Mark as notified locally on the sender device so the local feedback doesn't duplicate
+    this.markNotified(notifRef.id)
+
     // Trigger local push notification for current admin session feedback
-    await this.showLocalNotification(`[${data.priority.toUpperCase()}] ${data.title}`, {
+    const prefix = data.priority === 'urgent' ? '🚨 [URGENT]' : (data.priority === 'important' ? '📢 [ANNOUNCEMENT]' : 'ℹ️ [INFO]')
+    await this.showLocalNotification(`${prefix} ${data.title}`, {
       body: data.message,
       tag: `mats-broadcast-${notifRef.id}`,
       data: { url: data.actionUrl || '/' }
@@ -564,12 +616,6 @@ class NotificationService {
       })
     }
 
-    // Trigger local push notification summary for admin
-    await this.showLocalNotification(`Attendance Reminders Dispatched`, {
-      body: `Dispatched targeted reminders for ${totalReminded} schedule(s) to ${totalOfficers} recipient(s).`,
-      tag: 'mats-bulk-reminder'
-    })
-
     onProgress?.({
       active: false,
       current: pendingSchedules.length,
@@ -604,16 +650,6 @@ class NotificationService {
 
     const emailClean = userEmail?.toLowerCase().trim()
 
-    let initialLoadDone = false
-    const seenNotificationIds = new Set<string>()
-
-    try {
-      const stored = sessionStorage.getItem(`mats_seen_notif_${_userId}`)
-      if (stored) {
-        JSON.parse(stored).forEach((id: string) => seenNotificationIds.add(id))
-      }
-    } catch {}
-
     // Query collection without orderBy to prevent document exclusion on pending/null createdAt
     const q = query(
       collection(db, NOTIFICATIONS_COLLECTION),
@@ -634,10 +670,6 @@ class NotificationService {
       const relevant = allNotifs.filter(n => {
         const isAdminOrCoordinator = userRole === 'admin' || userRole === 'coordinator'
 
-        // Creator and Admins/Coordinators can view all records to monitor notifications
-        if (isAdminOrCoordinator) return true
-        if (n.createdBy === _userId) return true
-
         const targetsLower = (n.targetMemberIds || []).map(t => String(t).toLowerCase().trim())
         const memberIdLower = memberId ? memberId.toLowerCase().trim() : undefined
         const userIdLower = _userId ? _userId.toLowerCase().trim() : undefined
@@ -649,52 +681,76 @@ class NotificationService {
           (emailClean && targetsLower.includes(emailClean))
         )
 
-        // Attendance reminders:
+        // 1. If notification has targeted members, strictly deliver only to the tagged recipients
+        if (n.targetMemberIds && n.targetMemberIds.length > 0) {
+          return isDirectTarget
+        }
+
+        // 2. Attendance reminders without specific target members (sent to all officers)
         if (n.type === 'attendance_reminder') {
-          if (n.targetMemberIds && n.targetMemberIds.length > 0) {
-            return isDirectTarget
-          }
-          // If no specific targetMemberIds (broadcast to all officers)
           if (userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer' || userRole === 'user') return true
+          if (isAdminOrCoordinator && memberId) return true
           return false
         }
 
-        // Target audience check for broadcasts and system alerts
+        // 3. Broadcasts and system alerts
         if (n.targetAudience === 'all') return true
         if (n.targetAudience === 'admins' && isAdminOrCoordinator) return true
         if (n.targetAudience === 'officers') {
-          if (isAdminOrCoordinator || userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer' || memberId || isDirectTarget) return true
+          if (isAdminOrCoordinator || userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer' || memberId) return true
           return false
         }
-        if (isDirectTarget) return true
-        return false
+
+        return isDirectTarget
       })
 
       // Automatically post new incoming notifications to the Device Notification Drawer / Status Bar
+      const nowMs = Date.now()
       relevant.forEach((notif) => {
         const isUnread = !notif.readBy || !notif.readBy.includes(_userId)
-        const isAlreadySeen = seenNotificationIds.has(notif.id)
 
-        if (initialLoadDone && !isAlreadySeen && isUnread) {
-          seenNotificationIds.add(notif.id)
-          try {
-            sessionStorage.setItem(`mats_seen_notif_${_userId}`, JSON.stringify(Array.from(seenNotificationIds).slice(-100)))
-          } catch {}
+        // Calculate creation age
+        const notifTime = notif.createdAt?.toMillis
+          ? notif.createdAt.toMillis()
+          : (notif.createdAt ? new Date(notif.createdAt).getTime() : nowMs)
+        const ageInHours = (nowMs - notifTime) / (1000 * 60 * 60)
+
+        // Check if expired
+        let isExpired = false
+        if (notif.expiresAt) {
+          const expTime = new Date(notif.expiresAt).getTime()
+          if (!isNaN(expTime) && expTime <= nowMs) {
+            isExpired = true
+          }
+        }
+
+        const isAlreadyNotified = this.hasBeenNotified(notif.id)
+
+        // If unread, not expired, recent (< 24 hrs), and not yet notified on this device:
+        if (isUnread && !isExpired && ageInHours < 24 && !isAlreadyNotified) {
+          this.markNotified(notif.id)
+
+          // Formulate alert title with visual indicator
+          let displayTitle = notif.title
+          if (notif.type === 'admin_broadcast') {
+            const prefix = notif.priority === 'urgent' ? '🚨 [URGENT]' : (notif.priority === 'important' ? '📢 [ANNOUNCEMENT]' : 'ℹ️ [INFO]')
+            displayTitle = `${prefix} ${notif.title}`
+          }
 
           // Post to Device Notification Drawer / Status Bar
-          this.showLocalNotification(notif.title, {
+          this.showLocalNotification(displayTitle, {
             body: notif.message,
             tag: `mats-notif-${notif.id}`,
+            renotify: true,
             data: {
               url: notif.actionUrl || '/'
             }
           })
-        } else if (!isAlreadySeen) {
-          seenNotificationIds.add(notif.id)
+        } else if (!isAlreadyNotified) {
+          // If already read, expired, or old upon initial fetch, mark as notified so we don't alert retroactively
+          this.markNotified(notif.id)
         }
       })
-
-      initialLoadDone = true
 
       callback(relevant)
     })

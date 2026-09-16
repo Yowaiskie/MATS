@@ -6,7 +6,7 @@ export const counterService = {
    * Generates a unique, chronological reference number for Incomes, Expenses, and Fund Requests.
    * Format: TYPE-YYYYMM-XXXXX (e.g., INC-202607-00001)
    */
-  async generateReferenceNumber(type: 'INC' | 'EXP' | 'FR', dateStr: string): Promise<string> {
+  async generateReferenceNumber(type: 'INC' | 'EXP' | 'FR' | 'LIQ', dateStr: string): Promise<string> {
     const yearMonth = dateStr.slice(0, 7).replace('-', '') // "202607"
     const counterId = `finance_${type.toLowerCase()}_${yearMonth}`
     const counterRef = doc(db, 'counters', counterId)

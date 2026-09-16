@@ -5,7 +5,7 @@ import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignature
 import type { SignatureConfig } from '@/types/signature'
 import { DEFAULT_MINISTRY_NAME, DEFAULT_PARISH_NAME } from '@/types/signature'
 import type { MemberReportRow } from '@/services/reportService'
-import { downloadMembersReportPdf } from '@/utils/memberPdfReport'
+import { downloadMembersReportPdf, type PaperSize } from '@/utils/memberPdfReport'
 
 interface MemberReportExportModalProps {
   isOpen: boolean
@@ -20,6 +20,7 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
   rows,
   dateRange
 }) => {
+  const [paperSize, setPaperSize] = useState<PaperSize>('long')
   const [documentTitle, setDocumentTitle] = useState('Ministry of Altar Servers')
   const [signatureConfig, setSignatureConfig] = useState<SignatureConfig>({
     enabled: true,
@@ -54,7 +55,8 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
       await downloadMembersReportPdf(rows, {
         dateRange,
         documentTitle: documentTitle.trim() || 'Ministry of Altar Servers',
-        signatureConfig: signatureConfig.enabled ? signatureConfig : undefined
+        signatureConfig: signatureConfig.enabled ? signatureConfig : undefined,
+        paperSize
       })
       onClose()
     } catch (err: any) {
@@ -114,6 +116,38 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
               placeholder="Ministry of Altar Servers"
               className="w-full p-2.5 text-xs font-bold border border-slate-200 rounded-xl bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
             />
+          </div>
+
+          <div>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
+                Paper Size
+              </label>
+              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200">
+                {paperSize === 'long' ? '8.5" × 13" (Folio)' : paperSize === 'a4' ? 'A4 Size' : '8.5" × 11" (Letter)'}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {[
+                { id: 'long', label: 'Long Bond Paper', desc: '8.5" × 13" (Folio - Standard)' },
+                { id: 'a4', label: 'A4 Size', desc: '210 × 297 mm' },
+                { id: 'letter', label: 'Short / Letter', desc: '8.5" × 11" (215.9 × 279.4 mm)' }
+              ].map(p => (
+                <button
+                  key={p.id}
+                  type="button"
+                  onClick={() => setPaperSize(p.id as PaperSize)}
+                  className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer ${
+                    paperSize === p.id
+                      ? 'bg-indigo-50/90 border-indigo-500 text-indigo-950 ring-1 ring-indigo-500/50 shadow-2xs font-bold'
+                      : 'border-slate-200 bg-white hover:bg-slate-50 text-slate-700'
+                  }`}
+                >
+                  <div className="font-bold text-xs">{p.label}</div>
+                  <div className="text-[10px] text-slate-500 mt-0.5">{p.desc}</div>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 

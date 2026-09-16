@@ -20,16 +20,14 @@ export function useNotifications() {
       const currentPerm = notificationService.getPermission()
       setPermission(currentPerm)
       if (currentPerm === 'granted') {
-        // Attempt to check if device has an active token
-        notificationService.getDeviceToken().then((retrievedToken) => {
-          if (retrievedToken) {
-            setToken(retrievedToken)
-            setIsSubscribed(true)
-            if (user?.uid) {
-              notificationService.saveTokenToFirestore(user.uid, retrievedToken).catch(() => {})
+        setIsSubscribed(true)
+        if (user?.uid) {
+          notificationService.requestPermissionAndSaveToken(user.uid).then((retrievedToken) => {
+            if (retrievedToken) {
+              setToken(retrievedToken)
             }
-          }
-        })
+          }).catch(() => {})
+        }
       }
     }
   }, [user?.uid])

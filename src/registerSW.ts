@@ -4,7 +4,7 @@ export function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
-        .register('/sw.js')
+        .register('/firebase-messaging-sw.js', { scope: '/' })
         .then((registration) => {
           swRegistration = registration;
           console.log('MATS ServiceWorker registered successfully:', registration.scope);

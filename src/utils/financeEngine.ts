@@ -42,7 +42,7 @@ export const financeEngine = {
     // 3. Process Fund Requests (Only Main Ministry Funds impact the Ministry General Ledger)
     fundRequests.forEach((req) => {
       if (req.isArchived) return
-      if (req.fundSource === 'parish') return // Parish funds are disbursed by the Parish, not Ministry Treasury
+      if (req.fundSource === 'parish' || req.fundSource === 'outside') return // Parish & Outside funds are external and do not impact Ministry Treasury
 
       const status = (req.status || '').toLowerCase()
 

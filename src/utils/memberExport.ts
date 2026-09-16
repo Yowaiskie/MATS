@@ -53,13 +53,6 @@ export const ALL_MEMBER_COLUMNS: MemberExportColumn[] = [
     halign: 'left'
   },
   {
-    id: 'status',
-    label: 'Status',
-    getValue: (m) => (m.status || 'active').toUpperCase(),
-    pdfWidth: 18,
-    halign: 'center'
-  },
-  {
     id: 'phoneNumber',
     label: 'Phone Number',
     getValue: (m) => m.phoneNumber || '—',
@@ -70,35 +63,41 @@ export const ALL_MEMBER_COLUMNS: MemberExportColumn[] = [
     id: 'homeAddress',
     label: 'Home Address',
     getValue: (m) => m.homeAddress || '—',
-    pdfWidth: 40,
+    pdfWidth: 42,
     halign: 'left'
   },
   {
     id: 'dateOfBirth',
     label: 'Date of Birth',
     getValue: (m) => m.dateOfBirth || '—',
-    pdfWidth: 22,
+    pdfWidth: 24,
     halign: 'center'
   },
   {
     id: 'dateOfInvestiture',
     label: 'Date of Investiture',
     getValue: (m) => m.dateOfInvestiture || '—',
-    pdfWidth: 24,
+    pdfWidth: 25,
     halign: 'center'
   },
   {
     id: 'monthJoined',
     label: 'Month Joined',
     getValue: (m) => m.monthJoined || '—',
-    pdfWidth: 22,
+    pdfWidth: 24,
     halign: 'center'
   },
   {
     id: 'position',
     label: 'Position',
-    getValue: (m) => m.position || '—',
-    pdfWidth: 25,
+    getValue: (m) => {
+      const pos = (m.position || '').trim()
+      if (!pos) return '—'
+      if (/^ol$/i.test(pos)) return 'Order Leader'
+      if (/^ol\b/i.test(pos)) return pos.replace(/^ol\b/i, 'Order Leader')
+      return pos
+    },
+    pdfWidth: 28,
     halign: 'left'
   }
 ]
@@ -153,34 +152,40 @@ export const SUMMARY_COLUMNS: MemberExportColumn[] = [
     id: 'fullName',
     label: 'Full Name',
     getValue: (m) => getFullName(m, false),
-    pdfWidth: 48,
+    pdfWidth: 50,
     halign: 'left'
   },
   {
     id: 'rank',
     label: 'Rank',
     getValue: (m) => m.rank || '—',
-    pdfWidth: 26,
+    pdfWidth: 28,
     halign: 'left'
   },
   {
     id: 'order',
     label: 'Order / Group',
     getValue: (m) => m.order || 'Unassigned',
-    pdfWidth: 32,
+    pdfWidth: 34,
     halign: 'left'
-  },
-  {
-    id: 'status',
-    label: 'Status',
-    getValue: (m) => (m.status || 'active').toUpperCase(),
-    pdfWidth: 20,
-    halign: 'center'
   },
   {
     id: 'phoneNumber',
     label: 'Phone Number',
     getValue: (m) => m.phoneNumber || '—',
+    pdfWidth: 32,
+    halign: 'left'
+  },
+  {
+    id: 'position',
+    label: 'Position',
+    getValue: (m) => {
+      const pos = (m.position || '').trim()
+      if (!pos) return '—'
+      if (/^ol$/i.test(pos)) return 'Order Leader'
+      if (/^ol\b/i.test(pos)) return pos.replace(/^ol\b/i, 'Order Leader')
+      return pos
+    },
     pdfWidth: 30,
     halign: 'left'
   }
@@ -203,22 +208,6 @@ export const getColumnsForPreset = (preset: ExportPreset, customColumnIds?: stri
   }
 }
 
-const formatDate = (d: Date): string => {
-  return d.toLocaleDateString('en-US', {
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric',
-  })
-}
-
-const formatTime = (d: Date): string => {
-  return d.toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-    hour12: true,
-  })
-}
-
 const loadImage = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
     const img = new Image()
@@ -236,6 +225,15 @@ const sanitizeCsvCell = (val: string): string => {
     return `"${str.replace(/"/g, '""')}"`
   }
   return `"${str}"`
+}
+
+/**
+ * Checks if a member is classified as a Squire.
+ */
+export const isSquire = (m: Member): boolean => {
+  const rank = (m.rank || '').trim().toLowerCase()
+  const order = (m.order || '').trim().toLowerCase()
+  return rank.includes('squire') || order.includes('squire')
 }
 
 /**
@@ -264,16 +262,19 @@ export const exportMembersToCsv = (
   URL.revokeObjectURL(url)
 }
 
+export type PaperSize = 'long' | 'a4' | 'letter'
+
 export interface MemberPdfExportOptions {
   documentTitle?: string
   scopeLabel?: string
   signatureConfig?: SignatureConfig
   filenamePrefix?: string
+  paperSize?: PaperSize
 }
 
 /**
  * Generates an official, branded PDF Member Report with parish header, title,
- * metadata info, dynamic columns, and optional dynamic signatures.
+ * dynamic columns, separate Squires table, and optional dynamic signatures.
  */
 export const exportMembersToPdf = async (
   members: Member[],
@@ -281,19 +282,30 @@ export const exportMembersToPdf = async (
   options?: MemberPdfExportOptions
 ): Promise<void> => {
   const now = new Date()
-  const dateStr = formatDate(now)
-  const timeStr = formatTime(now)
 
   // Use landscape if more than 5 columns or if wide columns are selected
   const isLandscape = columns.length > 5
+  const paperSize: PaperSize = options?.paperSize || 'long'
+
+  // Map paper size: 'long' = Long Bond Paper (8.5 x 13 in / Folio), 'a4' = A4, 'letter' = Short / Letter
+  let docFormat: string | [number, number] = [215.9, 330.2]
+  if (paperSize === 'a4') {
+    docFormat = 'a4'
+  } else if (paperSize === 'letter') {
+    docFormat = 'letter'
+  }
 
   const doc = new jsPDF({
     orientation: isLandscape ? 'landscape' : 'portrait',
     unit: 'mm',
-    format: 'a4',
+    format: docFormat,
   })
 
   const pageWidth = doc.internal.pageSize.getWidth()
+  const pageHeight = doc.internal.pageSize.getHeight()
+  const leftMargin = 12
+  const rightMargin = 12
+  const availableWidth = pageWidth - leftMargin - rightMargin
 
   // 1. Prepare Logos
   let logoParish: HTMLImageElement | null = null
@@ -330,18 +342,18 @@ export const exportMembersToPdf = async (
     doc.setFont('times', 'bolditalic')
     doc.setFontSize(15)
     doc.setTextColor(15, 23, 42)
-    doc.text('Ministry of Altar Servers', 14, 14)
+    doc.text('Ministry of Altar Servers', leftMargin, 14)
 
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9.5)
     doc.setTextColor(51, 65, 85)
-    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
+    doc.text('Sacred Heart of Jesus Parish - Mbs', leftMargin, 19.5)
+    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', leftMargin, 24)
 
     // Divider Line
     doc.setDrawColor(30, 41, 59)
     doc.setLineWidth(0.6)
-    doc.line(14, 28, pageWidth - 14, 28)
+    doc.line(leftMargin, 28, pageWidth - rightMargin, 28)
   }
 
   // 3. Document Title
@@ -352,96 +364,146 @@ export const exportMembersToPdf = async (
   doc.setTextColor(15, 23, 42)
   const titleWidth = doc.getTextWidth(titleText)
   const titleX = (pageWidth - titleWidth) / 2
-  const titleY = 36
+  const titleY = 35.5
   doc.text(titleText, titleX, titleY)
   doc.setLineWidth(0.5)
   doc.setDrawColor(15, 23, 42)
   doc.line(titleX, titleY + 1.2, titleX + titleWidth, titleY + 1.2)
 
-  // 4. Sub-header Metadata Row
-  const scopeText = options?.scopeLabel || 'All Active Members'
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(8.5)
-  doc.setTextColor(71, 85, 105)
-  doc.text(`Scope / Filter: ${scopeText}`, 14, 44)
-  doc.text(
-    `Generated: ${dateStr} at ${timeStr} • Total Records: ${members.length}`,
-    pageWidth - 14,
-    44,
-    { align: 'right' }
-  )
+  // 4. Split Official Members and Squires
+  const officialMembers = members.filter(m => !isSquire(m))
+  const squireMembers = members.filter(m => isSquire(m))
 
-  // 5. Table Data Preparation
+  // Table Data Preparation & Dynamic Full-Width Proportional Column Width Calculation
   const tableHead = [columns.map(c => c.label.toUpperCase())]
-  const tableBody = members.map((member, index) => {
-    return columns.map(col => col.getValue(member, index))
-  })
 
-  // Dynamic column styling
+  const indexCol = columns.find(c => c.id === 'index')
+  const fixedIndexWidth = indexCol ? (columns.length <= 6 ? 12 : 9) : 0
+  const flexibleColumns = columns.filter(c => c.id !== 'index')
+
+  const totalFlexBaseWidth = flexibleColumns.reduce((sum, col) => sum + (col.pdfWidth || 25), 0)
+  const remainingWidth = availableWidth - fixedIndexWidth
+
+  // Dynamic column styling with 100% full-width distribution across availableWidth
   const colStyles: Record<number, any> = {}
   columns.forEach((col, idx) => {
-    colStyles[idx] = {
-      halign: col.halign || 'left',
-      ...(col.pdfWidth ? { cellWidth: col.pdfWidth } : {}),
-      ...(col.id === 'fullName' ? { fontStyle: 'bold' } : {})
-    }
-  })
-
-  // 6. Generate Table
-  autoTable(doc, {
-    startY: 48,
-    head: tableHead,
-    body: tableBody,
-    theme: 'grid',
-    showHead: 'everyPage',
-    headStyles: {
-      fillColor: [30, 41, 59],
-      textColor: [255, 255, 255],
-      fontSize: 8,
-      fontStyle: 'bold',
-      halign: 'left',
-      cellPadding: 2.2,
-    },
-    bodyStyles: {
-      fontSize: 7.5,
-      textColor: [15, 23, 42],
-      cellPadding: 2,
-    },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252],
-    },
-    columnStyles: colStyles,
-    margin: { left: 14, right: 14, top: 48, bottom: 16 },
-    didParseCell: (data) => {
-      // Find status column index
-      const statusColIndex = columns.findIndex(c => c.id === 'status')
-      if (statusColIndex !== -1 && data.section === 'body' && data.column.index === statusColIndex) {
-        const val = String(data.cell.raw).toUpperCase()
-        if (val === 'ACTIVE') {
-          data.cell.styles.textColor = [21, 128, 61]
-          data.cell.styles.fillColor = [220, 252, 231]
-          data.cell.styles.fontStyle = 'bold'
-        } else if (val === 'INACTIVE') {
-          data.cell.styles.textColor = [180, 83, 9]
-          data.cell.styles.fillColor = [254, 243, 199]
-          data.cell.styles.fontStyle = 'bold'
-        } else if (val === 'ARCHIVED') {
-          data.cell.styles.textColor = [100, 116, 139]
-          data.cell.styles.fillColor = [241, 245, 249]
-        }
+    if (col.id === 'index') {
+      colStyles[idx] = {
+        halign: 'center',
+        cellWidth: fixedIndexWidth,
+      }
+    } else {
+      const baseW = col.pdfWidth || 25
+      const scaledW = totalFlexBaseWidth > 0
+        ? Math.floor((baseW / totalFlexBaseWidth) * remainingWidth * 100) / 100
+        : Math.floor(remainingWidth / flexibleColumns.length)
+      colStyles[idx] = {
+        halign: col.halign || 'left',
+        cellWidth: scaledW,
+        ...(col.id === 'fullName' ? { fontStyle: 'bold' } : {})
       }
     }
   })
 
-  let currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 48
+  const isCompact = columns.length <= 6
+  const isDense = columns.length >= 9
+
+  const tableHeadFontSize = isCompact ? 8.5 : isDense ? 7 : 8
+  const tableHeadPadding = isCompact ? 2.5 : isDense ? 1.8 : 2.2
+  const tableBodyFontSize = isCompact ? 8 : isDense ? 6.8 : 7.5
+  const tableBodyPadding = isCompact ? 2.3 : isDense ? 1.6 : 2.0
+
+  let currentY = 41
+
+  // 5. Render Official Members Table
+  if (officialMembers.length > 0) {
+    const officialBody = officialMembers.map((member, index) => {
+      return columns.map(col => col.getValue(member, index))
+    })
+
+    autoTable(doc, {
+      startY: currentY,
+      head: tableHead,
+      body: officialBody,
+      theme: 'grid',
+      showHead: 'everyPage',
+      headStyles: {
+        fillColor: [30, 41, 59],
+        textColor: [255, 255, 255],
+        fontSize: tableHeadFontSize,
+        fontStyle: 'bold',
+        halign: 'left',
+        cellPadding: tableHeadPadding,
+      },
+      bodyStyles: {
+        fontSize: tableBodyFontSize,
+        textColor: [15, 23, 42],
+        cellPadding: tableBodyPadding,
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: colStyles,
+      margin: { left: leftMargin, right: rightMargin, top: 41, bottom: 16 }
+    })
+
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 41
+  }
+
+  // 6. Render Squires Table (Separate Table Below)
+  if (squireMembers.length > 0) {
+    // If not enough room on the current page for heading + table header + a few rows, create a new page
+    if (currentY > pageHeight - 38) {
+      doc.addPage()
+      currentY = 41
+    }
+
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(10)
+    doc.setTextColor(30, 41, 59)
+    doc.text('SQUIRES', leftMargin, currentY)
+    currentY += 3.5
+
+    const squireBody = squireMembers.map((member, index) => {
+      return columns.map(col => col.getValue(member, index))
+    })
+
+    autoTable(doc, {
+      startY: currentY,
+      head: tableHead,
+      body: squireBody,
+      theme: 'grid',
+      showHead: 'everyPage',
+      headStyles: {
+        fillColor: [51, 65, 85], // Slate 700 tone for Squires section header
+        textColor: [255, 255, 255],
+        fontSize: tableHeadFontSize,
+        fontStyle: 'bold',
+        halign: 'left',
+        cellPadding: tableHeadPadding,
+      },
+      bodyStyles: {
+        fontSize: tableBodyFontSize,
+        textColor: [15, 23, 42],
+        cellPadding: tableBodyPadding,
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: colStyles,
+      margin: { left: leftMargin, right: rightMargin, top: 41, bottom: 16 }
+    })
+
+    currentY = (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 8 : 41
+  }
 
   // 7. Dynamic signatures if enabled
   if (options?.signatureConfig?.enabled && options.signatureConfig.signatories.length > 0) {
     currentY = renderPdfSignatures(doc, options.signatureConfig.signatories, currentY, {
-      leftMargin: 14,
-      rightMargin: 14,
+      leftMargin,
+      rightMargin,
       bottomMargin: 18,
-      topMarginOnNewPage: 48
+      topMarginOnNewPage: 41
     })
   }
 
@@ -452,9 +514,9 @@ export const exportMembersToPdf = async (
     drawUniformHeader()
   }
 
-  // Apply uniform standard footer across all pages
-  const docCode = formatDocCodeWithDate('MEM', now)
-  applyStandardPdfFooters(doc, docCode, { leftMargin: 14, rightMargin: 14 })
+  // Apply uniform standard footer across all pages with OML document code
+  const docCode = formatDocCodeWithDate('OML', now)
+  applyStandardPdfFooters(doc, docCode, { leftMargin, rightMargin })
 
   const prefix = options?.filenamePrefix || 'MATS_Members_Report'
   const filename = `${prefix}_${now.toISOString().split('T')[0]}.pdf`

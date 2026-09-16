@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { userService } from '@/services/userService'
 import { authService } from '@/services/authService'
-import { settingsService } from '@/services/settingsService'
+import { settingsService, DEFAULT_PERMISSION_PRESETS } from '@/services/settingsService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions, PermissionPreset } from '@/types/auth'
@@ -720,7 +720,7 @@ export const UsersPage: React.FC = () => {
 
     const perms = userToEdit.permissions
     if (userToEdit.role === 'admin') {
-      const adminPreset = presets.find(p => p.role === 'admin')
+      const adminPreset = presets.find(p => p.role === 'admin') || DEFAULT_PERMISSION_PRESETS.find(p => p.id === 'preset_admin')
       if (adminPreset) applyPreset(adminPreset)
     } else if (perms) {
       setAllowedModules(perms.allowedModules || ['dashboard', 'attendance'])

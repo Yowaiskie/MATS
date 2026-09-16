@@ -1,7 +1,7 @@
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceStatus } from '@/types/attendance'
-import { getFullName } from '@/utils/member'
+import { getFirstNameFirst } from '@/utils/member'
 
 interface RowState {
   id?: string
@@ -11,6 +11,21 @@ interface RowState {
 
 interface FormState {
   [memberId: string]: RowState
+}
+
+/**
+ * Sorts a list of members alphabetically by Last Name, then by First Name.
+ */
+export const sortMembersByLastName = (list: Member[]): Member[] => {
+  return [...list].sort((a, b) => {
+    const lastA = (a.lastName || '').toLowerCase().trim()
+    const lastB = (b.lastName || '').toLowerCase().trim()
+    const comp = lastA.localeCompare(lastB)
+    if (comp !== 0) return comp
+    const firstA = (a.firstName || '').toLowerCase().trim()
+    const firstB = (b.firstName || '').toLowerCase().trim()
+    return firstA.localeCompare(firstB)
+  })
 }
 
 /**
@@ -103,11 +118,11 @@ export const generateCommunityReport = (
     if (status === 'excused') return 'E'
     if (status === 'observer') return 'O'
     if (status === 'formation') return 'F'
-    return 'A' // default fallback if undefined
+    return '' // Empty string if status is undefined or not provided
   }
 
   if (isMeetingSchedule) {
-    const allMeetingMembers = [...assignedMembers, ...unassignedMembers]
+    const allMeetingMembers = sortMembersByLastName([...assignedMembers, ...unassignedMembers])
     const memberMap = new Map<string, Member>()
     allMeetingMembers.forEach((member) => {
       if (!memberMap.has(member.id)) memberMap.set(member.id, member)
@@ -136,7 +151,7 @@ export const generateCommunityReport = (
       }
 
       const member = memberMap.get(memberId)
-      const displayName = member ? getFullName(member, false) : memberId
+      const displayName = member ? getFirstNameFirst(member) : memberId
       statusBuckets[normalized].push(displayName)
     })
 
@@ -181,18 +196,19 @@ export const generateCommunityReport = (
     else if (status === 'formation') formationCount++
 
     const statusShortcut = mapStatus(status)
-    return `${idx + 1}. ${getFullName(member, false)} - ${statusShortcut}`
+    const suffix = statusShortcut ? ` - ${statusShortcut}` : ''
+    return `${idx + 1}. ${getFirstNameFirst(member)}${suffix}`
   }
 
-  const visibleAssigned = assignedMembers.filter(member => {
+  const visibleAssigned = sortMembersByLastName(assignedMembers.filter(member => {
     const status = formState[member.id]?.status
     return status !== 'alumni' && !isSquire(member)
-  })
+  }))
 
-  const visibleSquires = [...assignedMembers, ...unassignedMembers].filter(member => {
+  const visibleSquires = sortMembersByLastName([...assignedMembers, ...unassignedMembers].filter(member => {
     const status = formState[member.id]?.status
     return status !== 'alumni' && isSquire(member)
-  })
+  }))
 
   const assignedList = visibleAssigned.length > 0
     ? visibleAssigned.map((member, idx) => formatMemberLine(member, idx)).join('\n')
@@ -202,14 +218,14 @@ export const generateCommunityReport = (
     ? visibleSquires.map((member, idx) => formatMemberLine(member, idx)).join('\n')
     : ''
 
-  const visibleOther = unassignedMembers.filter(member => {
+  const visibleOther = sortMembersByLastName(unassignedMembers.filter(member => {
     const status = formState[member.id]?.status
     return status !== 'alumni' && !isSquire(member)
-  })
+  }))
 
   const otherList = visibleOther.length > 0
     ? visibleOther
-        .map((member, idx) => `${idx + 1}. ${getFullName(member, false)}`)
+        .map((member, idx) => `${idx + 1}. ${getFirstNameFirst(member)}`)
         .join('\n')
     : ''
 

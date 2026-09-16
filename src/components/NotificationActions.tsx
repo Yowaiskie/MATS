@@ -82,67 +82,75 @@ export const NotificationActions: React.FC = () => {
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-200 bg-white shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
-          <div className="p-3 bg-slate-50/80 border-b border-slate-100">
-            <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-700">
-              Notification Center Actions
-            </h4>
-            <p className="text-[10px] text-slate-500 mt-0.5">
-              Dispatch alerts or notify assigned officers
-            </p>
-          </div>
+        <>
+          {/* Mobile backdrop overlay */}
+          <div
+            className="fixed inset-0 bg-slate-900/20 backdrop-blur-2xs z-40 sm:hidden"
+            onClick={() => setIsOpen(false)}
+          />
 
-          <div className="p-1.5 space-y-1">
-            {/* Broadcast Option */}
-            {canBroadcast && (
+          <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-80 rounded-2xl border border-slate-200/90 bg-white shadow-2xl sm:shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+            <div className="p-3 bg-slate-50/80 border-b border-slate-100">
+              <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-700">
+                Notification Center Actions
+              </h4>
+              <p className="text-[10px] text-slate-500 mt-0.5">
+                Dispatch alerts or notify assigned officers
+              </p>
+            </div>
+
+            <div className="p-1.5 space-y-1">
+              {/* Broadcast Option */}
+              {canBroadcast && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false)
+                    setIsBroadcastModalOpen(true)
+                  }}
+                  className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-indigo-50/70 transition-colors group cursor-pointer"
+                >
+                  <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <MegaphoneIcon className="w-4 h-4" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-900">
+                      Broadcast Announcement
+                    </div>
+                    <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
+                      Send news, urgent notices, or mass alerts to members or officers.
+                    </p>
+                  </div>
+                </button>
+              )}
+
+              {/* Remind Pending Attendance Option */}
               <button
                 type="button"
                 onClick={() => {
                   setIsOpen(false)
-                  setIsBroadcastModalOpen(true)
+                  setIsRemindModalOpen(true)
                 }}
-                className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-indigo-50/70 transition-colors group cursor-pointer"
+                className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-amber-50/70 transition-colors group cursor-pointer"
               >
-                <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                  <MegaphoneIcon className="w-4 h-4" />
+                <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                  <ClockAlertIcon className="w-4 h-4" />
                 </div>
-                <div>
-                  <div className="text-xs font-bold text-slate-900 group-hover:text-indigo-900">
-                    Broadcast Announcement
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-bold text-slate-900 group-hover:text-amber-900 flex items-center gap-1.5 flex-wrap">
+                    <span>Remind Attendance</span>
+                    <span className="text-[9px] font-black px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-md border border-amber-200">
+                      Targeted
+                    </span>
                   </div>
                   <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
-                    Send news, urgent notices, or mass alerts to members or officers.
+                    Notify assigned servers for untaken & unfinalized schedules.
                   </p>
                 </div>
               </button>
-            )}
-
-            {/* Remind Pending Attendance Option */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsOpen(false)
-                setIsRemindModalOpen(true)
-              }}
-              className="w-full flex items-start gap-3 p-2.5 rounded-xl text-left hover:bg-amber-50/70 transition-colors group cursor-pointer"
-            >
-              <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <ClockAlertIcon className="w-4 h-4" />
-              </div>
-              <div>
-                <div className="text-xs font-bold text-slate-900 group-hover:text-amber-900 flex items-center gap-1.5">
-                  Remind Attendance
-                  <span className="text-[9px] font-black px-1.5 py-0.2 bg-amber-100 text-amber-800 rounded-md border border-amber-200">
-                    Targeted
-                  </span>
-                </div>
-                <p className="text-[10px] text-slate-500 leading-snug mt-0.5">
-                  Notify assigned servers for untaken & unfinalized schedules.
-                </p>
-              </div>
-            </button>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Broadcast Modal */}

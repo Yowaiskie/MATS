@@ -65,7 +65,8 @@ export const fundRequestService = {
           createdByUid: data.createdByUid || '',
           createdByName: data.createdByName || '',
 
-          // Fund Source
+          // Request Classification & Fund Source
+          requestType: data.requestType || 'requisition',
           fundSource: data.fundSource || 'main_funds',
 
           // Requisition Details
@@ -85,6 +86,11 @@ export const fundRequestService = {
           rejectedAt: data.rejectedAt,
           rejectionReason: data.rejectionReason,
 
+          // Parish Priest Approval Tracking
+          parishApprovedByFr: data.parishApprovedByFr,
+          parishFrApprovalDate: data.parishFrApprovalDate,
+          parishFrRemarks: data.parishFrRemarks,
+
           // Cancellation
           cancelledByUid: data.cancelledByUid,
           cancelledByName: data.cancelledByName,
@@ -97,7 +103,7 @@ export const fundRequestService = {
           voidedAt: data.voidedAt,
           voidReason: data.voidReason,
 
-          // Release
+          // Release / Disbursement
           releasedByUid: data.releasedByUid,
           releasedByName: data.releasedByName,
           releasedToName: data.releasedToName,
@@ -105,6 +111,14 @@ export const fundRequestService = {
           releasedDate: data.releasedDate,
           releasedAmount: data.releasedAmount,
           releaseRemarks: data.releaseRemarks,
+
+          // Parish Office Release Specifics
+          parishOfficeDisbursed: data.parishOfficeDisbursed,
+          parishOfficeDisbursedDate: data.parishOfficeDisbursedDate,
+          parishOfficeDisbursedAmount: data.parishOfficeDisbursedAmount,
+          parishOfficeDisbursedBy: data.parishOfficeDisbursedBy,
+          parishOfficeReceivedBy: data.parishOfficeReceivedBy,
+          parishOfficeRemarks: data.parishOfficeRemarks,
 
           // Liquidation
           totalSpent: data.totalSpent,
@@ -265,7 +279,10 @@ export const fundRequestService = {
     id: string,
     remarks: string,
     approvedByUid: string,
-    approvedByName: string
+    approvedByName: string,
+    parishData?: { parishApprovedByFr?: boolean; parishFrApprovalDate?: string; parishFrRemarks?: string },
+    userRole?: string,
+    allowAdminExemption: boolean = false
   ): Promise<void> {
     try {
       const docRef = doc(db, REQUEST_COLLECTION, id)
@@ -275,32 +292,43 @@ export const fundRequestService = {
       const data = docSnap.data()
       if (data.status !== 'pending') throw new Error('Only pending requests can be approved.')
 
-      // Check self-approval: requester cannot approve their own request
+      // Check self-approval: requester cannot approve their own request unless user is an admin or coordinator
+      const isAdminExempt = allowAdminExemption || userRole === 'admin' || userRole === 'coordinator'
       const isSelfApproval = Boolean(
         (approvedByUid && (data.requestedByUid === approvedByUid || data.createdByUid === approvedByUid)) ||
         (approvedByName && data.requestedByName && data.requestedByName.trim().toLowerCase() === approvedByName.trim().toLowerCase())
       )
-      if (isSelfApproval) {
+      if (isSelfApproval && !isAdminExempt) {
         throw new Error('Self-approval is not allowed. A different authorized administrator must approve this fund request.')
       }
 
       await checkPeriodClosed(data.dateNeeded)
 
-      await updateDoc(docRef, {
+      const updatePayload: any = {
         status: 'approved',
         approvedByUid,
         approvedByName,
         approvedAt: serverTimestamp(),
         approvalRemarks: remarks || '',
         updatedAt: serverTimestamp()
-      })
+      }
+
+      if (data.fundSource === 'parish' || parishData) {
+        updatePayload.parishApprovedByFr = parishData?.parishApprovedByFr ?? true
+        updatePayload.parishFrApprovalDate = parishData?.parishFrApprovalDate || new Date().toISOString().slice(0, 10)
+        if (parishData?.parishFrRemarks) {
+          updatePayload.parishFrRemarks = parishData.parishFrRemarks
+        }
+      }
+
+      await updateDoc(docRef, updatePayload)
 
       await auditService.logAction(
         'REQUEST_APPROVE',
         'attendance',
-        `Approved fund request '${data.title}' (${data.referenceNumber})`,
+        `Approved fund request '${data.title}' (${data.referenceNumber})${data.fundSource === 'parish' ? ' (Approved by Parish Priest)' : ''}`,
         approvedByName,
-        { requestId: id, referenceNumber: data.referenceNumber, remarks }
+        { requestId: id, referenceNumber: data.referenceNumber, remarks, parishData }
       )
     } catch (err) {
       console.error('Failed to approve fund request:', err)
@@ -471,11 +499,31 @@ export const fundRequestService = {
    */
   async releaseFunds(
     id: string,
-    releaseData: { releasedToName: string; releasedAmount: number; releasedDate: string; remarks: string },
+    releaseData: { 
+      releasedToName: string
+      releasedAmount: number
+      releasedDate: string
+      remarks: string
+      parishOfficeDisbursedDate?: string
+      parishOfficeDisbursedAmount?: number
+      parishOfficeDisbursedBy?: string
+      parishOfficeReceivedBy?: string
+      parishOfficeRemarks?: string
+    },
     releasedByUid: string,
     releasedByName: string
   ): Promise<void> {
-    const { releasedToName, releasedAmount, releasedDate, remarks } = releaseData
+    const { 
+      releasedToName, 
+      releasedAmount, 
+      releasedDate, 
+      remarks,
+      parishOfficeDisbursedDate,
+      parishOfficeDisbursedAmount,
+      parishOfficeDisbursedBy,
+      parishOfficeReceivedBy,
+      parishOfficeRemarks
+    } = releaseData
 
     try {
       const docRef = doc(db, REQUEST_COLLECTION, id)
@@ -537,6 +585,18 @@ export const fundRequestService = {
         updatedAt: serverTimestamp()
       }
 
+      // If Parish-sourced request, record specific Parish Office release audit details
+      if (data.fundSource === 'parish') {
+        updatePayload.parishOfficeDisbursed = true
+        updatePayload.parishOfficeDisbursedDate = parishOfficeDisbursedDate || releasedDate
+        updatePayload.parishOfficeDisbursedAmount = Number(parishOfficeDisbursedAmount || releasedAmount)
+        updatePayload.parishOfficeDisbursedBy = parishOfficeDisbursedBy || 'Parish Office'
+        updatePayload.parishOfficeReceivedBy = parishOfficeReceivedBy || releasedToName
+        if (parishOfficeRemarks) {
+          updatePayload.parishOfficeRemarks = parishOfficeRemarks
+        }
+      }
+
       if (linkedEventIncomeId) {
         updatePayload.linkedEventIncomeId = linkedEventIncomeId
       }
@@ -548,12 +608,107 @@ export const fundRequestService = {
       await auditService.logAction(
         'FUNDS_RELEASE',
         'attendance',
-        `Released ₱${releasedAmount} from ${fundSourceLabel} to ${releasedToName} for request '${data.title}' (${data.referenceNumber})${data.targetEventName ? ` (Auto-credited to event ${data.targetEventName})` : ''}`,
+        `Released ₱${releasedAmount} from ${fundSourceLabel} to ${releasedToName}${parishOfficeReceivedBy ? ` (Received by: ${parishOfficeReceivedBy})` : ''} for request '${data.title}' (${data.referenceNumber})${data.targetEventName ? ` (Auto-credited to event ${data.targetEventName})` : ''}`,
         releasedByName,
-        { requestId: id, referenceNumber: data.referenceNumber, amount: releasedAmount, fundSource: data.fundSource || 'main_funds', linkedEventIncomeId }
+        { requestId: id, referenceNumber: data.referenceNumber, amount: releasedAmount, fundSource: data.fundSource || 'main_funds', linkedEventIncomeId, parishOfficeReceivedBy }
       )
     } catch (err) {
       console.error('Failed to release funds:', err)
+      throw err
+    }
+  },
+
+  /**
+   * Creates an Outside / Independent Liquidation report directly in 'liquidated' status.
+   * Has ZERO impact on Ministry and Parish treasury ledgers.
+   */
+  async createOutsideLiquidation(
+    data: {
+      title: string
+      purpose: string
+      liquidationDate: string
+      liquidationTo?: string
+      liquidationFrom?: string
+      budgetSources: import('@/types/finance').LiquidationBudgetSource[]
+      liquidationExpenses: import('@/types/finance').LiquidationExpenseItem[]
+      totalSpent: number
+      returnedAmount: number
+      reimbursedAmount: number
+      remarks?: string
+    },
+    createdByUid: string,
+    createdByName: string
+  ): Promise<string> {
+    const {
+      title,
+      purpose,
+      liquidationDate,
+      liquidationTo = 'Rev. Fr. ILDEFONSO DE GUZMAN JR., Parish Priest',
+      liquidationFrom = 'MINISTRY OF ALTAR SERVERS',
+      budgetSources,
+      liquidationExpenses,
+      totalSpent,
+      returnedAmount,
+      reimbursedAmount,
+      remarks = ''
+    } = data
+
+    await checkPeriodClosed(liquidationDate)
+
+    const referenceNumber = await counterService.generateReferenceNumber('LIQ', liquidationDate)
+    const periodId = liquidationDate.slice(0, 7)
+    const totalBudget = budgetSources.reduce((sum, b) => sum + (Number(b.amount) || 0), 0)
+
+    try {
+      const colRef = collection(db, REQUEST_COLLECTION)
+      const docRef = await addDoc(colRef, {
+        title: title.trim(),
+        purpose: purpose.trim(),
+        requestedAmount: totalBudget,
+        requestedByUid: createdByUid,
+        requestedByName: createdByName,
+        dateNeeded: liquidationDate,
+        description: remarks.trim() || 'Outside / Independent Liquidation Report',
+        status: 'liquidated',
+        requestType: 'direct_liquidation',
+        fundSource: 'outside',
+        referenceNumber,
+        periodId,
+        fromMinistry: liquidationFrom,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        createdByUid,
+        createdByName,
+
+        // Direct liquidation specifics
+        liquidationTo: liquidationTo.trim(),
+        liquidationFrom: liquidationFrom.trim(),
+        liquidationDate,
+        budgetSources,
+        liquidationExpenses,
+        totalSpent: Number(totalSpent),
+        remainingAmount: 0,
+        returnedAmount: Number(returnedAmount),
+        reimbursedAmount: Number(reimbursedAmount),
+        liquidationRemarks: remarks.trim(),
+        liquidatedByUid: createdByUid,
+        liquidatedByName: createdByName,
+        liquidatedAt: serverTimestamp(),
+
+        isArchived: false
+      })
+
+      await auditService.logAction(
+        'LIQUIDATION_SUBMIT',
+        'attendance',
+        `Recorded Outside Liquidation '${title}' (${referenceNumber}) [Total Spent: ₱${totalSpent}]`,
+        createdByName,
+        { requestId: docRef.id, referenceNumber, totalSpent, fundSource: 'outside' }
+      )
+
+      return docRef.id
+    } catch (err) {
+      console.error('Failed to create outside liquidation:', err)
       throw err
     }
   },

@@ -94,7 +94,7 @@ export interface LiquidationExpenseItem {
   amount: number | string
 }
 
-export type FundRequestSource = 'main_funds' | 'parish'
+export type FundRequestSource = 'main_funds' | 'parish' | 'outside'
 
 export interface FinanceFundRequest {
   id: string
@@ -113,7 +113,10 @@ export interface FinanceFundRequest {
   createdByUid: string
   createdByName: string
 
-  // Fund Source / Channel: 'main_funds' (Main Ministry Funds) | 'parish' (Parish Funds)
+  // Request Classification: 'requisition' (Default multi-step) | 'direct_liquidation' (Outside/Standalone)
+  requestType?: 'requisition' | 'direct_liquidation'
+
+  // Fund Source / Channel: 'main_funds' (Main Ministry Funds) | 'parish' (Parish Funds) | 'outside' (Outside/Independent Funds)
   fundSource?: FundRequestSource
 
   // Requisition Details
@@ -133,6 +136,11 @@ export interface FinanceFundRequest {
   rejectedAt?: any
   rejectionReason?: string
 
+  // Parish Priest Approval Tracking (for Parish Fund requests)
+  parishApprovedByFr?: boolean
+  parishFrApprovalDate?: string
+  parishFrRemarks?: string
+
   // Cancellation
   cancelledByUid?: string
   cancelledByName?: string
@@ -145,7 +153,7 @@ export interface FinanceFundRequest {
   voidedAt?: any
   voidReason?: string
 
-  // Release
+  // Release / Disbursement
   releasedByUid?: string
   releasedByName?: string
   releasedToName?: string
@@ -153,6 +161,14 @@ export interface FinanceFundRequest {
   releasedDate?: string // YYYY-MM-DD
   releasedAmount?: number
   releaseRemarks?: string
+
+  // Parish Office Release Specifics (When funds are disbursed by Parish Office)
+  parishOfficeDisbursed?: boolean
+  parishOfficeDisbursedDate?: string
+  parishOfficeDisbursedAmount?: number
+  parishOfficeDisbursedBy?: string // e.g. Parish Secretary / Office Staff
+  parishOfficeReceivedBy?: string // Name of the Ministry Officer / Representative who received the cash from the office
+  parishOfficeRemarks?: string
 
   // Liquidation
   totalSpent?: number

@@ -11,7 +11,8 @@ import {
   getColumnsForPreset,
   exportMembersToCsv,
   exportMembersToPdf,
-  type ExportPreset
+  type ExportPreset,
+  type PaperSize
 } from '@/utils/memberExport'
 
 interface MemberExportModalProps {
@@ -45,11 +46,12 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
     'fullName',
     'rank',
     'order',
-    'status',
-    'phoneNumber'
+    'phoneNumber',
+    'position'
   ])
 
   // PDF settings
+  const [paperSize, setPaperSize] = useState<PaperSize>('long')
   const [documentTitle, setDocumentTitle] = useState('Ministry of Altar Servers')
   const [signatureConfig, setSignatureConfig] = useState<SignatureConfig>({
     enabled: true,
@@ -151,7 +153,8 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
           documentTitle: documentTitle.trim() || 'Ministry of Altar Servers',
           scopeLabel,
           signatureConfig: signatureConfig.enabled ? signatureConfig : undefined,
-          filenamePrefix
+          filenamePrefix,
+          paperSize
         })
         onClose()
       }
@@ -412,7 +415,37 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
         {format === 'pdf' && (
           <div className="space-y-4">
             <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
-              <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">3. Document Title</h4>
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">3. Paper Size</h4>
+                <span className="text-[11px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                  {paperSize === 'long' ? '8.5" × 13" (Folio)' : paperSize === 'a4' ? 'A4 Size' : '8.5" × 11" (Letter)'}
+                </span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {[
+                  { id: 'long', label: 'Long Bond Paper', desc: '8.5" × 13" (Folio - Standard)' },
+                  { id: 'a4', label: 'A4 Size', desc: '210 × 297 mm' },
+                  { id: 'letter', label: 'Short / Letter', desc: '8.5" × 11" (215.9 × 279.4 mm)' }
+                ].map(p => (
+                  <button
+                    key={p.id}
+                    type="button"
+                    onClick={() => setPaperSize(p.id as PaperSize)}
+                    className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer ${
+                      paperSize === p.id
+                        ? 'bg-blue-50/90 border-blue-500 text-blue-950 ring-1 ring-blue-500/50 shadow-2xs font-bold'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <div className="font-bold text-xs">{p.label}</div>
+                    <div className="text-[10px] text-slate-500 mt-0.5">{p.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/80 shadow-2xs space-y-3">
+              <h4 className="text-xs font-black text-slate-800 uppercase tracking-tight">4. Document Title</h4>
               <input
                 type="text"
                 value={documentTitle}

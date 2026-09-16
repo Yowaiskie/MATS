@@ -16,7 +16,25 @@ export const getFullName = (
   const suf = suffix?.trim() ? ` ${suffix.trim()}` : ''
   const nick = (includeNickname && nickname?.trim()) ? ` (${nickname.trim()})` : ''
   
-  return `${lastName.trim()}, ${firstName.trim()}${mid}${suf}${nick}`
+  return `${lastName.trim()}${suf}, ${firstName.trim()}${mid}${nick}`
+}
+
+/**
+ * Formats a member's name in natural order as "FirstName MiddleName LastName Suffix" (with optional Nickname in parentheses).
+ * @param member Member profile object
+ * @param includeNickname Whether to include nickname in parentheses (defaults to false)
+ */
+export const getFirstNameFirst = (
+  member: Member | MemberInput | { firstName: string; lastName: string; middleName?: string; suffix?: string; nickname?: string },
+  includeNickname: boolean = false
+): string => {
+  const { firstName, lastName, middleName, suffix, nickname } = member
+  
+  const mid = middleName?.trim() ? ` ${middleName.trim()}` : ''
+  const suf = suffix?.trim() ? ` ${suffix.trim()}` : ''
+  const nick = (includeNickname && nickname?.trim()) ? ` (${nickname.trim()})` : ''
+  
+  return `${firstName.trim()}${mid} ${lastName.trim()}${suf}${nick}`
 }
 
 /**

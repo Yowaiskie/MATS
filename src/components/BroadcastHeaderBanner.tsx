@@ -17,6 +17,7 @@ export const BroadcastHeaderBanner: React.FC = () => {
       user.uid,
       profile?.role || 'user',
       profile?.memberId,
+      user.email,
       (notifications) => {
         const now = Date.now()
 
