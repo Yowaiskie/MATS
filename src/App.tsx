@@ -27,6 +27,19 @@ import { InventoryPage } from '@/features/inventory/pages/InventoryPage'
 import { DesignSystemShowcasePage } from '@/features/preview/DesignSystemShowcasePage'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { ToastProvider } from '@/context/ToastContext'
+import { NotificationProvider } from '@/context/NotificationContext'
+import { useEffect } from 'react'
+import { initializeNativeBridge } from '@/utils/nativeAppBridge'
+import { useNavigate } from 'react-router-dom'
+
+function NativeBridgeInit() {
+  const navigate = useNavigate()
+  useEffect(() => {
+    const cleanup = initializeNativeBridge((path) => navigate(path))
+    return cleanup
+  }, [navigate])
+  return null
+}
 
 function App() {
   return (
@@ -35,8 +48,10 @@ function App() {
         <MaintenanceProvider>
           <TutorialProvider>
             <ToastProvider>
-              <BrowserRouter>
-              <Routes>
+              <NotificationProvider>
+                <BrowserRouter>
+                  <NativeBridgeInit />
+                  <Routes>
                 {/* Design System Preview Route (Phase 1 Preview) */}
                 <Route path="/design-system-preview" element={<DesignSystemShowcasePage />} />
 
@@ -217,8 +232,9 @@ function App() {
           </Routes>
           <PWAUpdatePrompt />
         </BrowserRouter>
-        </ToastProvider>
-        </TutorialProvider>
+              </NotificationProvider>
+            </ToastProvider>
+          </TutorialProvider>
         </MaintenanceProvider>
       </AuthProvider>
     </PWAProvider>

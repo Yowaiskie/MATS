@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useNotificationContext } from '@/context/NotificationContext'
 import { notificationService } from '@/services/notificationService'
 import type { AppNotification } from '@/types/notification'
 import { useToast } from '@/components'
@@ -16,30 +17,21 @@ const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
 )
 
 export const NotificationBell: React.FC = () => {
-  const { user, profile, isAdmin } = useAuth()
+  const { user, isAdmin } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
-  const [permissionState, setPermissionState] = useState(notificationService.getPermissionState())
   const popoverRef = useRef<HTMLDivElement>(null)
 
-  // Real-time listener for user-relevant notifications
-  useEffect(() => {
-    if (!user?.uid) return
-
-    const unsubscribe = notificationService.subscribeToUserNotifications(
-      user.uid,
-      profile?.role || 'user',
-      profile?.memberId,
-      user.email,
-      (list) => {
-        setNotifications(list)
-      }
-    )
-
-    return () => unsubscribe()
-  }, [user?.uid, user?.email, profile?.role, profile?.memberId])
+  const {
+    notifications,
+    unreadCount,
+    isPushActive,
+    permissionState,
+    markAsRead,
+    markAllAsRead,
+    togglePushNotifications
+  } = useNotificationContext()
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -69,9 +61,6 @@ export const NotificationBell: React.FC = () => {
   const { hasModuleAccess } = useAuth()
   const canAccessSettings = isAdmin || hasModuleAccess?.('settings')
 
-  const unreadCount = notifications.filter(
-    (n) => !n.readBy || !n.readBy.includes(user?.uid || '')
-  ).length
   const remindersCount = notifications.filter((n) => n.type === 'attendance_reminder').length
   const broadcastsCount = notifications.filter((n) => n.type === 'admin_broadcast').length
 
@@ -84,18 +73,13 @@ export const NotificationBell: React.FC = () => {
 
   const handleMarkAllRead = async () => {
     if (!user?.uid) return
-    const unreadIds = notifications
-      .filter((n) => !n.readBy || !n.readBy.includes(user.uid))
-      .map((n) => n.id)
-    if (unreadIds.length > 0) {
-      await notificationService.markAllAsRead(user.uid, unreadIds)
-      toast.success('All Caught Up', 'All notifications marked as read.')
-    }
+    await markAllAsRead()
+    toast.success('All Caught Up', 'All notifications marked as read.')
   }
 
   const handleNotificationClick = async (notif: AppNotification) => {
     if (user?.uid && (!notif.readBy || !notif.readBy.includes(user.uid))) {
-      await notificationService.markAsRead(user.uid, notif.id)
+      await markAsRead(notif.id)
     }
     if (notif.actionUrl) {
       setIsOpen(false)
@@ -103,39 +87,21 @@ export const NotificationBell: React.FC = () => {
     }
   }
 
-  const isPushActive = profile?.pushEnabled === true && permissionState === 'granted'
-
   const handleTogglePush = async () => {
     if (!user?.uid || togglingPush) return
     setTogglingPush(true)
     try {
-      if (isPushActive) {
-        await notificationService.removeTokenFromFirestore(user.uid)
-        setPermissionState(notificationService.getPermissionState())
+      const isNowActive = await togglePushNotifications()
+      if (isNowActive) {
+        toast.success(
+          'Notifications Enabled!',
+          'You will now receive instant schedule alerts and ministry broadcasts.'
+        )
+      } else {
         toast.info(
           'Notifications Disabled',
           'Push notifications turned off on this device.'
         )
-      } else {
-        const token = await notificationService.requestPermissionAndSaveToken(user.uid)
-        const updatedPermission = notificationService.getPermissionState()
-        setPermissionState(updatedPermission)
-
-        if (token) {
-          toast.success(
-            'Notifications Enabled!',
-            'You will now receive instant schedule alerts and ministry broadcasts.'
-          )
-          await notificationService.showLocalNotification('Notifications Active!', {
-            body: 'You are all set to receive ministry assignments and schedule alerts.',
-            tag: 'mats-welcome'
-          })
-        } else if (updatedPermission === 'denied') {
-          toast.warning(
-            'Permission Blocked',
-            'Notifications are blocked in browser settings. Please allow notifications in site settings.'
-          )
-        }
       }
     } catch (err: any) {
       console.error('Push toggle error:', err)
@@ -150,10 +116,7 @@ export const NotificationBell: React.FC = () => {
       {/* Bell Trigger Button */}
       <button
         type="button"
-        onClick={() => {
-          setPermissionState(notificationService.getPermissionState())
-          setIsOpen(!isOpen)
-        }}
+        onClick={() => setIsOpen(!isOpen)}
         className="relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer focus:outline-none"
         title="Notifications & Alerts"
         aria-label="Notifications"

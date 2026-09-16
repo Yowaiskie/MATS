@@ -27,15 +27,12 @@ export const EnablePushModal: React.FC = () => {
     if (!user?.uid || !isSupported) return
 
     const currentPermission = notificationService.getPermissionState()
+    const isDeviceEnabled = notificationService.isDevicePushEnabled()
     setPermissionState(currentPermission)
 
-    // 1. If browser permission is ALREADY granted, automatically sync & activate in background!
-    if (currentPermission === 'granted') {
-      if (profile?.pushEnabled !== true) {
-        notificationService.requestPermissionAndSaveToken(user.uid).catch((err) => {
-          console.warn('Auto-sync push token error:', err)
-        })
-      }
+    // 1. If browser permission is ALREADY granted or device is already enabled, automatically sync & activate in background!
+    if (currentPermission === 'granted' || isDeviceEnabled) {
+      notificationService.syncDeviceTokenSilently(user.uid).catch(() => {})
       setIsOpen(false)
       return
     }
@@ -46,12 +43,12 @@ export const EnablePushModal: React.FC = () => {
       return
     }
 
-    // 3. If user previously dismissed the prompt, suppress it for 7 days
+    // 3. If user previously dismissed the prompt, suppress it for 30 days
     try {
       const dismissedAt = localStorage.getItem('mats_push_prompt_dismissed_at')
       if (dismissedAt) {
         const dismissedTime = parseInt(dismissedAt, 10)
-        if (!isNaN(dismissedTime) && Date.now() - dismissedTime < 7 * 24 * 60 * 60 * 1000) {
+        if (!isNaN(dismissedTime) && Date.now() - dismissedTime < 30 * 24 * 60 * 60 * 1000) {
           setIsOpen(false)
           return
         }
@@ -64,7 +61,7 @@ export const EnablePushModal: React.FC = () => {
     }, 1500)
 
     return () => clearTimeout(timer)
-  }, [user?.uid, profile?.pushEnabled, isSupported])
+  }, [user?.uid, isSupported])
 
   if (!isOpen || isPushActive || !isSupported) return null
 

@@ -1,62 +1,16 @@
-import React, { useState, useEffect } from 'react'
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '@/features/authentication/AuthContext'
-import { notificationService } from '@/services/notificationService'
-import type { AppNotification } from '@/types/notification'
+import { useNotificationContext } from '@/context/NotificationContext'
 
 export const BroadcastHeaderBanner: React.FC = () => {
-  const { user, profile } = useAuth()
   const navigate = useNavigate()
-  const [activeBroadcast, setActiveBroadcast] = useState<AppNotification | null>(null)
-  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
-
-  useEffect(() => {
-    if (!user?.uid) return
-
-    const unsubscribe = notificationService.subscribeToUserNotifications(
-      user.uid,
-      profile?.role || 'user',
-      profile?.memberId,
-      user.email,
-      (notifications) => {
-        const now = Date.now()
-
-        // Filter broadcasts that are active, not expired, and not dismissed
-        const validBroadcasts = notifications.filter((n) => {
-          if (n.type !== 'admin_broadcast') return false
-
-          // Check if dismissed in this session
-          if (sessionStorage.getItem(`mats_dismissed_broadcast_${n.id}`) === 'true') {
-            return false
-          }
-
-          // Check expiration if set
-          if (n.expiresAt) {
-            const expTime = new Date(n.expiresAt).getTime()
-            if (!isNaN(expTime) && expTime <= now) {
-              return false // Expired
-            }
-          }
-
-          return true
-        })
-
-        // Pick latest active broadcast
-        setActiveBroadcast(validBroadcasts[0] || null)
-      }
-    )
-
-    return () => unsubscribe()
-  }, [user?.uid, profile?.role, profile?.memberId, dismissedIds])
+  const { activeBroadcast, dismissBroadcast } = useNotificationContext()
 
   if (!activeBroadcast) return null
 
   const handleDismiss = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!activeBroadcast) return
-    sessionStorage.setItem(`mats_dismissed_broadcast_${activeBroadcast.id}`, 'true')
-    setDismissedIds((prev) => new Set([...prev, activeBroadcast.id]))
-    setActiveBroadcast(null)
+    dismissBroadcast(activeBroadcast.id)
   }
 
   const handleActionClick = () => {

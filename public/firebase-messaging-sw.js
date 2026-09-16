@@ -5,20 +5,25 @@ importScripts('https://www.gstatic.com/firebasejs/10.7.0/firebase-messaging-comp
 // Initialize Firebase in Service Worker with default project configuration
 try {
   firebase.initializeApp({
-    messagingSenderId: '575677848039',
+    messagingSenderId: '485856675702',
     projectId: 'mats-c10da',
-    appId: '1:575677848039:web:3eefca40bc39e1e93daebf'
+    appId: '1:485856675702:web:e2c0d3565a8eb4f7e79c57'
   });
 
   const messaging = firebase.messaging();
 
   messaging.onBackgroundMessage(function(payload) {
-    const notificationTitle = payload.notification ? payload.notification.title : 'MATS Notification';
+    const notificationTitle = (payload.notification && payload.notification.title) || (payload.data && payload.data.title) || 'MATS Notification';
     const notificationOptions = {
-      body: payload.notification ? payload.notification.body : '',
+      body: (payload.notification && payload.notification.body) || (payload.data && payload.data.body) || 'You have a new ministry announcement.',
       icon: '/favicon/icon-192.png',
       badge: '/favicon/favicon-32x32.png',
-      data: payload.data || { url: '/' }
+      tag: (payload.data && payload.data.tag) || 'mats-bg-notification',
+      renotify: true,
+      vibrate: [200, 100, 200],
+      data: {
+        url: (payload.data && (payload.data.url || payload.data.click_action)) || (payload.notification && payload.notification.click_action) || '/'
+      }
     };
 
     self.registration.showNotification(notificationTitle, notificationOptions);

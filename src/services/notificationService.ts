@@ -158,11 +158,37 @@ class NotificationService {
   }
 
   /**
+   * Check if push notifications have been enabled on this local device
+   */
+  isDevicePushEnabled(): boolean {
+    if (typeof window === 'undefined') return false
+    const localFlag = localStorage.getItem('mats_push_enabled_device') === 'true'
+    return localFlag || this.getPermission() === 'granted'
+  }
+
+  /**
+   * Set device push notification flag
+   */
+  setDevicePushEnabled(enabled: boolean): void {
+    if (typeof window === 'undefined') return
+    if (enabled) {
+      localStorage.setItem('mats_push_enabled_device', 'true')
+    } else {
+      localStorage.removeItem('mats_push_enabled_device')
+    }
+  }
+
+  /**
    * Request permission, retrieve FCM token, and save to Firestore
    */
   async requestPermissionAndSaveToken(userId: string): Promise<string | null> {
     const permission = await this.requestPermission()
-    if (permission !== 'granted') return null
+    if (permission !== 'granted') {
+      this.setDevicePushEnabled(false)
+      return null
+    }
+
+    this.setDevicePushEnabled(true)
 
     const token = await this.getDeviceToken()
     if (token) {
@@ -180,6 +206,31 @@ class NotificationService {
         console.warn('Could not update pushEnabled flag:', err)
       }
       return 'browser-local-enabled'
+    }
+  }
+
+  /**
+   * Silently sync device token and user pushEnabled status on login without any UI prompts
+   */
+  async syncDeviceTokenSilently(userId: string): Promise<void> {
+    if (!userId || !this.isSupported()) return
+    const permission = this.getPermission()
+    if (permission !== 'granted') return
+
+    try {
+      this.setDevicePushEnabled(true)
+      const token = await this.getDeviceToken()
+      if (token) {
+        await this.saveTokenToFirestore(userId, token)
+      } else {
+        const userRef = doc(db, USERS_COLLECTION, userId)
+        await updateDoc(userRef, {
+          pushEnabled: true,
+          lastPushTokenUpdated: serverTimestamp()
+        }).catch(() => {})
+      }
+    } catch (err) {
+      console.warn('Silent push token sync note:', err)
     }
   }
 
@@ -280,6 +331,7 @@ class NotificationService {
         pushEnabled: false,
         lastPushTokenUpdated: serverTimestamp()
       }).catch(() => {})
+      this.setDevicePushEnabled(false)
     } catch (err) {
       console.error('Failed to remove FCM token from Firestore:', err)
     }
@@ -650,10 +702,10 @@ class NotificationService {
 
     const emailClean = userEmail?.toLowerCase().trim()
 
-    // Query collection without orderBy to prevent document exclusion on pending/null createdAt
+    // Query collection with limit(25) for recent items to minimize Firestore read consumption
     const q = query(
       collection(db, NOTIFICATIONS_COLLECTION),
-      limit(100)
+      limit(25)
     )
 
     return onSnapshot(q, (snapshot) => {
