@@ -169,6 +169,7 @@ export const FinancePage: React.FC = () => {
   const [catColor, setCatColor] = useState('blue')
 
   // Form states - Fund Request (Formatted Text & Dynamic Items)
+  const [reqMode, setReqMode] = useState<'cash' | 'itemized'>('cash')
   const [reqFundSource, setReqFundSource] = useState<FundRequestSource>('main_funds')
   const [fundSourceFilter, setFundSourceFilter] = useState<'all' | 'main_funds' | 'parish' | 'outside'>('all')
   const [reqTitle, setReqTitle] = useState('')
@@ -213,6 +214,7 @@ export const FinancePage: React.FC = () => {
   // Edit Fund Request Modal states
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false)
   const [editingRequest, setEditingRequest] = useState<FinanceFundRequest | null>(null)
+  const [editReqMode, setEditReqMode] = useState<'cash' | 'itemized'>('cash')
   const [editReqFundSource, setEditReqFundSource] = useState<FundRequestSource>('main_funds')
   const [editReqTitle, setEditReqTitle] = useState('')
   const [editReqPurpose, setEditReqPurpose] = useState('')
@@ -629,7 +631,7 @@ export const FinancePage: React.FC = () => {
   // Handle Save Fund Request
   const handleCreateRequest = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!reqTitle || !reqPurpose || !reqDateNeeded) {
+    if (!reqTitle.trim() || !reqPurpose.trim() || !reqDateNeeded) {
       setErrorMsg('Please populate all mandatory request fields.')
       return
     }
@@ -638,11 +640,20 @@ export const FinancePage: React.FC = () => {
       return
     }
 
-    const calculatedTotal = reqExpectedExpenses.reduce((sum, item) => sum + parseAmount(item.amount), 0)
-    const finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(reqAmount)
+    let finalAmount = 0
+    let validExpenses: FundRequisitionItem[] = []
+
+    if (reqMode === 'itemized') {
+      const calculatedTotal = reqExpectedExpenses.reduce((sum, item) => sum + parseAmount(item.amount), 0)
+      finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(reqAmount)
+      validExpenses = reqExpectedExpenses.filter(item => item.intendedUse.trim() || parseAmount(item.amount) > 0)
+    } else {
+      finalAmount = parseAmount(reqAmount)
+      validExpenses = []
+    }
 
     if (finalAmount <= 0) {
-      setErrorMsg('Please enter a valid requested amount or add expected expense items.')
+      setErrorMsg(reqMode === 'cash' ? 'Please enter a valid requested cash advance amount.' : 'Please enter a valid requested amount or add expected expense items.')
       return
     }
 
@@ -663,7 +674,7 @@ export const FinancePage: React.FC = () => {
           venue: reqVenue.trim() || 'N/A',
           participants: reqParticipants.trim() || 'N/A',
           assembly: reqAssembly.trim() || 'N/A',
-          expectedExpenses: reqExpectedExpenses.filter(item => item.intendedUse.trim() || parseAmount(item.amount) > 0),
+          expectedExpenses: validExpenses,
           createdByUid: profile?.uid || 'System',
           createdByName: profile?.displayName || 'Admin'
         },
@@ -680,6 +691,7 @@ export const FinancePage: React.FC = () => {
       setReqParticipants('N/A')
       setReqAssembly('N/A')
       setReqExpectedExpenses([{ id: 'item-1', intendedUse: '', unitPrice: '', quantity: '', amount: 0 }])
+      setReqMode('cash')
       setIsRequestModalOpen(false)
       setSuccessMsg('Fund request submitted successfully.')
       await fetchData()
@@ -712,9 +724,11 @@ export const FinancePage: React.FC = () => {
   // Open Edit Fund Request Modal
   const handleOpenEditRequestModal = (req: FinanceFundRequest) => {
     setEditingRequest(req)
+    const hasItems = Boolean(req.expectedExpenses && req.expectedExpenses.length > 0)
+    setEditReqMode(hasItems ? 'itemized' : 'cash')
     setEditReqTitle(req.title || '')
     setEditReqPurpose(req.purpose || '')
-    setEditReqAmount(req.requestedAmount ? String(req.requestedAmount) : '')
+    setEditReqAmount(req.requestedAmount ? formatCommaAmount(req.requestedAmount) : '')
     setEditReqDateNeeded(req.dateNeeded || getLocalYYYYMMDD())
     setEditReqDesc(req.description || '')
     setEditReqFundSource(req.fundSource || 'main_funds')
@@ -723,8 +737,8 @@ export const FinancePage: React.FC = () => {
     setEditReqParticipants(req.participants || 'N/A')
     setEditReqAssembly(req.assembly || 'N/A')
     setEditReqExpectedExpenses(
-      req.expectedExpenses && req.expectedExpenses.length > 0
-        ? req.expectedExpenses.map((it, i) => ({
+      hasItems
+        ? req.expectedExpenses!.map((it, i) => ({
             id: it.id || `item-${i + 1}`,
             intendedUse: it.intendedUse || '',
             unitPrice: it.unitPrice || '',
@@ -784,11 +798,20 @@ export const FinancePage: React.FC = () => {
       return
     }
 
-    const calculatedTotal = editReqExpectedExpenses.reduce((sum, item) => sum + parseAmount(item.amount), 0)
-    const finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(editReqAmount)
+    let finalAmount = 0
+    let validExpenses: FundRequisitionItem[] = []
+
+    if (editReqMode === 'itemized') {
+      const calculatedTotal = editReqExpectedExpenses.reduce((sum, item) => sum + parseAmount(item.amount), 0)
+      finalAmount = calculatedTotal > 0 ? calculatedTotal : parseAmount(editReqAmount)
+      validExpenses = editReqExpectedExpenses.filter(item => item.intendedUse.trim() || parseAmount(item.amount) > 0)
+    } else {
+      finalAmount = parseAmount(editReqAmount)
+      validExpenses = []
+    }
 
     if (finalAmount <= 0) {
-      setErrorMsg('Please enter a valid requested amount or add expected expense items.')
+      setErrorMsg(editReqMode === 'cash' ? 'Please enter a valid requested cash advance amount.' : 'Please enter a valid requested amount or add expected expense items.')
       return
     }
 
@@ -808,7 +831,7 @@ export const FinancePage: React.FC = () => {
           venue: editReqVenue.trim() || 'N/A',
           participants: editReqParticipants.trim() || 'N/A',
           assembly: editReqAssembly.trim() || 'N/A',
-          expectedExpenses: editReqExpectedExpenses.filter(item => item.intendedUse.trim() || parseAmount(item.amount) > 0)
+          expectedExpenses: validExpenses
         },
         profile?.uid || 'System',
         profile?.displayName || 'Admin'
@@ -1027,9 +1050,9 @@ export const FinancePage: React.FC = () => {
       : [
           {
             id: 'e-1',
-            orNumber: 'NO O.R',
-            description: req.purpose || req.title || 'Actual Expenditures',
-            amount: formatCommaAmount(req.releasedAmount || req.requestedAmount || 0)
+            orNumber: '',
+            description: '',
+            amount: ''
           }
         ]
     setLiqExpenses(initialExpenses)
@@ -4860,105 +4883,182 @@ export const FinancePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dynamic Expected Expenses Table */}
-              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>3. Expected Expenses Breakdown</span>
-                    </h5>
-                    <p className="text-[10px] text-gray-500">I-lista ang mga bibilhin o gastusin (tulad ng nasa requisition format).</p>
-                  </div>
+              {/* Request Mode Selector */}
+              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div>
+                  <span className="text-[11px] font-black text-blue-950 uppercase tracking-tight block">Request Format / Modality</span>
+                  <span className="text-[10px] text-blue-700">Select cash advance (lump sum) or specify an itemized expense breakdown.</span>
+                </div>
+                <div className="flex bg-slate-200/80 p-0.5 rounded-lg shrink-0">
                   <button
                     type="button"
-                    onClick={handleAddReqExpenseRow}
-                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                    onClick={() => setReqMode('cash')}
+                    className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                      reqMode === 'cash'
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
-                    <span>+ Add Item Row</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span>Cash Advance</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReqMode('itemized')}
+                    className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                      reqMode === 'itemized'
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span>Itemized Breakdown</span>
                   </button>
                 </div>
-
-                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[500px]">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
-                      <tr>
-                        <th className="p-2 text-left min-w-[140px]">Intended Use</th>
-                        <th className="p-2 text-center min-w-[120px]">Unit Price</th>
-                        <th className="p-2 text-center min-w-[110px]">Quantity</th>
-                        <th className="p-2 text-right min-w-[100px]">Amount (₱)</th>
-                        <th className="p-2 w-10 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {reqExpectedExpenses.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-gray-50/50">
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. Candle Sticks"
-                              value={item.intendedUse}
-                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'intendedUse', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. ₱175 per plastic"
-                              value={item.unitPrice}
-                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'unitPrice', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. 2 plastic 6 pairs"
-                              value={item.quantity}
-                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'quantity', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                              value={item.amount !== undefined && item.amount !== null ? String(item.amount) : ''}
-                              onChange={(e) => handleUpdateReqExpenseRow(idx, 'amount', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveReqExpenseRow(idx)}
-                              className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
-                              title="Remove item"
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
-                      <tr>
-                        <td colSpan={3} className="p-2.5 text-slate-800 text-right uppercase text-[11px]">
-                          Total Calculated Requisition Amount:
-                        </td>
-                        <td className="p-2.5 text-right font-black text-sm text-blue-700 font-mono">
-                          ₱{reqExpectedExpenses.reduce((s, i) => s + parseAmount(i.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
               </div>
+
+              {/* Section 3: Cash Advance Amount OR Dynamic Expected Expenses Table */}
+              {reqMode === 'cash' ? (
+                <div className="p-4 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>3. Requested Cash Advance Amount</span>
+                    </h5>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                      Liquidation to follow
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                      Requested Amount (₱) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 font-bold text-gray-400 text-sm">₱</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        required
+                        placeholder="0.00"
+                        value={reqAmount}
+                        onChange={(e) => setReqAmount(formatCommaAmount(e.target.value))}
+                        className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-bold text-sm text-gray-900"
+                      />
+                    </div>
+                    <div className="flex items-start gap-1.5 text-[10px] text-gray-500 mt-2 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <svg className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span><strong>Note:</strong> Cash advances do not require line items upfront. Official receipts (O.R.), descriptions, and actual amounts will be itemized upon submitting the <strong>Liquidation Report</strong>.</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>3. Expected Expenses Breakdown</span>
+                      </h5>
+                      <p className="text-[10px] text-gray-500">List all anticipated items and estimated expenses.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddReqExpenseRow}
+                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <span>+ Add Item Row</span>
+                    </button>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse min-w-[500px]">
+                      <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
+                        <tr>
+                          <th className="p-2 text-left min-w-[140px]">Intended Use</th>
+                          <th className="p-2 text-center min-w-[120px]">Unit Price</th>
+                          <th className="p-2 text-center min-w-[110px]">Quantity</th>
+                          <th className="p-2 text-right min-w-[100px]">Amount (₱)</th>
+                          <th className="p-2 w-10 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {reqExpectedExpenses.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-gray-50/50">
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. Candle Sticks"
+                                value={item.intendedUse}
+                                onChange={(e) => handleUpdateReqExpenseRow(idx, 'intendedUse', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. ₱175 per plastic"
+                                value={item.unitPrice}
+                                onChange={(e) => handleUpdateReqExpenseRow(idx, 'unitPrice', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. 2 plastic 6 pairs"
+                                value={item.quantity}
+                                onChange={(e) => handleUpdateReqExpenseRow(idx, 'quantity', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                                value={item.amount !== undefined && item.amount !== null ? String(item.amount) : ''}
+                                onChange={(e) => handleUpdateReqExpenseRow(idx, 'amount', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
+                              />
+                            </td>
+                            <td className="p-1.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveReqExpenseRow(idx)}
+                                className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                                title="Remove item"
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                        <tr>
+                          <td colSpan={3} className="p-2.5 text-slate-800 text-right uppercase text-[11px]">
+                            Total Calculated Requisition Amount:
+                          </td>
+                          <td className="p-2.5 text-right font-black text-sm text-blue-700 font-mono">
+                            ₱{reqExpectedExpenses.reduce((s, i) => s + parseAmount(i.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Description & Remarks */}
               <div>
@@ -5200,105 +5300,182 @@ export const FinancePage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Dynamic Expected Expenses Table */}
-              <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <div>
-                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <span>3. Expected Expenses Breakdown</span>
-                    </h5>
-                    <p className="text-[10px] text-gray-500">I-lista ang mga bibilhin o gastusin (tulad ng nasa requisition format).</p>
-                  </div>
+              {/* Request Mode Selector */}
+              <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div>
+                  <span className="text-[11px] font-black text-blue-950 uppercase tracking-tight block">Request Format / Modality</span>
+                  <span className="text-[10px] text-blue-700">Select cash advance (lump sum) or specify an itemized expense breakdown.</span>
+                </div>
+                <div className="flex bg-slate-200/80 p-0.5 rounded-lg shrink-0">
                   <button
                     type="button"
-                    onClick={handleAddEditReqExpenseRow}
-                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                    onClick={() => setEditReqMode('cash')}
+                    className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                      editReqMode === 'cash'
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
-                    <span>+ Add Item Row</span>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span>Cash Advance</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditReqMode('itemized')}
+                    className={`px-3 py-1.5 rounded-md font-bold text-xs flex items-center gap-1.5 transition cursor-pointer ${
+                      editReqMode === 'itemized'
+                        ? 'bg-white text-blue-700 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                    <span>Itemized Breakdown</span>
                   </button>
                 </div>
-
-                <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[500px]">
-                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
-                      <tr>
-                        <th className="p-2 text-left min-w-[140px]">Intended Use</th>
-                        <th className="p-2 text-center min-w-[120px]">Unit Price</th>
-                        <th className="p-2 text-center min-w-[110px]">Quantity</th>
-                        <th className="p-2 text-right min-w-[100px]">Amount (₱)</th>
-                        <th className="p-2 w-10 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {editReqExpectedExpenses.map((item, idx) => (
-                        <tr key={item.id || idx} className="hover:bg-gray-50/50">
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. Candle Sticks"
-                              value={item.intendedUse}
-                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'intendedUse', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. ₱175 per plastic"
-                              value={item.unitPrice}
-                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'unitPrice', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              placeholder="e.g. 2 plastic 6 pairs"
-                              value={item.quantity}
-                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'quantity', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
-                            />
-                          </td>
-                          <td className="p-1.5">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              placeholder="0.00"
-                              value={item.amount !== undefined && item.amount !== null ? String(item.amount) : ''}
-                              onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'amount', e.target.value)}
-                              className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
-                            />
-                          </td>
-                          <td className="p-1.5 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveEditReqExpenseRow(idx)}
-                              className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
-                              title="Remove item"
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
-                      <tr>
-                        <td colSpan={3} className="p-2.5 text-slate-800 text-right uppercase text-[11px]">
-                          Total Calculated Requisition Amount:
-                        </td>
-                        <td className="p-2.5 text-right font-black text-sm text-blue-700 font-mono">
-                          ₱{editReqExpectedExpenses.reduce((s, i) => s + parseAmount(i.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td></td>
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
               </div>
+
+              {/* Section 3: Cash Advance Amount OR Dynamic Expected Expenses Table */}
+              {editReqMode === 'cash' ? (
+                <div className="p-4 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>3. Requested Cash Advance Amount</span>
+                    </h5>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                      Liquidation to follow
+                    </span>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
+                      Requested Amount (₱) *
+                    </label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 font-bold text-gray-400 text-sm">₱</span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        required
+                        placeholder="0.00"
+                        value={editReqAmount}
+                        onChange={(e) => setEditReqAmount(formatCommaAmount(e.target.value))}
+                        className="w-full pl-8 pr-3 py-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-blue-500 font-bold text-sm text-gray-900"
+                      />
+                    </div>
+                    <div className="flex items-start gap-1.5 text-[10px] text-gray-500 mt-2 leading-relaxed bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+                      <svg className="w-3.5 h-3.5 text-blue-600 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span><strong>Note:</strong> Cash advances do not require line items upfront. Official receipts (O.R.), descriptions, and actual amounts will be itemized upon submitting the <strong>Liquidation Report</strong>.</span>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3.5 bg-white rounded-xl border border-gray-200 space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div>
+                      <h5 className="text-[11px] font-black text-gray-900 uppercase tracking-tight flex items-center gap-1.5">
+                        <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <span>3. Expected Expenses Breakdown</span>
+                      </h5>
+                      <p className="text-[10px] text-gray-500">List all anticipated items and estimated expenses.</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleAddEditReqExpenseRow}
+                      className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-lg border border-blue-200 text-[11px] flex items-center gap-1 transition cursor-pointer"
+                    >
+                      <span>+ Add Item Row</span>
+                    </button>
+                  </div>
+
+                  <div className="border border-gray-200 rounded-xl overflow-hidden overflow-x-auto">
+                    <table className="w-full text-left text-xs border-collapse min-w-[500px]">
+                      <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
+                        <tr>
+                          <th className="p-2 text-left min-w-[140px]">Intended Use</th>
+                          <th className="p-2 text-center min-w-[120px]">Unit Price</th>
+                          <th className="p-2 text-center min-w-[110px]">Quantity</th>
+                          <th className="p-2 text-right min-w-[100px]">Amount (₱)</th>
+                          <th className="p-2 w-10 text-center"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {editReqExpectedExpenses.map((item, idx) => (
+                          <tr key={item.id || idx} className="hover:bg-gray-50/50">
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. Candle Sticks"
+                                value={item.intendedUse}
+                                onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'intendedUse', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. ₱175 per plastic"
+                                value={item.unitPrice}
+                                onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'unitPrice', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                placeholder="e.g. 2 plastic 6 pairs"
+                                value={item.quantity}
+                                onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'quantity', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-center"
+                              />
+                            </td>
+                            <td className="p-1.5">
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                placeholder="0.00"
+                                value={item.amount !== undefined && item.amount !== null ? String(item.amount) : ''}
+                                onChange={(e) => handleUpdateEditReqExpenseRow(idx, 'amount', e.target.value)}
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs text-right font-bold"
+                              />
+                            </td>
+                            <td className="p-1.5 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveEditReqExpenseRow(idx)}
+                                className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                                title="Remove item"
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="bg-slate-50 border-t border-slate-200 font-bold">
+                        <tr>
+                          <td colSpan={3} className="p-2.5 text-slate-800 text-right uppercase text-[11px]">
+                            Total Calculated Requisition Amount:
+                          </td>
+                          <td className="p-2.5 text-right font-black text-sm text-blue-700 font-mono">
+                            ₱{editReqExpectedExpenses.reduce((s, i) => s + parseAmount(i.amount), 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </td>
+                          <td></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Description & Remarks */}
               <div>
@@ -5657,7 +5834,7 @@ export const FinancePage: React.FC = () => {
                       </svg>
                       <span>2. Budget Info | Sponsors</span>
                     </h5>
-                    <p className="text-[10px] text-gray-500">I-lista ang pondo mula sa Parish o mga donors/sponsors.</p>
+                    <p className="text-[10px] text-gray-500">List all funds received from the Parish or donors/sponsors.</p>
                   </div>
                   <button
                     type="button"
@@ -5683,7 +5860,7 @@ export const FinancePage: React.FC = () => {
                           <td className="p-1.5">
                             <input
                               type="text"
-                              placeholder="e.g. Parish (Request) o Sponsor Name"
+                              placeholder="e.g. Parish (Request) or Sponsor Name"
                               value={source.description}
                               onChange={(e) => handleUpdateLiqBudgetRow(idx, 'description', e.target.value)}
                               className="w-full p-1.5 border border-gray-300 rounded-lg text-xs"
@@ -5704,6 +5881,7 @@ export const FinancePage: React.FC = () => {
                               type="button"
                               onClick={() => handleRemoveLiqBudgetRow(idx)}
                               className="text-gray-400 hover:text-red-600 font-bold p-1 cursor-pointer"
+                              title="Remove item"
                             >
                               ✕
                             </button>
@@ -5725,7 +5903,7 @@ export const FinancePage: React.FC = () => {
                       </svg>
                       <span>3. Actual Expenses & Receipts</span>
                     </h5>
-                    <p className="text-[10px] text-gray-500">I-lista ang mga actual na resibo (O.R.) at mga nagastos.</p>
+                    <p className="text-[10px] text-gray-500">List all official receipts (O.R.) and actual expenditures.</p>
                   </div>
                   <button
                     type="button"
@@ -6028,7 +6206,7 @@ export const FinancePage: React.FC = () => {
                     </svg>
                   </div>
                   <p className="font-medium text-[11px] leading-relaxed">
-                    Ibabalik ang status ng request na ito mula sa <strong>Closed</strong> patungo sa <strong>Liquidated</strong> upang ma-review, maiwasto, o ma-audit muli ang mga resibo at expenditures.
+                    This will return the request status from <strong>Closed</strong> to <strong>Liquidated</strong> for further review, corrections, or auditing of receipts and expenditures.
                   </p>
                 </div>
                 <div className="pt-2 border-t border-amber-200/70 text-[11px] flex justify-between">
@@ -6047,7 +6225,7 @@ export const FinancePage: React.FC = () => {
                   maxLength={300}
                   value={reopenReason}
                   onChange={(e) => setReopenReason(e.target.value)}
-                  placeholder="Hal: Karagdagang pagsusuri sa mga opisyal na resibo, pagwawasto ng halaga..."
+                  placeholder="e.g. Additional review on official receipts, amount adjustment..."
                   className="w-full p-2.5 border border-gray-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 font-medium"
                 />
               </div>
@@ -6366,7 +6544,7 @@ export const FinancePage: React.FC = () => {
                     </button>
                   </div>
                   <p className="text-[11px] text-amber-800 font-medium">
-                    I-specify ang mga kailangang baguhin o itama (hal. kulang na resibo, maling halaga). Ibabalik ang status sa <strong>Released</strong> upang mabago ng requester ang liquidation details.
+                    Specify the required corrections (e.g., missing receipts, incorrect amounts). This will return the request status to <strong>Released</strong> so the requester can update the liquidation details.
                   </p>
                   <div>
                     <label className="block text-[10px] font-bold text-amber-900 uppercase mb-1">
@@ -6377,7 +6555,7 @@ export const FinancePage: React.FC = () => {
                       rows={3}
                       value={reviewRevisionReason}
                       onChange={(e) => setReviewRevisionReason(e.target.value)}
-                      placeholder="Hal: Pakilagay ang O.R. number sa supplies at pakitama ang halaga ng transpo..."
+                      placeholder="e.g. Please provide the O.R. number for supplies and correct the transportation amount..."
                       className="w-full p-2.5 border border-amber-300 rounded-xl bg-white text-xs focus:ring-2 focus:ring-amber-500 font-medium"
                     />
                   </div>

@@ -189,12 +189,13 @@ export const downloadFundRequisitionPdf = async (
   cursorY += 2.5
 
   // Prepare table data
-  const expenses = (request.expectedExpenses && request.expectedExpenses.length > 0)
-    ? request.expectedExpenses
+  const validExpenses = (request.expectedExpenses || []).filter(item => (item.intendedUse && item.intendedUse.trim()) || Number(String(item.amount || 0).replace(/,/g, '')) > 0)
+  const expenses = validExpenses.length > 0
+    ? validExpenses
     : [
         {
           id: '1',
-          intendedUse: request.purpose || request.title || 'General Fund Allocation',
+          intendedUse: request.purpose || request.title || 'Cash Advance / Fund Allocation',
           unitPrice: `₱${(request.requestedAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
           quantity: '1 lot',
           amount: Number(request.requestedAmount) || 0
