@@ -7,7 +7,7 @@ import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { memberService } from '@/services/memberService'
 import { ConfirmModal } from '@/components/Dialog'
-import { Button, CustomSelect } from '@/components'
+import { Button, CustomSelect, ActionMenu } from '@/components'
 import { useToast } from '@/context/ToastContext'
 import { downloadEventFormPdf } from '@/utils/eventFormPdfReport'
 import { EditFormResponseModal } from './EditFormResponseModal'
@@ -330,42 +330,48 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   }
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-6xl h-[88vh] rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-6xl h-[94vh] sm:h-[88vh] rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3.5 sm:py-4 bg-white border-b border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
               </svg>
             </div>
-            <div>
-              <div className="flex items-center space-x-2">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
                   Submissions
                 </span>
-                <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">Form Responses: {form.title}</h2>
-                <span className="px-2.5 py-0.5 text-xs font-black bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 font-mono">
+                <h2 className="text-sm sm:text-base md:text-lg font-black text-slate-900 tracking-tight truncate max-w-xs sm:max-w-md">
+                  {form.title}
+                </h2>
+                <span className="px-2 py-0.5 text-xs font-black bg-indigo-50 text-indigo-700 rounded-lg border border-indigo-100 font-mono">
                   {responses.length} Total
                 </span>
               </div>
-              <p className="text-xs font-semibold text-slate-500 mt-0.5">Inspect dynamic submissions, generate PDF reports, or export to CSV.</p>
+              <p className="text-[11px] sm:text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">
+                Inspect dynamic submissions, generate PDF reports, or export to CSV.
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 justify-end">
             <Button
               variant="primary"
-              size="sm"
+              size="xs"
+              className="sm:text-xs px-2.5 sm:px-3.5 py-1.5"
               onClick={() => setExportPdfModalOpen(true)}
               disabled={responses.length === 0}
             >
-              Export PDF Report
+              Export PDF
             </Button>
             <Button
               variant="secondary"
-              size="sm"
+              size="xs"
+              className="sm:text-xs px-2.5 sm:px-3.5 py-1.5"
               onClick={handleExportCSV}
               disabled={responses.length === 0}
             >
@@ -373,7 +379,8 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
             </Button>
             <Button
               variant="danger"
-              size="sm"
+              size="xs"
+              className="sm:text-xs px-2.5 sm:px-3.5 py-1.5"
               onClick={() => setShowDeleteAllConfirm(true)}
               disabled={responses.length === 0}
             >
@@ -381,7 +388,8 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
             </Button>
             <Button
               variant="secondary"
-              size="sm"
+              size="xs"
+              className="sm:text-xs px-2.5 sm:px-3.5 py-1.5"
               onClick={onClose}
             >
               Close
@@ -390,11 +398,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
         </div>
 
         {/* Sub-Header / Status & Filter Bar */}
-        <div className="px-6 py-3 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div className="px-4 sm:px-6 py-3 bg-white border-b border-slate-200 flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           {hasTargetMembers ? (
             <>
               {/* Status Tabs */}
-              <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              <div className="w-full lg:w-auto bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                 {[
                   { key: 'all', label: 'All Target Members', count: eligibleMembersList.length },
                   { key: 'responded', label: 'Responded', count: totalRespondedCount },
@@ -406,7 +414,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                       key={t.key}
                       type="button"
                       onClick={() => setActiveTab(t.key as any)}
-                      className={`inline-flex items-center gap-2 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
+                      className={`inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 text-[11px] sm:text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
                         isActive
                           ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
                           : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
@@ -424,10 +432,10 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               </div>
 
               {/* Search & Order Filter Controls */}
-              <div className="flex items-center space-x-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
                 {/* Order Filter Dropdown */}
-                <div className="flex items-center space-x-2">
-                  <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Order / Group:</span>
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <span className="text-xs font-bold text-slate-500 whitespace-nowrap shrink-0">Group:</span>
                   <CustomSelect
                     value={orderFilter}
                     onChange={e => setOrderFilter(e.target.value)}
@@ -435,22 +443,22 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                       { value: 'all', label: 'All Groups' },
                       ...ORDER_GROUPS.map(og => ({ value: og, label: og }))
                     ]}
-                    className="w-44"
+                    className="w-full sm:w-44"
                   />
                 </div>
 
                 {/* Search Input */}
                 <input
                   type="text"
-                  placeholder="Search member, order, or answer..."
+                  placeholder="Search member, order, answer..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-64 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  className="w-full sm:w-60 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                 />
               </div>
             </>
           ) : (
-            <>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
               <div className="flex items-center space-x-2">
                 <span className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold">
                   All Responses ({filteredGeneralResponses.length})
@@ -463,9 +471,9 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                 placeholder="Search responses by name, email, answer..."
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className="w-72 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
+                className="w-full sm:w-72 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
               />
-            </>
+            </div>
           )}
         </div>
 
@@ -573,278 +581,604 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
             <div className="p-12 text-center text-xs font-semibold text-slate-500">Loading form responses...</div>
           ) : hasTargetMembers ? (
             filteredMemberRows.length === 0 && filteredGuestResponses.length === 0 ? (
-              <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+              <div className="p-8 sm:p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
                 <p className="text-sm font-bold">No records found</p>
                 <p className="text-xs mt-1 text-slate-400">Try adjusting your status tab, order filter, or search keywords.</p>
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
-                <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
-                      <th className="p-3.5">Member / Respondent</th>
-                      <th className="p-3.5">Order / Group</th>
-                      <th className="p-3.5">Status</th>
-                      {questions.map(q => (
-                        <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
-                          {q.question}
-                        </th>
-                      ))}
-                      <th className="p-3.5">Submitted At</th>
-                      <th className="p-3.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {/* Render Member Rows */}
-                    {filteredMemberRows.map(row => {
-                      const r = row.response
-                      const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                        ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                        : String(r?.submittedAt || '-')
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
+                        <th className="p-3.5">Member / Respondent</th>
+                        <th className="p-3.5">Order / Group</th>
+                        <th className="p-3.5">Status</th>
+                        {questions.map(q => (
+                          <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
+                            {q.question}
+                          </th>
+                        ))}
+                        <th className="p-3.5">Submitted At</th>
+                        <th className="p-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {/* Render Member Rows */}
+                      {filteredMemberRows.map(row => {
+                        const r = row.response
+                        const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                          ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                          : String(r?.submittedAt || '-')
 
-                      return (
-                        <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
-                          <td className="p-3.5 font-bold text-slate-900">
-                            {row.memberName}
-                          </td>
-                          <td className="p-3.5 font-medium text-slate-600">
-                            {row.member.order || row.member.position || '-'}
-                          </td>
-                          <td className="p-3.5">
-                            {row.hasResponded ? (
-                              <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        return (
+                          <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
+                            <td className="p-3.5 font-bold text-slate-900">
+                              {row.memberName}
+                            </td>
+                            <td className="p-3.5 font-medium text-slate-600">
+                              {row.member.order || row.member.position || '-'}
+                            </td>
+                            <td className="p-3.5">
+                              {row.hasResponded ? (
+                                <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                  Responded
+                                </span>
+                              ) : (
+                                <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                  Not Yet Answered
+                                </span>
+                              )}
+                            </td>
+
+                            {/* Question Answers */}
+                            {questions.map(q => {
+                              if (!r) {
+                                return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
+                              }
+                              const val = r.answers[q.id]
+                              let displayVal = '-'
+                              if (val !== undefined && val !== null && val !== '') {
+                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                  displayVal = (val as unknown as CompanionEntry[])
+                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                    .join('; ')
+                                } else if (q.type === 'member_selector' && typeof val === 'string') {
+                                  displayVal = membersMap[val] || val
+                                } else if (typeof val === 'string' && membersMap[val]) {
+                                  displayVal = membersMap[val]
+                                } else {
+                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                                }
+                              }
+                              return (
+                                <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                                  {displayVal}
+                                </td>
+                              )
+                            })}
+
+                            <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
+                            <td className="p-3.5 text-right">
+                              {r ? (
+                                <ActionMenu
+                                  triggerVariant="meatball"
+                                  tooltip="Response Options"
+                                  size="xs"
+                                  items={[
+                                    {
+                                      label: 'View Details',
+                                      icon: (
+                                        <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                      ),
+                                      onClick: () => setSelectedResponse(r)
+                                    },
+                                    {
+                                      label: 'Edit Response',
+                                      icon: (
+                                        <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                        </svg>
+                                      ),
+                                      onClick: () => setResponseToEdit(r)
+                                    },
+                                    {
+                                      label: 'Delete Response',
+                                      variant: 'danger',
+                                      icon: (
+                                        <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                        </svg>
+                                      ),
+                                      onClick: () => setResponseToDelete(r)
+                                    }
+                                  ]}
+                                />
+                              ) : (
+                                <span className="text-slate-400 text-[11px] italic">No submission</span>
+                              )}
+                            </td>
+                          </tr>
+                        )
+                      })}
+
+                      {/* Guest Responses if any */}
+                      {filteredGuestResponses.map(r => {
+                        const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                          ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                          : String(r.submittedAt || '-')
+
+                        return (
+                          <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
+                            <td className="p-3.5 font-bold text-slate-900">
+                              {r.respondentMemberName || 'Guest / Non-Member'}
+                            </td>
+                            <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
+                            <td className="p-3.5">
+                              <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
                                 Responded
                               </span>
-                            ) : (
-                              <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                Not Yet Answered
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Question Answers */}
-                          {questions.map(q => {
-                            if (!r) {
-                              return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
-                            }
-                            const val = r.answers[q.id]
-                            let displayVal = '-'
-                            if (val !== undefined && val !== null && val !== '') {
-                              if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                displayVal = (val as unknown as CompanionEntry[])
-                                  .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                  .join('; ')
-                              } else if (q.type === 'member_selector' && typeof val === 'string') {
-                                displayVal = membersMap[val] || val
-                              } else if (typeof val === 'string' && membersMap[val]) {
-                                displayVal = membersMap[val]
-                              } else {
-                                displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                            </td>
+                            {questions.map(q => {
+                              const val = r.answers[q.id]
+                              let displayVal = '-'
+                              if (val !== undefined && val !== null && val !== '') {
+                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                  displayVal = (val as unknown as CompanionEntry[])
+                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                    .join('; ')
+                                } else {
+                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                                }
                               }
-                            }
-                            return (
-                              <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                                {displayVal}
-                              </td>
-                            )
-                          })}
+                              return (
+                                <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                                  {displayVal}
+                                </td>
+                              )
+                            })}
+                            <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
+                            <td className="p-3.5 text-right">
+                              <ActionMenu
+                                triggerVariant="meatball"
+                                tooltip="Response Options"
+                                size="xs"
+                                items={[
+                                  {
+                                    label: 'View Details',
+                                    icon: (
+                                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      </svg>
+                                    ),
+                                    onClick: () => setSelectedResponse(r)
+                                  },
+                                  {
+                                    label: 'Edit Response',
+                                    icon: (
+                                      <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    ),
+                                    onClick: () => setResponseToEdit(r)
+                                  },
+                                  {
+                                    label: 'Delete Response',
+                                    variant: 'danger',
+                                    icon: (
+                                      <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    ),
+                                    onClick: () => setResponseToDelete(r)
+                                  }
+                                ]}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
 
-                          <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
-                          <td className="p-3.5 text-right">
-                            {r ? (
-                              <div className="flex items-center justify-end space-x-1.5">
-                                <Button
-                                  variant="secondary"
-                                  size="xs"
-                                  onClick={() => setSelectedResponse(r)}
-                                >
-                                  View Detail
-                                </Button>
-                                <Button
-                                  variant="secondary"
-                                  size="xs"
-                                  onClick={() => setResponseToEdit(r)}
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="danger"
-                                  size="xs"
-                                  onClick={() => setResponseToDelete(r)}
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            ) : (
-                              <span className="text-slate-400 text-[11px] italic">No submission</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
+                {/* Mobile Cards View */}
+                <div className="md:hidden space-y-3">
+                  {filteredMemberRows.map(row => {
+                    const r = row.response
+                    const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                      : String(r?.submittedAt || '-')
 
-                    {/* Guest Responses if any */}
-                    {filteredGuestResponses.map(r => {
-                      const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                        ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                        : String(r.submittedAt || '-')
-
-                      return (
-                        <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
-                          <td className="p-3.5 font-bold text-slate-900">
-                            {r.respondentMemberName || 'Guest / Non-Member'}
-                          </td>
-                          <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
-                          <td className="p-3.5">
-                            <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
+                    return (
+                      <div key={row.member.id} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{row.memberName}</h4>
+                            <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
+                              {row.member.order || row.member.position || 'Altar Server'}
+                            </span>
+                          </div>
+                          {row.hasResponded ? (
+                            <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1 shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                               Responded
                             </span>
-                          </td>
-                          {questions.map(q => {
+                          ) : (
+                            <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1 shrink-0">
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                              Not Answered
+                            </span>
+                          )}
+                        </div>
+
+                        {r && (
+                          <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                            {questions.slice(0, 3).map(q => {
+                              const val = r.answers[q.id]
+                              let displayVal = '-'
+                              if (val !== undefined && val !== null && val !== '') {
+                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                  displayVal = (val as unknown as CompanionEntry[])
+                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}`)
+                                    .join('; ')
+                                } else if (q.type === 'member_selector' && typeof val === 'string') {
+                                  displayVal = membersMap[val] || val
+                                } else if (typeof val === 'string' && membersMap[val]) {
+                                  displayVal = membersMap[val]
+                                } else {
+                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                                }
+                              }
+                              return (
+                                <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                  <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
+                                  <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
+                                </div>
+                              )
+                            })}
+                            {questions.length > 3 && (
+                              <span className="text-[10px] text-slate-400 italic block">+{questions.length - 3} more questions</span>
+                            )}
+                            <div className="text-[10px] text-slate-400 font-medium">
+                              Submitted: {submittedDateStr}
+                            </div>
+                          </div>
+                        )}
+
+                        {r && (
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                            <ActionMenu
+                              triggerVariant="meatball"
+                              tooltip="Response Options"
+                              size="xs"
+                              items={[
+                                {
+                                  label: 'View Details',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => setSelectedResponse(r)
+                                },
+                                {
+                                  label: 'Edit Response',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => setResponseToEdit(r)
+                                },
+                                {
+                                  label: 'Delete Response',
+                                  variant: 'danger',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  ),
+                                  onClick: () => setResponseToDelete(r)
+                                }
+                              ]}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {/* Guest responses in mobile */}
+                  {filteredGuestResponses.map(r => {
+                    const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                      : String(r.submittedAt || '-')
+
+                    return (
+                      <div key={r.id || Math.random()} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {r.respondentMemberName || 'Guest / Non-Member'}
+                            </h4>
+                            <span className="text-[11px] font-semibold text-slate-400 italic block mt-0.5">
+                              Guest Respondent
+                            </span>
+                          </div>
+                          <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 rounded-full shrink-0">
+                            Responded
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                          {questions.slice(0, 3).map(q => {
                             const val = r.answers[q.id]
                             let displayVal = '-'
                             if (val !== undefined && val !== null && val !== '') {
-                              if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                displayVal = (val as unknown as CompanionEntry[])
-                                  .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                  .join('; ')
-                              } else {
-                                displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                              }
+                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
                             }
                             return (
-                              <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                                {displayVal}
-                              </td>
+                              <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
+                                <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
+                              </div>
                             )
                           })}
-                          <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
-                          <td className="p-3.5 text-right">
-                            <div className="flex items-center justify-end space-x-1.5">
-                              <Button
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setSelectedResponse(r)}
-                              >
-                                View Detail
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setResponseToEdit(r)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="danger"
-                                size="xs"
-                                onClick={() => setResponseToDelete(r)}
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            Submitted: {submittedDateStr}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                          <ActionMenu
+                            triggerVariant="meatball"
+                            tooltip="Response Options"
+                            size="xs"
+                            items={[
+                              {
+                                label: 'View Details',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                ),
+                                onClick: () => setSelectedResponse(r)
+                              },
+                              {
+                                label: 'Edit Response',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                ),
+                                onClick: () => setResponseToEdit(r)
+                              },
+                              {
+                                label: 'Delete Response',
+                                variant: 'danger',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                ),
+                                onClick: () => setResponseToDelete(r)
+                              }
+                            ]}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )
           ) : (
             /* Direct Submissions List (when no target members are set) */
             filteredGeneralResponses.length === 0 ? (
-              <div className="p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+              <div className="p-8 sm:p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
                 <p className="text-sm font-bold">No responses submitted yet</p>
                 <p className="text-xs mt-1 text-slate-400">Responses will appear here once participants submit the form.</p>
               </div>
             ) : (
-              <div className="bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
-                <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-                  <thead>
-                    <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
-                      <th className="p-3.5 w-12 text-slate-400">#</th>
-                      <th className="p-3.5">Respondent</th>
-                      {questions.map(q => (
-                        <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
-                          {q.question}
-                        </th>
-                      ))}
-                      <th className="p-3.5">Submitted At</th>
-                      <th className="p-3.5 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {filteredGeneralResponses.map((r, rIdx) => {
-                      const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                        ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                        : String(r.submittedAt || '-')
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+                    <thead>
+                      <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
+                        <th className="p-3.5 w-12 text-slate-400">#</th>
+                        <th className="p-3.5">Respondent</th>
+                        {questions.map(q => (
+                          <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
+                            {q.question}
+                          </th>
+                        ))}
+                        <th className="p-3.5">Submitted At</th>
+                        <th className="p-3.5 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {filteredGeneralResponses.map((r, rIdx) => {
+                        const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                          ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                          : String(r.submittedAt || '-')
 
-                      return (
-                        <tr key={r.id || rIdx} className="hover:bg-slate-50 transition-colors group">
-                          <td className="p-3.5 text-slate-400 font-mono text-[11px]">{rIdx + 1}</td>
-                          <td className="p-3.5">
-                            <div className="font-bold text-slate-900">{r.respondentMemberName || 'Guest / Public User'}</div>
+                        return (
+                          <tr key={r.id || rIdx} className="hover:bg-slate-50 transition-colors group">
+                            <td className="p-3.5 text-slate-400 font-mono text-[11px]">{rIdx + 1}</td>
+                            <td className="p-3.5">
+                              <div className="font-bold text-slate-900">{r.respondentMemberName || 'Guest / Public User'}</div>
+                              {r.respondentEmail && (
+                                <div className="text-[11px] text-slate-500 font-normal">{r.respondentEmail}</div>
+                              )}
+                            </td>
+                            {questions.map(q => {
+                              const val = r.answers[q.id]
+                              let displayVal = '-'
+                              if (val !== undefined && val !== null && val !== '') {
+                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
+                                  displayVal = (val as unknown as CompanionEntry[])
+                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+                                    .join('; ')
+                                } else if (q.type === 'member_selector' && typeof val === 'string') {
+                                  displayVal = membersMap[val] || val
+                                } else if (typeof val === 'string' && membersMap[val]) {
+                                  displayVal = membersMap[val]
+                                } else {
+                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
+                                }
+                              }
+                              return (
+                                <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                                  {displayVal}
+                                </td>
+                              )
+                            })}
+                            <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
+                            <td className="p-3.5 text-right">
+                              <ActionMenu
+                                triggerVariant="meatball"
+                                tooltip="Response Options"
+                                size="xs"
+                                items={[
+                                  {
+                                    label: 'View Details',
+                                    icon: (
+                                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                      </svg>
+                                    ),
+                                    onClick: () => setSelectedResponse(r)
+                                  },
+                                  {
+                                    label: 'Edit Response',
+                                    icon: (
+                                      <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    ),
+                                    onClick: () => setResponseToEdit(r)
+                                  },
+                                  {
+                                    label: 'Delete Response',
+                                    variant: 'danger',
+                                    icon: (
+                                      <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    ),
+                                    onClick: () => setResponseToDelete(r)
+                                  }
+                                ]}
+                              />
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards View */}
+                <div className="md:hidden space-y-3">
+                  {filteredGeneralResponses.map((r, rIdx) => {
+                    const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                      : String(r.submittedAt || '-')
+
+                    return (
+                      <div key={r.id || rIdx} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <span className="text-[10px] font-mono text-slate-400">#{rIdx + 1}</span>
+                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                              {r.respondentMemberName || 'Guest / Public User'}
+                            </h4>
                             {r.respondentEmail && (
-                              <div className="text-[11px] text-slate-500 font-normal">{r.respondentEmail}</div>
+                              <span className="text-[11px] text-slate-500 block truncate">{r.respondentEmail}</span>
                             )}
-                          </td>
-                          {questions.map(q => {
+                          </div>
+                          <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full shrink-0">
+                            Submitted
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                          {questions.slice(0, 3).map(q => {
                             const val = r.answers[q.id]
                             let displayVal = '-'
                             if (val !== undefined && val !== null && val !== '') {
-                              if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                displayVal = (val as unknown as CompanionEntry[])
-                                  .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                  .join('; ')
-                              } else if (q.type === 'member_selector' && typeof val === 'string') {
-                                displayVal = membersMap[val] || val
-                              } else if (typeof val === 'string' && membersMap[val]) {
-                                displayVal = membersMap[val]
-                              } else {
-                                displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                              }
+                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
                             }
                             return (
-                              <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                                {displayVal}
-                              </td>
+                              <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                                <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
+                                <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
+                              </div>
                             )
                           })}
-                          <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
-                          <td className="p-3.5 text-right">
-                            <div className="flex items-center justify-end space-x-1.5">
-                              <Button
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setSelectedResponse(r)}
-                              >
-                                View Detail
-                              </Button>
-                              <Button
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setResponseToEdit(r)}
-                              >
-                                Edit
-                              </Button>
-                              <Button
-                                variant="danger"
-                                size="xs"
-                                onClick={() => setResponseToDelete(r)}
-                              >
-                                Delete
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
+                          {questions.length > 3 && (
+                            <span className="text-[10px] text-slate-400 italic block">+{questions.length - 3} more questions</span>
+                          )}
+                          <div className="text-[10px] text-slate-400 font-medium">
+                            Submitted: {submittedDateStr}
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                          <ActionMenu
+                            triggerVariant="meatball"
+                            tooltip="Response Options"
+                            size="xs"
+                            items={[
+                              {
+                                label: 'View Details',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                ),
+                                onClick: () => setSelectedResponse(r)
+                              },
+                              {
+                                label: 'Edit Response',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                ),
+                                onClick: () => setResponseToEdit(r)
+                              },
+                              {
+                                label: 'Delete Response',
+                                variant: 'danger',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                ),
+                                onClick: () => setResponseToDelete(r)
+                              }
+                            ]}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </>
             )
           )}
         </div>
@@ -852,25 +1186,25 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
       {/* Response Detail Sub-Modal */}
       {selectedResponse && (
-        <div className="fixed inset-0 z-60 bg-slate-900/40 flex items-center justify-center p-4">
-          <div className="bg-white max-w-xl w-full rounded-2xl shadow-xl p-6 border border-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b pb-3">
-              <div>
+        <div className="fixed inset-0 z-60 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-200 space-y-4 max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b pb-3 shrink-0">
+              <div className="min-w-0 flex-1 pr-2">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Response Detail</span>
-                <h3 className="text-base font-black text-slate-900">
+                <h3 className="text-sm sm:text-base font-black text-slate-900 truncate">
                   {selectedResponse.respondentMemberName || (selectedResponse.respondentMemberUid ? membersMap[selectedResponse.respondentMemberUid] : '') || 'Anonymous / Guest'}
                 </h3>
               </div>
               <button
                 type="button"
                 onClick={() => setSelectedResponse(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold px-2 py-1 rounded-md cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 font-bold p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-3 max-h-[65vh] overflow-y-auto pr-1 text-xs">
+            <div className="space-y-3 flex-1 overflow-y-auto pr-1 text-xs">
               <div className="p-3 bg-slate-50 rounded-xl space-y-1 border border-slate-200">
                 <p><strong className="text-slate-600">Respondent Name:</strong> {selectedResponse.respondentMemberName || (selectedResponse.respondentMemberUid ? membersMap[selectedResponse.respondentMemberUid] : '') || 'N/A'}</p>
                 <p><strong className="text-slate-600">Respondent Email:</strong> {selectedResponse.respondentEmail || 'N/A'}</p>
@@ -898,17 +1232,18 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                   return (
                     <div key={q.id} className="p-3 border border-slate-200 rounded-xl bg-white space-y-1">
                       <p className="font-bold text-slate-900">#{idx + 1}. {q.question}</p>
-                      <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100">{displayVal}</p>
+                      <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100 break-words">{displayVal}</p>
                     </div>
                   )
                 })}
               </div>
             </div>
 
-            <div className="pt-2 flex items-center justify-between">
+            <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 shrink-0">
               <Button
                 variant="secondary"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => {
                   const resp = selectedResponse
                   setSelectedResponse(null)
@@ -920,6 +1255,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               <Button
                 variant="secondary"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => setSelectedResponse(null)}
               >
                 Close
@@ -971,23 +1307,23 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
       {/* Dynamic PDF Export Options Modal */}
       {exportPdfModalOpen && (
-        <div className="fixed inset-0 z-60 bg-slate-900/50 flex items-center justify-center p-4">
-          <div className="bg-white max-w-xl w-full rounded-2xl shadow-2xl p-6 border border-slate-200 space-y-4 font-sans">
-            <div className="flex items-center justify-between border-b pb-3">
+        <div className="fixed inset-0 z-60 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white max-w-xl w-full rounded-2xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 border border-slate-200 space-y-4 font-sans max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between border-b pb-3 shrink-0">
               <div>
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">PDF Report Configurator</span>
-                <h3 className="text-base font-black text-slate-900">Customize PDF Report Export</h3>
+                <h3 className="text-sm sm:text-base font-black text-slate-900">Customize PDF Report Export</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setExportPdfModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold px-2 py-1 rounded-md cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 font-bold p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
               >
                 ✕
               </button>
             </div>
 
-            <div className="space-y-4 max-h-[65vh] overflow-y-auto pr-1 text-xs">
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1 text-xs">
               {/* Document Title Input */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">PDF Report Header Title</label>
@@ -1098,16 +1434,16 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                       type="checkbox"
                       checked={pdfSelectedQuestionIds.includes('respondent_name')}
                       onChange={() => togglePdfColumn('respondent_name')}
-                      className="h-4 w-4 text-blue-600 rounded-md"
+                      className="h-4 w-4 text-blue-600 rounded-md shrink-0"
                     />
-                    <span className="text-xs font-bold text-slate-800 shrink-0 min-w-[130px]">Member / Respondent</span>
+                    <span className="text-xs font-bold text-slate-800 shrink-0 min-w-[110px] sm:min-w-[130px]">Member / Respondent</span>
                     {pdfSelectedQuestionIds.includes('respondent_name') && (
                       <input
                         type="text"
                         value={pdfColumnLabels['respondent_name'] || ''}
                         onChange={e => setPdfColumnLabels(prev => ({ ...prev, respondent_name: e.target.value }))}
                         placeholder="Column Header Label in PDF"
-                        className="flex-1 p-1.5 border border-slate-200 rounded-md text-[11px] bg-slate-50"
+                        className="flex-1 min-w-0 p-1.5 border border-slate-200 rounded-md text-[11px] bg-slate-50"
                       />
                     )}
                   </div>
@@ -1121,9 +1457,9 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => togglePdfColumn(q.id)}
-                          className="h-4 w-4 text-blue-600 rounded-md"
+                          className="h-4 w-4 text-blue-600 rounded-md shrink-0"
                         />
-                        <span className="text-xs font-bold text-slate-800 shrink-0 min-w-[130px] line-clamp-1" title={q.question}>
+                        <span className="text-xs font-bold text-slate-800 shrink-0 min-w-[110px] sm:min-w-[130px] line-clamp-1 max-w-[140px] sm:max-w-none" title={q.question}>
                           {q.question}
                         </span>
                         {isChecked && (
@@ -1132,7 +1468,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                             value={pdfColumnLabels[q.id] || q.question}
                             onChange={e => setPdfColumnLabels(prev => ({ ...prev, [q.id]: e.target.value }))}
                             placeholder="Column Header Label in PDF"
-                            className="flex-1 p-1.5 border border-slate-200 rounded-md text-[11px] bg-slate-50"
+                            className="flex-1 min-w-0 p-1.5 border border-slate-200 rounded-md text-[11px] bg-slate-50"
                           />
                         )}
                       </div>
@@ -1149,10 +1485,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               />
             </div>
 
-            <div className="pt-3 border-t flex items-center justify-end space-x-2">
+            <div className="pt-3 border-t flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 shrink-0">
               <Button
                 variant="secondary"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={() => setExportPdfModalOpen(false)}
               >
                 Cancel
@@ -1160,6 +1497,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               <Button
                 variant="primary"
                 size="sm"
+                className="w-full sm:w-auto"
                 onClick={handleGeneratePdf}
                 loading={generatingPdf}
                 disabled={generatingPdf || pdfSelectedQuestionIds.length === 0}

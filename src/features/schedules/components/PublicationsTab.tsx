@@ -6,6 +6,7 @@ import { memberService } from '@/services/memberService'
 import { isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { ActionMenu } from '@/components'
 import { PublicationFormModal } from './PublicationFormModal'
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
@@ -294,114 +295,167 @@ export const PublicationsTab: React.FC = () => {
               </div>
 
               {/* Actions Grid */}
-              <div className="pt-2 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5">
-                  <button
-                    onClick={() => handleCopyLink(pub.id)}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-blue-50 hover:text-blue-600 border border-gray-200 rounded-lg transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                    </svg>
-                    <span>Link</span>
-                  </button>
+              <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
                   <a
                     href={`/public/schedule/${pub.id}`}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-gray-700 bg-gray-50 hover:bg-emerald-50 hover:text-emerald-600 border border-gray-200 rounded-lg transition-colors"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 rounded-xl transition-all shadow-2xs"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
                     <span>Preview</span>
                   </a>
                   <button
-                    onClick={() => setExportPdfPub(pub)}
-                    title="Export Schedule PDF (Long Portrait)"
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-lg transition-colors cursor-pointer"
+                    onClick={() => handleCopyLink(pub.id)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 rounded-xl transition-all shadow-2xs cursor-pointer"
                   >
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                      <polyline points="14 2 14 8 20 8"/>
-                      <line x1="16" y1="13" x2="8" y2="13"/>
-                      <line x1="16" y1="17" x2="8" y2="17"/>
+                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
                     </svg>
-                    <span>PDF</span>
+                    <span>Copy</span>
                   </button>
                 </div>
 
-                <div className="flex items-center gap-1.5">
-                  {pub.status === 'draft' && (
-                    <button
-                      onClick={() => handlePublish(pub)}
-                      title="Publish (Open for Scheduling)"
-                      className="p-2 text-green-600 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <polygon points="5 3 19 12 5 21 5 3"/>
-                      </svg>
-                    </button>
-                  )}
-                  {pub.status === 'published' && (
-                    <button
-                      onClick={() => setConfirmStatusAction({
-                        pub,
-                        targetStatus: 'archived',
-                        isLocked: true,
-                        title: 'Finalize & Lock Schedules',
-                        message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
-                        confirmLabel: 'Finalize & Lock'
-                      })}
-                      title="Finalize & Lock Schedules"
-                      className="p-2 text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    </button>
-                  )}
-                  {pub.status === 'archived' && (
-                    <button
-                      onClick={() => setConfirmStatusAction({
-                        pub,
-                        targetStatus: 'published',
-                        isLocked: false,
-                        title: 'Unfinalize & Unlock Schedules',
-                        message: `Are you sure you want to unfinalize "${pub.name}"? This will unlock all schedules in its date range and re-open the public link so members can submit again.`,
-                        confirmLabel: 'Unfinalize & Unlock'
-                      })}
-                      title="Unfinalize & Unlock Schedules"
-                      className="p-2 text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-lg transition-colors"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M10.5 7h4v4"/></svg>
-                    </button>
-                  )}
-
-                  <button
-                    onClick={() => setManageSubmissionsPub(pub)}
-                    title="Monitor & Manage Submissions / Auto-Assign"
-                    className="p-2 text-purple-600 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setSelectedPublication(pub)
-                      setFormOpen(true)
-                    }}
-                    title="Edit"
-                    className="p-2 text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                  </button>
-
-                  <button
-                    onClick={() => handleDelete(pub.id)}
-                    title="Delete"
-                    className="p-2 text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                  </button>
-                </div>
+                <ActionMenu
+                  triggerVariant="meatball"
+                  tooltip="Publication Options"
+                  menuWidth="w-56"
+                  groups={[
+                    {
+                      title: 'Access & Export',
+                      items: [
+                        {
+                          label: 'Copy Public Link',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                            </svg>
+                          ),
+                          onClick: () => handleCopyLink(pub.id)
+                        },
+                        {
+                          label: 'Preview Public Portal',
+                          href: `/public/schedule/${pub.id}`,
+                          target: '_blank',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/>
+                              <circle cx="12" cy="12" r="3"/>
+                            </svg>
+                          )
+                        },
+                        {
+                          label: 'Export Schedule PDF',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                              <polyline points="14 2 14 8 20 8"/>
+                              <line x1="16" y1="13" x2="8" y2="13"/>
+                              <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                          ),
+                          onClick: () => setExportPdfPub(pub)
+                        }
+                      ]
+                    },
+                    {
+                      title: 'Workflow & Submissions',
+                      items: [
+                        ...(pub.status === 'draft' ? [{
+                          label: 'Publish (Open Scheduling)',
+                          variant: 'success' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <polygon points="5 3 19 12 5 21 5 3"/>
+                            </svg>
+                          ),
+                          onClick: () => handlePublish(pub)
+                        }] : []),
+                        ...(pub.status === 'published' ? [{
+                          label: 'Finalize & Lock Schedules',
+                          variant: 'warning' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                            </svg>
+                          ),
+                          onClick: () => setConfirmStatusAction({
+                            pub,
+                            targetStatus: 'archived',
+                            isLocked: true,
+                            title: 'Finalize & Lock Schedules',
+                            message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
+                            confirmLabel: 'Finalize & Lock'
+                          })
+                        }] : []),
+                        ...(pub.status === 'archived' ? [{
+                          label: 'Unfinalize & Unlock Schedules',
+                          variant: 'primary' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                              <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                              <path d="M10.5 7h4v4"/>
+                            </svg>
+                          ),
+                          onClick: () => setConfirmStatusAction({
+                            pub,
+                            targetStatus: 'published',
+                            isLocked: false,
+                            title: 'Unfinalize & Unlock Schedules',
+                            message: `Are you sure you want to unfinalize "${pub.name}"? This will unlock all schedules in its date range and re-open the public link so members can submit again.`,
+                            confirmLabel: 'Unfinalize & Unlock'
+                          })
+                        }] : []),
+                        {
+                          label: 'Manage Submissions / Auto-Assign',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                              <circle cx="9" cy="7" r="4"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                            </svg>
+                          ),
+                          onClick: () => setManageSubmissionsPub(pub)
+                        }
+                      ]
+                    },
+                    {
+                      title: 'Management',
+                      items: [
+                        {
+                          label: 'Edit Publication',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            </svg>
+                          ),
+                          onClick: () => {
+                            setSelectedPublication(pub)
+                            setFormOpen(true)
+                          }
+                        },
+                        {
+                          label: 'Delete Publication',
+                          variant: 'danger' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                            </svg>
+                          ),
+                          onClick: () => handleDelete(pub.id)
+                        }
+                      ]
+                    }
+                  ]}
+                />
               </div>
             </div>
           ))
@@ -480,117 +534,145 @@ export const PublicationsTab: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end items-center gap-3">
-                        
-                        {/* Link Actions */}
-                        <div className="flex items-center gap-1 pr-3 border-r border-gray-200">
-                          <button
-                            onClick={() => handleCopyLink(pub.id)}
-                            title="Copy Public Link"
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                              <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                            </svg>
-                          </button>
-                          <a
-                            href={`/public/schedule/${pub.id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            title="Preview"
-                            className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                          </a>
-                          <button
-                            onClick={() => setExportPdfPub(pub)}
-                            title="Export Schedule PDF (Long 8.5x13)"
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded transition-colors cursor-pointer"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                              <polyline points="14 2 14 8 20 8"/>
-                              <line x1="16" y1="13" x2="8" y2="13"/>
-                              <line x1="16" y1="17" x2="8" y2="17"/>
-                            </svg>
-                          </button>
-                        </div>
+                      <div className="flex justify-end items-center gap-2">
+                        <a
+                          href={`/public/schedule/${pub.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Preview Public Portal"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 rounded-xl transition-all shadow-2xs"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                          <span>Preview</span>
+                        </a>
 
-                        {/* Status Actions */}
-                        <div className="flex items-center gap-1 pr-3 border-r border-gray-200">
-                          {pub.status === 'draft' && (
-                            <button
-                              onClick={() => handlePublish(pub)}
-                              title="Publish (Open for Scheduling)"
-                              className="p-1.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded transition-colors"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <polygon points="5 3 19 12 5 21 5 3"/>
-                              </svg>
-                            </button>
-                          )}
-                          {pub.status === 'published' && (
-                            <button
-                              onClick={() => setConfirmStatusAction({
-                                pub,
-                                targetStatus: 'archived',
-                                isLocked: true,
-                                title: 'Finalize & Lock Schedules',
-                                message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
-                                confirmLabel: 'Finalize & Lock'
-                              })}
-                              title="Finalize & Lock Schedules"
-                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded transition-colors"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                            </button>
-                          )}
-                          {pub.status === 'archived' && (
-                            <button
-                              onClick={() => setConfirmStatusAction({
-                                pub,
-                                targetStatus: 'published',
-                                isLocked: false,
-                                title: 'Unfinalize & Unlock Schedules',
-                                message: `Are you sure you want to unfinalize "${pub.name}"? This will unlock all schedules in its date range and re-open the public link so members can submit again.`,
-                                confirmLabel: 'Unfinalize & Unlock'
-                              })}
-                              title="Unfinalize & Unlock Schedules"
-                              className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded transition-colors"
-                            >
-                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/><path d="M10.5 7h4v4"/></svg>
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Management Actions */}
-                        <div className="flex items-center gap-1">
-                          <button
-                            onClick={() => setManageSubmissionsPub(pub)}
-                            title="Manage Submissions / Reset Users"
-                            className="p-1.5 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                          </button>
-                          <button
-                            onClick={() => {
-                              setSelectedPublication(pub)
-                              setFormOpen(true)
-                            }}
-                            title="Edit"
-                            className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                          </button>
-                          <button
-                            onClick={() => handleDelete(pub.id)}
-                            title="Delete"
-                            className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-                          </button>
-                        </div>
+                        <ActionMenu
+                          triggerVariant="meatball"
+                          tooltip="Publication Options"
+                          menuWidth="w-56"
+                          groups={[
+                            {
+                              title: 'Access & Export',
+                              items: [
+                                {
+                                  label: 'Copy Public Link',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => handleCopyLink(pub.id)
+                                },
+                                {
+                                  label: 'Export Schedule PDF',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                      <polyline points="14 2 14 8 20 8"/>
+                                      <line x1="16" y1="13" x2="8" y2="13"/>
+                                      <line x1="16" y1="17" x2="8" y2="17"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => setExportPdfPub(pub)
+                                }
+                              ]
+                            },
+                            {
+                              title: 'Workflow & Submissions',
+                              items: [
+                                ...(pub.status === 'draft' ? [{
+                                  label: 'Publish (Open Scheduling)',
+                                  variant: 'success' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <polygon points="5 3 19 12 5 21 5 3"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => handlePublish(pub)
+                                }] : []),
+                                ...(pub.status === 'published' ? [{
+                                  label: 'Finalize & Lock Schedules',
+                                  variant: 'warning' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                                      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => setConfirmStatusAction({
+                                    pub,
+                                    targetStatus: 'archived',
+                                    isLocked: true,
+                                    title: 'Finalize & Lock Schedules',
+                                    message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
+                                    confirmLabel: 'Finalize & Lock'
+                                  })
+                                }] : []),
+                                ...(pub.status === 'archived' ? [{
+                                  label: 'Unfinalize & Unlock Schedules',
+                                  variant: 'primary' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                                      <path d="M7 11V7a5 5 0 0 1 9.9-1"/>
+                                      <path d="M10.5 7h4v4"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => setConfirmStatusAction({
+                                    pub,
+                                    targetStatus: 'published',
+                                    isLocked: false,
+                                    title: 'Unfinalize & Unlock Schedules',
+                                    message: `Are you sure you want to unfinalize "${pub.name}"? This will unlock all schedules in its date range and re-open the public link so members can submit again.`,
+                                    confirmLabel: 'Unfinalize & Unlock'
+                                  })
+                                }] : []),
+                                {
+                                  label: 'Manage Submissions / Auto-Assign',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                                      <circle cx="9" cy="7" r="4"/>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M22 21v-2a4 4 0 0 0-3-3.87"/>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => setManageSubmissionsPub(pub)
+                                }
+                              ]
+                            },
+                            {
+                              title: 'Management',
+                              items: [
+                                {
+                                  label: 'Edit Publication Details',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => {
+                                    setSelectedPublication(pub)
+                                    setFormOpen(true)
+                                  }
+                                },
+                                {
+                                  label: 'Delete Publication',
+                                  variant: 'danger' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 6h18"/>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+                                    </svg>
+                                  ),
+                                  onClick: () => handleDelete(pub.id)
+                                }
+                              ]
+                            }
+                          ]}
+                        />
                       </div>
                     </td>
                   </tr>

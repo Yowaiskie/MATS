@@ -95,7 +95,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
         dateNeeded: dateNeeded.trim(),
         venue: venue.trim(),
         assembly: assembly.trim(),
-        signatureConfig: signatureConfig.enabled ? signatureConfig : undefined
+        signatureConfig
       })
       onClose()
     } catch (err: any) {

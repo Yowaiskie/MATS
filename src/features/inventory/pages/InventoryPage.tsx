@@ -17,7 +17,8 @@ import {
   StatusBadge, 
   EmptyState, 
   PasswordConfirmModal, 
-  useToast 
+  useToast,
+  ActionMenu 
 } from '@/components'
 
 export const InventoryPage: React.FC = () => {
@@ -506,43 +507,45 @@ export const InventoryPage: React.FC = () => {
 
                 {/* Actions Button */}
                 {isAuthorized && (
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingItem(item)
-                        setIsModalOpen(true)
-                      }}
-                      title="Edit Item"
-                      className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })}
-                      title={item.isArchived ? 'Restore' : 'Archive'}
-                      className="p-1.5 text-slate-500 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-all cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                      </svg>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })}
-                      title="Delete Permanently"
-                      className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all cursor-pointer"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  </div>
+                  <ActionMenu
+                    triggerVariant="meatball"
+                    tooltip="Item Options"
+                    items={[
+                      {
+                        label: 'Edit Item',
+                        variant: 'primary',
+                        icon: (
+                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        ),
+                        onClick: () => {
+                          setEditingItem(item)
+                          setIsModalOpen(true)
+                        }
+                      },
+                      {
+                        label: item.isArchived ? 'Restore Item' : 'Archive Item',
+                        variant: item.isArchived ? 'success' : 'warning',
+                        icon: (
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                        ),
+                        onClick: () => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })
+                      },
+                      {
+                        label: 'Delete Permanently',
+                        variant: 'danger',
+                        icon: (
+                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        ),
+                        onClick: () => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })
+                      }
+                    ]}
+                  />
                 )}
               </div>
             </Card>
@@ -608,41 +611,46 @@ export const InventoryPage: React.FC = () => {
                     <td className="px-4 py-3">{getStatusBadge(item.status, item.quantity)}</td>
                     {isAuthorized && (
                       <td className="px-4 py-3 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingItem(item)
-                              setIsModalOpen(true)
-                            }}
-                            className="p-1 text-slate-500 hover:text-blue-600 rounded transition-all cursor-pointer"
-                            title="Edit"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })}
-                            className="p-1 text-slate-500 hover:text-amber-600 rounded transition-all cursor-pointer"
-                            title={item.isArchived ? 'Restore' : 'Archive'}
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                            </svg>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })}
-                            className="p-1 text-slate-500 hover:text-red-600 rounded transition-all cursor-pointer"
-                            title="Delete"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                          </button>
-                        </div>
+                        <ActionMenu
+                          triggerVariant="meatball"
+                          tooltip="Item Options"
+                          size="xs"
+                          items={[
+                            {
+                              label: 'Edit Item',
+                              variant: 'primary',
+                              icon: (
+                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              ),
+                              onClick: () => {
+                                setEditingItem(item)
+                                setIsModalOpen(true)
+                              }
+                            },
+                            {
+                              label: item.isArchived ? 'Restore Item' : 'Archive Item',
+                              variant: item.isArchived ? 'success' : 'warning',
+                              icon: (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                </svg>
+                              ),
+                              onClick: () => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })
+                            },
+                            {
+                              label: 'Delete Permanently',
+                              variant: 'danger',
+                              icon: (
+                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              ),
+                              onClick: () => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })
+                            }
+                          ]}
+                        />
                       </td>
                     )}
                   </tr>

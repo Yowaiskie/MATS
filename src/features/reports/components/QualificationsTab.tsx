@@ -17,6 +17,7 @@ import { qualificationService } from '@/services/qualificationService'
 import { settingsService } from '@/services/settingsService'
 import { getFullName } from '@/utils/member'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { ActionMenu, FilterDropdown } from '@/components'
 import { QualificationsExportModal } from './QualificationsExportModal'
 
 interface QualificationsTabProps {
@@ -459,30 +460,36 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                   </div>
                 </button>
 
-                {/* Edit & Delete Preset Buttons */}
-                <button
-                  type="button"
-                  onClick={handleOpenEditPresetModal}
-                  className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 rounded-xl transition-all cursor-pointer shrink-0"
-                  title="Edit Preset Name & Details"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                </button>
-
-                {presets.length > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowDeleteConfirmModal(true)}
-                    className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all cursor-pointer shrink-0"
-                    title="Delete Preset"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
+                {/* Preset Options Meatball Menu */}
+                <ActionMenu
+                  triggerVariant="meatball"
+                  size="sm"
+                  ariaLabel="Preset actions"
+                  items={[
+                    {
+                      label: 'Edit Preset Details',
+                      description: 'Update criteria, name & active rules',
+                      icon: (
+                        <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                        </svg>
+                      ),
+                      onClick: handleOpenEditPresetModal
+                    },
+                    {
+                      label: 'Delete Preset',
+                      description: 'Permanently remove this preset',
+                      variant: 'danger',
+                      hidden: presets.length <= 1,
+                      icon: (
+                        <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      ),
+                      onClick: () => setShowDeleteConfirmModal(true)
+                    }
+                  ]}
+                />
               </div>
 
               {/* Custom Floating Dropdown Menu */}
@@ -745,99 +752,105 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
         </div>
       </div>
 
-      {/* ── 3. ROSTER CONTROLS, SEARCH & EXPORT ─────────────────────── */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-          {/* Order Tabs */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0 overflow-x-auto scrollbar-none">
-            <button
-              onClick={() => setSelectedOrder('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-                selectedOrder === 'all'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              All Orders
-            </button>
-            {ORDER_GROUPS.map(grp => (
-              <button
-                key={grp}
-                onClick={() => setSelectedOrder(grp)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-black transition-all cursor-pointer whitespace-nowrap ${
-                  selectedOrder === grp
-                    ? 'bg-white text-slate-900 shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {grp}
-              </button>
-            ))}
-          </div>
-
-          {/* Status Filter */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl gap-1 shrink-0">
-            <button
-              onClick={() => setStatusFilter('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'
-              }`}
-            >
-              All ({evaluationResults.length})
-            </button>
-            <button
-              onClick={() => setStatusFilter('qualified')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'qualified' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-700'
-              }`}
-            >
-              Qualified ({metrics.qualified})
-            </button>
-            <button
-              onClick={() => setStatusFilter('deficient')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer whitespace-nowrap ${
-                statusFilter === 'deficient' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-700'
-              }`}
-            >
-              Deficient ({metrics.deficient})
-            </button>
-          </div>
-        </div>
-
-        {/* Search Bar & Export Buttons */}
-        <div className="flex items-center gap-2 w-full xl:w-auto">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            placeholder="Search server name..."
-            className="w-full sm:w-56 p-2 text-xs font-medium border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
-          />
-
-          {canExport && (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowExportModal(true)}
-                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs rounded-xl transition-all shadow-xs cursor-pointer flex items-center gap-1.5 whitespace-nowrap"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Export PDF</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleExportCsv}
-                className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer whitespace-nowrap"
-                title="Export CSV"
-              >
-                CSV
-              </button>
+      {/* ── 3. ROSTER CONTROLS, SEARCH, DROPDOWN FILTERS & EXPORT ── */}
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-white p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1">
+          {/* Search Bar */}
+          <div className="relative flex-1 min-w-[180px]">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Search server name..."
+              className="w-full h-10 pl-9 pr-3 text-xs font-semibold border border-slate-200 rounded-xl bg-slate-50 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition text-slate-800 placeholder-slate-400"
+            />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+              </svg>
             </div>
-          )}
+          </div>
+
+          {/* Order Dropdown */}
+          <div className="w-full sm:w-52 shrink-0">
+            <FilterDropdown
+              value={selectedOrder}
+              onChange={(val) => setSelectedOrder(val)}
+              allLabel="All Orders / Groups"
+              options={[
+                { key: 'all', label: 'All Orders / Groups', dot: 'bg-slate-400' },
+                ...ORDER_GROUPS.map(grp => ({
+                  key: grp,
+                  label: grp,
+                  dot: 'bg-purple-500'
+                }))
+              ]}
+            />
+          </div>
+
+          {/* Status Dropdown */}
+          <div className="w-full sm:w-52 shrink-0">
+            <FilterDropdown
+              value={statusFilter}
+              onChange={(val) => setStatusFilter(val as any)}
+              allLabel="All Statuses"
+              options={[
+                { 
+                  key: 'all', 
+                  label: 'All Statuses', 
+                  dot: 'bg-slate-400',
+                  count: evaluationResults.length 
+                },
+                { 
+                  key: 'qualified', 
+                  label: 'Qualified', 
+                  dot: 'bg-emerald-500',
+                  count: metrics.qualified 
+                },
+                { 
+                  key: 'deficient', 
+                  label: 'Deficient / Makeup', 
+                  dot: 'bg-rose-500',
+                  count: metrics.deficient 
+                }
+              ]}
+            />
+          </div>
         </div>
+
+        {/* Export Buttons */}
+        {canExport && (
+          <div className="shrink-0 self-end sm:self-auto">
+            <ActionMenu
+              triggerVariant="button"
+              triggerLabel="Export"
+              size="sm"
+              ariaLabel="Export options"
+              items={[
+                {
+                  label: 'Export PDF Report',
+                  description: 'Official formatted evaluation sheet with signatures',
+                  icon: (
+                    <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  ),
+                  onClick: () => setShowExportModal(true)
+                },
+                {
+                  label: 'Export CSV Spreadsheet',
+                  description: 'Tabular data for Excel or spreadsheet analysis',
+                  icon: (
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z" />
+                    </svg>
+                  ),
+                  onClick: handleExportCsv
+                }
+              ]}
+            />
+          </div>
+        )}
       </div>
 
       {/* ── 4. EVALUATION ROSTER TABLE ─────────────────────────────── */}

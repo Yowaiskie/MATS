@@ -401,7 +401,10 @@ service cloud.firestore {
     // ==========================================
     match /notifications/{notificationId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isSuperAdmin() || hasPermission('canManageSchedules');
+      allow create, delete: if isSuperAdmin() || 
+                              hasPermission('canBroadcast') || 
+                              hasPermission('canManageSchedules') || 
+                              hasPermission('canTakeAttendance');
       allow update: if isAuthenticated();
     }
   }

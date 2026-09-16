@@ -4,6 +4,7 @@ import type { Schedule } from '@/types/schedule'
 import type { ScheduleAttendanceState, AttendanceSession } from '@/types/attendance'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { ActionMenu } from '@/components'
 
 interface ScheduleCardProps {
   schedule: Schedule
@@ -35,15 +36,6 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
   const { isAdmin, canAction } = useAuth()
   const canManage = isAdmin || canAction('canManageSchedules')
   const computedStatus = getScheduleStatus(schedule)
-  const [menuOpen, setMenuOpen] = React.useState(false)
-
-  const statusColors: Record<string, string> = {
-    upcoming: 'bg-indigo-50 border border-indigo-200 text-indigo-700',
-    ongoing: 'bg-blue-50 border border-blue-100 text-blue-600',
-    completed: 'bg-purple-50 border border-purple-200 text-purple-700',
-    cancelled: 'bg-red-50 border border-red-100 text-red-600',
-    pending: 'bg-rose-50 border border-rose-200 text-rose-700',
-  }
 
   // Format timestamp helper
   const formatTime = (ts: any) => {
@@ -95,31 +87,41 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     return `${h}:${m} ${ampm}`
   }
 
-  // Only mark as finalized/locked if attendance was finalized or if completed & explicitly locked
+  // 1. Is schedule locked? (attendance session finalized OR completed schedule explicitly locked)
   const isFinalizedAttendance = attendanceState === 'finalized'
   const isExplicitlyLocked = !!schedule.isLocked && computedStatus === 'completed'
   const isLocked = isFinalizedAttendance || isExplicitlyLocked
-  const isPendingAttendance = computedStatus === 'completed' && !isFinalizedAttendance
-  const displayStatus = isPendingAttendance ? 'pending' : computedStatus
+
+  // 2. Is attendance in progress (only if NOT locked)?
+  const isInProgress = !isLocked && attendanceState === 'in_progress'
+
+  // 3. Is it a past schedule with no attendance taken yet (and NOT locked)?
+  const isUntakenPast = !isLocked && computedStatus === 'completed' && (attendanceState === 'untaken' || attendanceState === 'none')
+
+  // Compute clean single primary status
+  type CardStatus = 'upcoming' | 'ongoing' | 'completed' | 'cancelled' | 'not_taken' | 'in_progress'
+
+  const getEffectiveStatus = (): CardStatus => {
+    if (computedStatus === 'cancelled') return 'cancelled'
+    if (computedStatus === 'upcoming') return 'upcoming'
+    if (computedStatus === 'ongoing') return 'ongoing'
+    if (isLocked) return 'completed'
+    if (isInProgress) return 'in_progress'
+    if (isUntakenPast) return 'not_taken'
+    return computedStatus as CardStatus
+  }
+
+  const effectiveStatus = getEffectiveStatus()
 
   const getCardBorderStyle = () => {
     if (isSelected) return 'ring-2 ring-blue-500 bg-blue-50/30 border-blue-400'
-    if (isFinalizedAttendance) return 'border-emerald-400 bg-emerald-50/40 hover:border-emerald-500'
-    if (attendanceState === 'in_progress') return 'border-amber-400 bg-gradient-to-b from-amber-50/40 via-amber-50/10 to-white shadow-xs hover:border-amber-500'
-    if (isPendingAttendance) return 'border-rose-400 bg-rose-50/30 hover:border-rose-500 ring-1 ring-rose-400/30'
-    
-    switch (computedStatus) {
-      case 'ongoing':
-        return 'border-blue-300 bg-blue-50/30 hover:border-blue-400'
-      case 'completed':
-        return 'border-purple-300 bg-purple-50/30 hover:border-purple-400'
-      case 'cancelled':
-        return 'border-red-300 bg-red-50/30 hover:border-red-400'
-      case 'upcoming':
-        return 'border-indigo-300 bg-indigo-50/40 hover:border-indigo-400'
-      default:
-        return 'border-slate-200/70 bg-white hover:border-slate-300'
-    }
+    if (effectiveStatus === 'completed') return 'border-emerald-400 bg-emerald-50/40 hover:border-emerald-500'
+    if (effectiveStatus === 'in_progress') return 'border-amber-400 bg-gradient-to-b from-amber-50/40 via-amber-50/10 to-white shadow-xs hover:border-amber-500'
+    if (effectiveStatus === 'not_taken') return 'border-rose-400 bg-rose-50/30 hover:border-rose-500 ring-1 ring-rose-400/30'
+    if (effectiveStatus === 'upcoming') return 'border-indigo-300 bg-indigo-50/40 hover:border-indigo-400'
+    if (effectiveStatus === 'ongoing') return 'border-blue-300 bg-blue-50/30 hover:border-blue-400'
+    if (effectiveStatus === 'cancelled') return 'border-red-300 bg-red-50/30 hover:border-red-400'
+    return 'border-slate-200/70 bg-white hover:border-slate-300'
   }
 
   return (
@@ -154,21 +156,39 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           </div>
 
           <div className="flex items-center gap-1.5 shrink-0">
-            <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider border ${statusColors[displayStatus]}`}>
-              {displayStatus === 'pending' ? 'Not Taken' : displayStatus}
-            </span>
-            {isLocked ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200">
+            {effectiveStatus === 'upcoming' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-indigo-50 border border-indigo-200 text-indigo-700">
+                Upcoming
+              </span>
+            )}
+            {effectiveStatus === 'ongoing' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-blue-50 border border-blue-200 text-blue-700">
+                Ongoing
+              </span>
+            )}
+            {effectiveStatus === 'in_progress' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500 text-white shadow-xs animate-pulse">
+                In Progress
+              </span>
+            )}
+            {effectiveStatus === 'not_taken' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-rose-50 border border-rose-200 text-rose-700">
+                Not Taken
+              </span>
+            )}
+            {effectiveStatus === 'completed' && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
                 <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
                 Locked
               </span>
-            ) : attendanceState === 'in_progress' ? (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500 text-white shadow-xs animate-pulse">
-                In Progress
+            )}
+            {effectiveStatus === 'cancelled' && (
+              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider bg-red-50 border border-red-200 text-red-700">
+                Cancelled
               </span>
-            ) : null}
+            )}
           </div>
         </div>
 
@@ -240,70 +260,57 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
           <svg className="w-3.5 h-3.5 text-indigo-200 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
           </svg>
-          <span>{isFinalizedAttendance ? 'View' : 'Attendance'}</span>
+          <span>{isLocked ? 'View' : 'Attendance'}</span>
         </Link>
 
-        {/* Management Ellipsis Menu */}
+        {/* Management Meatball Menu */}
         {canManage && (
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen(!menuOpen)}
-              className="p-2 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-100 text-slate-600 transition-colors cursor-pointer shadow-2xs"
-              aria-label="More Options"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-              </svg>
-            </button>
-
-            {menuOpen && (
-              <>
-                <div className="fixed inset-0 z-20" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 bottom-full mb-1 z-30 w-44 rounded-xl border border-slate-200 bg-white p-1 shadow-lg text-xs space-y-0.5">
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false)
-                      onEdit(schedule)
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-blue-50 text-blue-700 transition-colors cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                    </svg>
-                    <span>Edit Schedule</span>
-                  </button>
-
-                  {onToggleLock && (
-                    <button
-                      onClick={() => {
-                        setMenuOpen(false)
-                        onToggleLock(schedule)
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 transition-colors cursor-pointer"
-                    >
-                      <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                      </svg>
-                      <span>{schedule.isLocked ? 'Unlock Schedule' : 'Finalize & Lock'}</span>
-                    </button>
-                  )}
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false)
-                      onDelete(schedule.id)
-                    }}
-                    className="w-full text-left px-3 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-rose-50 text-rose-600 transition-colors cursor-pointer"
-                  >
-                    <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    <span>Delete</span>
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
+          <ActionMenu
+            triggerVariant="meatball"
+            size="sm"
+            align="right"
+            direction="auto"
+            ariaLabel="Schedule actions"
+            items={[
+              {
+                id: 'edit',
+                label: 'Edit Schedule',
+                variant: 'primary',
+                onClick: () => onEdit(schedule),
+                icon: (
+                  <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                ),
+              },
+              ...(onToggleLock
+                ? [
+                    {
+                      id: 'toggle-lock',
+                      label: schedule.isLocked ? 'Unlock Schedule' : 'Finalize & Lock',
+                      variant: 'success' as const,
+                      onClick: () => onToggleLock(schedule),
+                      icon: (
+                        <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                      ),
+                    },
+                  ]
+                : []),
+              {
+                id: 'delete',
+                label: 'Delete',
+                variant: 'danger',
+                onClick: () => onDelete(schedule.id),
+                icon: (
+                  <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                ),
+              },
+            ]}
+          />
         )}
       </div>
     </div>

@@ -3,7 +3,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { Loading } from '@/components/Loading'
 import { PasswordConfirmModal } from '@/components/Dialog'
-import { CustomSelect, BulkProgressBar } from '@/components'
+import { CustomSelect, BulkProgressBar, ActionMenu, type ActionMenuGroup } from '@/components'
 import { authService } from '@/services/authService'
 
 // Import types
@@ -208,9 +208,6 @@ export const FinancePage: React.FC = () => {
   const [reportEndDate, setReportEndDate] = useState(getLocalYYYYMMDD(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0)))
   const [reportData, setReportData] = useState<any>(null)
 
-  // Action Menu Dropdown state for requests table
-  const [actionMenuReqId, setActionMenuReqId] = useState<string | null>(null)
-
   // Edit Fund Request Modal states
   const [isEditRequestModalOpen, setIsEditRequestModalOpen] = useState(false)
   const [editingRequest, setEditingRequest] = useState<FinanceFundRequest | null>(null)
@@ -265,17 +262,6 @@ export const FinancePage: React.FC = () => {
     fetchData()
   }, [showArchived])
 
-  // Close row action dropdown when clicking outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (!(e.target as HTMLElement).closest('.action-menu-container')) {
-        setActionMenuReqId(null)
-      }
-    }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [])
-
   // Calculate current month identifier
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), [])
 
@@ -283,6 +269,197 @@ export const FinancePage: React.FC = () => {
   const summary = useMemo(() => {
     return financeEngine.computeMonthlySummary(ledgerEntries, requests, currentMonthStr)
   }, [ledgerEntries, requests, currentMonthStr])
+
+  const getRequestActionGroups = (req: FinanceFundRequest): ActionMenuGroup[] => {
+    const docItems = [
+      {
+        id: 'requisition-pdf',
+        label: 'Requisition PDF',
+        variant: 'primary' as const,
+        onClick: () => {
+          setRequisitionExportRequest(req)
+          setIsRequisitionExportOpen(true)
+        },
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        ),
+      },
+      ...(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)
+        ? [
+            {
+              id: 'liquidation-pdf',
+              label: 'Liquidation PDF',
+              variant: 'primary' as const,
+              onClick: () => {
+                setLiquidationExportRequest(req)
+                setIsLiquidationExportOpen(true)
+              },
+              icon: (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+    ]
+
+    const mgmtItems = [
+      {
+        id: 'history',
+        label: 'Workflow History',
+        onClick: () => setHistoryRequest(req),
+        icon: (
+          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        ),
+      },
+      ...(['draft', 'pending', 'approved', 'rejected'].includes(req.status)
+        ? [
+            {
+              id: 'edit',
+              label: 'Edit Details',
+              variant: 'warning' as const,
+              onClick: () => handleOpenEditRequestModal(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      ...(req.status === 'liquidated'
+        ? [
+            {
+              id: 'review',
+              label: 'Review & Audit',
+              variant: 'success' as const,
+              onClick: () => handleOpenReviewModal(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ),
+            },
+            {
+              id: 'edit-liquidation',
+              label: 'Edit Liquidation',
+              variant: 'primary' as const,
+              onClick: () => handleLiquidationOpen(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      ...(req.status === 'closed'
+        ? [
+            {
+              id: 're-review',
+              label: 'View & Re-review',
+              variant: 'success' as const,
+              onClick: () => handleOpenReviewModal(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ),
+            },
+            {
+              id: 'reopen',
+              label: 'Reopen for Review',
+              variant: 'warning' as const,
+              onClick: () => handleOpenReopenModal(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      ...(req.status === 'pending'
+        ? [
+            {
+              id: 'reject',
+              label: 'Reject Request',
+              variant: 'danger' as const,
+              onClick: () => setShowRejectionInput(req.id),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      ...(req.status === 'pending' || req.status === 'approved'
+        ? [
+            {
+              id: 'cancel',
+              label: 'Cancel Request',
+              onClick: () => handleOpenCancelModal(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      ...(req.status === 'released' || req.status === 'liquidated'
+        ? [
+            {
+              id: 'void',
+              label: 'Void Transaction',
+              variant: 'danger' as const,
+              onClick: () => handleOpenVoidModal(req),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      ...(['draft', 'pending', 'rejected', 'cancelled'].includes(req.status)
+        ? [
+            {
+              id: 'delete',
+              label: 'Delete Request',
+              variant: 'danger' as const,
+              onClick: () => setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' }),
+              icon: (
+                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              ),
+            },
+          ]
+        : []),
+      {
+        id: 'archive',
+        label: 'Archive',
+        onClick: () => handleArchiveRequest(req.id),
+        icon: (
+          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
+        ),
+      },
+    ]
+
+    return [
+      { title: 'Documents & Exports', items: docItems },
+      { title: 'Management', items: mgmtItems },
+    ]
+  }
 
   // Pending requests count for tab notification badge
   const pendingRequestsCount = useMemo(() => {
@@ -2730,7 +2907,7 @@ export const FinancePage: React.FC = () => {
                             No requests found matching the "{fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.
                           </div>
                         ) : (
-                          filtered.map((req, idx) => (
+                          filtered.map((req) => (
                             <div
                               key={req.id}
                               className={`bg-white rounded-2xl border p-4 shadow-2xs space-y-3 transition-all ${
@@ -3018,246 +3195,14 @@ export const FinancePage: React.FC = () => {
                               </button>
                             )}
 
-                            {/* Dropdown Menu Container */}
-                            <div className="relative action-menu-container">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
-                                }}
-                                className={`inline-flex items-center gap-1 px-3 py-2 text-xs font-bold border rounded-xl transition-all cursor-pointer shadow-2xs ${
-                                  actionMenuReqId === req.id
-                                    ? 'bg-slate-100 border-slate-300 text-slate-900'
-                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                }`}
-                              >
-                                <span>Actions</span>
-                                <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                </svg>
-                              </button>
-
-                              {actionMenuReqId === req.id && (
-                                <div className={`absolute right-0 ${idx > 0 && (idx >= filtered.length - 2 || filtered.length <= 3) ? 'bottom-full mb-1.5 origin-bottom-right' : 'top-full mt-1.5 origin-top-right'} w-56 max-h-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
-                                  {/* Group: PDF Documents */}
-                                  <div className="py-1">
-                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                      Documents & Exports
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActionMenuReqId(null)
-                                        setRequisitionExportRequest(req)
-                                        setIsRequisitionExportOpen(true)
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-blue-50 text-blue-700 font-semibold cursor-pointer"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                      </svg>
-                                      <span>Requisition PDF</span>
-                                    </button>
-
-                                    {(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          setLiquidationExportRequest(req)
-                                          setIsLiquidationExportOpen(true)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                        </svg>
-                                        <span>Liquidation PDF</span>
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  {/* Group: Workflow Operations */}
-                                  <div className="py-1">
-                                    <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                      Management
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActionMenuReqId(null)
-                                        setHistoryRequest(req)
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
-                                    >
-                                      <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                      </svg>
-                                      <span>Workflow History</span>
-                                    </button>
-
-                                    {/* Edit Details (Draft, Pending, Approved, Rejected) */}
-                                    {['draft', 'pending', 'approved', 'rejected'].includes(req.status) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          handleOpenEditRequestModal(req)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                        <span>Edit Details</span>
-                                      </button>
-                                    )}
-
-                                    {req.status === 'liquidated' && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            handleOpenReviewModal(req)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                          </svg>
-                                          <span>Review & Audit</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            handleLiquidationOpen(req)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                          </svg>
-                                          <span>Edit Liquidation</span>
-                                        </button>
-                                      </>
-                                    )}
-
-                                    {req.status === 'closed' && (
-                                      <>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            handleOpenReviewModal(req)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                          </svg>
-                                          <span>View & Re-review</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            handleOpenReopenModal(req)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                          </svg>
-                                          <span>Reopen for Review</span>
-                                        </button>
-                                      </>
-                                    )}
-
-                                    {req.status === 'pending' && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          setShowRejectionInput(req.id)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                        </svg>
-                                        <span>Reject Request</span>
-                                      </button>
-                                    )}
-
-                                    {(req.status === 'pending' || req.status === 'approved') && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          handleOpenCancelModal(req)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                        </svg>
-                                        <span>Cancel Request</span>
-                                      </button>
-                                    )}
-
-                                    {(req.status === 'released' || req.status === 'liquidated') && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          handleOpenVoidModal(req)
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                        </svg>
-                                        <span>Void Transaction</span>
-                                      </button>
-                                    )}
-
-                                    {/* Delete Unreleased / Mistaken Request */}
-                                    {['draft', 'pending', 'rejected', 'cancelled'].includes(req.status) && (
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setActionMenuReqId(null)
-                                          setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })
-                                        }}
-                                        className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-semibold cursor-pointer"
-                                      >
-                                        <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                        <span>Delete Request</span>
-                                      </button>
-                                    )}
-
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setActionMenuReqId(null)
-                                        handleArchiveRequest(req.id)
-                                      }}
-                                      className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-500 hover:text-red-600 font-medium cursor-pointer"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                      </svg>
-                                      <span>Archive</span>
-                                    </button>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            {/* Reusable ActionMenu */}
+                            <ActionMenu
+                              triggerVariant="button"
+                              triggerLabel="Actions"
+                              groups={getRequestActionGroups(req)}
+                              size="sm"
+                              align="right"
+                            />
                           </>
                         )}
                       </div>
@@ -3333,7 +3278,7 @@ export const FinancePage: React.FC = () => {
                 )
               }
 
-              return filtered.map((req, idx) => (
+              return filtered.map((req) => (
                 <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
                   <td className="p-3 text-center">
                     <input
@@ -3535,245 +3480,13 @@ export const FinancePage: React.FC = () => {
                                 )}
 
                                 {/* 2. Actions & PDF Menu Dropdown */}
-                                <div className="relative action-menu-container">
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation()
-                                      setActionMenuReqId(actionMenuReqId === req.id ? null : req.id)
-                                    }}
-                                    className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold border rounded-xl transition-all cursor-pointer shadow-2xs ${
-                                      actionMenuReqId === req.id
-                                        ? 'bg-slate-100 border-slate-300 text-slate-900'
-                                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
-                                    }`}
-                                  >
-                                    <span>Actions</span>
-                                    <svg className="w-3 h-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                                    </svg>
-                                  </button>
-
-                                  {actionMenuReqId === req.id && (
-                                    <div className={`absolute right-0 ${idx > 0 && (idx >= filtered.length - 2 || filtered.length <= 3) ? 'bottom-full mb-1.5 origin-bottom-right' : 'top-full mt-1.5 origin-top-right'} w-56 max-h-72 overflow-y-auto bg-white rounded-xl border border-slate-200 shadow-2xl z-50 py-1 text-xs animate-fade-in divide-y divide-slate-100`}>
-                                      {/* Group: PDF Documents */}
-                                      <div className="py-1">
-                                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                          Documents & Exports
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            setRequisitionExportRequest(req)
-                                            setIsRequisitionExportOpen(true)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-blue-50 text-blue-700 font-semibold cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                          </svg>
-                                          <span>Requisition PDF</span>
-                                        </button>
-
-                                        {(req.status === 'liquidated' || req.status === 'closed' || !!req.totalSpent || (req.budgetSources && req.budgetSources.length > 0)) && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActionMenuReqId(null)
-                                              setLiquidationExportRequest(req)
-                                              setIsLiquidationExportOpen(true)
-                                            }}
-                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                            </svg>
-                                            <span>Liquidation PDF</span>
-                                          </button>
-                                        )}
-                                      </div>
-
-                                      {/* Group: Workflow Operations */}
-                                      <div className="py-1">
-                                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                                          Management
-                                        </div>
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            setHistoryRequest(req)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                          </svg>
-                                          <span>Workflow History</span>
-                                        </button>
-
-                                        {/* Edit Details (Draft, Pending, Approved, Rejected) */}
-                                        {['draft', 'pending', 'approved', 'rejected'].includes(req.status) && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActionMenuReqId(null)
-                                              handleOpenEditRequestModal(req)
-                                            }}
-                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
-                                          >
-                                            <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                            <span>Edit Details</span>
-                                          </button>
-                                        )}
-
-                                        {req.status === 'liquidated' && (
-                                          <>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setActionMenuReqId(null)
-                                                handleOpenReviewModal(req)
-                                              }}
-                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
-                                            >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                              </svg>
-                                              <span>Review & Audit</span>
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setActionMenuReqId(null)
-                                                handleLiquidationOpen(req)
-                                              }}
-                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-indigo-50 text-indigo-700 font-semibold cursor-pointer"
-                                            >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                              </svg>
-                                              <span>Edit Liquidation</span>
-                                            </button>
-                                          </>
-                                        )}
-
-                                        {req.status === 'closed' && (
-                                          <>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setActionMenuReqId(null)
-                                                handleOpenReviewModal(req)
-                                              }}
-                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-emerald-50 text-emerald-700 font-semibold cursor-pointer"
-                                            >
-                                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                              </svg>
-                                              <span>View & Re-review</span>
-                                            </button>
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                setActionMenuReqId(null)
-                                                handleOpenReopenModal(req)
-                                              }}
-                                              className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-amber-50 text-amber-800 font-semibold cursor-pointer"
-                                            >
-                                              <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                              </svg>
-                                              <span>Reopen for Review</span>
-                                            </button>
-                                          </>
-                                        )}
-
-                                        {req.status === 'pending' && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActionMenuReqId(null)
-                                              setShowRejectionInput(req.id)
-                                            }}
-                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
-                                          >
-                                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                            <span>Reject Request</span>
-                                          </button>
-                                        )}
-
-                                        {(req.status === 'pending' || req.status === 'approved') && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActionMenuReqId(null)
-                                              handleOpenCancelModal(req)
-                                            }}
-                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-700 font-medium cursor-pointer"
-                                          >
-                                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                            </svg>
-                                            <span>Cancel Request</span>
-                                          </button>
-                                        )}
-
-                                        {(req.status === 'released' || req.status === 'liquidated') && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActionMenuReqId(null)
-                                              handleOpenVoidModal(req)
-                                            }}
-                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-medium cursor-pointer"
-                                          >
-                                            <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
-                                            </svg>
-                                            <span>Void Transaction</span>
-                                          </button>
-                                        )}
-
-                                        {/* Delete Unreleased / Mistaken Request */}
-                                        {['draft', 'pending', 'rejected', 'cancelled'].includes(req.status) && (
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              setActionMenuReqId(null)
-                                              setDeleteConfirm({ isOpen: true, id: req.id, type: 'request' })
-                                            }}
-                                            className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-rose-50 text-rose-700 font-semibold cursor-pointer"
-                                          >
-                                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                            </svg>
-                                            <span>Delete Request</span>
-                                          </button>
-                                        )}
-
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setActionMenuReqId(null)
-                                            handleArchiveRequest(req.id)
-                                          }}
-                                          className="w-full text-left px-3 py-1.5 flex items-center gap-2 hover:bg-slate-50 text-slate-500 hover:text-red-600 font-medium cursor-pointer"
-                                        >
-                                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                          </svg>
-                                          <span>Archive</span>
-                                        </button>
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
+                                <ActionMenu
+                                  triggerVariant="button"
+                                  triggerLabel="Actions"
+                                  groups={getRequestActionGroups(req)}
+                                  size="sm"
+                                  align="right"
+                                />
                               </div>
                             )}
 
@@ -5918,7 +5631,7 @@ export const FinancePage: React.FC = () => {
                   <table className="w-full text-left text-xs border-collapse min-w-[480px]">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold">
                       <tr>
-                        <th className="p-2 text-center w-36">O.R. Number</th>
+                        <th className="p-2 text-left w-48">O.R. Number(s)</th>
                         <th className="p-2 text-left">Expense Description</th>
                         <th className="p-2 text-right w-36">Amount (₱)</th>
                         <th className="p-2 w-10 text-center"></th>
@@ -5931,15 +5644,16 @@ export const FinancePage: React.FC = () => {
                             <div className="flex items-center gap-1">
                               <input
                                 type="text"
-                                placeholder="e.g. 9240"
+                                placeholder="e.g. 9240, 9241 or 101 / 102"
                                 value={exp.orNumber}
                                 onChange={(e) => handleUpdateLiqExpenseRow(idx, 'orNumber', e.target.value)}
-                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-mono text-center"
+                                className="w-full p-1.5 border border-gray-300 rounded-lg text-xs font-mono"
+                                title="You can enter multiple O.R. numbers separated by commas or slashes"
                               />
                               <button
                                 type="button"
                                 onClick={() => handleUpdateLiqExpenseRow(idx, 'orNumber', exp.orNumber === 'NO O.R' ? '' : 'NO O.R')}
-                                className={`px-1.5 py-1 text-[9px] font-bold rounded border ${exp.orNumber === 'NO O.R' ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-gray-100 text-gray-600 border-gray-200'}`}
+                                className={`px-1.5 py-1 text-[9px] font-bold rounded border shrink-0 transition ${exp.orNumber === 'NO O.R' ? 'bg-slate-200 text-slate-800 border-slate-300' : 'bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-200'}`}
                                 title="Toggle NO O.R"
                               >
                                 NO
@@ -6468,21 +6182,40 @@ export const FinancePage: React.FC = () => {
                   <table className="w-full text-left text-xs">
                     <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase text-[10px]">
                       <tr>
-                        <th className="p-2.5 w-28">O.R. No</th>
+                        <th className="p-2.5 w-40">O.R. Number(s)</th>
                         <th className="p-2.5">Item Description</th>
                         <th className="p-2.5 text-right w-36">Amount</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {(reviewLiquidationRequest.liquidationExpenses || []).map((exp, idx) => (
-                        <tr key={exp.id || idx}>
-                          <td className="p-2.5 font-mono text-gray-600 font-semibold">{exp.orNumber || 'NO O.R'}</td>
-                          <td className="p-2.5 font-medium text-gray-800">{exp.description || '--'}</td>
-                          <td className="p-2.5 text-right font-mono font-bold text-rose-700">
-                            ₱{parseAmount(exp.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                          </td>
-                        </tr>
-                      ))}
+                      {(reviewLiquidationRequest.liquidationExpenses || []).map((exp, idx) => {
+                        const orRaw = (exp.orNumber || '').trim()
+                        const orList = orRaw ? orRaw.split(/[,/\n;]+/).map(s => s.trim()).filter(Boolean) : []
+                        return (
+                          <tr key={exp.id || idx}>
+                            <td className="p-2.5">
+                              {orList.length > 0 ? (
+                                <div className="flex flex-wrap gap-1">
+                                  {orList.map((orNum, oIdx) => (
+                                    <span
+                                      key={oIdx}
+                                      className="inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200"
+                                    >
+                                      {orNum}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 font-mono text-[11px]">NO O.R</span>
+                              )}
+                            </td>
+                            <td className="p-2.5 font-medium text-gray-800">{exp.description || '--'}</td>
+                            <td className="p-2.5 text-right font-mono font-bold text-rose-700">
+                              ₱{parseAmount(exp.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            </td>
+                          </tr>
+                        )
+                      })}
                       {(!reviewLiquidationRequest.liquidationExpenses || reviewLiquidationRequest.liquidationExpenses.length === 0) && (
                         <tr>
                           <td colSpan={3} className="p-3 text-center text-gray-400 italic">No expense items recorded.</td>

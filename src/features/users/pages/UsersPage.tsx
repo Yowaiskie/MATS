@@ -13,6 +13,7 @@ import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import { Button } from '@/components/Button'
+import { ActionMenu, type ActionMenuItem } from '@/components'
 import { CustomSelect } from '@/components/CustomSelect'
 import { QuickFilterPills } from '@/components/QuickFilterPills'
 import { StatusBadge } from '@/components/StatusBadge'
@@ -1379,38 +1380,59 @@ export const UsersPage: React.FC = () => {
                             return <span className="text-gray-400 italic text-[11px]">Default Access</span>
                           })()}
                         </td>
-                        <td className="px-6 py-4 text-right whitespace-nowrap text-xs space-x-1.5">
-                          {/* Hide Edit/Remove for coordinator account unless you ARE the coordinator */}
-                          {!(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
-                            <Button
-                              size="xs"
-                              variant="secondary"
-                              onClick={() => handleOpenEditModal(u)}
-                              title="Edit Permissions"
-                              icon={
-                                <svg className="h-3.5 w-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                              }
-                            >
-                              Edit
-                            </Button>
-                          )}
-                          {!isCurrent && !(u.email.toLowerCase() === 'coordinator@mas.com' && currentAdmin?.email?.toLowerCase() !== 'coordinator@mas.com') && (
-                            <Button
-                              size="xs"
-                              variant="danger"
-                              onClick={() => setDeleteTarget(u)}
-                              title="Remove User"
-                              icon={
-                                <svg className="h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              }
-                            >
-                              Remove
-                            </Button>
-                          )}
+                        <td className="px-6 py-4 text-right whitespace-nowrap text-xs">
+                          {(() => {
+                            const isCoordinatorAccount = u.email.toLowerCase() === 'coordinator@mas.com'
+                            const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
+                            const canModifyCoordinator = !isCoordinatorAccount || isCurrentCoordinator
+
+                            const userActions: ActionMenuItem[] = []
+
+                            if (canModifyCoordinator) {
+                              userActions.push({
+                                id: 'edit',
+                                label: 'Edit Permissions',
+                                variant: 'primary',
+                                onClick: () => handleOpenEditModal(u),
+                                icon: (
+                                  <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                ),
+                              })
+                            }
+
+                            if (!isCurrent && canModifyCoordinator) {
+                              userActions.push({
+                                id: 'remove',
+                                label: 'Remove User',
+                                variant: 'danger',
+                                onClick: () => setDeleteTarget(u),
+                                icon: (
+                                  <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                ),
+                              })
+                            }
+
+                            if (userActions.length === 0) {
+                              return <span className="text-gray-400 italic text-[11px]">—</span>
+                            }
+
+                            return (
+                              <div className="flex justify-end">
+                                <ActionMenu
+                                  items={userActions}
+                                  triggerVariant="kebab"
+                                  size="xs"
+                                  align="right"
+                                  direction="auto"
+                                  ariaLabel={`Actions for ${u.displayName || u.email}`}
+                                />
+                              </div>
+                            )
+                          })()}
                         </td>
                       </tr>
                     )

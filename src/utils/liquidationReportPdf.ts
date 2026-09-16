@@ -50,9 +50,9 @@ export const generateLiquidationReportPdfDoc = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  const tablePadding = options?.tablePadding ?? 1.4
-  const sectionSpacing = options?.sectionSpacing ?? 4.0
-  const signatureTopMargin = options?.signatureTopMargin ?? 5.0
+  const tablePadding = options?.tablePadding ?? 2.2
+  const sectionSpacing = options?.sectionSpacing ?? 7.0
+  const signatureTopMargin = options?.signatureTopMargin ?? 12.0
 
   // 1. Prepare Logos for Header
   let logoParish: HTMLImageElement | null = null
@@ -73,33 +73,46 @@ export const generateLiquidationReportPdfDoc = async (
     // Fallback
   }
 
-  // 2. Uniform Header Helper
+  // Helper to draw clean uniform letterhead
   const drawUniformHeader = () => {
     // Dual Logos on Right Side (Parish & Ministry)
     if (logoParish && logoMinistry) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 44, 5.5, 13, 13)
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
+      try {
+        doc.addImage(logoParish, 'PNG', pageWidth - 44, 5.5, 13, 13)
+        doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
+      } catch {
+        // Fallback
+      }
     } else if (logoMinistry) {
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
+      try {
+        doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 5.5, 13, 13)
+      } catch {
+        // Fallback
+      }
     } else if (logoParish) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 28, 5.5, 13, 13)
+      try {
+        doc.addImage(logoParish, 'PNG', pageWidth - 28, 5.5, 13, 13)
+      } catch {
+        // Fallback
+      }
     }
 
     // Left Parish Text
     doc.setFont('times', 'bolditalic')
-    doc.setFontSize(13.5)
-    doc.setTextColor(15, 23, 42)
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
     doc.text('Ministry of Altar Servers', 14, 10.5)
 
-    doc.setFont('helvetica', 'normal')
+    doc.setFont('helvetica', 'bold')
     doc.setFontSize(8.5)
-    doc.setTextColor(51, 65, 85)
+    doc.setTextColor(0, 0, 0)
     doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 15)
+    doc.setFont('helvetica', 'normal')
     doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 19)
 
     // Horizontal Header Divider Line
-    doc.setDrawColor(30, 41, 59)
-    doc.setLineWidth(0.6)
+    doc.setDrawColor(0, 0, 0)
+    doc.setLineWidth(0.65)
     doc.line(14, 22, pageWidth - 14, 22)
   }
 
@@ -115,42 +128,47 @@ export const generateLiquidationReportPdfDoc = async (
   doc.setTextColor(15, 23, 42)
   doc.text(repDateStr, pageWidth - 14, cursorY, { align: 'right' })
 
+  // Spacing gap between Date and Memo details block (To, From, Re)
+  cursorY += 6
+
   // Header Lines: To, From, Re
-  const toName = options?.liquidationTo?.trim() || request.liquidationTo?.trim() || 'Rev. Fr. ILDEFONSO DE GUZMAN JR.'
-  const toTitle = options?.liquidationToTitle?.trim() || 'Parish Priest'
-  const fromName = options?.liquidationFrom?.trim() || request.liquidationFrom?.trim() || 'MINISTRY OF ALTAR SERVERS'
-  const reSubject = options?.liquidationSubject?.trim() || 'Liquidation Report'
+  const toName = options?.liquidationTo !== undefined ? options.liquidationTo.trim() : (request.liquidationTo?.trim() || 'Rev. Fr. ILDEFONSO DE GUZMAN JR.')
+  const toTitle = options?.liquidationToTitle !== undefined ? options.liquidationToTitle.trim() : 'Parish Priest'
+  const fromName = options?.liquidationFrom !== undefined ? options.liquidationFrom.trim() : (request.liquidationFrom?.trim() || 'MINISTRY OF ALTAR SERVERS')
+  const reSubject = options?.liquidationSubject !== undefined ? options.liquidationSubject.trim() : 'Liquidation Report'
 
   // To:
   doc.setFont('helvetica', 'normal')
   doc.setFontSize(9)
   doc.text('To:', 14, cursorY)
   doc.setFont('helvetica', 'bold')
-  doc.text(toName, 26, cursorY)
-  cursorY += 4
-  doc.setFont('helvetica', 'normal')
-  doc.text(toTitle, 26, cursorY)
-  cursorY += 4.5
+  doc.text(toName || '-', 26, cursorY)
+  if (toTitle) {
+    cursorY += 4.5
+    doc.setFont('helvetica', 'normal')
+    doc.text(toTitle, 26, cursorY)
+  }
+  cursorY += 5
 
   // From:
   doc.setFont('helvetica', 'normal')
   doc.text('From:', 14, cursorY)
   doc.setFont('helvetica', 'bold')
   doc.text(fromName, 26, cursorY)
-  cursorY += 4.5
+  cursorY += 5
 
   // Re:
   doc.setFont('helvetica', 'normal')
   doc.text('Re:', 14, cursorY)
   doc.setFont('helvetica', 'normal')
   doc.text(reSubject, 26, cursorY)
-  cursorY += 3.5
+  cursorY += 4.5
 
   // Horizontal separator line under memo header
   doc.setDrawColor(15, 23, 42)
   doc.setLineWidth(0.6)
   doc.line(14, cursorY, pageWidth - 14, cursorY)
-  cursorY += 3.5
+  cursorY += 4
 
   // 1. Section: BUDGET INFO | SPONSORS
   doc.setFont('helvetica', 'bold')
@@ -246,19 +264,20 @@ export const generateLiquidationReportPdfDoc = async (
 
   const expenseTableBody = expenses.length > 0
     ? expenses.map(e => {
-        let orStr = (e.orNumber || 'NO O.R').trim()
-        // If comma-separated or colon-separated from previous formats, convert to clean multi-line: label (OR)
-        if (orStr.includes(', ') && !orStr.includes('\n')) {
-          orStr = orStr.split(', ').map(item => {
-            if (item.includes(': ') && !item.includes('(')) {
-              const [lbl, ...rest] = item.split(': ')
-              return `${lbl.trim()} (${rest.join(': ').trim()})`
-            }
-            return item
-          }).join('\n')
-        } else if (orStr.includes(': ') && !orStr.includes('(') && !orStr.includes('\n')) {
-          const [lbl, ...rest] = orStr.split(': ')
-          orStr = `${lbl.trim()} (${rest.join(': ').trim()})`
+        let orStr = (e.orNumber || '').trim()
+        if (!orStr || orStr.toUpperCase() === 'NO O.R' || orStr.toUpperCase() === 'NO OR') {
+          orStr = 'NO O.R'
+        } else {
+          const tokens = orStr.split(/[\n,;/]+/).map(t => t.trim()).filter(Boolean)
+          if (tokens.length > 0) {
+            orStr = tokens.map(item => {
+              if (item.includes(': ') && !item.includes('(')) {
+                const [lbl, ...rest] = item.split(': ')
+                return `${lbl.trim()} (${rest.join(': ').trim()})`
+              }
+              return item
+            }).join('\n')
+          }
         }
 
         return [
@@ -359,44 +378,49 @@ export const generateLiquidationReportPdfDoc = async (
   let table3Y = (doc as any).lastAutoTable?.finalY || cursorY + 20
 
   // 4. Signatures
+  const shouldRenderSignatures = options?.signatureConfig ? options.signatureConfig.enabled : true
   const signatories = options?.signatureConfig?.enabled && options.signatureConfig.signatories?.length > 0
     ? options.signatureConfig.signatories
-    : [
-        {
-          id: 'liq-sig-1',
-          label: 'Prepared by:',
-          name: request.liquidatedByName || request.requestedByName || 'TREASURER / OFFICER',
-          title: 'Treasurer, Ministry of Altar Servers',
-          organization: 'Sacred Heart of Jesus Parish - MBS',
-          column: 1 as const
-        },
-        {
-          id: 'liq-sig-2',
-          label: 'Noted by:',
-          name: request.approvedByName || 'Bro. KYLE VINCENT MADRIAGA',
-          title: 'Coordinator, Ministry of Altar Servers',
-          organization: 'Sacred Heart of Jesus Parish - MBS',
-          column: 2 as const
-        },
-        {
-          id: 'liq-sig-3',
-          label: 'Approved by:',
-          name: toName || 'Rev. Fr. ILDEFONSO DE GUZMAN JR.',
-          title: 'Parish Priest',
-          organization: 'Sacred Heart of Jesus Parish - MBS',
-          column: 2 as const
-        }
-      ]
+    : options?.signatureConfig
+      ? []
+      : [
+          {
+            id: 'liq-sig-1',
+            label: 'Prepared by:',
+            name: request.liquidatedByName || request.requestedByName || 'TREASURER / OFFICER',
+            title: 'Treasurer, Ministry of Altar Servers',
+            organization: 'Sacred Heart of Jesus Parish - MBS',
+            column: 1 as const
+          },
+          {
+            id: 'liq-sig-2',
+            label: 'Noted by:',
+            name: request.approvedByName || 'Bro. KYLE VINCENT MADRIAGA',
+            title: 'Coordinator, Ministry of Altar Servers',
+            organization: 'Sacred Heart of Jesus Parish - MBS',
+            column: 2 as const
+          },
+          {
+            id: 'liq-sig-3',
+            label: 'Approved by:',
+            name: toName || 'Rev. Fr. ILDEFONSO DE GUZMAN JR.',
+            title: toTitle || '',
+            organization: 'Sacred Heart of Jesus Parish - MBS',
+            column: 2 as const
+          }
+        ]
 
-  renderPdfSignatures(doc, signatories, table3Y + signatureTopMargin, {
-    leftMargin: 14,
-    rightMargin: 14,
-    lineWidth: 70,
-    bottomMargin: 14,
-    onNewPageRequired: () => {
-      drawUniformHeader()
-    }
-  })
+  if (shouldRenderSignatures && signatories.length > 0) {
+    renderPdfSignatures(doc, signatories, table3Y + signatureTopMargin, {
+      leftMargin: 14,
+      rightMargin: 14,
+      lineWidth: 70,
+      bottomMargin: 14,
+      onNewPageRequired: () => {
+        drawUniformHeader()
+      }
+    })
+  }
 
   // Apply uniform standard footer across all pages
   const docCode = formatDocCodeWithDate('LQR', options?.liquidationDate || request.liquidationDate || request.dateNeeded)

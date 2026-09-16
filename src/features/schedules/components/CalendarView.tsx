@@ -7,7 +7,7 @@ interface CalendarViewProps {
   schedules: Schedule[]
   onSelectSchedule: (schedule: Schedule) => void
   onDateClick?: (dateStr: string) => void
-  getAttendanceState?: (scheduleId: string, status: string) => ScheduleAttendanceState
+  getAttendanceState?: (scheduleId: string, status: string, scheduleObj?: Schedule) => ScheduleAttendanceState
   currentDate?: Date
   onMonthChange?: (date: Date) => void
 }
@@ -239,7 +239,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {displayedSchedules.map((s) => {
                   const status = getScheduleStatus(s)
                   const dotColor = getStatusColor(status)
-                  const attendanceState = getAttendanceState?.(s.id, status) ?? 'none'
+                  const attendanceState = getAttendanceState?.(s.id, status, s) ?? 'none'
 
                   return (
                     <button

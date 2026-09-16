@@ -280,9 +280,9 @@ export const EventLiquidationModal: React.FC<Props> = ({
       setSubject(`Liquidation Report - ${eventName}`)
       setRemarks(`Official liquidation report for ${eventName}`)
       setErrorMsg(null)
-      setTablePadding(1.8)
-      setSectionSpacing(6.0)
-      setSignatureTopMargin(10.0)
+      setTablePadding(2.2)
+      setSectionSpacing(7.0)
+      setSignatureTopMargin(12.0)
 
       const validIncomes = incomes.filter(i => !i.isArchived)
       const defaultMode: BudgetGroupingMode = validIncomes.length > 5 ? 'by_category' : 'itemized_original'
@@ -1051,33 +1051,36 @@ export const EventLiquidationModal: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={() => {
-                      setTablePadding(1.2)
-                      setSectionSpacing(3.5)
-                      setSignatureTopMargin(5.0)
+                      setTablePadding(1.4)
+                      setSectionSpacing(4.0)
+                      setSignatureTopMargin(6.0)
                     }}
                     className="px-2.5 py-1 text-[10px] font-bold rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                    title="Best for many items to fit on 1 page"
                   >
                     Compact
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setTablePadding(1.8)
-                      setSectionSpacing(6.0)
-                      setSignatureTopMargin(10.0)
+                      setTablePadding(2.2)
+                      setSectionSpacing(7.0)
+                      setSignatureTopMargin(12.0)
                     }}
                     className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-blue-50 text-blue-700 border border-blue-200 transition cursor-pointer"
+                    title="Balanced & Recommended"
                   >
-                    Standard
+                    Standard (Recommended)
                   </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setTablePadding(2.4)
-                      setSectionSpacing(9.0)
-                      setSignatureTopMargin(16.0)
+                      setTablePadding(3.0)
+                      setSectionSpacing(10.0)
+                      setSignatureTopMargin(18.0)
                     }}
                     className="px-2.5 py-1 text-[10px] font-bold rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                    title="Best for fewer items / extra room"
                   >
                     Spacious
                   </button>
@@ -1086,43 +1089,43 @@ export const EventLiquidationModal: React.FC<Props> = ({
 
               {/* Sliders Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
-                {/* 1. Table Cell Padding */}
+                {/* 1. Table Row Spacing */}
                 <div>
                   <div className="flex justify-between items-center mb-1 text-[11px] text-slate-600">
-                    <span>Table Row Height:</span>
+                    <span>Table Row Spacing:</span>
                     <span className="text-blue-700 font-mono">{tablePadding.toFixed(1)} mm</span>
                   </div>
                   <input
                     type="range"
                     min="1.0"
-                    max="3.2"
+                    max="3.6"
                     step="0.2"
                     value={tablePadding}
                     onChange={e => setTablePadding(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Adjusts table rows padding</span>
+                  <span className="text-[9px] text-slate-400 font-normal block mt-0.5">Adjust height of rows and expense items</span>
                 </div>
 
-                {/* 2. Section Gap */}
+                {/* 2. Space Between Sections */}
                 <div>
                   <div className="flex justify-between items-center mb-1 text-[11px] text-slate-600">
-                    <span>Section Gap:</span>
+                    <span>Space Between Sections:</span>
                     <span className="text-blue-700 font-mono">{sectionSpacing.toFixed(1)} mm</span>
                   </div>
                   <input
                     type="range"
                     min="2.0"
-                    max="14.0"
+                    max="15.0"
                     step="0.5"
                     value={sectionSpacing}
                     onChange={e => setSectionSpacing(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Spacing between tables</span>
+                  <span className="text-[9px] text-slate-400 font-normal block mt-0.5">Gap between Budget, Expenses & Summary</span>
                 </div>
 
-                {/* 3. Signature Top Space */}
+                {/* 3. Signature Space */}
                 <div>
                   <div className="flex justify-between items-center mb-1 text-[11px] text-slate-600">
                     <span>Signature Space:</span>
@@ -1130,14 +1133,14 @@ export const EventLiquidationModal: React.FC<Props> = ({
                   </div>
                   <input
                     type="range"
-                    min="3.0"
-                    max="30.0"
+                    min="4.0"
+                    max="24.0"
                     step="1.0"
                     value={signatureTopMargin}
                     onChange={e => setSignatureTopMargin(parseFloat(e.target.value))}
                     className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                   />
-                  <span className="text-[9px] text-slate-400 block mt-0.5">Gap before signatures</span>
+                  <span className="text-[9px] text-slate-400 font-normal block mt-0.5">Distance above the signature lines</span>
                 </div>
               </div>
             </div>

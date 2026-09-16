@@ -126,13 +126,13 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
   const sortedQuestions = [...questions].sort((a, b) => a.order - b.order)
 
   return (
-    <div className="fixed inset-0 z-70 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white max-w-2xl w-full rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 h-[88vh] animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-70 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 animate-in fade-in duration-200">
+      <div className="bg-white max-w-2xl w-full rounded-2xl sm:rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-slate-200/80 h-[92vh] sm:h-[88vh] animate-in fade-in zoom-in-95 duration-150">
         {/* Header */}
-        <div className="px-6 py-4 bg-white border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <div className="px-4 py-3 sm:px-6 sm:py-4 bg-white border-b border-slate-100 flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl sm:rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
               </svg>
             </div>
@@ -140,7 +140,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
               <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
                 Admin Response Editor
               </span>
-              <h3 className="text-base font-black text-slate-900 tracking-tight">Edit Form Response</h3>
+              <h3 className="text-sm sm:text-base font-black text-slate-900 tracking-tight">Edit Form Response</h3>
             </div>
           </div>
           <button
@@ -155,7 +155,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs">
           {error && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-bold animate-fade-in">
               {error}
@@ -508,10 +508,11 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
           </div>
 
           {/* Footer buttons inside form for submit */}
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end space-x-2 sticky bottom-0 bg-white">
+          <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sticky bottom-0 bg-white">
             <Button
               variant="secondary"
               size="sm"
+              className="w-full sm:w-auto"
               onClick={onClose}
               disabled={saving}
             >
@@ -520,6 +521,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
             <Button
               variant="primary"
               size="sm"
+              className="w-full sm:w-auto"
               type="submit"
               loading={saving}
               disabled={saving}

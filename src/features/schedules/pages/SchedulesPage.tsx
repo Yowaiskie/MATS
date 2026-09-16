@@ -473,12 +473,13 @@ export const SchedulesPage: React.FC = () => {
       const nextLocked = !s.isLocked
       await scheduleService.toggleLockSchedule(s.id, nextLocked, profile?.email || 'Admin')
       await loadData(false)
-      setAlertModal({
-        title: nextLocked ? 'Schedule Locked' : 'Schedule Unlocked',
-        message: nextLocked ? `Schedule "${s.title}" has been finalized & locked.` : `Schedule "${s.title}" is now unlocked.`
-      })
+      if (nextLocked) {
+        toast.success('Schedule Locked', `Schedule "${s.title}" has been finalized & locked.`)
+      } else {
+        toast.success('Schedule Unlocked', `Schedule "${s.title}" is now unlocked.`)
+      }
     } catch (err: any) {
-      setAlertModal({ title: 'Lock Error', message: err.message || 'Failed to update schedule lock state.' })
+      toast.error('Lock Error', err.message || 'Failed to update schedule lock state.')
     }
   }
 
@@ -536,8 +537,10 @@ export const SchedulesPage: React.FC = () => {
     }
   }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
-  const getAttendanceState = (scheduleId: string, status: string): ScheduleAttendanceState => {
+  const getAttendanceState = (scheduleId: string, status: string, scheduleObj?: Schedule): ScheduleAttendanceState => {
     if (status === 'upcoming' || status === 'cancelled') return 'none'
+    const targetSchedule = scheduleObj || schedules.find(s => s.id === scheduleId)
+    if (targetSchedule?.isLocked && status === 'completed') return 'finalized'
     const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
     if (!session) return 'untaken'
     if (session.locked) return 'finalized'
@@ -581,7 +584,7 @@ export const SchedulesPage: React.FC = () => {
       if (!matchesDate || !matchesTime) return false
 
       if (attendanceFilter !== 'all') {
-        const attState = getAttendanceState(s.id, getScheduleStatus(s))
+        const attState = getAttendanceState(s.id, getScheduleStatus(s), s)
         if (attState !== attendanceFilter) return false
       }
 
@@ -1087,7 +1090,7 @@ export const SchedulesPage: React.FC = () => {
             totalAssigned={schedule.assignedMembers?.length || 0}
             isSelected={selectedIds.has(schedule.id)}
             onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
-            attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule))}
+            attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule), schedule)}
             session={attendanceSessions.find((sess) => sess.scheduleId === schedule.id)}
             onToggleLock={handleToggleLock}
             onEdit={(s) => {

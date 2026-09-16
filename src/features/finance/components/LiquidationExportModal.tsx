@@ -22,6 +22,11 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
   const [fromName, setFromName] = useState('MINISTRY OF ALTAR SERVERS')
   const [subject, setSubject] = useState('Liquidation Report')
 
+  const [tablePadding, setTablePadding] = useState<number>(2.2)
+  const [sectionSpacing, setSectionSpacing] = useState<number>(7.0)
+  const [signatureTopMargin, setSignatureTopMargin] = useState<number>(12.0)
+  const [densityPreset, setDensityPreset] = useState<'compact' | 'standard' | 'spacious' | 'custom'>('standard')
+
   const [signatureConfig, setSignatureConfig] = useState<SignatureConfig>({
     enabled: true,
     signatories: []
@@ -36,6 +41,10 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
       setToTitle('Parish Priest')
       setFromName(request.liquidationFrom || 'MINISTRY OF ALTAR SERVERS')
       setSubject('Liquidation Report')
+      setTablePadding(2.2)
+      setSectionSpacing(7.0)
+      setSignatureTopMargin(12.0)
+      setDensityPreset('standard')
 
       const defaultSignatories: SignatoryItem[] = [
         {
@@ -119,7 +128,10 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
         liquidationToTitle: toTitle.trim(),
         liquidationFrom: fromName.trim(),
         liquidationSubject: subject.trim(),
-        signatureConfig: signatureConfig.enabled ? signatureConfig : undefined
+        signatureConfig,
+        tablePadding,
+        sectionSpacing,
+        signatureTopMargin
       })
       onClose()
     } catch (err: any) {
@@ -323,6 +335,150 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                   ))}
                 </tbody>
               </table>
+            </div>
+          </div>
+        </div>
+
+        {/* Page Spacing & Layout Density Controls */}
+        <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5 shadow-2xs">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
+                </svg>
+                <span>Page Spacing & Layout Density</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 font-medium">
+                Choose a preset or adjust sliders to fit your document comfortably on 1 page.
+              </p>
+            </div>
+
+            {/* Quick Presets */}
+            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setTablePadding(1.4)
+                  setSectionSpacing(4.0)
+                  setSignatureTopMargin(6.0)
+                  setDensityPreset('compact')
+                }}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition cursor-pointer ${
+                  densityPreset === 'compact'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                title="Best for many items to fit on 1 page"
+              >
+                Compact
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTablePadding(2.2)
+                  setSectionSpacing(7.0)
+                  setSignatureTopMargin(12.0)
+                  setDensityPreset('standard')
+                }}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition cursor-pointer ${
+                  densityPreset === 'standard'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                title="Balanced & Recommended"
+              >
+                Standard (Recommended)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setTablePadding(3.0)
+                  setSectionSpacing(10.0)
+                  setSignatureTopMargin(18.0)
+                  setDensityPreset('spacious')
+                }}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition cursor-pointer ${
+                  densityPreset === 'spacious'
+                    ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                    : 'text-slate-600 hover:bg-slate-100'
+                }`}
+                title="Best for fewer items / extra room"
+              >
+                Spacious
+              </button>
+            </div>
+          </div>
+
+          {/* User-Friendly Sliders Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs font-bold">
+            {/* 1. Table Row Spacing */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1">
+              <div className="flex justify-between items-center text-[11px] text-slate-700">
+                <span>Table Row Spacing</span>
+                <span className="text-indigo-600 font-mono font-bold">{tablePadding.toFixed(1)} mm</span>
+              </div>
+              <input
+                type="range"
+                min="1.0"
+                max="3.6"
+                step="0.2"
+                value={tablePadding}
+                onChange={e => {
+                  setTablePadding(parseFloat(e.target.value))
+                  setDensityPreset('custom')
+                }}
+                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+              <span className="text-[10px] text-slate-400 font-normal block leading-tight">
+                Adjust height of rows and expense items
+              </span>
+            </div>
+
+            {/* 2. Space Between Sections */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1">
+              <div className="flex justify-between items-center text-[11px] text-slate-700">
+                <span>Space Between Sections</span>
+                <span className="text-indigo-600 font-mono font-bold">{sectionSpacing.toFixed(1)} mm</span>
+              </div>
+              <input
+                type="range"
+                min="2.0"
+                max="15.0"
+                step="0.5"
+                value={sectionSpacing}
+                onChange={e => {
+                  setSectionSpacing(parseFloat(e.target.value))
+                  setDensityPreset('custom')
+                }}
+                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+              <span className="text-[10px] text-slate-400 font-normal block leading-tight">
+                Gap between Budget, Expenses & Summary
+              </span>
+            </div>
+
+            {/* 3. Signature Space */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 space-y-1">
+              <div className="flex justify-between items-center text-[11px] text-slate-700">
+                <span>Signature Space</span>
+                <span className="text-indigo-600 font-mono font-bold">{signatureTopMargin.toFixed(1)} mm</span>
+              </div>
+              <input
+                type="range"
+                min="4.0"
+                max="24.0"
+                step="1.0"
+                value={signatureTopMargin}
+                onChange={e => {
+                  setSignatureTopMargin(parseFloat(e.target.value))
+                  setDensityPreset('custom')
+                }}
+                className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+              />
+              <span className="text-[10px] text-slate-400 font-normal block leading-tight">
+                Distance above the signature lines
+              </span>
             </div>
           </div>
         </div>

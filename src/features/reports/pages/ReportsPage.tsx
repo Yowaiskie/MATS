@@ -425,24 +425,23 @@ export const ReportsPage: React.FC = () => {
                               )}
                             </div>
                           </td>
-                          {/* View Breakdown Button */}
+                          {/* Breakdown Action Button */}
                           <td className="px-3 py-3 text-center">
                             {row.missedSchedules.length > 0 ? (
-                              <Button
+                              <button
                                 type="button"
-                                variant="outline"
-                                size="dense"
                                 onClick={() => handleViewBreakdown(row)}
-                                className="!py-0.5 !px-2 text-[11px] text-blue-600 bg-blue-50/60 border-blue-200 hover:bg-blue-100"
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 rounded-xl transition-all cursor-pointer shadow-2xs border border-indigo-100"
+                                title="View Absence Breakdown"
                               >
-                                <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
                                   <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
-                                <span>View</span>
-                              </Button>
+                                <span>Breakdown</span>
+                              </button>
                             ) : (
-                              <span className="text-[11px] text-gray-400">—</span>
+                              <span className="text-[11px] text-slate-400 font-medium">—</span>
                             )}
                           </td>
                         </tr>

@@ -255,36 +255,41 @@ export const downloadFundRequisitionPdf = async (
   const lastTableY = (doc as any).lastAutoTable?.finalY || cursorY + 40
 
   // Render Signatures
+  const shouldRenderSignatures = options?.signatureConfig ? options.signatureConfig.enabled : true
   const signatories = options?.signatureConfig?.enabled && options.signatureConfig.signatories?.length > 0
     ? options.signatureConfig.signatories
-    : [
-        {
-          id: 'req-sig-1',
-          label: 'Requesting officer:',
-          name: request.requestedByName || 'REQUESTING OFFICER',
-          title: 'Officer, Ministry of Altar Servers',
-          organization: 'Sacred Heart of Jesus Parish - MBS',
-          column: 1 as const
-        },
-        {
-          id: 'req-sig-2',
-          label: 'Approved by:',
-          name: request.approvedByName || 'Bro. KYLE VINCENT MADRIAGA',
-          title: 'Coordinator, Ministry of Altar Servers',
-          organization: 'Sacred Heart of Jesus Parish - MBS',
-          column: 2 as const
-        }
-      ]
+    : options?.signatureConfig
+      ? []
+      : [
+          {
+            id: 'req-sig-1',
+            label: 'Requesting officer:',
+            name: request.requestedByName || 'REQUESTING OFFICER',
+            title: 'Officer, Ministry of Altar Servers',
+            organization: 'Sacred Heart of Jesus Parish - MBS',
+            column: 1 as const
+          },
+          {
+            id: 'req-sig-2',
+            label: 'Approved by:',
+            name: request.approvedByName || 'Bro. KYLE VINCENT MADRIAGA',
+            title: 'Coordinator, Ministry of Altar Servers',
+            organization: 'Sacred Heart of Jesus Parish - MBS',
+            column: 2 as const
+          }
+        ]
 
-  renderPdfSignatures(doc, signatories, lastTableY + 8, {
-    leftMargin: 14,
-    rightMargin: 14,
-    lineWidth: 70,
-    bottomMargin: 14,
-    onNewPageRequired: () => {
-      drawUniformHeader()
-    }
-  })
+  if (shouldRenderSignatures && signatories.length > 0) {
+    renderPdfSignatures(doc, signatories, lastTableY + 8, {
+      leftMargin: 14,
+      rightMargin: 14,
+      lineWidth: 70,
+      bottomMargin: 14,
+      onNewPageRequired: () => {
+        drawUniformHeader()
+      }
+    })
+  }
 
   // Apply uniform standard footer across all pages
   const docCode = formatDocCodeWithDate('FRQ', options?.documentDate || request.dateNeeded || request.createdAt)
