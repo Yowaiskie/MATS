@@ -33,3 +33,4 @@ dist-ssr
 
 # Local generated artifacts/images
 *.png
+.vercel

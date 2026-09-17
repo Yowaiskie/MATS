@@ -46,6 +46,7 @@ const SparklesIcon: React.FC<{ className?: string }> = ({ className }) => (
 export const NotificationSettingsCard: React.FC = () => {
   const {
     isSupported,
+    isNative,
     permission,
     isSubscribed,
     token,
@@ -152,9 +153,11 @@ export const NotificationSettingsCard: React.FC = () => {
         {/* Technical Device Status */}
         <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 space-y-2">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-semibold text-slate-600">Browser / PWA Web Push Support:</span>
+            <span className="font-semibold text-slate-600">
+              {isNative ? 'Platform Mode:' : 'Browser / PWA Web Push Support:'}
+            </span>
             <span className={`font-bold ${isSupported ? 'text-emerald-600' : 'text-rose-600'}`}>
-              {isSupported ? 'Supported' : 'Not Supported in this Browser'}
+              {isNative ? 'Native Android App (FCM Enabled)' : (isSupported ? 'Supported' : 'Not Supported in this Browser')}
             </span>
           </div>
 

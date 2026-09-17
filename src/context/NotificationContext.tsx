@@ -74,90 +74,81 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     setActiveBroadcast(validBroadcasts[0] || null)
   }, [])
 
-  // Start single real-time Firestore listener
-  const startSubscription = useCallback(() => {
+  // Stable ref for profile & dismissed IDs to prevent re-subscription loops
+  const profileRef = useRef(profile)
+  profileRef.current = profile
+  const dismissedRef = useRef(dismissedBroadcastIds)
+  dismissedRef.current = dismissedBroadcastIds
+
+  // Manage single persistent Firestore subscription per login session
+  useEffect(() => {
+    isMountedRef.current = true
     if (!user?.uid) {
       setNotifications([])
       setActiveBroadcast(null)
       setLoading(false)
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current()
+        unsubscribeRef.current = null
+      }
       return
     }
 
-    // If already subscribed, don't duplicate
-    if (unsubscribeRef.current) return
-
     setLoading(true)
+    const currentRole = profileRef.current?.role || 'user'
+    const currentMemberId = profileRef.current?.memberId
+    const currentEmail = user.email
+
     const unsub = notificationService.subscribeToUserNotifications(
       user.uid,
-      profile?.role || 'user',
-      profile?.memberId,
-      user.email,
+      currentRole,
+      currentMemberId,
+      currentEmail,
       (list) => {
         if (!isMountedRef.current) return
         setNotifications(list)
         setLoading(false)
-        updateActiveBroadcast(list, dismissedBroadcastIds)
+        updateActiveBroadcast(list, dismissedRef.current)
       }
     )
 
     unsubscribeRef.current = unsub
-  }, [user?.uid, user?.email, profile?.role, profile?.memberId, dismissedBroadcastIds, updateActiveBroadcast])
-
-  // Stop real-time listener
-  const stopSubscription = useCallback(() => {
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current()
-      unsubscribeRef.current = null
-    }
-  }, [])
-
-  // Manage subscription lifecycle & visibility change
-  useEffect(() => {
-    isMountedRef.current = true
-    startSubscription()
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // Clear any pending idle disconnect timer
         if (idleTimerRef.current) {
           clearTimeout(idleTimerRef.current)
           idleTimerRef.current = null
         }
-        // Reconnect if paused
-        if (!unsubscribeRef.current && user?.uid) {
-          startSubscription()
-        }
       } else {
-        // App went to background / hidden; start timer to disconnect after 5 mins to save reads
+        // Disconnect after 5 minutes of inactivity to save quota
         if (!idleTimerRef.current) {
           idleTimerRef.current = setTimeout(() => {
-            stopSubscription()
+            if (unsubscribeRef.current) {
+              unsubscribeRef.current()
+              unsubscribeRef.current = null
+            }
             idleTimerRef.current = null
           }, IDLE_DISCONNECT_MS)
         }
       }
     }
 
-    const handleWindowFocus = () => {
-      if (!unsubscribeRef.current && user?.uid) {
-        startSubscription()
-      }
-    }
-
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleWindowFocus)
 
     return () => {
       isMountedRef.current = false
-      stopSubscription()
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current()
+        unsubscribeRef.current = null
+      }
       if (idleTimerRef.current) {
         clearTimeout(idleTimerRef.current)
         idleTimerRef.current = null
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleWindowFocus)
     }
-  }, [user?.uid, startSubscription, stopSubscription])
+  }, [user?.uid, updateActiveBroadcast])
 
   // Recalculate active broadcast whenever notifications or dismissed IDs change
   useEffect(() => {

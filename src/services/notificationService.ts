@@ -16,6 +16,7 @@ import {
 import type { AppNotification, PushNotificationProgress } from '@/types/notification'
 import type { UserProfile } from '@/types/auth'
 import type { Schedule } from '@/types/schedule'
+import { nativePushService } from '@/services/nativePushService'
 
 export type NotificationPermissionState = 'default' | 'granted' | 'denied' | 'unsupported'
 
@@ -60,7 +61,7 @@ class NotificationService {
     } catch {}
   }
 
-  private markNotified(id: string) {
+  public markNotified(id: string) {
     if (!id) return
     this.notifiedIds.add(id)
     try {
@@ -357,6 +358,15 @@ class NotificationService {
    * Guaranteed to work across mobile PWA and desktop browsers
    */
   async showLocalNotification(title: string, options?: NotificationOptions & Record<string, any>): Promise<boolean> {
+    // 0. Prioritize Native Android Notification Drawer when inside Capacitor APK
+    if (nativePushService.isNative()) {
+      return await nativePushService.showNativeNotification({
+        title,
+        body: options?.body || '',
+        actionUrl: options?.data?.url || (options as any)?.actionUrl || '/'
+      })
+    }
+
     if (!this.isSupported() || this.getPermission() !== 'granted') return false
 
     const defaultOptions: any = {
@@ -702,10 +712,10 @@ class NotificationService {
 
     const emailClean = userEmail?.toLowerCase().trim()
 
-    // Query collection with limit(25) for recent items to minimize Firestore read consumption
+    // Query collection with limit(20) for recent items to strictly control Firestore quota
     const q = query(
       collection(db, NOTIFICATIONS_COLLECTION),
-      limit(25)
+      limit(20)
     )
 
     return onSnapshot(q, (snapshot) => {

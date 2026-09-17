@@ -1,11 +1,13 @@
 import { Capacitor } from '@capacitor/core'
 import { PushNotifications, type ActionPerformed, type PushNotificationSchema, type Token } from '@capacitor/push-notifications'
+import { LocalNotifications, type ActionPerformed as LocalActionPerformed } from '@capacitor/local-notifications'
 import { db } from '@/firebase/config'
 import { doc, setDoc, deleteDoc, updateDoc, serverTimestamp } from 'firebase/firestore'
 
 const USERS_COLLECTION = 'users'
 const LOCAL_STORAGE_KEY = 'mats_push_enabled_native'
 const LAST_TOKEN_KEY = 'mats_native_fcm_token'
+const CHANNEL_ID = 'mats-alerts-channel'
 
 class NativePushService {
   private isInitialized = false
@@ -30,40 +32,83 @@ class NativePushService {
 
     this.isInitialized = true
 
+    // Create high-priority notification channel for Android
+    try {
+      await LocalNotifications.createChannel({
+        id: CHANNEL_ID,
+        name: 'MATS Ministry Alerts',
+        description: 'Schedule assignments, attendance reminders, and broadcasts',
+        importance: 5, // High importance (Heads-up popup banner)
+        visibility: 1, // Public on lockscreen
+        vibration: true,
+        lights: true,
+        lightColor: '#10B981'
+      })
+    } catch (err) {
+      console.warn('Channel creation note:', err)
+    }
+
+    // Handle Local Notification clicks
+    try {
+      await LocalNotifications.addListener('localNotificationActionPerformed', (action: LocalActionPerformed) => {
+        console.log('Local notification action performed:', action)
+        const extra = action.notification.extra || {}
+        const targetUrl = extra.url || extra.actionUrl || '/'
+
+        if (this.onNotificationClickCallback) {
+          this.onNotificationClickCallback(targetUrl)
+        } else if (typeof window !== 'undefined') {
+          window.location.href = targetUrl
+        }
+      })
+    } catch (err) {
+      console.warn('LocalNotification click listener note:', err)
+    }
+
     // Set up native push listeners
-    await PushNotifications.addListener('registration', async (token: Token) => {
-      console.log('Native Push Registration Token received:', token.value)
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(LAST_TOKEN_KEY, token.value)
-      }
+    try {
+      await PushNotifications.addListener('registration', async (token: Token) => {
+        console.log('Native Push Registration Token received:', token.value)
+        if (typeof window !== 'undefined' && window.localStorage) {
+          localStorage.setItem(LAST_TOKEN_KEY, token.value)
+        }
 
-      if (this.currentUserId) {
-        await this.saveTokenToFirestore(this.currentUserId, token.value)
-      }
-    })
+        if (this.currentUserId) {
+          await this.saveTokenToFirestore(this.currentUserId, token.value)
+        }
+      })
 
-    await PushNotifications.addListener('registrationError', (error: any) => {
-      console.error('Native Push registration error:', error)
-    })
+      await PushNotifications.addListener('registrationError', (error: any) => {
+        console.error('Native Push registration error:', error)
+      })
 
-    await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
-      console.log('Native Push received in foreground:', notification)
-      if (this.onNotificationReceivedCallback) {
-        this.onNotificationReceivedCallback(notification)
-      }
-    })
+      await PushNotifications.addListener('pushNotificationReceived', (notification: PushNotificationSchema) => {
+        console.log('Native Push received in foreground:', notification)
+        if (this.onNotificationReceivedCallback) {
+          this.onNotificationReceivedCallback(notification)
+        }
+        // Also trigger local heads-up alert if not displayed automatically
+        this.showNativeNotification({
+          title: notification.title || 'MATS Ministry Alert',
+          body: notification.body || 'You have a new update.',
+          actionUrl: notification.data?.url || notification.data?.click_action || '/'
+        })
+      })
 
-    await PushNotifications.addListener('pushNotificationActionPerformed', (action: ActionPerformed) => {
-      console.log('Native Push action performed:', action)
-      const data = action.notification.data || {}
-      const targetUrl = data.url || data.click_action || data.link || '/'
+      await PushNotifications.addListener('pushNotificationActionPerformed', (action: ActionPerformed) => {
+        console.log('Native Push action performed:', action)
+        const data = action.notification.data || {}
+        const targetUrl = data.url || data.click_action || data.link || '/'
 
-      if (this.onNotificationClickCallback) {
-        this.onNotificationClickCallback(targetUrl)
-      } else if (typeof window !== 'undefined') {
-        window.location.href = targetUrl
-      }
-    })
+        if (this.onNotificationClickCallback) {
+          this.onNotificationClickCallback(targetUrl)
+        } else if (typeof window !== 'undefined') {
+          window.location.href = targetUrl
+        }
+      })
+    } catch (err) {
+      console.warn('PushNotification listener setup note:', err)
+    }
   }
 
   public setCurrentUserId(userId: string | null): void {
@@ -101,10 +146,16 @@ class NativePushService {
     await this.init()
 
     try {
+      // Request Push Notification permission
       let permStatus = await PushNotifications.checkPermissions()
       if (permStatus.receive === 'prompt' || permStatus.receive === 'prompt-with-rationale') {
         permStatus = await PushNotifications.requestPermissions()
       }
+
+      // Request Local Notification permission
+      try {
+        await LocalNotifications.requestPermissions()
+      } catch {}
 
       if (permStatus.receive !== 'granted') {
         this.setDevicePushEnabled(false)
@@ -114,7 +165,6 @@ class NativePushService {
       this.setDevicePushEnabled(true)
       await PushNotifications.register()
 
-      // If we already have a cached token, persist it immediately
       const cachedToken = typeof window !== 'undefined' ? localStorage.getItem(LAST_TOKEN_KEY) : null
       if (cachedToken) {
         await this.saveTokenToFirestore(userId, cachedToken)
@@ -198,6 +248,50 @@ class NativePushService {
       }
     } catch (err) {
       console.error('Failed to remove native push token from Firestore:', err)
+    }
+  }
+
+  /**
+   * Display a native Android heads-up notification in the phone's status bar with sound and vibration
+   */
+  public async showNativeNotification(options: {
+    id?: number
+    title: string
+    body: string
+    actionUrl?: string
+  }): Promise<boolean> {
+    if (!this.isNative()) return false
+    await this.init()
+
+    try {
+      // Ensure local notification permission is requested if not yet granted
+      try {
+        const perm = await LocalNotifications.checkPermissions()
+        if (perm.display !== 'granted') {
+          await LocalNotifications.requestPermissions()
+        }
+      } catch {}
+
+      const notifId = options.id || Math.floor(Math.random() * 1000000)
+      await LocalNotifications.schedule({
+        notifications: [
+          {
+            id: notifId,
+            title: options.title,
+            body: options.body,
+            channelId: CHANNEL_ID,
+            smallIcon: 'ic_stat_notification',
+            iconColor: '#10B981',
+            extra: {
+              url: options.actionUrl || '/'
+            }
+          }
+        ]
+      })
+      return true
+    } catch (err) {
+      console.warn('showNativeNotification error:', err)
+      return false
     }
   }
 }
