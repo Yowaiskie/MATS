@@ -40,3 +40,24 @@ export interface PushNotificationProgress {
   percentage: number
   statusLabel: string
 }
+
+export interface AssignedServerAccount {
+  memberId: string
+  memberName: string
+  hasAccount: boolean
+  userId?: string
+  email?: string
+}
+
+export interface UntakenScheduleNotification {
+  scheduleId: string
+  title: string
+  date: string
+  startTime: string
+  endTime: string
+  category?: string
+  assignedMembers: string[]
+  assignedAccounts: AssignedServerAccount[]
+  isAssignedToCurrentUser: boolean
+  hasAssignedAccounts: boolean
+}

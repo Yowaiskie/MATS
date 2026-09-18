@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'com.mas.mats',
-  appName: 'MATS',
+  appName: 'MATS Portal',
   webDir: 'dist',
   server: {
     url: 'https://mats-c10da.web.app',

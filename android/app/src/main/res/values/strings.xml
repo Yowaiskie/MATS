@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">MATS</string>
-    <string name="title_activity_main">MATS</string>
+    <string name="app_name">MATS Portal</string>
+    <string name="title_activity_main">MATS Portal</string>
     <string name="package_name">com.mas.mats</string>
     <string name="custom_url_scheme">com.mas.mats</string>
 </resources>

@@ -107,9 +107,6 @@ export interface UserPermissions {
   canReviewExcuses?: boolean
   canApproveExcuses?: boolean
   canDeleteExcuses?: boolean
-
-  // Broadcast actions
-  canBroadcast?: boolean
 }
 
 export interface PermissionPreset {
@@ -200,9 +197,6 @@ export interface PermissionPreset {
   canReviewExcuses?: boolean
   canApproveExcuses?: boolean
   canDeleteExcuses?: boolean
-
-  // Broadcast actions
-  canBroadcast?: boolean
 }
 
 export interface UserProfile {

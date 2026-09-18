@@ -1,26 +1,33 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
-import { BulkProgressBar } from '@/components/BulkProgressBar'
-import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { 
   notificationService, 
-  type UntakenScheduleInfo, 
-  type PushNotificationProgress 
+  type UntakenScheduleInfo 
 } from '@/services/notificationService'
-import { memberService } from '@/services/memberService'
-import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
+import { formatReadableDate, getDayOfWeek } from '@/utils/communityReport'
+import { generateUntakenScheduleReminderText } from '@/utils/untakenScheduleReport'
 
 interface RemindAttendanceModalProps {
   isOpen: boolean
   onClose: () => void
-  onSuccess?: () => void
 }
 
 export type ScheduleCategoryFilter = 'all' | 'sunday' | 'weekdays' | 'meeting' | 'formation' | 'special_events'
+export type DatePresetFilter = 'all' | 'today' | 'yesterday' | 'this_week' | 'custom'
+
+interface RecipientAccountOption {
+  key: string
+  userId?: string
+  memberId: string
+  memberName: string
+  email?: string
+  scheduleTitles: string[]
+}
 
 const matchesCategory = (schedule: Schedule, filter: ScheduleCategoryFilter): boolean => {
   if (filter === 'all') return true
@@ -28,13 +35,12 @@ const matchesCategory = (schedule: Schedule, filter: ScheduleCategoryFilter): bo
   const cat = schedule.category || ''
   const title = (schedule.title || '').toLowerCase()
   
-  // Determine day of week if date is available
   let dayOfWeek = -1
   if (schedule.date) {
     const parts = schedule.date.split('-')
     if (parts.length === 3) {
       const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
-      dayOfWeek = d.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      dayOfWeek = d.getDay()
     }
   }
 
@@ -97,64 +103,54 @@ const matchesCategory = (schedule: Schedule, filter: ScheduleCategoryFilter): bo
   return true
 }
 
+const formatDateToYMD = (d: Date): string => {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
   isOpen,
-  onClose,
-  onSuccess
+  onClose
 }) => {
-  const { profile } = useAuth()
+  const { user, profile } = useAuth()
   const { toast } = useToast()
 
   const [loading, setLoading] = useState(true)
   const [untakenSchedules, setUntakenSchedules] = useState<UntakenScheduleInfo[]>([])
-  const [allMembers, setAllMembers] = useState<Member[]>([])
 
-  // Selection states
-  const [scopeMode, setScopeMode] = useState<'all' | 'selected'>('selected')
+  // Selection & Filter states
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([])
+  const [selectedRecipientKeys, setSelectedRecipientKeys] = useState<string[]>([])
   const [scheduleSearch, setScheduleSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<ScheduleCategoryFilter>('all')
+  const [datePreset, setDatePreset] = useState<DatePresetFilter>('all')
+  const [customDate, setCustomDate] = useState<string>('')
+  const [customNote, setCustomNote] = useState('')
+  const [copied, setCopied] = useState(false)
+  const [isSendingNotifications, setIsSendingNotifications] = useState(false)
+  const [sendProgress, setSendProgress] = useState<{
+    active: boolean
+    current: number
+    total: number
+    percentage: number
+    statusLabel: string
+  } | null>(null)
 
-  // Target states
-  const [targetMode, setTargetMode] = useState<'assigned_only' | 'all_officers' | 'custom_members'>('assigned_only')
-  const [selectedMemberIds, setSelectedMemberIds] = useState<string[]>([])
-  const [memberSearch, setMemberSearch] = useState('')
-
-  // Message state
-  const [customMessage, setCustomMessage] = useState('')
-
-  // Sending progress state
-  const [isSending, setIsSending] = useState(false)
-  const [progress, setProgress] = useState<PushNotificationProgress>({
-    active: false,
-    current: 0,
-    total: 0,
-    percentage: 0,
-    statusLabel: ''
-  })
-
-  // Load data when modal opens
+  // Load untaken schedules
   useEffect(() => {
     if (!isOpen) return
 
     let isMounted = true
     setLoading(true)
 
-    Promise.all([
-      notificationService.getUntakenSchedules(),
-      memberService.getMembers(false)
-    ])
-      .then(([schedulesData, membersData]) => {
+    notificationService.getUntakenSchedules()
+      .then((schedulesData) => {
         if (!isMounted) return
         setUntakenSchedules(schedulesData)
-        setAllMembers(membersData)
-
-        // Default: pre-select schedules that have active accounts or the first few
-        const idsWithAccounts = schedulesData
-          .filter((s: UntakenScheduleInfo) => s.assignedAccountsCount > 0)
-          .map((s: UntakenScheduleInfo) => s.schedule.id)
-        
-        setSelectedScheduleIds(idsWithAccounts.length > 0 ? idsWithAccounts : schedulesData.map((s: UntakenScheduleInfo) => s.schedule.id))
+        // Default: select all untaken schedules
+        setSelectedScheduleIds(schedulesData.map((s: UntakenScheduleInfo) => s.schedule.id))
       })
       .catch((err) => {
         console.error('Failed to load untaken schedules:', err)
@@ -189,14 +185,42 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     return counts
   }, [untakenSchedules])
 
-  // Filtered schedules for selection
+  // Date filtering calculation
   const filteredSchedules = useMemo(() => {
+    const now = new Date()
+    const todayStr = formatDateToYMD(now)
+
+    const yesterdayDate = new Date(now)
+    yesterdayDate.setDate(now.getDate() - 1)
+    const yesterdayStr = formatDateToYMD(yesterdayDate)
+
+    const dayOfWeek = now.getDay() // 0 = Sunday
+    const weekStartDate = new Date(now)
+    weekStartDate.setDate(now.getDate() - dayOfWeek)
+    const weekStartStr = formatDateToYMD(weekStartDate)
+
+    const weekEndDate = new Date(weekStartDate)
+    weekEndDate.setDate(weekStartDate.getDate() + 6)
+    const weekEndStr = formatDateToYMD(weekEndDate)
+
     return untakenSchedules.filter(item => {
       const s = item.schedule
+
       // 1. Category match
       if (!matchesCategory(s, categoryFilter)) return false
 
-      // 2. Search match
+      // 2. Date match
+      if (datePreset === 'today') {
+        if (s.date !== todayStr) return false
+      } else if (datePreset === 'yesterday') {
+        if (s.date !== yesterdayStr) return false
+      } else if (datePreset === 'this_week') {
+        if (s.date < weekStartStr || s.date > weekEndStr) return false
+      } else if (datePreset === 'custom' && customDate) {
+        if (s.date !== customDate) return false
+      }
+
+      // 3. Search match
       if (scheduleSearch.trim()) {
         const q = scheduleSearch.toLowerCase().trim()
         const matches =
@@ -207,31 +231,71 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
 
       return true
     })
-  }, [untakenSchedules, categoryFilter, scheduleSearch])
+  }, [untakenSchedules, categoryFilter, datePreset, customDate, scheduleSearch])
 
-  // Filtered members for custom target selection
-  const filteredMembers = useMemo(() => {
-    if (!memberSearch.trim()) return allMembers
-    const q = memberSearch.toLowerCase().trim()
-    return allMembers.filter(m => {
-      const fullName = `${m.firstName} ${m.lastName} ${m.middleName || ''} ${m.nickname || ''}`.toLowerCase()
-      return fullName.includes(q) || (m.order && m.order.toLowerCase().includes(q))
+  // Selected schedule objects
+  const selectedScheduleObjects = useMemo(() => {
+    const set = new Set(selectedScheduleIds)
+    return untakenSchedules
+      .filter(item => set.has(item.schedule.id))
+      .map(item => item.schedule)
+  }, [untakenSchedules, selectedScheduleIds])
+
+  // Available unique accounts in the selected schedules
+  const availableRecipientAccounts = useMemo(() => {
+    const map = new Map<string, RecipientAccountOption>()
+    const selectedSet = new Set(selectedScheduleIds)
+
+    untakenSchedules.forEach(item => {
+      if (!selectedSet.has(item.schedule.id)) return
+      item.assignedAccounts.forEach(acc => {
+        if (!acc.hasAccount) return
+        const key = acc.userId || acc.memberId
+        if (!key) return
+        if (map.has(key)) {
+          const existing = map.get(key)!
+          if (!existing.scheduleTitles.includes(item.schedule.title)) {
+            existing.scheduleTitles.push(item.schedule.title)
+          }
+        } else {
+          map.set(key, {
+            key,
+            userId: acc.userId,
+            memberId: acc.memberId,
+            memberName: acc.memberName,
+            email: acc.email,
+            scheduleTitles: [item.schedule.title]
+          })
+        }
+      })
     })
-  }, [allMembers, memberSearch])
+    return Array.from(map.values())
+  }, [untakenSchedules, selectedScheduleIds])
 
-  // Toggle single schedule selection
+  // Auto-sync selected recipient keys when available recipient list changes
+  useEffect(() => {
+    setSelectedRecipientKeys(availableRecipientAccounts.map(a => a.key))
+  }, [availableRecipientAccounts])
+
+  // Generated English reminder text
+  const reminderText = useMemo(() => {
+    return generateUntakenScheduleReminderText({
+      schedules: selectedScheduleObjects,
+      customNote: customNote
+    })
+  }, [selectedScheduleObjects, customNote])
+
+  // Selection handlers for schedules
   const handleToggleSchedule = (id: string) => {
     setSelectedScheduleIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
   }
 
-  // Select all / deselect all filtered schedules
-  const handleSelectFilteredSchedules = () => {
+  const handleSelectAllFiltered = () => {
     const filteredIds = filteredSchedules.map(item => item.schedule.id)
-    if (filteredIds.length === 0) return
+    const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedScheduleIds.includes(id))
 
-    const allFilteredSelected = filteredIds.every(id => selectedScheduleIds.includes(id))
     if (allFilteredSelected) {
       setSelectedScheduleIds(prev => prev.filter(id => !filteredIds.includes(id)))
     } else {
@@ -239,82 +303,100 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     }
   }
 
-  // Toggle single member selection
-  const handleToggleMember = (id: string) => {
-    setSelectedMemberIds(prev =>
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+  // Selection handlers for recipient accounts
+  const handleToggleRecipient = (key: string) => {
+    setSelectedRecipientKeys(prev =>
+      prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key]
     )
   }
 
-  // Calculate recipient and schedule summary
-  const effectiveScheduleIds = scopeMode === 'all' 
-    ? untakenSchedules.map(s => s.schedule.id) 
-    : selectedScheduleIds
-
-  const targetCountEstimate = useMemo(() => {
-    if (targetMode === 'custom_members') {
-      return `${selectedMemberIds.length} selected member(s)`
+  const handleToggleAllRecipients = () => {
+    const allKeys = availableRecipientAccounts.map(a => a.key)
+    if (selectedRecipientKeys.length === allKeys.length) {
+      setSelectedRecipientKeys([])
+    } else {
+      setSelectedRecipientKeys(allKeys)
     }
-    if (targetMode === 'all_officers') {
-      return 'All Registered Officers'
-    }
-    // Assigned only
-    const targetScheduleObjects = untakenSchedules.filter(item =>
-      effectiveScheduleIds.includes(item.schedule.id)
-    )
-    const uniqueAssigned = new Set<string>()
-    targetScheduleObjects.forEach(item => {
-      item.schedule.assignedMembers?.forEach(mId => uniqueAssigned.add(mId))
-    })
-    return uniqueAssigned.size > 0 ? `${uniqueAssigned.size} assigned server(s)` : 'Assigned Officers'
-  }, [targetMode, selectedMemberIds, effectiveScheduleIds, untakenSchedules])
+  }
 
-  // Dispatch reminders
-  const handleDispatch = async () => {
-    if (effectiveScheduleIds.length === 0) {
-      toast.warning('No Schedules Selected', 'Please select at least one schedule to send reminders.')
+  const handleCopy = async () => {
+    if (selectedScheduleIds.length === 0) {
+      toast.warning('Select Schedules', 'Please select at least one schedule to copy the reminder.')
       return
     }
-
-    if (targetMode === 'custom_members' && selectedMemberIds.length === 0) {
-      toast.warning('No Members Selected', 'Please select at least one member to receive the reminder.')
-      return
-    }
-
-    setIsSending(true)
     try {
-      const result = await notificationService.sendBulkAttendanceReminders(
+      await navigator.clipboard.writeText(reminderText)
+      setCopied(true)
+      toast.success('Copied to Clipboard!', 'Ready to paste into your group chat or message thread.')
+      setTimeout(() => setCopied(false), 2500)
+    } catch (err) {
+      console.error('Failed to copy text:', err)
+      toast.error('Copy Failed', 'Could not copy to clipboard. Please highlight and copy manually.')
+    }
+  }
+
+  const handleSendInAppNotifications = async () => {
+    if (selectedScheduleIds.length === 0) {
+      toast.warning('Select Schedules', 'Please select at least one schedule to send reminders.')
+      return
+    }
+    if (selectedRecipientKeys.length === 0) {
+      toast.warning('Select Server Accounts', 'Please select at least one altar server account to receive the notification.')
+      return
+    }
+
+    const targetRecipientIds = selectedRecipientKeys.flatMap(k => {
+      const acc = availableRecipientAccounts.find(a => a.key === k)
+      if (!acc) return [k]
+      return [acc.key, acc.userId, acc.memberId, acc.email].filter(Boolean) as string[]
+    })
+
+    setIsSendingNotifications(true)
+    setSendProgress({
+      active: true,
+      current: 0,
+      total: selectedScheduleIds.length,
+      percentage: 10,
+      statusLabel: 'Initializing reminder dispatch...'
+    })
+
+    try {
+      const res = await notificationService.sendBulkAttendanceReminders(
         {
-          scheduleIds: scopeMode === 'all' ? undefined : effectiveScheduleIds,
-          targetAudienceType: targetMode === 'assigned_only' 
-            ? 'assigned_accounts_only' 
-            : targetMode === 'all_officers' 
-            ? 'all_officers' 
-            : 'custom_members',
-          customMemberIds: targetMode === 'custom_members' ? selectedMemberIds : undefined,
-          customMessage: customMessage.trim() || undefined,
-          performedBy: profile?.email || 'Admin'
+          scheduleIds: selectedScheduleIds,
+          customMessage: customNote,
+          targetAudienceType: 'custom_members',
+          customMemberIds: targetRecipientIds,
+          performedBy: profile?.displayName || profile?.memberName || user?.email || 'Administrator'
         },
-        (prog: PushNotificationProgress) => setProgress(prog)
+        (prog) => {
+          setSendProgress({
+            active: prog.active,
+            current: prog.current,
+            total: prog.total,
+            percentage: prog.percentage,
+            statusLabel: prog.statusLabel || 'Sending reminders...'
+          })
+        }
       )
 
-      if (result.schedulesReminded > 0) {
+      if (res.schedulesReminded > 0 || res.officersNotified > 0) {
         toast.success(
-          'Reminders Dispatched',
-          `Sent attendance push reminders for ${result.schedulesReminded} schedule(s) to ${result.officersNotified} user(s).`
+          'In-App Reminders Dispatched!',
+          `Sent in-app notification alerts for ${res.schedulesReminded} schedule(s) to ${selectedRecipientKeys.length} selected server account(s).`
         )
       } else {
-        toast.info('No Reminders Needed', 'No untaken schedules matched the selected criteria.')
+        toast.info('Completed', 'Notification process completed.')
       }
-
-      onSuccess?.()
-      onClose()
     } catch (err: any) {
-      console.error('Dispatch failed:', err)
-      toast.error('Dispatch Failed', err.message || 'Failed to dispatch attendance reminders.')
+      console.error('Failed to send reminders:', err)
+      toast.error('Dispatch Failed', err.message || 'Could not send in-app reminder notifications.')
     } finally {
-      setIsSending(false)
-      setProgress({ active: false, current: 0, total: 0, percentage: 0, statusLabel: '' })
+      setIsSendingNotifications(false)
+      // Keep completion progress visible briefly for visual satisfaction
+      setTimeout(() => {
+        setSendProgress(null)
+      }, 1500)
     }
   }
 
@@ -322,399 +404,409 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title="Remind Pending Attendance"
-      subtitle="Dispatch tailored notification alerts for untaken attendance sessions"
-      icon={
-        <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-      }
-      maxWidth="2xl"
+      title="Pending Attendance Reminder"
+      maxWidth="4xl"
     >
-      <div className="space-y-4 p-1 text-xs text-slate-700">
+      <div className="space-y-5">
+        {/* Top Information Banner */}
+        <div className="rounded-2xl border border-indigo-100 bg-indigo-50/60 p-3.5">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-indigo-600 text-white rounded-xl shadow-xs shrink-0 mt-0.5">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-900">
+                Untaken Attendance Reminder & Notification Manager
+              </h4>
+              <p className="text-xs text-indigo-700/90 mt-0.5 leading-relaxed">
+                Pumili ng mga schedules, piliin kung aling specific na mga altar server accounts ang makatatanggap ng in-app notification alert, o kopyahin ang formatted GC message.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {loading ? (
-          <div className="py-12 flex flex-col items-center justify-center gap-2">
-            <div className="animate-spin rounded-full h-7 w-7 border-3 border-indigo-600 border-t-transparent" />
-            <p className="text-xs font-semibold text-slate-500">Scanning untaken schedules...</p>
+          <div className="py-12 flex flex-col items-center justify-center gap-3 text-slate-500">
+            <div className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+            <p className="text-xs font-semibold">Loading untaken schedules...</p>
           </div>
         ) : untakenSchedules.length === 0 ? (
-          <div className="py-10 text-center space-y-2">
-            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <div className="py-12 px-4 text-center rounded-2xl border border-dashed border-emerald-200 bg-emerald-50/50">
+            <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto mb-3">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-sm font-bold text-slate-800">All Attendance Up to Date!</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              There are no pending or untaken attendance sessions found across your scheduled services.
+            <h3 className="text-sm font-bold text-emerald-950">All Attendances Are Complete!</h3>
+            <p className="text-xs text-emerald-700 mt-1 max-w-sm mx-auto">
+              There are no untaken schedules remaining. All sessions are recorded or finalized.
             </p>
           </div>
         ) : (
-          <>
-            {/* Step 1: Scope Option */}
-            <div className="space-y-2">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                1. Select Schedule Scope <span className="text-rose-500">*</span>
-              </label>
-
-              <div className="grid grid-cols-2 gap-2">
-                {/* Option All */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            {/* Left Column: Filter & Selector (6 cols) */}
+            <div className="lg:col-span-6 flex flex-col space-y-3 min-h-0">
+              {/* Header & Select All */}
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Select Schedules ({selectedScheduleIds.length}/{untakenSchedules.length})
+                </span>
                 <button
                   type="button"
-                  onClick={() => setScopeMode('all')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                    scopeMode === 'all'
-                      ? 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
+                  onClick={handleSelectAllFiltered}
+                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-900 text-xs">All Untaken Schedules</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-100 text-indigo-800">
-                      {untakenSchedules.length}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Include all past & current schedules without finalized attendance.
-                  </p>
-                </button>
-
-                {/* Option Selected */}
-                <button
-                  type="button"
-                  onClick={() => setScopeMode('selected')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer ${
-                    scopeMode === 'selected'
-                      ? 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-900 text-xs">Choose Specific Schedules</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-800">
-                      {selectedScheduleIds.length} / {untakenSchedules.length}
-                    </span>
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Pick specific schedules to target from the list below.
-                  </p>
+                  {filteredSchedules.length > 0 && filteredSchedules.every(s => selectedScheduleIds.includes(s.schedule.id))
+                    ? 'Deselect Filtered'
+                    : 'Select All Filtered'}
                 </button>
               </div>
 
-              {/* Schedule List Picker (When Selected mode is active) */}
-              {scopeMode === 'selected' && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 mt-2">
-                  {/* Category Filter Pills */}
-                  <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                    {[
-                      { key: 'all' as ScheduleCategoryFilter, label: 'All', count: categoryCounts.all },
-                      { key: 'sunday' as ScheduleCategoryFilter, label: 'Sunday Mass', count: categoryCounts.sunday },
-                      { key: 'weekdays' as ScheduleCategoryFilter, label: 'Weekdays', count: categoryCounts.weekdays },
-                      { key: 'meeting' as ScheduleCategoryFilter, label: 'Meetings', count: categoryCounts.meeting },
-                      { key: 'formation' as ScheduleCategoryFilter, label: 'Formation / OGF', count: categoryCounts.formation },
-                      { key: 'special_events' as ScheduleCategoryFilter, label: 'Special Events', count: categoryCounts.special_events }
-                    ].map((tab) => {
-                      const isActive = categoryFilter === tab.key
-                      return (
-                        <button
-                          key={tab.key}
-                          type="button"
-                          onClick={() => setCategoryFilter(tab.key)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold transition-all shrink-0 cursor-pointer ${
-                            isActive
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
-                          }`}
-                        >
-                          <span>{tab.label}</span>
-                          <span
-                            className={`text-[9px] font-mono px-1 py-0.2 rounded-md ${
-                              isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'
-                            }`}
-                          >
-                            {tab.count}
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
+              {/* Date Filter Bar */}
+              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
+                  Date Filter
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {[
+                    { id: 'all', label: 'All Dates' },
+                    { id: 'today', label: 'Today' },
+                    { id: 'yesterday', label: 'Yesterday' },
+                    { id: 'this_week', label: 'This Week' },
+                    { id: 'custom', label: 'Specific Date' }
+                  ].map(p => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setDatePreset(p.id as DatePresetFilter)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                        datePreset === p.id
+                          ? 'bg-slate-800 text-white shadow-2xs'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
 
-                  {/* Search and Quick Selection Actions */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="relative flex-1">
-                      <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={scheduleSearch}
-                        onChange={(e) => setScheduleSearch(e.target.value)}
-                        placeholder={`Filter ${categoryFilter === 'all' ? 'all' : categoryFilter} schedules by title or date...`}
-                        className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      />
-                    </div>
+                {datePreset === 'custom' && (
+                  <div className="pt-1.5">
+                    <input
+                      type="date"
+                      value={customDate}
+                      onChange={e => setCustomDate(e.target.value)}
+                      className="w-full text-xs rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Category Filter Chips */}
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
+                {[
+                  { id: 'all', label: 'All', count: categoryCounts.all },
+                  { id: 'sunday', label: 'Sunday', count: categoryCounts.sunday },
+                  { id: 'weekdays', label: 'Weekdays', count: categoryCounts.weekdays },
+                  { id: 'meeting', label: 'Meetings', count: categoryCounts.meeting },
+                  { id: 'formation', label: 'Formation', count: categoryCounts.formation },
+                  { id: 'special_events', label: 'Special', count: categoryCounts.special_events },
+                ].map(cat => {
+                  const isActive = categoryFilter === cat.id
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategoryFilter(cat.id as ScheduleCategoryFilter)}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      <span>{cat.label}</span>
+                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${
+                        isActive ? 'bg-indigo-700/80 text-white' : 'bg-slate-200 text-slate-700'
+                      }`}>
+                        {cat.count}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Search input */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search by schedule title or date..."
+                  value={scheduleSearch}
+                  onChange={e => setScheduleSearch(e.target.value)}
+                  className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 pl-8 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+                <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+
+              {/* Schedule List Scroll Area */}
+              <div className="border border-slate-200 rounded-2xl p-2 bg-slate-50/50 space-y-2 max-h-[200px] overflow-y-auto">
+                {filteredSchedules.length === 0 ? (
+                  <div className="py-6 text-center text-xs text-slate-400">
+                    No schedules match the selected filters.
+                  </div>
+                ) : (
+                  filteredSchedules.map(item => {
+                    const s = item.schedule
+                    const isSelected = selectedScheduleIds.includes(s.id)
+                    const day = getDayOfWeek(s.date)
+                    const dateFormatted = formatReadableDate(s.date)
+                    const timeFormatted = s.startTime ? formatTime12Hour(s.startTime) : ''
+
+                    return (
+                      <div
+                        key={s.id}
+                        onClick={() => handleToggleSchedule(s.id)}
+                        className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 select-none ${
+                          isSelected
+                            ? 'bg-indigo-50/70 border-indigo-200 shadow-2xs'
+                            : 'bg-white border-slate-200/80 hover:border-slate-300 opacity-70'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => {}}
+                          className="mt-1 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-1">
+                            <span className="text-[10px] font-extrabold uppercase text-indigo-600 tracking-wider">
+                              {day ? `${day}, ` : ''}{dateFormatted}
+                            </span>
+                            {timeFormatted && (
+                              <span className="text-[10px] font-bold text-slate-500">
+                                {timeFormatted}
+                              </span>
+                            )}
+                          </div>
+                          <h5 className="text-xs font-extrabold text-slate-900 truncate mt-0.5">
+                            {s.title}
+                          </h5>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {item.totalAssignedCount} assigned ({item.assignedAccountsCount} with account)
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {/* Granular Recipient Accounts Selector */}
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-500" />
+                    <span className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wider">
+                      Target Accounts to Notify ({selectedRecipientKeys.length}/{availableRecipientAccounts.length})
+                    </span>
+                  </div>
+                  {availableRecipientAccounts.length > 0 && (
                     <button
                       type="button"
-                      onClick={handleSelectFilteredSchedules}
-                      className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline shrink-0 cursor-pointer"
+                      onClick={handleToggleAllRecipients}
+                      className="text-[10px] font-bold text-amber-900 hover:underline cursor-pointer"
                     >
-                      {filteredSchedules.length > 0 && filteredSchedules.every(item => selectedScheduleIds.includes(item.schedule.id))
-                        ? `Deselect Filtered (${filteredSchedules.length})`
-                        : `Select Filtered (${filteredSchedules.length})`}
+                      {selectedRecipientKeys.length === availableRecipientAccounts.length ? 'Deselect All' : 'Select All'}
                     </button>
+                  )}
+                </div>
+
+                {availableRecipientAccounts.length === 0 ? (
+                  <div className="py-2 text-center text-[11px] text-slate-400 italic">
+                    No active server accounts linked to the selected schedules.
                   </div>
-
-                  {/* Schedule List */}
-                  <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1 divide-y divide-slate-100">
-                    {filteredSchedules.length === 0 ? (
-                      <div className="py-6 text-center text-slate-400 text-xs italic">
-                        No untaken schedules found under this filter.
-                      </div>
-                    ) : (
-                      filteredSchedules.map(({ schedule: s, totalAssignedCount }) => {
-                        const isChecked = selectedScheduleIds.includes(s.id)
-                        const isSunday = matchesCategory(s, 'sunday')
-                        const isMeeting = matchesCategory(s, 'meeting')
-                        const isFormation = matchesCategory(s, 'formation')
-                        const isSpecial = matchesCategory(s, 'special_events')
-
-                        return (
-                          <label
-                            key={s.id}
-                            className={`flex items-start gap-2.5 p-2 rounded-xl transition-colors cursor-pointer select-none ${
-                              isChecked ? 'bg-indigo-50/70' : 'bg-white hover:bg-slate-100/70'
-                            }`}
-                          >
+                ) : (
+                  <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1">
+                    {availableRecipientAccounts.map((acc) => {
+                      const isChecked = selectedRecipientKeys.includes(acc.key)
+                      return (
+                        <div
+                          key={acc.key}
+                          onClick={() => handleToggleRecipient(acc.key)}
+                          className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer text-left ${
+                            isChecked
+                              ? 'bg-white border-amber-300 shadow-2xs'
+                              : 'bg-amber-100/30 border-amber-200/60 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
                             <input
                               type="checkbox"
                               checked={isChecked}
-                              onChange={() => handleToggleSchedule(s.id)}
-                              className="mt-0.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              onChange={() => {}}
+                              className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                             />
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center justify-between gap-1 flex-wrap">
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                  <span className="font-bold text-slate-900 text-xs truncate">{s.title}</span>
-                                  <span className={`px-1.5 py-0.2 rounded text-[9px] font-extrabold uppercase border ${
-                                    isSunday 
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                                      : isMeeting 
-                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                      : isFormation
-                                      ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                      : isSpecial
-                                      ? 'bg-amber-50 text-amber-800 border-amber-200'
-                                      : 'bg-slate-100 text-slate-600 border-slate-200'
-                                  }`}>
-                                    {isSunday ? 'Sunday Mass' : isMeeting ? 'Meeting' : isFormation ? 'Formation' : isSpecial ? 'Special Event' : 'Weekday'}
-                                  </span>
-                                </div>
-                                <span className="px-2 py-0.5 rounded-md text-[10px] font-mono font-bold bg-slate-100 text-slate-700">
-                                  {s.date}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500 flex-wrap">
-                                <span>
-                                  {formatTime12Hour(s.startTime)} - {formatTime12Hour(s.endTime)}
-                                </span>
-                                <span>•</span>
-                                <span className={totalAssignedCount > 0 ? 'text-indigo-600 font-semibold' : 'text-slate-400'}>
-                                  {totalAssignedCount} assigned server(s)
-                                </span>
-                              </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                {acc.memberName}
+                              </span>
+                              <span className="text-[9px] text-slate-500 block truncate">
+                                {acc.email || 'Registered Server Account'}
+                              </span>
                             </div>
-                          </label>
-                        )
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
+                          </div>
 
-            {/* Step 2: Target / Recipient Option */}
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                2. Notification Recipient (Who will be alerted?) <span className="text-rose-500">*</span>
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                {/* Assigned only */}
-                <button
-                  type="button"
-                  onClick={() => setTargetMode('assigned_only')}
-                  className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                    targetMode === 'assigned_only'
-                      ? 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="font-bold text-slate-900 block text-xs mb-0.5">
-                    Assigned Users Only
-                  </span>
-                  <p className="text-[10px] text-slate-500 leading-tight">
-                    Alert only accounts assigned to the schedule. (Recommended)
-                  </p>
-                </button>
-
-                {/* All Officers */}
-                <button
-                  type="button"
-                  onClick={() => setTargetMode('all_officers')}
-                  className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                    targetMode === 'all_officers'
-                      ? 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="font-bold text-slate-900 block text-xs mb-0.5">
-                    All Officers
-                  </span>
-                  <p className="text-[10px] text-slate-500 leading-tight">
-                    Broadcast reminder to all registered officers & coordinators.
-                  </p>
-                </button>
-
-                {/* Custom Members */}
-                <button
-                  type="button"
-                  onClick={() => setTargetMode('custom_members')}
-                  className={`p-2.5 rounded-2xl border text-left transition-all cursor-pointer ${
-                    targetMode === 'custom_members'
-                      ? 'border-indigo-500 bg-indigo-50/60 ring-2 ring-indigo-500/20'
-                      : 'border-slate-200 bg-white hover:bg-slate-50'
-                  }`}
-                >
-                  <span className="font-bold text-slate-900 block text-xs mb-0.5">
-                    Select Specific Members
-                  </span>
-                  <p className="text-[10px] text-slate-500 leading-tight">
-                    Manually choose specific members to notify ({selectedMemberIds.length} selected).
-                  </p>
-                </button>
-              </div>
-
-              {/* Custom Member Picker (When Custom mode is active) */}
-              {targetMode === 'custom_members' && (
-                <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 mt-2">
-                  <div className="relative">
-                    <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                    <input
-                      type="text"
-                      value={memberSearch}
-                      onChange={(e) => setMemberSearch(e.target.value)}
-                      placeholder="Search member name or order..."
-                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-
-                  <div className="max-h-36 overflow-y-auto space-y-1 pr-1">
-                    {filteredMembers.map((m) => {
-                      const isChecked = selectedMemberIds.includes(m.id)
-                      return (
-                        <label
-                          key={m.id}
-                          className={`flex items-center gap-2 p-1.5 rounded-xl transition-colors cursor-pointer select-none ${
-                            isChecked ? 'bg-indigo-50/70' : 'bg-white hover:bg-slate-100/70'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToggleMember(m.id)}
-                            className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                          />
-                          <span className="font-semibold text-slate-800 text-xs">
-                            {m.lastName}, {m.firstName}
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0 ml-2">
+                            {acc.scheduleTitles.length} duty
                           </span>
-                          {m.order && (
-                            <span className="text-[10px] text-slate-400 font-medium">({m.order})</span>
-                          )}
-                        </label>
+                        </div>
                       )
                     })}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
-            {/* Step 3: Optional Custom Message */}
-            <div className="space-y-1.5 pt-2 border-t border-slate-100">
-              <label className="block text-[11px] font-extrabold uppercase tracking-wider text-slate-600">
-                3. Additional Note / Message <span className="text-slate-400 font-normal">(Optional)</span>
-              </label>
+            {/* Right Column: Live Text Preview (6 cols) */}
+            <div className="lg:col-span-6 flex flex-col space-y-3 min-h-0">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                  Reminder Text Preview (for Messenger / GC)
+                </span>
+                <span className="text-[10px] font-bold text-slate-400">
+                  {selectedScheduleObjects.length} schedule(s) selected
+                </span>
+              </div>
+
+              {/* Textarea Preview */}
               <textarea
-                value={customMessage}
-                onChange={(e) => setCustomMessage(e.target.value)}
-                placeholder="e.g. Please finalize attendance records immediately before our weekend coordination check..."
-                rows={2}
-                className="w-full p-2.5 bg-white border border-slate-200 rounded-xl text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                readOnly
+                value={reminderText}
+                onClick={e => (e.target as HTMLTextAreaElement).select()}
+                className="w-full rounded-2xl border border-slate-200 bg-slate-900 text-slate-100 p-3.5 text-xs font-mono font-medium focus:outline-none resize-none h-[220px] overflow-y-auto leading-relaxed select-all"
+              />
+
+              {/* Optional Custom Note Input */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-slate-600">
+                  Custom Note / Additional Announcement (Optional):
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Please bring your vestments and log in before 5:30 PM..."
+                  value={customNote}
+                  onChange={e => setCustomNote(e.target.value)}
+                  className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Progressive Progress Bar for Bulk Dispatching */}
+        {sendProgress && (
+          <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-indigo-50/70 to-blue-50 p-4 shadow-2xs animate-in fade-in slide-in-from-bottom-2 duration-200">
+            <div className="flex items-center justify-between gap-3 mb-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="relative flex h-2.5 w-2.5 shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
+                </span>
+                <p className="text-xs font-bold text-slate-800 truncate">
+                  {sendProgress.statusLabel || 'Sending reminders...'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs font-black text-blue-700 font-mono bg-white px-2 py-0.5 rounded-md border border-blue-100 shadow-2xs">
+                  {sendProgress.percentage}%
+                </span>
+              </div>
+            </div>
+
+            {/* Progressive Bar Track */}
+            <div className="w-full bg-slate-200/80 rounded-full h-2.5 overflow-hidden shadow-inner">
+              <div
+                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 h-full rounded-full transition-all duration-300 ease-out shadow-xs"
+                style={{ width: `${Math.min(100, Math.max(5, sendProgress.percentage))}%` }}
               />
             </div>
 
-            {/* Summary Banner */}
-            <div className="p-3 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between gap-2 text-indigo-900 text-xs">
-              <div className="flex items-center gap-2">
-                <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>
-                  Ready to dispatch for <strong>{effectiveScheduleIds.length} schedule(s)</strong>.
-                </span>
-              </div>
-              <span className="font-mono font-bold text-[11px] px-2 py-0.5 rounded-lg bg-indigo-200/80">
-                Target: {targetCountEstimate}
-              </span>
+            <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold mt-2">
+              <span>Progress: {sendProgress.current} / {sendProgress.total} schedules processed</span>
+              <span>{sendProgress.percentage >= 100 ? '✅ Completed!' : '⚡ Dispatching alerts...'}</span>
             </div>
-
-            {/* Progress Bar (during dispatch) */}
-            {progress.active && (
-              <div className="p-3 bg-white border border-slate-200 rounded-2xl">
-                <BulkProgressBar
-                  active={true}
-                  progress={progress.percentage}
-                  itemCount={progress.total}
-                  label={progress.statusLabel}
-                  variant="indigo"
-                  size="sm"
-                />
-              </div>
-            )}
-          </>
+          </div>
         )}
 
-        {/* Actions Footer */}
-        <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
-          <Button
-            type="button"
-            variant="secondary"
-            size="dense"
-            onClick={onClose}
-            disabled={isSending}
-          >
-            Cancel
-          </Button>
+        {/* Modal Action Buttons */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+          <div className="text-[11px] text-slate-500 font-medium">
+            {selectedRecipientKeys.length > 0 ? (
+              <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {selectedRecipientKeys.length} server account(s) selected for notification
+              </span>
+            ) : (
+              <span className="text-slate-400 italic">No accounts selected for notification</span>
+            )}
+          </div>
 
-          {untakenSchedules.length > 0 && (
+          <div className="flex items-center justify-end gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="dense"
+              onClick={onClose}
+              disabled={isSendingNotifications}
+            >
+              Close
+            </Button>
+            <Button
+              type="button"
+              variant="purple"
+              size="dense"
+              onClick={handleCopy}
+              disabled={selectedScheduleIds.length === 0 || isSendingNotifications}
+              icon={
+                copied ? (
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                )
+              }
+            >
+              {copied ? 'Copied GC Text!' : 'Copy for GC / Messenger'}
+            </Button>
             <Button
               type="button"
               variant="primary"
               size="dense"
-              loading={isSending}
-              loadingText="Dispatching..."
-              onClick={handleDispatch}
-              disabled={effectiveScheduleIds.length === 0}
+              onClick={handleSendInAppNotifications}
+              disabled={selectedScheduleIds.length === 0 || selectedRecipientKeys.length === 0 || isSendingNotifications}
+              loading={isSendingNotifications}
               icon={
-                <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
                 </svg>
               }
             >
-              Send Reminders
+              Send In-App Notification ({selectedRecipientKeys.length})
             </Button>
-          )}
+          </div>
         </div>
       </div>
     </Modal>

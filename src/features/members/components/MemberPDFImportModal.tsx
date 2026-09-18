@@ -4,10 +4,10 @@ import type { Member, MemberInput } from '@/types/member'
 import { isDuplicateName, getFullName } from '@/utils/member'
 
 // ─── Worker setup ────────────────────────────────────────────────────────────
-// Use Vite's ?url import so the worker .mjs file is served as a static asset
-// rather than being bundled through the dependency optimizer.
-import PdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
-pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorkerUrl
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url
+).toString()
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface MemberPDFImportModalProps {

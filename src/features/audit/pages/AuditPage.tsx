@@ -164,6 +164,14 @@ export const AuditPage: React.FC = () => {
     })
   }, [logs, categoryFilter, actionFilter, searchQuery, schedulesMap])
 
+  const categoryCounts = useMemo(() => {
+    const counts: Record<string, number> = {}
+    logs.forEach(l => {
+      counts[l.category] = (counts[l.category] || 0) + 1
+    })
+    return counts
+  }, [logs])
+
   // Get distinct categories & actions for filter selectors
   const categories: AuditCategory[] = ['member', 'schedule', 'attendance', 'settings', 'system', 'excuse', 'finance', 'events']
   
@@ -383,14 +391,6 @@ export const AuditPage: React.FC = () => {
       </div>
     )
   }
-
-  const categoryCounts = useMemo(() => {
-    const counts: Record<string, number> = {}
-    logs.forEach(l => {
-      counts[l.category] = (counts[l.category] || 0) + 1
-    })
-    return counts
-  }, [logs])
 
   return (
     <div className="space-y-6">

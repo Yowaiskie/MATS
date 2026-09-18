@@ -126,6 +126,7 @@ export interface Member {
   lastName: string
   suffix?: string
   nickname?: string
+  email?: string
   homeAddress?: string
   dateOfBirth?: string
   rank: string
@@ -150,6 +151,7 @@ export interface MemberInput {
   lastName: string
   suffix?: string
   nickname?: string
+  email?: string
   homeAddress?: string
   dateOfBirth?: string
   rank: string

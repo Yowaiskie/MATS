@@ -8,14 +8,16 @@ import {
   getDocs,
   query,
   limit,
+  orderBy,
   onSnapshot,
   arrayUnion,
   updateDoc,
   serverTimestamp
 } from 'firebase/firestore'
-import type { AppNotification, PushNotificationProgress } from '@/types/notification'
+import type { AppNotification, PushNotificationProgress, AssignedServerAccount } from '@/types/notification'
 import type { UserProfile } from '@/types/auth'
 import type { Schedule } from '@/types/schedule'
+import type { Member } from '@/types/member'
 import { nativePushService } from '@/services/nativePushService'
 
 export type NotificationPermissionState = 'default' | 'granted' | 'denied' | 'unsupported'
@@ -23,7 +25,7 @@ export type NotificationPermissionState = 'default' | 'granted' | 'denied' | 'un
 const NOTIFICATIONS_COLLECTION = 'notifications'
 const USERS_COLLECTION = 'users'
 
-export type { PushNotificationProgress } from '@/types/notification'
+export type { PushNotificationProgress, AssignedServerAccount } from '@/types/notification'
 
 export interface SendAttendanceReminderOptions {
   scheduleIds?: string[]
@@ -37,6 +39,8 @@ export interface UntakenScheduleInfo {
   schedule: Schedule
   assignedAccountsCount: number
   totalAssignedCount: number
+  assignedAccounts: AssignedServerAccount[]
+  hasAssignedAccounts: boolean
 }
 
 class NotificationService {
@@ -81,42 +85,100 @@ class NotificationService {
    * Fetch list of all untaken / unfinalized schedules along with account mapping
    */
   async getUntakenSchedules(): Promise<UntakenScheduleInfo[]> {
-    const todayStr = new Date().toISOString().split('T')[0]
-    const [schedulesSnap, sessionsSnap, usersSnap] = await Promise.all([
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const todayStr = `${year}-${month}-${day}`
+
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    const currentTimeStr = `${hours}:${minutes}`
+
+    const [schedulesSnap, sessionsSnap, usersSnap, membersSnap] = await Promise.all([
       getDocs(collection(db, 'schedules')),
       getDocs(collection(db, 'attendanceSessions')),
-      getDocs(collection(db, USERS_COLLECTION))
+      getDocs(collection(db, USERS_COLLECTION)),
+      getDocs(collection(db, 'members'))
     ])
 
     const usersWithAccounts = usersSnap.docs
       .map(d => ({ uid: d.id, ...d.data() } as UserProfile))
-    
-    const accountIdentifiers = new Set<string>()
-    usersWithAccounts.forEach(u => {
-      if (u.memberId) accountIdentifiers.add(u.memberId)
-      if (u.uid) accountIdentifiers.add(u.uid)
-    })
 
-    const lockedScheduleIds = new Set<string>()
+    const membersList = membersSnap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Member))
+
+    const memberMap: Record<string, Member> = {}
+    membersList.forEach(m => { memberMap[m.id] = m })
+
+    const finalizedScheduleIds = new Set<string>()
     sessionsSnap.docs.forEach(d => {
       const data = d.data()
-      if (data.locked === true && data.scheduleId) {
-        lockedScheduleIds.add(data.scheduleId)
+      const isLocked = data.locked === true || String(data.locked) === 'true'
+      const isFinalized = isLocked || data.finalizedAt != null || data.status === 'finalized' || data.attendanceStatus === 'finalized'
+      if (isFinalized) {
+        if (data.scheduleId) finalizedScheduleIds.add(data.scheduleId)
+        finalizedScheduleIds.add(d.id)
       }
     })
 
     const schedules = schedulesSnap.docs
       .map(d => ({ id: d.id, ...d.data() } as Schedule))
-      .filter(s => s.status !== 'cancelled' && (!s.date || s.date <= todayStr) && !lockedScheduleIds.has(s.id) && !s.isLocked)
-      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      .filter(s => {
+        if (s.status === 'cancelled') return false
+        if (s.isLocked === true || String(s.isLocked) === 'true') return false
+        if (finalizedScheduleIds.has(s.id)) return false
+        if ((s as any).attendanceStatus === 'finalized' || (s as any).attendanceState === 'finalized') return false
+        if (!s.date) return false
+        
+        // Strictly only include schedules whose scheduled end time has passed
+        if (s.date < todayStr) return true
+        if (s.date === todayStr) {
+          const scheduleEndTime = s.endTime || s.startTime || '23:59'
+          return currentTimeStr >= scheduleEndTime
+        }
+        return false
+      })
+      .sort((a, b) => {
+        const dateCompare = (b.date || '').localeCompare(a.date || '')
+        if (dateCompare !== 0) return dateCompare
+        return (b.startTime || '').localeCompare(a.startTime || '')
+      })
 
     return schedules.map(s => {
       const assigned = s.assignedMembers || []
-      const assignedWithAccounts = assigned.filter(mId => accountIdentifiers.has(mId))
+      const assignedAccounts: AssignedServerAccount[] = assigned.map(mId => {
+        const member = memberMap[mId]
+        const memberName = member ? `${member.firstName} ${member.lastName}`.trim() : mId
+        
+        // Strict match user account: memberId, uid, email, or exact full name only
+        const matchedUser = usersWithAccounts.find(u => {
+          if (u.memberId && u.memberId === mId) return true
+          if (u.uid && (u.uid === mId || u.uid.toLowerCase() === mId.toLowerCase())) return true
+          if (u.email && member?.email && u.email.toLowerCase().trim() === member.email.toLowerCase().trim()) return true
+          const uName = (u.displayName || u.memberName || '').toLowerCase().trim()
+          const mNameClean = memberName.toLowerCase().trim()
+          if (uName && mNameClean && uName === mNameClean) return true
+          return false
+        })
+
+        return {
+          memberId: mId,
+          memberName,
+          hasAccount: Boolean(matchedUser),
+          userId: matchedUser?.uid,
+          email: matchedUser?.email
+        }
+      })
+
+      const hasAccountsCount = assignedAccounts.filter(a => a.hasAccount).length
+
       return {
         schedule: s,
-        assignedAccountsCount: assignedWithAccounts.length > 0 ? assignedWithAccounts.length : assigned.length,
-        totalAssignedCount: assigned.length
+        assignedAccountsCount: hasAccountsCount,
+        totalAssignedCount: assigned.length,
+        assignedAccounts,
+        hasAssignedAccounts: hasAccountsCount > 0
       }
     })
   }
@@ -434,8 +496,8 @@ class NotificationService {
     performedByName = 'Admin'
   ): Promise<string> {
     const notifRef = doc(collection(db, NOTIFICATIONS_COLLECTION))
-    const duration = data.durationHours || 24
-    const expiresAt = new Date(Date.now() + duration * 60 * 60 * 1000).toISOString()
+    const duration = typeof data.durationHours === 'number' ? data.durationHours : 24
+    const expiresAt = duration > 0 ? new Date(Date.now() + duration * 60 * 60 * 1000).toISOString() : null
 
     const payload: Record<string, any> = {
       id: notifRef.id,
@@ -474,6 +536,85 @@ class NotificationService {
   }
 
   /**
+   * Remind assigned servers for a single untaken schedule
+   */
+  async remindSingleSchedule(
+    schedule: Schedule,
+    performedBy = 'Administrator'
+  ): Promise<{ success: boolean; notifiedCount: number }> {
+    if (!schedule || !schedule.id) return { success: false, notifiedCount: 0 }
+
+    const rawMemberIds = schedule.assignedMembers || []
+    const [usersSnap, membersSnap] = await Promise.all([
+      getDocs(collection(db, USERS_COLLECTION)),
+      getDocs(collection(db, 'members'))
+    ])
+    const usersList = usersSnap.docs.map(d => ({ uid: d.id, ...d.data() } as UserProfile))
+    const membersList = membersSnap.docs.map(d => ({ id: d.id, ...d.data() } as Member))
+
+    const targetIdsSet = new Set<string>()
+    rawMemberIds.forEach(mId => {
+      if (mId) {
+        targetIdsSet.add(mId)
+        targetIdsSet.add(mId.toLowerCase().trim())
+      }
+    })
+
+    const assignedMemberObjs = membersList.filter(m => rawMemberIds.includes(m.id))
+    const assignedNames = assignedMemberObjs.map(m => `${m.firstName || ''} ${m.lastName || ''}`.trim().toLowerCase())
+
+    usersList.forEach(u => {
+      const uMemberId = u.memberId ? String(u.memberId).trim() : ''
+      const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
+      const uName = (u.displayName || u.memberName || '').toLowerCase().trim()
+
+      const matchesMemberId = Boolean(uMemberId && rawMemberIds.includes(uMemberId))
+      const matchesUid = Boolean(u.uid && rawMemberIds.includes(u.uid))
+      const matchesName = Boolean(uName && assignedNames.some(name => name && uName === name))
+      const matchesEmail = Boolean(assignedMemberObjs.some(m => m.email && m.email.toLowerCase().trim() === uEmail))
+
+      if (matchesMemberId || matchesUid || matchesName || matchesEmail) {
+        if (u.uid) targetIdsSet.add(u.uid)
+        if (uEmail) targetIdsSet.add(uEmail)
+        if (uMemberId) targetIdsSet.add(uMemberId)
+      }
+    })
+
+    const targetIds = Array.from(targetIdsSet)
+    const notifRef = doc(collection(db, NOTIFICATIONS_COLLECTION))
+    const reminderPayload: Record<string, any> = {
+      id: notifRef.id,
+      type: 'attendance_reminder',
+      title: `Attendance Reminder: ${schedule.title}${schedule.date ? ` (${schedule.date})` : ''}`,
+      message: `You are assigned to ${schedule.title} (${schedule.date || ''} • ${schedule.startTime || ''} - ${schedule.endTime || ''}). The scheduled duty has passed and attendance is pending. Please record and finalize attendance.`,
+      priority: 'urgent',
+      targetAudience: 'officers',
+      scheduleId: schedule.id,
+      actionUrl: `/attendance?scheduleId=${schedule.id}`,
+      actionLabel: 'Take Attendance Now',
+      createdBy: performedBy,
+      createdByName: 'Admin',
+      createdAt: serverTimestamp(),
+      readBy: []
+    }
+
+    if (targetIds.length > 0) {
+      reminderPayload.targetMemberIds = targetIds
+    }
+
+    await setDoc(notifRef, reminderPayload)
+
+    // Trigger local push notification on sender as well
+    await this.showLocalNotification(`🚨 Attendance Reminder: ${schedule.title}`, {
+      body: `Reminder sent to assigned altar servers with accounts.`,
+      tag: `mats-remind-${schedule.id}`,
+      data: { url: `/attendance?scheduleId=${schedule.id}` }
+    })
+
+    return { success: true, notifiedCount: targetIds.length }
+  }
+
+  /**
    * Scans untaken schedules and sends bulk/targeted reminders to assigned officers
    */
   async sendBulkAttendanceReminders(
@@ -496,7 +637,15 @@ class NotificationService {
     }
 
     const adminPerformer = opts.performedBy || 'Administrator'
-    const todayStr = new Date().toISOString().split('T')[0]
+    const now = new Date()
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    const todayStr = `${year}-${month}-${day}`
+
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    const currentTimeStr = `${hours}:${minutes}`
 
     onProgress?.({
       active: true,
@@ -511,7 +660,16 @@ class NotificationService {
 
     let schedules = schedulesSnap.docs
       .map(d => ({ id: d.id, ...d.data() } as Schedule))
-      .filter(s => s.status !== 'cancelled' && (!s.date || s.date <= todayStr))
+      .filter(s => {
+        if (s.status === 'cancelled' || s.isLocked) return false
+        if (!s.date) return false
+        if (s.date < todayStr) return true
+        if (s.date === todayStr) {
+          const scheduleEndTime = s.endTime || s.startTime || '23:59'
+          return currentTimeStr >= scheduleEndTime
+        }
+        return false
+      })
 
     // If specific scheduleIds are selected, filter to those
     if (opts.scheduleIds && opts.scheduleIds.length > 0) {
@@ -532,17 +690,26 @@ class NotificationService {
 
     // 2. Fetch attendance sessions to find unfinalized/untaken ones
     const sessionsSnap = await getDocs(collection(db, 'attendanceSessions'))
-    const lockedScheduleIds = new Set<string>()
+    const finalizedScheduleIds = new Set<string>()
     sessionsSnap.docs.forEach(d => {
       const data = d.data()
-      if (data.locked === true && data.scheduleId) {
-        lockedScheduleIds.add(data.scheduleId)
+      const isLocked = data.locked === true || String(data.locked) === 'true'
+      const isFinalized = isLocked || data.finalizedAt != null || data.status === 'finalized' || data.attendanceStatus === 'finalized'
+      if (isFinalized) {
+        if (data.scheduleId) finalizedScheduleIds.add(data.scheduleId)
+        finalizedScheduleIds.add(d.id)
       }
     })
 
-    // Filter schedules that are untaken
+    // Filter schedules that are strictly untaken (not finalized, not locked, not cancelled)
     const pendingSchedules = schedules
-      .filter(s => !lockedScheduleIds.has(s.id) && !s.isLocked)
+      .filter(s => {
+        if (s.status === 'cancelled') return false
+        if (s.isLocked === true || String(s.isLocked) === 'true') return false
+        if (finalizedScheduleIds.has(s.id)) return false
+        if ((s as any).attendanceStatus === 'finalized' || (s as any).attendanceState === 'finalized') return false
+        return true
+      })
       .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
 
     if (pendingSchedules.length === 0) {
@@ -597,49 +764,66 @@ class NotificationService {
 
     for (let i = 0; i < pendingSchedules.length; i++) {
       const s = pendingSchedules[i]
+      const scheduleAssignedMembers: string[] = s.assignedMembers || []
       
-      let rawMemberIds: string[] = []
-      if (opts.targetAudienceType === 'custom_members' && opts.customMemberIds && opts.customMemberIds.length > 0) {
-        rawMemberIds = opts.customMemberIds
-      } else if (opts.targetAudienceType === 'all_officers') {
-        rawMemberIds = [] // Empty targetMemberIds with 'officers' audience alerts all officers
-      } else {
-        // Default: Assigned members on this schedule
-        rawMemberIds = s.assignedMembers || []
-      }
+      const assignedMemberObjs = membersList.filter(m => scheduleAssignedMembers.includes(m.id))
+      const assignedNames = assignedMemberObjs.map(m => `${m.firstName || ''} ${m.lastName || ''}`.trim().toLowerCase())
 
-      // Expand target IDs to include member doc ID, user Auth UID, names, and user email
-      const targetIdsSet = new Set<string>()
-      rawMemberIds.forEach(mId => {
-        if (mId) {
-          targetIdsSet.add(mId)
-          targetIdsSet.add(mId.toLowerCase().trim())
-        }
+      // 1. Identify which active user accounts belong to this specific schedule
+      const assignedUsersForThisSchedule = usersList.filter(u => {
+        const uMemberId = u.memberId ? String(u.memberId).trim() : ''
+        const uUid = u.uid || u.id || ''
+        const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
+        const uName = (u.displayName || u.memberName || '').toLowerCase().trim()
+
+        const matchesMemberId = Boolean(uMemberId && scheduleAssignedMembers.includes(uMemberId))
+        const matchesUid = Boolean(uUid && scheduleAssignedMembers.includes(uUid))
+        const matchesName = Boolean(uName && assignedNames.some(name => name && uName === name))
+        const matchesEmail = Boolean(uEmail && assignedMemberObjs.some(m => m.email && m.email.toLowerCase().trim() === uEmail))
+
+        return matchesMemberId || matchesUid || matchesName || matchesEmail
       })
 
-      if (rawMemberIds.length > 0) {
-        const assignedMemberObjs = membersList.filter(m => rawMemberIds.includes(m.id))
-        const assignedNames = assignedMemberObjs.map(m => `${m.firstName || ''} ${m.lastName || ''}`.trim().toLowerCase())
-
-        usersList.forEach(u => {
-          const uMemberId = u.memberId ? String(u.memberId).trim() : ''
+      // 2. If custom_members filter is selected, keep only the accounts selected by admin
+      let targetUsersForThisSchedule = assignedUsersForThisSchedule
+      if (opts.targetAudienceType === 'custom_members' && opts.customMemberIds && opts.customMemberIds.length > 0) {
+        const selectedKeySet = new Set(opts.customMemberIds.map(k => String(k).toLowerCase().trim()))
+        targetUsersForThisSchedule = assignedUsersForThisSchedule.filter(u => {
+          const uMemberId = u.memberId ? String(u.memberId).toLowerCase().trim() : ''
+          const uUid = (u.uid || u.id || '').toLowerCase().trim()
           const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
-          const uName = (u.displayName || u.memberName || '').toLowerCase().trim()
 
-          const matchesMemberId = uMemberId && rawMemberIds.includes(uMemberId)
-          const matchesName = uName && assignedNames.some(name => name && (uName.includes(name) || name.includes(uName)))
-          const matchesEmail = assignedMemberObjs.some(m => m.email && m.email.toLowerCase().trim() === uEmail)
-
-          if (matchesMemberId || matchesName || matchesEmail) {
-            if (u.uid) targetIdsSet.add(u.uid)
-            if (u.id) targetIdsSet.add(u.id)
-            if (uEmail) targetIdsSet.add(uEmail)
-            if (uMemberId) targetIdsSet.add(uMemberId)
-          }
+          return (
+            (uUid && selectedKeySet.has(uUid)) ||
+            (uMemberId && selectedKeySet.has(uMemberId)) ||
+            (uEmail && selectedKeySet.has(uEmail))
+          )
         })
       }
 
+      // If no targeted users are assigned to THIS schedule and not broadcasting to all officers, skip this schedule
+      if (opts.targetAudienceType !== 'all_officers' && targetUsersForThisSchedule.length === 0) {
+        continue
+      }
+
+      // Build target IDs strictly for users assigned to THIS schedule
+      const targetIdsSet = new Set<string>()
+      targetUsersForThisSchedule.forEach(u => {
+        const uMemberId = u.memberId ? String(u.memberId).trim() : ''
+        const uUid = u.uid || u.id || ''
+        const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
+
+        if (uUid) targetIdsSet.add(uUid)
+        if (uMemberId) targetIdsSet.add(uMemberId)
+        if (uEmail) targetIdsSet.add(uEmail)
+      })
+
       const targetIds = Array.from(targetIdsSet)
+
+      // If targetIds is empty and we are not doing 'all_officers', do NOT send untargeted reminder
+      if (opts.targetAudienceType !== 'all_officers' && targetIds.length === 0) {
+        continue
+      }
 
       const notifRef = doc(collection(db, NOTIFICATIONS_COLLECTION))
       const reminderPayload: Record<string, any> = {
@@ -666,7 +850,7 @@ class NotificationService {
 
       await setDoc(notifRef, reminderPayload)
       totalReminded++
-      totalOfficers += targetIds.length > 0 ? targetIds.length : 1
+      totalOfficers += targetUsersForThisSchedule.length > 0 ? targetUsersForThisSchedule.length : 1
 
       const percent = Math.round(40 + ((i + 1) / pendingSchedules.length) * 55)
       onProgress?.({
@@ -712,10 +896,11 @@ class NotificationService {
 
     const emailClean = userEmail?.toLowerCase().trim()
 
-    // Query collection with limit(20) for recent items to strictly control Firestore quota
+    // Query collection ordered by creation date descending to ensure newest broadcasts and notifications are loaded
     const q = query(
       collection(db, NOTIFICATIONS_COLLECTION),
-      limit(20)
+      orderBy('createdAt', 'desc'),
+      limit(30)
     )
 
     return onSnapshot(q, (snapshot) => {
@@ -723,8 +908,8 @@ class NotificationService {
         id: d.id,
         ...d.data()
       } as AppNotification)).sort((a, b) => {
-        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : 0)
-        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : 0)
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : Date.now())
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : Date.now())
         return timeB - timeA
       })
 
@@ -748,10 +933,10 @@ class NotificationService {
           return isDirectTarget
         }
 
-        // 2. Attendance reminders without specific target members (sent to all officers)
+        // 2. Attendance reminders without specific target members (sent only to admins/coordinators)
         if (n.type === 'attendance_reminder') {
-          if (userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer' || userRole === 'user') return true
-          if (isAdminOrCoordinator && memberId) return true
+          if (isAdminOrCoordinator) return true
+          if (userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer') return true
           return false
         }
 
@@ -759,7 +944,7 @@ class NotificationService {
         if (n.targetAudience === 'all') return true
         if (n.targetAudience === 'admins' && isAdminOrCoordinator) return true
         if (n.targetAudience === 'officers') {
-          if (isAdminOrCoordinator || userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer' || memberId) return true
+          if (isAdminOrCoordinator || userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer') return true
           return false
         }
 

@@ -2,9 +2,8 @@ import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useNotificationContext } from '@/context/NotificationContext'
-import { notificationService } from '@/services/notificationService'
 import type { AppNotification } from '@/types/notification'
-import { useToast } from '@/components'
+import { useToast } from '@/context/ToastContext'
 
 const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -16,8 +15,14 @@ const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 )
 
+const CheckDoubleIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+  </svg>
+)
+
 export const NotificationBell: React.FC = () => {
-  const { user, isAdmin } = useAuth()
+  const { user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
@@ -26,12 +31,12 @@ export const NotificationBell: React.FC = () => {
   const {
     notifications,
     unreadCount,
-    isPushActive,
-    permissionState,
     markAsRead,
     markAllAsRead,
-    togglePushNotifications
   } = useNotificationContext()
+
+  const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all')
+  const [showAllNotifications, setShowAllNotifications] = useState(false)
 
   // Close on outside click or Escape
   useEffect(() => {
@@ -56,25 +61,41 @@ export const NotificationBell: React.FC = () => {
     }
   }, [isOpen])
 
-  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'reminders' | 'broadcasts'>('all')
-  const [togglingPush, setTogglingPush] = useState(false)
-  const { hasModuleAccess } = useAuth()
-  const canAccessSettings = isAdmin || hasModuleAccess?.('settings')
+  // Parse notification createdAt timestamp safely
+  const getNotificationDate = (createdAt: any): Date | null => {
+    if (!createdAt) return null
+    if (typeof createdAt.toDate === 'function') {
+      return createdAt.toDate()
+    }
+    if (createdAt instanceof Date) {
+      return createdAt
+    }
+    if (typeof createdAt === 'object' && typeof createdAt.seconds === 'number') {
+      return new Date(createdAt.seconds * 1000)
+    }
+    if (typeof createdAt === 'number') {
+      return new Date(createdAt > 1e11 ? createdAt : createdAt * 1000)
+    }
+    if (typeof createdAt === 'string') {
+      const d = new Date(createdAt)
+      return isNaN(d.getTime()) ? null : d
+    }
+    return null
+  }
 
-  const remindersCount = notifications.filter((n) => n.type === 'attendance_reminder').length
-  const broadcastsCount = notifications.filter((n) => n.type === 'admin_broadcast').length
-
-  const filteredNotifications = notifications.filter((n) => {
-    if (activeTab === 'unread') return !n.readBy || !n.readBy.includes(user?.uid || '')
-    if (activeTab === 'reminders') return n.type === 'attendance_reminder'
-    if (activeTab === 'broadcasts') return n.type === 'admin_broadcast'
-    return true
-  })
+  const isNotificationWithinDays = (createdAt: any, days: number): boolean => {
+    const d = getNotificationDate(createdAt)
+    if (!d) return true
+    const now = new Date()
+    const diffMs = now.getTime() - d.getTime()
+    const diffDays = diffMs / (1000 * 60 * 60 * 24)
+    return diffDays <= days
+  }
 
   const handleMarkAllRead = async () => {
     if (!user?.uid) return
     await markAllAsRead()
-    toast.success('All Caught Up', 'All notifications marked as read.')
+    toast.success('All Marked as Read', 'All unread notifications have been marked as read.')
   }
 
   const handleNotificationClick = async (notif: AppNotification) => {
@@ -87,29 +108,15 @@ export const NotificationBell: React.FC = () => {
     }
   }
 
-  const handleTogglePush = async () => {
-    if (!user?.uid || togglingPush) return
-    setTogglingPush(true)
-    try {
-      const isNowActive = await togglePushNotifications()
-      if (isNowActive) {
-        toast.success(
-          'Notifications Enabled!',
-          'You will now receive instant schedule alerts and ministry broadcasts.'
-        )
-      } else {
-        toast.info(
-          'Notifications Disabled',
-          'Push notifications turned off on this device.'
-        )
-      }
-    } catch (err: any) {
-      console.error('Push toggle error:', err)
-      toast.error('Push Error', err.message || 'Failed to update push status.')
-    } finally {
-      setTogglingPush(false)
-    }
-  }
+  // 3-Day Slicing Logic for Notifications (Direct Alerts)
+  const recentNotifications = notifications.filter((n) => isNotificationWithinDays(n.createdAt, 3))
+  const olderNotifications = notifications.filter((n) => !isNotificationWithinDays(n.createdAt, 3))
+  
+  const baseNotifications = showAllNotifications || olderNotifications.length === 0 ? notifications : recentNotifications
+  const filteredNotifications = baseNotifications.filter((n) => {
+    if (activeTab === 'unread') return !n.readBy || !n.readBy.includes(user?.uid || '')
+    return true
+  })
 
   return (
     <div className="relative" ref={popoverRef}>
@@ -118,14 +125,14 @@ export const NotificationBell: React.FC = () => {
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="relative flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-colors shadow-2xs cursor-pointer focus:outline-none"
-        title="Notifications & Alerts"
+        title="Notifications"
         aria-label="Notifications"
       >
         <BellIcon className="w-4 h-4" />
         {unreadCount > 0 && (
           <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center">
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-            <span className="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-rose-500 text-[9px] font-black text-white">
+            <span className="relative inline-flex items-center justify-center rounded-full h-4 w-4 bg-rose-500 text-[9px] font-black text-white shadow-xs">
               {unreadCount > 9 ? '9+' : unreadCount}
             </span>
           </span>
@@ -141,16 +148,20 @@ export const NotificationBell: React.FC = () => {
             onClick={() => setIsOpen(false)}
           />
 
-          <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-96 rounded-2xl border border-slate-200/90 bg-white shadow-2xl sm:shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
+          <div className="fixed inset-x-3 top-16 sm:absolute sm:inset-x-auto sm:top-auto sm:right-0 sm:mt-2 w-auto sm:w-[400px] rounded-2xl border border-slate-200/90 bg-white shadow-2xl sm:shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150">
             {/* Header */}
             <div className="p-3.5 border-b border-slate-100 bg-slate-50/80 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-slate-800">
                   Notification Center
                 </span>
-                {unreadCount > 0 && (
+                {unreadCount > 0 ? (
                   <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
-                    {unreadCount} unread
+                    {unreadCount} pending
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 border border-emerald-200">
+                    Up to date
                   </span>
                 )}
               </div>
@@ -160,9 +171,11 @@ export const NotificationBell: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleMarkAllRead}
-                    className="text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                    title="Mark all notifications as read"
                   >
-                    Mark all read
+                    <CheckDoubleIcon className="w-3.5 h-3.5" />
+                    <span>Mark all read</span>
                   </button>
                 )}
               </div>
@@ -173,118 +186,29 @@ export const NotificationBell: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setActiveTab('all')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
                   activeTab === 'all'
                     ? 'bg-white text-slate-900 shadow-2xs font-extrabold'
                     : 'hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                All ({notifications.length})
+                All Alerts ({notifications.length})
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab('unread')}
-                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
+                className={`px-3 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
                   activeTab === 'unread'
                     ? 'bg-white text-rose-700 shadow-2xs font-extrabold'
                     : 'hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                Unread ({unreadCount})
+                Unread {unreadCount > 0 ? `(${unreadCount})` : ''}
               </button>
-              {remindersCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('reminders')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
-                    activeTab === 'reminders'
-                      ? 'bg-white text-amber-700 shadow-2xs font-extrabold'
-                      : 'hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
-                >
-                  Reminders ({remindersCount})
-                </button>
-              )}
-              {broadcastsCount > 0 && (
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('broadcasts')}
-                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer shrink-0 ${
-                    activeTab === 'broadcasts'
-                      ? 'bg-white text-indigo-700 shadow-2xs font-extrabold'
-                      : 'hover:text-slate-900 hover:bg-slate-200/60'
-                  }`}
-                >
-                  Broadcasts ({broadcastsCount})
-                </button>
-              )}
             </div>
 
-            {/* Dedicated Push Notifications Device Control Card for ALL users */}
-            {notificationService.isSupported() && (
-              <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div
-                    className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
-                      isPushActive
-                        ? 'bg-blue-100 text-blue-600'
-                        : permissionState === 'denied'
-                        ? 'bg-rose-100 text-rose-600'
-                        : 'bg-slate-200 text-slate-500'
-                    }`}
-                  >
-                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold text-slate-800">Push Alerts</span>
-                      <span
-                        className={`text-[8px] font-black uppercase px-1.5 py-0.2 rounded-md ${
-                          isPushActive
-                            ? 'bg-emerald-100 text-emerald-700'
-                            : permissionState === 'denied'
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-slate-200 text-slate-600'
-                        }`}
-                      >
-                        {isPushActive ? 'Active' : permissionState === 'denied' ? 'Blocked' : 'Off'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Toggle Switch */}
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={isPushActive}
-                  onClick={handleTogglePush}
-                  disabled={togglingPush || permissionState === 'denied'}
-                  className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none disabled:opacity-40 disabled:cursor-not-allowed ${
-                    isPushActive ? 'bg-blue-600' : 'bg-slate-300'
-                  }`}
-                  title={
-                    permissionState === 'denied'
-                      ? 'Blocked in browser settings'
-                      : isPushActive
-                      ? 'Click to turn off push notifications'
-                      : 'Click to turn on push notifications'
-                  }
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
-                      isPushActive ? 'translate-x-3.5' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
-              </div>
-            )}
-
-            {/* Notification List */}
-            <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+            {/* Main Content Area */}
+            <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
               {filteredNotifications.length === 0 ? (
                 <div className="py-10 px-4 text-center">
                   <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
@@ -294,95 +218,114 @@ export const NotificationBell: React.FC = () => {
                   <p className="text-[11px] text-slate-400 mt-0.5">
                     {activeTab === 'unread'
                       ? 'You have read all your notifications.'
-                      : activeTab === 'reminders'
-                      ? 'No active attendance reminders.'
+                      : olderNotifications.length > 0 && !showAllNotifications
+                      ? `No notifications in the last 3 days. (${olderNotifications.length} older notifications available)`
                       : 'You are completely up to date.'}
                   </p>
+                  {olderNotifications.length > 0 && !showAllNotifications && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAllNotifications(true)}
+                      className="mt-3 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white shadow-2xs transition cursor-pointer"
+                    >
+                      <span>View All Alerts ({olderNotifications.length})</span>
+                      <span>↓</span>
+                    </button>
+                  )}
                 </div>
               ) : (
-                filteredNotifications.map((notif) => {
-                  const isUnread = !notif.readBy || !notif.readBy.includes(user?.uid || '')
-                  const isAttendanceReminder = notif.type === 'attendance_reminder'
+                <>
+                  {filteredNotifications.map((notif) => {
+                    const isUnread = !notif.readBy || !notif.readBy.includes(user?.uid || '')
+                    const isAttendanceReminder = notif.type === 'attendance_reminder'
 
-                  return (
-                    <div
-                      key={notif.id}
-                      onClick={() => handleNotificationClick(notif)}
-                      className={`p-3.5 text-left transition-colors cursor-pointer hover:bg-slate-50 ${
-                        isUnread ? 'bg-blue-50/40' : 'bg-white'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          {isAttendanceReminder ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                              Reminder
+                    return (
+                      <div
+                        key={notif.id}
+                        onClick={() => handleNotificationClick(notif)}
+                        className={`p-3.5 text-left transition-colors cursor-pointer hover:bg-slate-50 ${
+                          isUnread ? 'bg-blue-50/40' : 'bg-white'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {isAttendanceReminder ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                Reminder
+                              </span>
+                            ) : notif.priority === 'urgent' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                                Urgent
+                              </span>
+                            ) : notif.priority === 'important' ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                                Announcement
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                Notice
+                              </span>
+                            )}
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {notif.createdByName || 'System'}
                             </span>
-                          ) : notif.priority === 'urgent' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
-                              Urgent
-                            </span>
-                          ) : notif.priority === 'important' ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                              Announcement
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-blue-100 text-blue-800 border border-blue-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                              Notice
-                            </span>
+                          </div>
+
+                          {isUnread && (
+                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
                           )}
-                          <span className="text-[10px] font-bold text-slate-400">
-                            {notif.createdByName || 'System'}
-                          </span>
                         </div>
 
-                        {isUnread && (
-                          <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
+                        <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                          {notif.title}
+                        </h4>
+
+                        <p className="text-[11px] text-slate-600 mt-1 leading-relaxed line-clamp-2">
+                          {notif.message}
+                        </p>
+
+                        {notif.actionUrl && (
+                          <div className="mt-2 flex items-center justify-end">
+                            <span className="text-[10px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
+                              {notif.actionLabel || 'View Record'} →
+                            </span>
+                          </div>
                         )}
                       </div>
+                    )
+                  })}
 
-                      <h4 className="text-xs font-bold text-slate-900 leading-snug">
-                        {notif.title}
-                      </h4>
-
-                      <p className="text-[11px] text-slate-600 mt-1 leading-relaxed line-clamp-2">
-                        {notif.message}
-                      </p>
-
-                      {notif.actionUrl && (
-                        <div className="mt-2 flex items-center justify-end">
-                          <span className="text-[10px] font-bold text-blue-600 hover:underline inline-flex items-center gap-1">
-                            {notif.actionLabel || 'View Record'} →
-                          </span>
-                        </div>
-                      )}
+                  {/* 3-Day Slicing Toggle Footer for Notifications */}
+                  {olderNotifications.length > 0 && (
+                    <div className="p-2.5 bg-slate-50 border-t border-slate-100 flex items-center justify-center">
+                      <button
+                        type="button"
+                        onClick={() => setShowAllNotifications(!showAllNotifications)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-blue-800 bg-blue-100/70 hover:bg-blue-100 border border-blue-200/80 transition-all cursor-pointer shadow-2xs"
+                      >
+                        {showAllNotifications ? (
+                          <>
+                            <span>Show recent alerts only (Last 3 days)</span>
+                            <span>↑</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>View older alerts ({olderNotifications.length} hidden)</span>
+                            <span>↓</span>
+                          </>
+                        )}
+                      </button>
                     </div>
-                  )
-                })
+                  )}
+                </>
               )}
             </div>
-
-          {/* Footer for users with Settings permission */}
-          {canAccessSettings && (
-            <div className="p-2 border-t border-slate-100 bg-slate-50/60 text-center">
-              <button
-                type="button"
-                onClick={() => {
-                  setIsOpen(false)
-                  navigate('/settings')
-                }}
-                className="text-[10px] font-bold text-slate-500 hover:text-slate-800 cursor-pointer"
-              >
-                Push Notification Settings →
-              </button>
-            </div>
-          )}
-        </div>
-      </>
+          </div>
+        </>
       )}
     </div>
   )

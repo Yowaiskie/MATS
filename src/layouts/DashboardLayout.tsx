@@ -6,8 +6,6 @@ import { OfflineBanner } from '@/components/OfflineBanner'
 import { InstallPWAButton } from '@/components/InstallPWAButton'
 import { NotificationBell } from '@/components/NotificationBell'
 import { NotificationActions } from '@/components/NotificationActions'
-import { BroadcastHeaderBanner } from '@/components/BroadcastHeaderBanner'
-import { EnablePushModal } from '@/components/EnablePushModal'
 import { Joyride } from 'react-joyride'
 import { useTutorial } from '@/context/TutorialContext'
 import { useTutorialSteps } from '@/hooks/useTutorialSteps'
@@ -16,6 +14,7 @@ import { useInactivityRedirect } from '@/hooks/useInactivityRedirect'
 import { dashboardService } from '@/services/dashboardService'
 import { useMaintenance } from '@/context/MaintenanceContext'
 import { MaintenanceScreen } from '@/features/maintenance/components/MaintenanceScreen'
+import { BottomNav } from '@/layouts/BottomNav'
 
 // Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
@@ -94,7 +93,6 @@ export const DashboardLayout: React.FC = () => {
   const { isMaintenanceActive, isUserAllowed } = useMaintenance()
   const location = useLocation()
   const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [activeTasksCount, setActiveTasksCount] = useState(0)
@@ -129,11 +127,6 @@ export const DashboardLayout: React.FC = () => {
     }
   }, [globalSteps, startTutorial, isBlocked])
 
-  React.useEffect(() => {
-    if (run && window.innerWidth < 640) {
-      setMobileMenuOpen(true)
-    }
-  }, [run])
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -217,27 +210,14 @@ export const DashboardLayout: React.FC = () => {
       )}
 
       {/* Top Navbar */}
-      <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95">
+      {/* paddingTop: safe-area-inset-top pushes content below Android/iOS status bar (battery, time, etc.) */}
+      <header
+        className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
         <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 pr-2">
-            {/* Hamburger Button for Mobile */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="relative sm:hidden text-gray-600 hover:text-gray-900 focus:outline-none p-2 rounded-xl hover:bg-gray-100 transition-all border border-gray-200/60 bg-gray-50/80 active:scale-95 cursor-pointer shadow-2xs shrink-0"
-              aria-label="Toggle navigation menu"
-            >
-              {activeTasksCount > 0 && (
-                <span className="absolute top-0 right-0 -mt-0.5 -mr-0.5 flex h-3 w-3">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500 border border-white"></span>
-                </span>
-              )}
-              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileMenuOpen ? "M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} />
-              </svg>
-            </button>
-
-            {/* Collapse Toggle Button for Desktop */}
+            {/* Collapse Toggle Button for Desktop only */}
             <button
               onClick={() => setCollapsed(!collapsed)}
               className="hidden sm:inline-flex text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-all focus:outline-none cursor-pointer border border-transparent hover:border-gray-200 shrink-0"
@@ -429,144 +409,24 @@ export const DashboardLayout: React.FC = () => {
           </div>
         </aside>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div className="sm:hidden fixed inset-0 z-50 flex">
-            {/* Overlay */}
-            <div 
-              className="fixed inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity" 
-              onClick={() => setMobileMenuOpen(false)}
-            ></div>
-
-            {/* Sidebar drawer */}
-            <aside className="relative w-64 max-w-xs bg-white border-r border-slate-200/90 p-4 space-y-4 flex flex-col z-50 shadow-2xl animate-in slide-in-from-left duration-200">
-              {/* Drawer Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100 shrink-0">
-                <div className="flex items-center space-x-2.5 overflow-hidden">
-                  <img src="/favicon/favicon.png" alt="Logo" className="h-8 w-8 rounded-xl border border-slate-200/60 object-cover shrink-0" />
-                  <span className="font-extrabold text-sm text-slate-900 tracking-tight truncate">MATS Portal</span>
-                  <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
-                    v.2.1
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1.5 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 transition-all border border-slate-200/80 cursor-pointer shadow-2xs active:scale-95 flex items-center justify-center"
-                  aria-label="Close navigation menu"
-                >
-                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              {/* Navigation Items */}
-              <nav className="space-y-4 flex-1 overflow-y-auto mobile-tour-sidebar-menu">
-                {[
-                  {
-                    section: 'CORE MENU',
-                    items: [
-                      { name: 'Dashboard', href: '/', moduleKey: 'dashboard' },
-                      { name: 'Schedules', href: '/schedules', moduleKey: 'schedules' },
-                      { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
-                      { name: 'Members', href: '/members', moduleKey: 'members' },
-                    ]
-                  },
-                  {
-                    section: 'OPERATIONS',
-                    items: [
-                      { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
-                      { name: 'Inventory', href: '/inventory', moduleKey: 'inventory' as ModuleKey },
-                      { name: 'Finance', href: '/finance', moduleKey: 'finance' },
-                      { name: 'Reports', href: '/reports', moduleKey: 'reports' },
-                      { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
-                    ]
-                  },
-                  {
-                    section: 'ADMINISTRATIVE',
-                    items: [
-                      { name: 'User Management', href: '/users', moduleKey: 'users' },
-                      { name: 'Settings', href: '/settings', moduleKey: 'settings' },
-                      { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
-                      { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
-                    ]
-                  }
-                ].map((group) => {
-                  const allowedItems = group.items.filter(item => hasModuleAccess(item.moduleKey as ModuleKey))
-                  if (allowedItems.length === 0) return null
-
-                  return (
-                    <div key={group.section} className="space-y-1">
-                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3.5 py-1">
-                        {group.section}
-                      </div>
-                      {allowedItems.map((item) => {
-                        const active = isActive(item.href)
-                        return (
-                          <Link
-                            key={item.name}
-                            to={item.href}
-                            onClick={() => setMobileMenuOpen(false)}
-                            className={`mobile-tour-nav-${item.moduleKey} flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-xs transition-all ${
-                              active
-                                ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm'
-                                : 'text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900'
-                            }`}
-                          >
-                            <span className={`shrink-0 ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
-                              {icons[item.name]}
-                            </span>
-                            <span className="truncate flex-1">{item.name}</span>
-                            {item.name === 'Events' && activeTasksCount > 0 && (
-                               <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-xs">
-                                 {activeTasksCount}
-                               </span>
-                            )}
-                          </Link>
-                        )
-                      })}
-                    </div>
-                  )
-                })}
-              </nav>
-
-              <div className="mobile-tour-user-menu pt-3 border-t border-slate-100 flex flex-col gap-2.5 shrink-0">
-                <div className="flex items-center justify-between text-xs text-slate-500">
-                  <div className="truncate">
-                    <div className="text-[10px] uppercase font-bold text-slate-400">Signed in as</div>
-                    <div className="font-semibold text-slate-800 truncate">{profile?.email || 'Admin'}</div>
-                  </div>
-                </div>
-                <button
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 py-2 px-3 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
-                >
-                  <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                  </svg>
-                  <span>{loggingOut ? 'Signing out...' : 'Sign Out'}</span>
-                </button>
-              </div>
-            </aside>
-          </div>
-        )}
+        {/* Mobile Navigation Drawer — removed, replaced by BottomNav bottom tab bar */}
 
         {/* Main Content Pane */}
-        <main className="flex-1 min-w-0 p-4 sm:p-8 overflow-y-auto">
+        {/* pb-20 on mobile reserves space above the fixed BottomNav bar; sm:pb-0 resets on desktop */}
+        <main className="flex-1 min-w-0 p-4 sm:p-8 overflow-y-auto pb-20 sm:pb-0">
           <div className="max-w-7xl mx-auto space-y-6">
-            {/* Active Ministry Broadcast Announcement Card */}
-            <BroadcastHeaderBanner />
-
-            {/* Persistent Push Notification Setup Prompt */}
-            <EnablePushModal />
-
             {/* Outlet renders the matched nested route child */}
             <Outlet />
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (hidden on desktop) */}
+      <BottomNav
+        activeTasksCount={activeTasksCount}
+        onLogout={handleLogout}
+        loggingOut={loggingOut}
+      />
     </div>
   )
 }

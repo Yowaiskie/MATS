@@ -152,8 +152,7 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canDeleteMembers: false,
     canReviewExcuses: false,
     canApproveExcuses: false,
-    canDeleteExcuses: false,
-    canBroadcast: false
+    canDeleteExcuses: false
   },
   {
     id: 'preset_order_leader',
@@ -225,8 +224,7 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canDeleteMembers: false,
     canReviewExcuses: false,
     canApproveExcuses: false,
-    canDeleteExcuses: false,
-    canBroadcast: false
+    canDeleteExcuses: false
   },
   {
     id: 'preset_admin',
@@ -298,8 +296,7 @@ export const DEFAULT_PERMISSION_PRESETS: PermissionPreset[] = [
     canDeleteMembers: true,
     canReviewExcuses: true,
     canApproveExcuses: true,
-    canDeleteExcuses: true,
-    canBroadcast: true
+    canDeleteExcuses: true
   }
 ]
 

@@ -1,6 +1,6 @@
 {
-  "name": "MATS - Ministry Administration & Tracking System",
-  "short_name": "MATS",
+  "name": "MATS Web - Ministry Administration & Tracking System",
+  "short_name": "MATS Web",
   "description": "Ministry Attendance Tracking System - Digital attendance management for church ministries",
   "start_url": "/",
   "id": "/",
