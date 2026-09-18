@@ -43,6 +43,98 @@ export interface UntakenScheduleInfo {
   hasAssignedAccounts: boolean
 }
 
+export const isUserMatchedWithServer = (
+  user: UserProfile,
+  member: Member | undefined,
+  mId: string
+): boolean => {
+  if (!user) return false
+
+  const cleanMid = (mId || '').toLowerCase().trim()
+  const uUid = (user.uid || '').toLowerCase().trim()
+  const uMemberId = (user.memberId || '').toLowerCase().trim()
+  const uEmail = (user.email || '').toLowerCase().trim()
+
+  // 1. Direct ID matches
+  if (uMemberId && (uMemberId === cleanMid || (member && uMemberId === member.id.toLowerCase().trim()))) {
+    return true
+  }
+  if (uUid && (uUid === cleanMid || (member && uUid === member.id.toLowerCase().trim()))) {
+    return true
+  }
+
+  // 2. Direct Email matches
+  if (uEmail && member?.email && uEmail === member.email.toLowerCase().trim()) {
+    return true
+  }
+  if (uEmail && cleanMid === uEmail) {
+    return true
+  }
+
+  // 3. Name comparisons across all name variations
+  const userNames = [
+    user.displayName,
+    user.memberName,
+    user.email ? user.email.split('@')[0] : ''
+  ]
+    .filter(Boolean)
+    .map(n => String(n).toLowerCase().trim())
+
+  if (member) {
+    const fName = (member.firstName || '').toLowerCase().trim()
+    const lName = (member.lastName || '').toLowerCase().trim()
+    const mName = (member.middleName || '').toLowerCase().trim()
+    const nick = (member.nickname || '').toLowerCase().trim()
+
+    const candidates = [
+      `${fName} ${lName}`.trim(),
+      `${lName}, ${fName}`.trim(),
+      `${lName} ${fName}`.trim(),
+      `${fName} ${mName} ${lName}`.trim(),
+      `${lName}, ${fName} ${mName}`.trim(),
+      `${nick} ${lName}`.trim(),
+      `${lName}, ${nick}`.trim(),
+      fName,
+      lName
+    ].filter(c => c && c.length >= 2)
+
+    for (const uN of userNames) {
+      // Direct string match
+      for (const cand of candidates) {
+        if (cand && (uN === cand || uN.replace(/[,.]/g, '') === cand.replace(/[,.]/g, ''))) {
+          return true
+        }
+      }
+
+      // Token match: user displayName contains both first name and last name
+      if (fName && lName) {
+        const uClean = uN.replace(/[^a-z0-9\s]/g, ' ')
+        const uWords = uClean.split(/\s+/).filter(Boolean)
+        const fWords = fName.split(/\s+/).filter(Boolean)
+        const lWords = lName.split(/\s+/).filter(Boolean)
+
+        const hasFirst = fWords.some(fw => fw.length >= 2 && uWords.includes(fw)) || (nick && nick.length >= 2 && uWords.includes(nick))
+        const hasLast = lWords.some(lw => lw.length >= 2 && uWords.includes(lw))
+
+        if (hasFirst && hasLast) {
+          return true
+        }
+      }
+    }
+  }
+
+  // If mId itself is a name string (e.g. "Kyle Doe" or "Doe, Kyle")
+  if (cleanMid && cleanMid.length >= 3) {
+    for (const uN of userNames) {
+      if (uN === cleanMid || uN.replace(/[,.]/g, '') === cleanMid.replace(/[,.]/g, '')) {
+        return true
+      }
+    }
+  }
+
+  return false
+}
+
 class NotificationService {
   private vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY || ''
   private notifiedIds = new Set<string>()
@@ -126,7 +218,6 @@ class NotificationService {
       .map(d => ({ id: d.id, ...d.data() } as Schedule))
       .filter(s => {
         if (s.status === 'cancelled') return false
-        if (s.isLocked === true || String(s.isLocked) === 'true') return false
         if (finalizedScheduleIds.has(s.id)) return false
         if ((s as any).attendanceStatus === 'finalized' || (s as any).attendanceState === 'finalized') return false
         if (!s.date) return false
@@ -151,16 +242,8 @@ class NotificationService {
         const member = memberMap[mId]
         const memberName = member ? `${member.firstName} ${member.lastName}`.trim() : mId
         
-        // Strict match user account: memberId, uid, email, or exact full name only
-        const matchedUser = usersWithAccounts.find(u => {
-          if (u.memberId && u.memberId === mId) return true
-          if (u.uid && (u.uid === mId || u.uid.toLowerCase() === mId.toLowerCase())) return true
-          if (u.email && member?.email && u.email.toLowerCase().trim() === member.email.toLowerCase().trim()) return true
-          const uName = (u.displayName || u.memberName || '').toLowerCase().trim()
-          const mNameClean = memberName.toLowerCase().trim()
-          if (uName && mNameClean && uName === mNameClean) return true
-          return false
-        })
+        // Match user account via comprehensive ID, email, and name matching
+        const matchedUser = usersWithAccounts.find(u => isUserMatchedWithServer(u, member, mId))
 
         return {
           memberId: mId,
@@ -705,7 +788,6 @@ class NotificationService {
     const pendingSchedules = schedules
       .filter(s => {
         if (s.status === 'cancelled') return false
-        if (s.isLocked === true || String(s.isLocked) === 'true') return false
         if (finalizedScheduleIds.has(s.id)) return false
         if ((s as any).attendanceStatus === 'finalized' || (s as any).attendanceState === 'finalized') return false
         return true
@@ -766,22 +848,12 @@ class NotificationService {
       const s = pendingSchedules[i]
       const scheduleAssignedMembers: string[] = s.assignedMembers || []
       
-      const assignedMemberObjs = membersList.filter(m => scheduleAssignedMembers.includes(m.id))
-      const assignedNames = assignedMemberObjs.map(m => `${m.firstName || ''} ${m.lastName || ''}`.trim().toLowerCase())
-
       // 1. Identify which active user accounts belong to this specific schedule
       const assignedUsersForThisSchedule = usersList.filter(u => {
-        const uMemberId = u.memberId ? String(u.memberId).trim() : ''
-        const uUid = u.uid || u.id || ''
-        const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
-        const uName = (u.displayName || u.memberName || '').toLowerCase().trim()
-
-        const matchesMemberId = Boolean(uMemberId && scheduleAssignedMembers.includes(uMemberId))
-        const matchesUid = Boolean(uUid && scheduleAssignedMembers.includes(uUid))
-        const matchesName = Boolean(uName && assignedNames.some(name => name && uName === name))
-        const matchesEmail = Boolean(uEmail && assignedMemberObjs.some(m => m.email && m.email.toLowerCase().trim() === uEmail))
-
-        return matchesMemberId || matchesUid || matchesName || matchesEmail
+        return scheduleAssignedMembers.some(mId => {
+          const member = membersList.find(m => m.id === mId)
+          return isUserMatchedWithServer(u, member, mId)
+        })
       })
 
       // 2. If custom_members filter is selected, keep only the accounts selected by admin

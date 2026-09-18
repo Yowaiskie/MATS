@@ -1,20 +1,24 @@
 import type { Schedule } from '@/types/schedule'
 import { formatReadableDate, getDayOfWeek, formatReadableTime } from './communityReport'
+import { DEFAULT_REMINDER_TEMPLATE } from '@/services/settingsService'
 
 export interface GenerateReminderTextOptions {
   schedules: Schedule[]
   customNote?: string
   portalUrl?: string
+  template?: string
+  ministryName?: string
 }
 
 /**
- * Generates an English, clean, emoji-free text template
- * containing only the schedule name, date, and time.
+ * Generates an untaken schedule reminder text based on a customizable template.
  */
 export const generateUntakenScheduleReminderText = ({
   schedules,
   customNote,
-  portalUrl = 'https://mats-c10da.web.app/attendance'
+  portalUrl = 'https://mats-c10da.web.app/attendance',
+  template,
+  ministryName = 'Ministry of Altar Servers (MATS)'
 }: GenerateReminderTextOptions): string => {
   if (!schedules || schedules.length === 0) {
     return 'No untaken schedules selected.'
@@ -27,30 +31,41 @@ export const generateUntakenScheduleReminderText = ({
     return (a.startTime || '').localeCompare(b.startTime || '')
   })
 
-  let text = 'REMINDER: UNTAKEN ATTENDANCE / PENDING SCHEDULES\n'
-  text += 'Ministry of Altar Servers (MATS)\n\n'
-  text += 'Please be reminded of the following schedule(s) with pending attendance:\n\n'
-
-  sortedSchedules.forEach((s, idx) => {
+  // Format schedules list
+  const scheduleItemsText = sortedSchedules.map((s, idx) => {
     const day = getDayOfWeek(s.date)
     const dateFormatted = formatReadableDate(s.date)
-    const timeFormatted = formatReadableTime(s.startTime) + (s.endTime ? ` - ${formatReadableTime(s.endTime)}` : '')
+    const timeFormatted = s.startTime
+      ? formatReadableTime(s.startTime) + (s.endTime ? ` - ${formatReadableTime(s.endTime)}` : '')
+      : ''
 
-    text += `${idx + 1}. ${s.title}\n`
-    text += `   Date: ${day ? `${day}, ` : ''}${dateFormatted}\n`
-    if (s.startTime) {
-      text += `   Time: ${timeFormatted}\n`
+    let item = `${idx + 1}. ${s.title}\n`
+    item += `   Date: ${day ? `${day}, ` : ''}${dateFormatted}\n`
+    if (timeFormatted) {
+      item += `   Time: ${timeFormatted}\n`
     }
-    text += '\n'
-  })
+    return item.trimEnd()
+  }).join('\n\n')
 
-  if (customNote?.trim()) {
-    text += `Note:\n${customNote.trim()}\n\n`
-  }
+  const noteText = customNote?.trim()
+    ? `Paalala / Note:\n${customNote.trim()}`
+    : ''
 
-  text += 'Please record your attendance on the MATS Portal or notify the Ministry Officers.\n'
-  text += `Portal Link: ${portalUrl}\n\n`
-  text += 'Thank you!'
+  const today = new Date()
+  const todayFormatted = formatReadableDate(
+    `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  )
 
-  return text
+  let result = (template && template.trim() !== '' ? template : DEFAULT_REMINDER_TEMPLATE)
+    .replace(/\{\{schedules\}\}/g, scheduleItemsText)
+    .replace(/\{\{scheduleCount\}\}/g, String(sortedSchedules.length))
+    .replace(/\{\{customNote\}\}/g, noteText)
+    .replace(/\{\{portalUrl\}\}/g, portalUrl)
+    .replace(/\{\{ministryName\}\}/g, ministryName)
+    .replace(/\{\{currentDate\}\}/g, todayFormatted)
+
+  // Clean up excessive blank lines (3 or more) down to double newlines
+  result = result.replace(/\n{3,}/g, '\n\n').trim()
+
+  return result
 }

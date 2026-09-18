@@ -61,13 +61,28 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
 
   const status = getScheduleStatus(schedule)
 
-  // Status styling
-  const statusConfig = {
-    upcoming: { label: 'Upcoming', badge: 'bg-green-50 border border-green-100 text-green-600' },
-    ongoing: { label: 'Ongoing', badge: 'bg-blue-50 border border-blue-100 text-blue-600' },
-    completed: { label: 'Completed', badge: 'bg-gray-100 border border-gray-200 text-gray-600' },
-    cancelled: { label: 'Cancelled', badge: 'bg-red-50 border border-red-100 text-red-600' },
-  }[status]
+  // Status styling based on schedule status and attendance finalization state
+  const getStatusConfig = () => {
+    if (status === 'cancelled') {
+      return { label: 'Cancelled', badge: 'bg-red-50 border border-red-200 text-red-700' }
+    }
+    if (status === 'upcoming') {
+      return { label: 'Upcoming', badge: 'bg-indigo-50 border border-indigo-200 text-indigo-700' }
+    }
+    if (status === 'ongoing') {
+      return { label: 'Ongoing', badge: 'bg-blue-50 border border-blue-200 text-blue-700' }
+    }
+    // Completed / past schedule:
+    if (attendanceState === 'finalized') {
+      return { label: 'Finalized & Locked', badge: 'bg-emerald-50 border border-emerald-200 text-emerald-700' }
+    }
+    if (attendanceState === 'in_progress') {
+      return { label: 'In Progress', badge: 'bg-amber-50 border border-amber-200 text-amber-700' }
+    }
+    return { label: 'Not Taken', badge: 'bg-rose-50 border border-rose-200 text-rose-700' }
+  }
+
+  const statusConfig = getStatusConfig()
 
   // Map assigned members
   const assignedProfiles = activeMembers.filter((m) =>

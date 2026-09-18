@@ -11,6 +11,7 @@ import type { Schedule } from '@/types/schedule'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
 import { formatReadableDate, getDayOfWeek } from '@/utils/communityReport'
 import { generateUntakenScheduleReminderText } from '@/utils/untakenScheduleReport'
+import { settingsService } from '@/services/settingsService'
 
 interface RemindAttendanceModalProps {
   isOpen: boolean
@@ -19,6 +20,12 @@ interface RemindAttendanceModalProps {
 
 export type ScheduleCategoryFilter = 'all' | 'sunday' | 'weekdays' | 'meeting' | 'formation' | 'special_events'
 export type DatePresetFilter = 'all' | 'today' | 'yesterday' | 'this_week' | 'custom'
+
+const ChevronDownIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+  </svg>
+)
 
 interface RecipientAccountOption {
   key: string
@@ -128,6 +135,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
   const [datePreset, setDatePreset] = useState<DatePresetFilter>('all')
   const [customDate, setCustomDate] = useState<string>('')
   const [customNote, setCustomNote] = useState('')
+  const [reminderTemplate, setReminderTemplate] = useState<string>('')
   const [copied, setCopied] = useState(false)
   const [isSendingNotifications, setIsSendingNotifications] = useState(false)
   const [sendProgress, setSendProgress] = useState<{
@@ -138,12 +146,25 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     statusLabel: string
   } | null>(null)
 
-  // Load untaken schedules
+  // Collapsible section toggles for seamless mobile navigation
+  const [isSchedulesSectionOpen, setIsSchedulesSectionOpen] = useState(true)
+  const [isRecipientsSectionOpen, setIsRecipientsSectionOpen] = useState(true)
+  const [isPreviewSectionOpen, setIsPreviewSectionOpen] = useState(true)
+
+  // Load untaken schedules & reminder template
   useEffect(() => {
     if (!isOpen) return
 
     let isMounted = true
     setLoading(true)
+
+    settingsService.getReminderTemplate()
+      .then(t => {
+        if (isMounted) setReminderTemplate(t)
+      })
+      .catch(err => {
+        console.error('Failed to load reminder template:', err)
+      })
 
     notificationService.getUntakenSchedules()
       .then((schedulesData) => {
@@ -233,20 +254,20 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     })
   }, [untakenSchedules, categoryFilter, datePreset, customDate, scheduleSearch])
 
-  // Selected schedule objects
+  // Selected schedule objects strictly scoped to the active filtered view
   const selectedScheduleObjects = useMemo(() => {
     const set = new Set(selectedScheduleIds)
-    return untakenSchedules
+    return filteredSchedules
       .filter(item => set.has(item.schedule.id))
       .map(item => item.schedule)
-  }, [untakenSchedules, selectedScheduleIds])
+  }, [filteredSchedules, selectedScheduleIds])
 
-  // Available unique accounts in the selected schedules
+  // Available unique accounts in the selected filtered schedules
   const availableRecipientAccounts = useMemo(() => {
     const map = new Map<string, RecipientAccountOption>()
-    const selectedSet = new Set(selectedScheduleIds)
+    const selectedSet = new Set(selectedScheduleObjects.map(s => s.id))
 
-    untakenSchedules.forEach(item => {
+    filteredSchedules.forEach(item => {
       if (!selectedSet.has(item.schedule.id)) return
       item.assignedAccounts.forEach(acc => {
         if (!acc.hasAccount) return
@@ -270,20 +291,26 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
       })
     })
     return Array.from(map.values())
-  }, [untakenSchedules, selectedScheduleIds])
+  }, [filteredSchedules, selectedScheduleObjects])
+
+  // Auto-sync selected schedule IDs whenever category or date preset changes
+  useEffect(() => {
+    setSelectedScheduleIds(filteredSchedules.map(item => item.schedule.id))
+  }, [categoryFilter, datePreset, customDate])
 
   // Auto-sync selected recipient keys when available recipient list changes
   useEffect(() => {
     setSelectedRecipientKeys(availableRecipientAccounts.map(a => a.key))
   }, [availableRecipientAccounts])
 
-  // Generated English reminder text
+  // Generated Tagalog reminder text
   const reminderText = useMemo(() => {
     return generateUntakenScheduleReminderText({
       schedules: selectedScheduleObjects,
-      customNote: customNote
+      customNote: customNote,
+      template: reminderTemplate
     })
-  }, [selectedScheduleObjects, customNote])
+  }, [selectedScheduleObjects, customNote, reminderTemplate])
 
   // Selection handlers for schedules
   const handleToggleSchedule = (id: string) => {
@@ -336,7 +363,8 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
   }
 
   const handleSendInAppNotifications = async () => {
-    if (selectedScheduleIds.length === 0) {
+    const activeSelectedIds = selectedScheduleObjects.map(s => s.id)
+    if (activeSelectedIds.length === 0) {
       toast.warning('Select Schedules', 'Please select at least one schedule to send reminders.')
       return
     }
@@ -355,7 +383,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     setSendProgress({
       active: true,
       current: 0,
-      total: selectedScheduleIds.length,
+      total: activeSelectedIds.length,
       percentage: 10,
       statusLabel: 'Initializing reminder dispatch...'
     })
@@ -363,7 +391,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     try {
       const res = await notificationService.sendBulkAttendanceReminders(
         {
-          scheduleIds: selectedScheduleIds,
+          scheduleIds: activeSelectedIds,
           customMessage: customNote,
           targetAudienceType: 'custom_members',
           customMemberIds: targetRecipientIds,
@@ -445,270 +473,372 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
             {/* Left Column: Filter & Selector (6 cols) */}
-            <div className="lg:col-span-6 flex flex-col space-y-3 min-h-0">
-              {/* Header & Select All */}
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Select Schedules ({selectedScheduleIds.length}/{untakenSchedules.length})
-                </span>
-                <button
-                  type="button"
-                  onClick={handleSelectAllFiltered}
-                  className="text-xs font-extrabold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+            <div className="lg:col-span-6 flex flex-col space-y-4 min-h-0">
+              
+              {/* SECTION 1: Collapsible Schedule Selector Card */}
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden transition-all">
+                {/* Collapsible Header */}
+                <div
+                  onClick={() => setIsSchedulesSectionOpen(!isSchedulesSectionOpen)}
+                  className="p-3 bg-slate-50 hover:bg-slate-100/80 transition-colors cursor-pointer flex items-center justify-between border-b border-slate-100 select-none"
                 >
-                  {filteredSchedules.length > 0 && filteredSchedules.every(s => selectedScheduleIds.includes(s.schedule.id))
-                    ? 'Deselect Filtered'
-                    : 'Select All Filtered'}
-                </button>
-              </div>
-
-              {/* Date Filter Bar */}
-              <div className="space-y-1.5 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
-                <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider block">
-                  Date Filter
-                </label>
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  {[
-                    { id: 'all', label: 'All Dates' },
-                    { id: 'today', label: 'Today' },
-                    { id: 'yesterday', label: 'Yesterday' },
-                    { id: 'this_week', label: 'This Week' },
-                    { id: 'custom', label: 'Specific Date' }
-                  ].map(p => (
-                    <button
-                      key={p.id}
-                      type="button"
-                      onClick={() => setDatePreset(p.id as DatePresetFilter)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
-                        datePreset === p.id
-                          ? 'bg-slate-800 text-white shadow-2xs'
-                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
-                      }`}
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-
-                {datePreset === 'custom' && (
-                  <div className="pt-1.5">
-                    <input
-                      type="date"
-                      value={customDate}
-                      onChange={e => setCustomDate(e.target.value)}
-                      className="w-full text-xs rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    />
-                  </div>
-                )}
-              </div>
-
-              {/* Category Filter Chips */}
-              <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-none">
-                {[
-                  { id: 'all', label: 'All', count: categoryCounts.all },
-                  { id: 'sunday', label: 'Sunday', count: categoryCounts.sunday },
-                  { id: 'weekdays', label: 'Weekdays', count: categoryCounts.weekdays },
-                  { id: 'meeting', label: 'Meetings', count: categoryCounts.meeting },
-                  { id: 'formation', label: 'Formation', count: categoryCounts.formation },
-                  { id: 'special_events', label: 'Special', count: categoryCounts.special_events },
-                ].map(cat => {
-                  const isActive = categoryFilter === cat.id
-                  return (
-                    <button
-                      key={cat.id}
-                      type="button"
-                      onClick={() => setCategoryFilter(cat.id as ScheduleCategoryFilter)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-[11px] font-bold shrink-0 transition-all cursor-pointer ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                      }`}
-                    >
-                      <span>{cat.label}</span>
-                      <span className={`px-1.5 py-0.2 rounded-full text-[9px] ${
-                        isActive ? 'bg-indigo-700/80 text-white' : 'bg-slate-200 text-slate-700'
-                      }`}>
-                        {cat.count}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Search input */}
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search by schedule title or date..."
-                  value={scheduleSearch}
-                  onChange={e => setScheduleSearch(e.target.value)}
-                  className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 pl-8 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </div>
-
-              {/* Schedule List Scroll Area */}
-              <div className="border border-slate-200 rounded-2xl p-2 bg-slate-50/50 space-y-2 max-h-[200px] overflow-y-auto">
-                {filteredSchedules.length === 0 ? (
-                  <div className="py-6 text-center text-xs text-slate-400">
-                    No schedules match the selected filters.
-                  </div>
-                ) : (
-                  filteredSchedules.map(item => {
-                    const s = item.schedule
-                    const isSelected = selectedScheduleIds.includes(s.id)
-                    const day = getDayOfWeek(s.date)
-                    const dateFormatted = formatReadableDate(s.date)
-                    const timeFormatted = s.startTime ? formatTime12Hour(s.startTime) : ''
-
-                    return (
-                      <div
-                        key={s.id}
-                        onClick={() => handleToggleSchedule(s.id)}
-                        className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 select-none ${
-                          isSelected
-                            ? 'bg-indigo-50/70 border-indigo-200 shadow-2xs'
-                            : 'bg-white border-slate-200/80 hover:border-slate-300 opacity-70'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => {}}
-                          className="mt-1 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-1">
-                            <span className="text-[10px] font-extrabold uppercase text-indigo-600 tracking-wider">
-                              {day ? `${day}, ` : ''}{dateFormatted}
-                            </span>
-                            {timeFormatted && (
-                              <span className="text-[10px] font-bold text-slate-500">
-                                {timeFormatted}
-                              </span>
-                            )}
-                          </div>
-                          <h5 className="text-xs font-extrabold text-slate-900 truncate mt-0.5">
-                            {s.title}
-                          </h5>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              {item.totalAssignedCount} assigned ({item.assignedAccountsCount} with account)
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })
-                )}
-              </div>
-
-              {/* Granular Recipient Accounts Selector */}
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/40 p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-500" />
-                    <span className="text-[11px] font-extrabold text-amber-950 uppercase tracking-wider">
-                      Target Accounts to Notify ({selectedRecipientKeys.length}/{availableRecipientAccounts.length})
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`p-1 rounded-md bg-white border border-slate-200 text-slate-600 transition-transform duration-200 ${isSchedulesSectionOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDownIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800 truncate">
+                      1. Select Schedules
+                    </span>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                      {selectedScheduleIds.length}/{untakenSchedules.length}
                     </span>
                   </div>
+
+                  {untakenSchedules.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (selectedScheduleIds.length > 0) {
+                          setSelectedScheduleIds([])
+                        } else {
+                          setSelectedScheduleIds(untakenSchedules.map(s => s.schedule.id))
+                        }
+                      }}
+                      className="text-[11px] font-extrabold text-indigo-600 hover:text-indigo-800 hover:underline cursor-pointer"
+                    >
+                      {selectedScheduleIds.length > 0 ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Collapsible Body */}
+                {isSchedulesSectionOpen && (
+                  <div className="p-3 space-y-2.5 animate-in fade-in duration-150">
+                    {/* Search input */}
+                    <div className="relative">
+                      <input
+                        type="text"
+                        placeholder="Search schedules by title or date..."
+                        value={scheduleSearch}
+                        onChange={e => setScheduleSearch(e.target.value)}
+                        className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 pl-8 pr-7 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                      <svg className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                      {scheduleSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setScheduleSearch('')}
+                          className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs font-bold p-0.5"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Compact Filter Toolbar: Date & Category */}
+                    <div className="space-y-2 bg-slate-50/70 p-2 rounded-xl border border-slate-200/60">
+                      {/* Date Presets Row */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                          Date:
+                        </span>
+                        {[
+                          { id: 'all', label: 'All' },
+                          { id: 'today', label: 'Today' },
+                          { id: 'yesterday', label: 'Yesterday' },
+                          { id: 'this_week', label: 'This Week' },
+                          { id: 'custom', label: 'Custom' }
+                        ].map(p => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            onClick={() => setDatePreset(p.id as DatePresetFilter)}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all shrink-0 cursor-pointer ${
+                              datePreset === p.id
+                                ? 'bg-slate-800 text-white shadow-2xs'
+                                : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {datePreset === 'custom' && (
+                        <div>
+                          <input
+                            type="date"
+                            value={customDate}
+                            onChange={e => setCustomDate(e.target.value)}
+                            className="w-full text-xs rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                        </div>
+                      )}
+
+                      {/* Category Chips Row */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                        <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider shrink-0 mr-1">
+                          Type:
+                        </span>
+                        {[
+                          { id: 'all', label: 'All', count: categoryCounts.all },
+                          { id: 'sunday', label: 'Sunday', count: categoryCounts.sunday },
+                          { id: 'weekdays', label: 'Weekdays', count: categoryCounts.weekdays },
+                          { id: 'meeting', label: 'Meetings', count: categoryCounts.meeting },
+                          { id: 'formation', label: 'Formation', count: categoryCounts.formation },
+                          { id: 'special_events', label: 'Special', count: categoryCounts.special_events },
+                        ].map(cat => {
+                          const isActive = categoryFilter === cat.id
+                          return (
+                            <button
+                              key={cat.id}
+                              type="button"
+                              onClick={() => setCategoryFilter(cat.id as ScheduleCategoryFilter)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold shrink-0 transition-all cursor-pointer ${
+                                isActive
+                                  ? 'bg-indigo-600 text-white shadow-2xs'
+                                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span>{cat.label}</span>
+                              <span className={`px-1 rounded text-[8px] ${
+                                isActive ? 'bg-indigo-700 text-white' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {cat.count}
+                              </span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Results Info & Filtered Quick-Select */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-500 px-1 pt-0.5">
+                      <span>
+                        Showing <strong className="text-slate-800">{filteredSchedules.length}</strong> of {untakenSchedules.length} schedules
+                      </span>
+                      {filteredSchedules.length > 0 && filteredSchedules.length < untakenSchedules.length && (
+                        <button
+                          type="button"
+                          onClick={() => handleSelectAllFiltered()}
+                          className="text-[10px] font-extrabold text-indigo-600 hover:underline cursor-pointer"
+                        >
+                          {filteredSchedules.every(s => selectedScheduleIds.includes(s.schedule.id))
+                            ? 'Uncheck filtered'
+                            : 'Check filtered only'}
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Schedule List Scroll Area with checkboxes */}
+                    <div className="border border-slate-200 rounded-xl p-2 bg-slate-50/40 space-y-2 max-h-[220px] overflow-y-auto">
+                      {filteredSchedules.length === 0 ? (
+                        <div className="py-6 text-center text-xs text-slate-400">
+                          No schedules match the selected filters.
+                        </div>
+                      ) : (
+                        filteredSchedules.map(item => {
+                          const s = item.schedule
+                          const isSelected = selectedScheduleIds.includes(s.id)
+                          const day = getDayOfWeek(s.date)
+                          const dateFormatted = formatReadableDate(s.date)
+                          const timeFormatted = s.startTime ? formatTime12Hour(s.startTime) : ''
+
+                          return (
+                            <div
+                              key={s.id}
+                              onClick={() => handleToggleSchedule(s.id)}
+                              className={`p-2.5 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 select-none ${
+                                isSelected
+                                  ? 'bg-indigo-50/80 border-indigo-200 shadow-2xs'
+                                  : 'bg-white border-slate-200/80 hover:border-slate-300 opacity-70'
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={(e) => {
+                                  e.stopPropagation()
+                                  handleToggleSchedule(s.id)
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                className="mt-1 h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center justify-between gap-1">
+                                  <span className="text-[10px] font-extrabold uppercase text-indigo-600 tracking-wider">
+                                    {day ? `${day}, ` : ''}{dateFormatted}
+                                  </span>
+                                  {timeFormatted && (
+                                    <span className="text-[10px] font-bold text-slate-500">
+                                      {timeFormatted}
+                                    </span>
+                                  )}
+                                </div>
+                                <h5 className="text-xs font-extrabold text-slate-900 truncate mt-0.5">
+                                  {s.title}
+                                </h5>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] text-slate-500 font-medium">
+                                    {item.totalAssignedCount} assigned ({item.assignedAccountsCount} with account)
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* SECTION 2: Collapsible Target Accounts Checklist */}
+              <div className="rounded-2xl border border-amber-200 bg-white shadow-2xs overflow-hidden transition-all">
+                {/* Collapsible Header */}
+                <div
+                  onClick={() => setIsRecipientsSectionOpen(!isRecipientsSectionOpen)}
+                  className="p-3 bg-amber-50/80 hover:bg-amber-100/70 transition-colors cursor-pointer flex items-center justify-between border-b border-amber-100 select-none"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`p-1 rounded-md bg-white border border-amber-200 text-amber-700 transition-transform duration-200 ${isRecipientsSectionOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDownIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-amber-950 truncate">
+                      2. Target Accounts to Notify
+                    </span>
+                    <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-900 border border-amber-300 shrink-0">
+                      {selectedRecipientKeys.length}/{availableRecipientAccounts.length}
+                    </span>
+                  </div>
+
                   {availableRecipientAccounts.length > 0 && (
                     <button
                       type="button"
-                      onClick={handleToggleAllRecipients}
-                      className="text-[10px] font-bold text-amber-900 hover:underline cursor-pointer"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleToggleAllRecipients()
+                      }}
+                      className="text-[11px] font-extrabold text-amber-900 hover:underline cursor-pointer shrink-0"
                     >
                       {selectedRecipientKeys.length === availableRecipientAccounts.length ? 'Deselect All' : 'Select All'}
                     </button>
                   )}
                 </div>
 
-                {availableRecipientAccounts.length === 0 ? (
-                  <div className="py-2 text-center text-[11px] text-slate-400 italic">
-                    No active server accounts linked to the selected schedules.
-                  </div>
-                ) : (
-                  <div className="max-h-[140px] overflow-y-auto space-y-1.5 pr-1">
-                    {availableRecipientAccounts.map((acc) => {
-                      const isChecked = selectedRecipientKeys.includes(acc.key)
-                      return (
-                        <div
-                          key={acc.key}
-                          onClick={() => handleToggleRecipient(acc.key)}
-                          className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer text-left ${
-                            isChecked
-                              ? 'bg-white border-amber-300 shadow-2xs'
-                              : 'bg-amber-100/30 border-amber-200/60 opacity-60'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 min-w-0">
-                            <input
-                              type="checkbox"
-                              checked={isChecked}
-                              onChange={() => {}}
-                              className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                            />
-                            <div className="min-w-0">
-                              <span className="text-xs font-bold text-slate-900 block truncate">
-                                {acc.memberName}
-                              </span>
-                              <span className="text-[9px] text-slate-500 block truncate">
-                                {acc.email || 'Registered Server Account'}
+                {/* Collapsible Body */}
+                {isRecipientsSectionOpen && (
+                  <div className="p-3 space-y-2 bg-amber-50/20 animate-in fade-in duration-150">
+                    {availableRecipientAccounts.length === 0 ? (
+                      <div className="py-4 text-center text-xs text-slate-400 italic">
+                        No active server accounts linked to the selected schedules.
+                      </div>
+                    ) : (
+                      <div className="max-h-[170px] overflow-y-auto space-y-1.5 pr-1">
+                        {availableRecipientAccounts.map((acc) => {
+                          const isChecked = selectedRecipientKeys.includes(acc.key)
+                          return (
+                            <div
+                              key={acc.key}
+                              onClick={() => handleToggleRecipient(acc.key)}
+                              className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
+                                isChecked
+                                  ? 'bg-white border-amber-300 shadow-2xs'
+                                  : 'bg-amber-100/30 border-amber-200/60 opacity-60'
+                              }`}
+                            >
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    e.stopPropagation()
+                                    handleToggleRecipient(acc.key)
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                />
+                                <div className="min-w-0">
+                                  <span className="text-xs font-bold text-slate-900 block truncate">
+                                    {acc.memberName}
+                                  </span>
+                                  <span className="text-[10px] text-slate-500 block truncate">
+                                    {acc.email || 'Registered Server Account'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-200 shrink-0 ml-2">
+                                {acc.scheduleTitles.length} duty
                               </span>
                             </div>
-                          </div>
-
-                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 shrink-0 ml-2">
-                            {acc.scheduleTitles.length} duty
-                          </span>
-                        </div>
-                      )
-                    })}
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
+
             </div>
 
             {/* Right Column: Live Text Preview (6 cols) */}
-            <div className="lg:col-span-6 flex flex-col space-y-3 min-h-0">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                  <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                  Reminder Text Preview (for Messenger / GC)
-                </span>
-                <span className="text-[10px] font-bold text-slate-400">
-                  {selectedScheduleObjects.length} schedule(s) selected
-                </span>
+            <div className="lg:col-span-6 flex flex-col space-y-4 min-h-0">
+              
+              {/* SECTION 3: Collapsible GC Preview Card */}
+              <div className="rounded-2xl border border-slate-200 bg-white shadow-2xs overflow-hidden transition-all flex flex-col flex-1">
+                {/* Collapsible Header */}
+                <div
+                  onClick={() => setIsPreviewSectionOpen(!isPreviewSectionOpen)}
+                  className="p-3 bg-slate-50 hover:bg-slate-100/80 transition-colors cursor-pointer flex items-center justify-between border-b border-slate-100 select-none"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`p-1 rounded-md bg-white border border-slate-200 text-slate-600 transition-transform duration-200 ${isPreviewSectionOpen ? 'rotate-180' : ''}`}>
+                      <ChevronDownIcon className="w-3.5 h-3.5" />
+                    </span>
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-800 truncate">
+                      3. GC Message Preview & Notes
+                    </span>
+                  </div>
+
+                  <span className="text-[10px] font-bold text-slate-400 shrink-0">
+                    {selectedScheduleObjects.length} schedule(s)
+                  </span>
+                </div>
+
+                {/* Collapsible Body */}
+                {isPreviewSectionOpen && (
+                  <div className="p-3 space-y-3 flex-1 flex flex-col animate-in fade-in duration-150">
+                    {/* Textarea Preview */}
+                    <textarea
+                      readOnly
+                      value={reminderText}
+                      onClick={e => (e.target as HTMLTextAreaElement).select()}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-900 text-slate-100 p-3 text-xs font-mono font-medium focus:outline-none resize-none h-[180px] sm:h-[220px] overflow-y-auto leading-relaxed select-all shadow-inner"
+                    />
+
+                    {/* Optional Custom Note Input */}
+                    <div className="space-y-1">
+                      <label className="text-[11px] font-bold text-slate-600">
+                        Custom Note / Additional Announcement (Optional):
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Please bring your vestments and log in before 5:30 PM..."
+                        value={customNote}
+                        onChange={e => setCustomNote(e.target.value)}
+                        className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Textarea Preview */}
-              <textarea
-                readOnly
-                value={reminderText}
-                onClick={e => (e.target as HTMLTextAreaElement).select()}
-                className="w-full rounded-2xl border border-slate-200 bg-slate-900 text-slate-100 p-3.5 text-xs font-mono font-medium focus:outline-none resize-none h-[220px] overflow-y-auto leading-relaxed select-all"
-              />
-
-              {/* Optional Custom Note Input */}
-              <div className="space-y-1">
-                <label className="text-[11px] font-bold text-slate-600">
-                  Custom Note / Additional Announcement (Optional):
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Please bring your vestments and log in before 5:30 PM..."
-                  value={customNote}
-                  onChange={e => setCustomNote(e.target.value)}
-                  className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
             </div>
           </div>
         )}

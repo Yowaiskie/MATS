@@ -87,10 +87,9 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     return `${h}:${m} ${ampm}`
   }
 
-  // 1. Is schedule locked? (attendance session finalized OR completed schedule explicitly locked)
+  // 1. Is schedule locked? (attendance session finalized & locked by admin)
   const isFinalizedAttendance = attendanceState === 'finalized'
-  const isExplicitlyLocked = !!schedule.isLocked && computedStatus === 'completed'
-  const isLocked = isFinalizedAttendance || isExplicitlyLocked
+  const isLocked = isFinalizedAttendance
 
   // 2. Is attendance in progress (only if NOT locked)?
   const isInProgress = !isLocked && attendanceState === 'in_progress'

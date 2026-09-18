@@ -508,10 +508,8 @@ export const SchedulesPage: React.FC = () => {
     }
   }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
-  const getAttendanceState = (scheduleId: string, status: string, scheduleObj?: Schedule): ScheduleAttendanceState => {
+  const getAttendanceState = (scheduleId: string, status: string, _scheduleObj?: Schedule): ScheduleAttendanceState => {
     if (status === 'upcoming' || status === 'cancelled') return 'none'
-    const targetSchedule = scheduleObj || schedules.find(s => s.id === scheduleId)
-    if (targetSchedule?.isLocked && status === 'completed') return 'finalized'
     const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
     if (!session) return 'untaken'
     if (session.locked) return 'finalized'

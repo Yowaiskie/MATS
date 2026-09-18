@@ -9,6 +9,7 @@ import { DEFAULT_QUALIFICATION_PRESETS } from '@/types/attendanceCategory'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
+const REMINDER_TEMPLATE_DOC = 'reminderTemplate'
 const POLICY_DOC = 'suspensionPolicy'
 const SIGNATURE_PRESETS_DOC = 'signaturePresets'
 const QUALIFICATION_PRESETS_DOC = 'qualificationPresets'
@@ -25,7 +26,27 @@ Squires:
 Other Servers:
 {{otherServers}}`
 
+export const DEFAULT_REMINDER_TEMPLATE = `PAALALA: HINDI PA NAKUKUHA ANG ATTENDANCE / PENDING SCHEDULES
+{{ministryName}}
+
+Paalala po sa mga may pending na attendance sa mga sumusunod na schedule:
+
+{{schedules}}
+
+{{customNote}}
+
+Paki-record po ang inyong attendance sa MATS Portal o ipaalam po sa Ministry Officers kung may concern sa inyong attendance.
+
+Portal Link: {{portalUrl}}
+
+Thank you po!`
+
 export interface ReportSettings {
+  template: string
+  updatedAt?: any
+}
+
+export interface ReminderSettings {
   template: string
   updatedAt?: any
 }
@@ -417,6 +438,47 @@ export const settingsService = {
       'SETTINGS_UPDATE',
       'settings',
       'Updated Facebook community report template in settings',
+      performedBy,
+      { template }
+    )
+  },
+
+  /**
+   * Fetches the custom untaken schedule reminder template from Firestore.
+   * If it doesn't exist, returns the default reminder template.
+   */
+  async getReminderTemplate(): Promise<string> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, REMINDER_TEMPLATE_DOC)
+      const docSnap = await getDoc(docRef)
+      
+      if (docSnap.exists()) {
+        const data = docSnap.data() as ReminderSettings
+        if (data.template !== undefined && data.template.trim() !== '') {
+          return data.template
+        }
+      }
+      return DEFAULT_REMINDER_TEMPLATE
+    } catch (err) {
+      console.error('Failed to get reminder template settings:', err)
+      return DEFAULT_REMINDER_TEMPLATE
+    }
+  },
+
+  /**
+   * Saves the custom untaken schedule reminder template to Firestore.
+   */
+  async saveReminderTemplate(template: string, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, REMINDER_TEMPLATE_DOC)
+    await setDoc(docRef, {
+      template,
+      updatedAt: serverTimestamp(),
+    }, { merge: true })
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      'Updated pending attendance reminder template in settings',
       performedBy,
       { template }
     )

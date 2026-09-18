@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react'
 import { Card } from '@/components/Card'
-import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
+import { 
+  settingsService, 
+  DEFAULT_REPORT_TEMPLATE, 
+  DEFAULT_REMINDER_TEMPLATE 
+} from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
+import { generateUntakenScheduleReminderText } from '@/utils/untakenScheduleReport'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { Button, useToast } from '@/components'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
+import { ReminderTemplateEditor } from '../components/ReminderTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
@@ -43,7 +49,32 @@ const mockUnassignedMembers: Member[] = [
   { id: 'm-5', firstName: 'Marcial', lastName: 'Rimando', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
-type TabId = 'policy' | 'template' | 'signatures' | 'maintenance'
+const mockUntakenSchedules: Schedule[] = [
+  {
+    id: 'mock-u1',
+    title: 'Sunday High Mass',
+    date: '2026-06-28',
+    startTime: '06:00',
+    endTime: '07:30',
+    status: 'completed',
+    assignedMembers: ['m-1', 'm-2'],
+    createdAt: '',
+    updatedAt: ''
+  },
+  {
+    id: 'mock-u2',
+    title: 'Youth Formation & General Assembly',
+    date: '2026-06-28',
+    startTime: '13:00',
+    endTime: '15:00',
+    status: 'completed',
+    assignedMembers: ['m-3', 'm-4'],
+    createdAt: '',
+    updatedAt: ''
+  }
+]
+
+type TabId = 'policy' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -58,6 +89,12 @@ const FileTextIcon: React.FC<{ className?: string }> = ({ className }) => (
     <line x1="16" y1="13" x2="8" y2="13" />
     <line x1="16" y1="17" x2="8" y2="17" />
     <polyline points="10 9 9 9 8 9" />
+  </svg>
+)
+
+const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
   </svg>
 )
 
@@ -82,6 +119,7 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
   { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
+  { id: 'reminder_template', label: 'Reminder Template', icon: <BellIcon className="w-4 h-4" /> },
   { id: 'signatures', label: 'Signature Presets', icon: <SignatureIcon className="w-4 h-4" /> },
   { id: 'maintenance', label: 'Maintenance Mode', icon: <WrenchIcon className="w-4 h-4" /> }
 ]
@@ -90,52 +128,81 @@ export const SettingsPage: React.FC = () => {
   const { profile } = useAuth()
   const { toast } = useToast()
   const [activeTab, setActiveTab] = useState<TabId>('policy')
+
+  // Community Report Template state
   const [template, setTemplate] = useState('')
   const [originalTemplate, setOriginalTemplate] = useState('')
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [confirmRestore, setConfirmRestore] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const loadTemplate = async () => {
+  // Untaken Reminder Template state
+  const [reminderTemplate, setReminderTemplate] = useState('')
+  const [originalReminderTemplate, setOriginalReminderTemplate] = useState('')
+  const [savingReminder, setSavingReminder] = useState(false)
+  const [confirmRestoreReminder, setConfirmRestoreReminder] = useState(false)
+  const [copiedReminder, setCopiedReminder] = useState(false)
+
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadTemplates = async () => {
     setLoading(true)
     setError(null)
     try {
-      const fetched = await settingsService.getReportTemplate()
-      setTemplate(fetched)
-      setOriginalTemplate(fetched)
+      const [reportTpl, reminderTpl] = await Promise.all([
+        settingsService.getReportTemplate(),
+        settingsService.getReminderTemplate()
+      ])
+      setTemplate(reportTpl)
+      setOriginalTemplate(reportTpl)
+      setReminderTemplate(reminderTpl)
+      setOriginalReminderTemplate(reminderTpl)
     } catch (err) {
       console.error(err)
-      setError('Failed to load report template.')
+      setError('Failed to load system templates.')
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadTemplate()
+    loadTemplates()
   }, [])
 
-  const handleSave = async () => {
+  // Save Report Template
+  const handleSaveReportTemplate = async () => {
     setSaving(true)
     setError(null)
     try {
       await settingsService.saveReportTemplate(template, profile?.email || 'Admin')
       setOriginalTemplate(template)
-      toast.success('Template settings successfully saved!')
+      toast.success('Report template settings successfully saved!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to save template.')
+      setError(err.message || 'Failed to save report template.')
     } finally {
       setSaving(false)
     }
   }
 
-  const handleRestoreDefault = () => {
-    setConfirmRestore(true)
+  // Save Reminder Template
+  const handleSaveReminderTemplate = async () => {
+    setSavingReminder(true)
+    setError(null)
+    try {
+      await settingsService.saveReminderTemplate(reminderTemplate, profile?.email || 'Admin')
+      setOriginalReminderTemplate(reminderTemplate)
+      toast.success('Reminder template settings successfully saved!')
+    } catch (err: any) {
+      console.error(err)
+      setError(err.message || 'Failed to save reminder template.')
+    } finally {
+      setSavingReminder(false)
+    }
   }
 
+  // Preview Community Report
   const previewText = generateCommunityReport(
     template || DEFAULT_REPORT_TEMPLATE,
     mockSchedule,
@@ -151,6 +218,23 @@ export const SettingsPage: React.FC = () => {
       setTimeout(() => setCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy preview text:', err)
+    }
+  }
+
+  // Preview Untaken Schedule Reminder
+  const reminderPreviewText = generateUntakenScheduleReminderText({
+    schedules: mockUntakenSchedules,
+    customNote: 'Please wear complete vestments and record before 5 PM.',
+    template: reminderTemplate || DEFAULT_REMINDER_TEMPLATE
+  })
+
+  const handleCopyReminderPreview = async () => {
+    try {
+      await navigator.clipboard.writeText(reminderPreviewText)
+      setCopiedReminder(true)
+      setTimeout(() => setCopiedReminder(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy reminder preview text:', err)
     }
   }
 
@@ -197,26 +281,29 @@ export const SettingsPage: React.FC = () => {
               onNotifyError={(msg) => setError(msg)}
             />
           )}
+
           {activeTab === 'signatures' && (
             <SignatureSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => setError(msg)}
             />
           )}
+
           {activeTab === 'maintenance' && (
             <MaintenanceSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => setError(msg)}
             />
           )}
+
           {activeTab === 'template' && (
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
               <div className="lg:col-span-7 flex flex-col min-h-0">
                 <ReportTemplateEditor
                   value={template}
                   onChange={setTemplate}
-                  onRestoreDefault={handleRestoreDefault}
-                  onSave={handleSave}
+                  onRestoreDefault={() => setConfirmRestore(true)}
+                  onSave={handleSaveReportTemplate}
                   saving={saving}
                   isDirty={template !== originalTemplate}
                 />
@@ -259,9 +346,61 @@ export const SettingsPage: React.FC = () => {
               </div>
             </div>
           )}
+
+          {activeTab === 'reminder_template' && (
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              <div className="lg:col-span-7 flex flex-col min-h-0">
+                <ReminderTemplateEditor
+                  value={reminderTemplate}
+                  onChange={setReminderTemplate}
+                  onRestoreDefault={() => setConfirmRestoreReminder(true)}
+                  onSave={handleSaveReminderTemplate}
+                  saving={savingReminder}
+                  isDirty={reminderTemplate !== originalReminderTemplate}
+                />
+              </div>
+
+              <div className="lg:col-span-5 flex flex-col min-h-0">
+                <Card className="p-0 border border-gray-200 shadow-xs flex flex-col flex-1">
+                  <div className="shrink-0 px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
+                      </span>
+                      <h3 className="text-xs font-bold text-gray-900 uppercase tracking-wider">GC Reminder Preview</h3>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="dense"
+                      onClick={handleCopyReminderPreview}
+                      className="min-h-[32px] text-[11px]"
+                    >
+                      <CopyIcon className="w-3.5 h-3.5" />
+                      {copiedReminder ? 'Copied!' : 'Copy Sample'}
+                    </Button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-3">
+                    <div className="rounded-xl border border-gray-200 bg-slate-900 text-slate-100 p-4 text-xs font-mono whitespace-pre-wrap select-text leading-relaxed shadow-inner">
+                      {reminderPreviewText || <span className="text-gray-400 italic">No output text generated.</span>}
+                    </div>
+
+                    <div className="rounded-lg bg-gray-50 p-2.5 border border-gray-100 text-[11px] text-gray-500 flex items-center justify-between">
+                      <span>Showing sample untaken schedules reminder</span>
+                      <span className="font-mono text-gray-400">{reminderPreviewText.length} chars</span>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
+      {/* Restore Default Modals */}
       <ConfirmModal
         isOpen={confirmRestore}
         onClose={() => setConfirmRestore(false)}
@@ -270,8 +409,21 @@ export const SettingsPage: React.FC = () => {
           setConfirmRestore(false)
         }}
         variant="warning"
-        title="Restore Default Template"
-        message="Are you sure you want to restore the default report template? Any unsaved edits will be discarded."
+        title="Restore Default Report Template"
+        message="Are you sure you want to restore the default community report template? Any unsaved edits will be discarded."
+        confirmLabel="Restore Default"
+      />
+
+      <ConfirmModal
+        isOpen={confirmRestoreReminder}
+        onClose={() => setConfirmRestoreReminder(false)}
+        onConfirm={() => {
+          setReminderTemplate(DEFAULT_REMINDER_TEMPLATE)
+          setConfirmRestoreReminder(false)
+        }}
+        variant="warning"
+        title="Restore Default Reminder Template"
+        message="Are you sure you want to restore the default pending attendance reminder template? Any unsaved edits will be discarded."
         confirmLabel="Restore Default"
       />
 
