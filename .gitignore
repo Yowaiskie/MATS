@@ -30,7 +30,10 @@ dist-ssr
 
 # Firebase
 .firebase/
+google-services.json
+android/app/google-services.json
 
 # Local generated artifacts/images
 *.png
 .vercel
+

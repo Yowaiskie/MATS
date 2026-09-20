@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Button } from './Button'
 
 // ─── Shared Types ──────────────────────────────────────────────────────────────
@@ -70,8 +71,8 @@ export const AlertModal: React.FC<AlertModalProps> = ({
 
   const btnVariant = variant === 'success' ? 'success' : variant === 'error' ? 'danger' : 'primary'
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="alert-title">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="alert-title">
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-slate-900/50 backdrop-blur-md transition-opacity animate-in fade-in duration-200"
@@ -115,7 +116,8 @@ export const AlertModal: React.FC<AlertModalProps> = ({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -188,10 +190,10 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   const btnVariant = variant === 'danger' ? 'danger' : variant === 'warning' ? 'danger' : 'primary'
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="confirm-title">
       {/* Backdrop */}
-      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" />
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" onClick={!loading ? onClose : undefined} />
 
       {/* Modal Card */}
       <div className="relative w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-150">
@@ -228,7 +230,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
@@ -289,9 +292,9 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
     }
   }
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
-      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" />
+  return createPortal(
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="password-confirm-title">
+      <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity animate-in fade-in duration-200" onClick={!loading ? onClose : undefined} />
       <div className="relative w-full max-w-sm rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 animate-in fade-in zoom-in-95 duration-150">
         <div className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-rose-50 border border-rose-100`}>
           <svg className="h-6 w-6 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -341,6 +344,7 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

@@ -4,6 +4,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { useNotificationContext } from '@/context/NotificationContext'
 import type { AppNotification } from '@/types/notification'
 import { useToast } from '@/context/ToastContext'
+import { ConfirmModal } from '@/components/Dialog'
 
 const BellIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -26,6 +27,8 @@ export const NotificationBell: React.FC = () => {
   const { toast } = useToast()
   const navigate = useNavigate()
   const [isOpen, setIsOpen] = useState(false)
+  const [confirmClearOpen, setConfirmClearOpen] = useState(false)
+  const [isClearing, setIsClearing] = useState(false)
   const popoverRef = useRef<HTMLDivElement>(null)
 
   const {
@@ -33,6 +36,8 @@ export const NotificationBell: React.FC = () => {
     unreadCount,
     markAsRead,
     markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
   } = useNotificationContext()
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread'>('all')
@@ -96,6 +101,31 @@ export const NotificationBell: React.FC = () => {
     if (!user?.uid) return
     await markAllAsRead()
     toast.success('All Marked as Read', 'All unread notifications have been marked as read.')
+  }
+
+  const handleClearAllConfirmed = async () => {
+    setIsClearing(true)
+    try {
+      await clearAllNotifications()
+      setConfirmClearOpen(false)
+      toast.success('Notifications Cleared', 'All notifications have been permanently removed.')
+    } catch (err) {
+      console.error('Failed to clear notifications:', err)
+      toast.error('Error', 'Failed to clear notifications.')
+    } finally {
+      setIsClearing(false)
+    }
+  }
+
+  const handleDeleteSingle = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      await deleteNotification(id)
+      toast.success('Notification Removed', 'The alert has been removed.')
+    } catch (err) {
+      console.error('Failed to delete notification:', err)
+      toast.error('Error', 'Failed to remove notification.')
+    }
   }
 
   const handleNotificationClick = async (notif: AppNotification) => {
@@ -175,7 +205,20 @@ export const NotificationBell: React.FC = () => {
                     title="Mark all notifications as read"
                   >
                     <CheckDoubleIcon className="w-3.5 h-3.5" />
-                    <span>Mark all read</span>
+                    <span>Mark read</span>
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmClearOpen(true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-600 hover:text-rose-800 hover:underline cursor-pointer"
+                    title="Clear all alerts"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Clear all</span>
                   </button>
                 )}
               </div>
@@ -275,9 +318,21 @@ export const NotificationBell: React.FC = () => {
                             </span>
                           </div>
 
-                          {isUnread && (
-                            <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0 mt-1" />
-                          )}
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isUnread && (
+                              <span className="w-2 h-2 rounded-full bg-blue-600" />
+                            )}
+                            <button
+                              type="button"
+                              onClick={(e) => handleDeleteSingle(notif.id, e)}
+                              className="text-slate-300 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors cursor-pointer"
+                              title="Delete notification"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
 
                         <h4 className="text-xs font-bold text-slate-900 leading-snug">
@@ -327,6 +382,19 @@ export const NotificationBell: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Confirm Clear All Modal */}
+      <ConfirmModal
+        isOpen={confirmClearOpen}
+        onClose={() => setConfirmClearOpen(false)}
+        onConfirm={handleClearAllConfirmed}
+        variant="danger"
+        title="Clear All Notifications?"
+        message="Are you sure you want to permanently delete all notifications from the Notification Center? This action cannot be undone."
+        confirmLabel={isClearing ? 'Clearing...' : 'Clear All'}
+        cancelLabel="Cancel"
+        loading={isClearing}
+      />
     </div>
   )
 }
