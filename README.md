@@ -1,4 +1,4 @@
-# MATS - Ministry Attendance Tracking System
+# MATS - Ministry Administration & Tracking System
 
 A web-based attendance management system designed for church ministries. MATS replaces manual attendance tracking with a digital workflow that enables administrators to manage members, create schedules, record attendance, and generate shareable reports.
 
@@ -67,33 +67,55 @@ A web-based attendance management system designed for church ministries. MATS re
 2. Deploy the following security rules under the **Rules** tab:
    ```javascript
    rules_version = '2';
+
    service cloud.firestore {
      match /databases/{database}/documents {
-       function isAdmin() {
+       function isAuthenticated() {
          return request.auth != null && 
-                exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+                exists(/databases/$(database)/documents/users/$(request.auth.uid));
+       }
+
+       function isAdmin() {
+         return isAuthenticated() && 
                 get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
        }
 
        match /users/{userId} {
-         allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
+         allow read: if request.auth != null;
          allow write: if isAdmin();
        }
 
        match /members/{memberId} {
-         allow read, write: if isAdmin();
+         allow read: if isAuthenticated();
+         allow write: if isAdmin();
        }
        
        match /schedules/{scheduleId} {
-         allow read, write: if isAdmin();
+         allow read: if isAuthenticated();
+         allow write: if isAdmin();
        }
        
        match /attendanceSessions/{sessionId} {
-         allow read, write: if isAdmin();
+         allow read, create, update: if isAuthenticated();
+         allow delete: if isAdmin();
        }
        
        match /attendance/{attendanceId} {
-         allow read, write: if isAdmin();
+         allow read, write: if isAuthenticated();
+       }
+
+       match /settings/{settingsId} {
+         allow read: if isAuthenticated();
+         allow write: if isAdmin();
+       }
+
+       match /scheduleTemplates/{templateId} {
+         allow read: if isAuthenticated();
+         allow write: if isAdmin();
+       }
+
+       match /auditLogs/{logId} {
+         allow read, write: if isAuthenticated();
        }
      }
    }

@@ -2,47 +2,410 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper function to check if the current user exists in the users collection with 'admin' role
-    function isAdmin() {
-      return request.auth != null && 
-             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // ==========================================
+    // Core Authorization Helpers
+    // ==========================================
+    function isAuthenticated() {
+      return request.auth != null;
     }
 
-    // users collection: Users can read their own profile, but only admins can create/write/delete
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function hasUserDocument() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function isSuperAdmin() {
+      return isAuthenticated() && hasUserDocument() &&
+             getUserData().role in ['admin', 'coordinator'];
+    }
+
+    function hasPermission(permissionKey) {
+      return isAuthenticated() && hasUserDocument() && (
+        isSuperAdmin() ||
+        (getUserData().permissions != null &&
+         getUserData().permissions[permissionKey] == true)
+      );
+    }
+
+    function hasModuleAccess(moduleKey) {
+      return isAuthenticated() && hasUserDocument() && (
+        isSuperAdmin() ||
+        (getUserData().permissions != null &&
+         getUserData().permissions.moduleAccess != null &&
+         getUserData().permissions.moduleAccess[moduleKey] == true)
+      );
+    }
+
+    // ==========================================
+    // Schema & Type Validation Helpers
+    // ==========================================
+    function isValidString(val, minLen, maxLen) {
+      return val is string && val.size() >= minLen && val.size() <= maxLen;
+    }
+
+    function isValidInt(val, minVal, maxVal) {
+      return val is int && val >= minVal && val <= maxVal;
+    }
+
+    function isValidBool(val) {
+      return val is bool;
+    }
+
+    // ==========================================
+    // Collection Rules & Validations
+    // ==========================================
+    // users collection
     match /users/{userId} {
-      allow read: if request.auth != null && (request.auth.uid == userId || isAdmin());
-      allow write: if isAdmin();
+      allow read: if isAuthenticated();
+      // Super admins can create freely. Also allow self-create to fix UID mismatch on login.
+      allow create: if isSuperAdmin() || 
+                    (isAuthenticated() && userId == request.auth.uid);
+      allow delete: if isSuperAdmin();
+      // Super admins can update any field; regular users can only update non-privileged fields
+      allow update: if isSuperAdmin() || (
+        isAuthenticated() && 
+        request.auth.uid == userId && 
+        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'permissions', 'assignedOrder', 'presetName']) &&
+        request.resource.data.role in ['admin', 'user', 'order_leader', 'coordinator'] &&
+        (!('displayName' in request.resource.data) || isValidString(request.resource.data.displayName, 0, 100)) &&
+        isValidString(request.resource.data.email, 3, 100)
+      );
+
+      // Device FCM registration tokens
+      match /fcmTokens/{tokenId} {
+        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isSuperAdmin());
+      }
     }
 
     // members collection
     match /members/{memberId} {
-      allow read, write: if isAdmin();
+      allow read: if true; // Public excuse form lists members
+      allow write: if isSuperAdmin() || hasPermission('canManageMembers');
     }
     
     // schedules collection
     match /schedules/{scheduleId} {
-      allow read, write: if isAdmin();
+      allow read: if true;
+      allow create, delete: if hasPermission('canManageSchedules');
+      allow update: if true; // Allows unauthenticated public self-service schedule response
     }
     
     // attendanceSessions collection
     match /attendanceSessions/{sessionId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if isSuperAdmin() || hasPermission('canTakeAttendance') || hasPermission('canManageSchedules');
     }
     
     // attendance collection
     match /attendance/{attendanceId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow create, update: if (isSuperAdmin() || hasPermission('canTakeAttendance')) &&
+                   request.resource.data.status in ['present', 'late', 'absent', 'excused', 'observer', 'formation', 'alumni'] &&
+                   (!('remarks' in request.resource.data) || isValidString(request.resource.data.remarks, 0, 500));
+      allow delete: if isSuperAdmin() || hasPermission('canTakeAttendance') || hasPermission('canManageSchedules');
     }
 
     // settings collection
     match /settings/{settingsId} {
-      allow read, write: if isAdmin();
+      allow read: if true; // Public for maintenance mode checks and app configurations
+      allow write: if isSuperAdmin();
     }
 
     // scheduleTemplates collection
     match /scheduleTemplates/{templateId} {
-      allow read, write: if isAdmin();
+      allow read: if isAuthenticated();
+      allow write: if hasPermission('canManageSchedules');
+    }
+
+    // auditLogs collection (Append-only)
+    match /auditLogs/{logId} {
+      allow read: if isAuthenticated();
+      allow create: if true &&
+                    isValidString(request.resource.data.action, 1, 100);
+      allow update, delete: if false;
+    }
+
+    // schedulePublications collection
+    match /schedulePublications/{pubId} {
+      allow read: if true;
+      allow create, delete: if hasPermission('canManageSchedules');
+      allow update: if true; // Allows unauthenticated public submission tracking
+    }
+
+    // counters collection
+    match /counters/{counterId} {
+      allow get: if true;
+      allow update: if isAuthenticated() || (
+        request.resource.data.get('currentSeq', 0) == resource.data.get('currentSeq', 0) + 1
+      );
+      allow create: if isAuthenticated() || (
+        request.resource.data.get('currentSeq', 0) == 1
+      );
+      allow delete, list: if isSuperAdmin();
+    }
+
+    // excuseRequests collection
+    match /excuseRequests/{excuseId} {
+      allow read: if true; // Allows public track status by member selection
+      allow create: if true;
+      allow update: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
+      allow delete: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
+    }
+
+    // excuseStatus collection
+    match /excuseStatus/{trackingNumber} {
+      allow get: if true;
+      allow list: if isAuthenticated();
+      allow create: if true;
+      allow update: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
+      allow delete: if isAuthenticated() && (isSuperAdmin() || hasPermission('canReviewExcuses') || hasPermission('canApproveExcuses'));
+    }
+
+    // ==========================================
+    // Finance Module Collections
+    // ==========================================
+    match /financeIncome/{incomeId} {
+      allow read: if hasPermission('canViewFinanceDashboard') || hasPermission('canViewFinanceReports');
+      allow create: if isSuperAdmin() || 
+                    hasPermission('canAddIncome') || 
+                    hasPermission('canAddEventIncome') || 
+                    hasPermission('canAddEventContributions') || 
+                    hasPermission('canManageEvents');
+      allow update: if hasPermission('canEditIncome');
+      allow delete: if hasPermission('canDeleteIncome');
+    }
+    
+    match /financeExpenses/{expenseId} {
+      allow read: if hasPermission('canViewFinanceDashboard') || hasPermission('canViewFinanceReports');
+      allow create: if hasPermission('canViewFinanceDashboard') || hasPermission('canCreateFundRequest');
+      allow update: if hasPermission('canViewFinanceDashboard');
+      allow delete: if isSuperAdmin();
+    }
+
+    match /financeCategories/{categoryId} {
+      allow read: if isAuthenticated();
+      allow write: if hasPermission('canManageFinanceCategories');
+    }
+
+    match /financeFundRequests/{requestId} {
+      allow read: if hasPermission('canViewFinanceDashboard');
+      allow create: if hasPermission('canCreateFundRequest');
+      allow update: if hasPermission('canApproveFundRequest') || 
+                    hasPermission('canRejectFundRequest') || 
+                    hasPermission('canReleaseFunds') || 
+                    hasPermission('canSubmitLiquidation') || 
+                    hasPermission('canReviewLiquidation') ||
+                    hasPermission('canCreateFundRequest');
+      allow delete: if isSuperAdmin();
+    }
+
+    match /financePeriods/{periodId} {
+      allow read: if isAuthenticated();
+      allow create: if hasPermission('canCloseFinancePeriod');
+      allow update: if hasPermission('canCloseFinancePeriod') || hasPermission('canReopenFinancePeriod');
+      allow delete: if isSuperAdmin();
+    }
+
+    // ==========================================
+    // Event Management Module Collections
+    // ==========================================
+    match /events/{eventId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    match /eventTasks/{taskId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    match /eventAssignments/{assignmentId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    match /eventRoles/{roleId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    match /eventChecklists/{checklistId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
+    function isEventHeadOrCreator(eventId) {
+      return isAuthenticated() &&
+             eventId != null &&
+             eventId != '' &&
+             exists(/databases/$(database)/documents/events/$(eventId)) &&
+             (
+               get(/databases/$(database)/documents/events/$(eventId)).data.get('headUid', '') == request.auth.uid ||
+               get(/databases/$(database)/documents/events/$(eventId)).data.get('createdByUid', '') == request.auth.uid
+             );
+    }
+
+    // ==========================================
+    // Event Finance Module Collections
+    // ==========================================
+    match /eventIncome/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventIncome') ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddIncome') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventIncome') ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canEditEventContributions') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddIncome') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+    }
+    
+    match /eventExpenses/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventExpense') ||
+        hasPermission('canAddEventExpenses') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddExpense') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventExpense') ||
+        hasPermission('canAddEventExpenses') ||
+        hasPermission('canManageEvents') ||
+        hasPermission('canAddExpense') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+    }
+
+    match /eventFundTransfers/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canTransferEventFunds') ||
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canTransferEventFunds') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+    }
+
+    match /eventFinanceCategories/{docId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventFinanceCategories') ||
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventFinanceCategories') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+    }
+
+    // ==========================================
+    // Event Contribution Tracker Collections
+    // ==========================================
+    match /eventContributionPurposes/{purposeId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventContributionPurposes') ||
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update, delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canManageEventContributionPurposes') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+    }
+
+    match /eventContributions/{contributionId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canManageEvents') ||
+        (request.resource.data.eventId != null && isEventHeadOrCreator(request.resource.data.eventId))
+      );
+      allow update: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canAddEventContributions') ||
+        hasPermission('canEditEventContributions') ||
+        hasPermission('canVoidEventContributions') ||
+        hasPermission('canAddEventIncome') ||
+        hasPermission('canAddIncome') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() ||
+        hasPermission('canVoidEventContributions') ||
+        hasPermission('canManageEvents') ||
+        (resource.data.eventId != null && isEventHeadOrCreator(resource.data.eventId))
+      );
+    }
+
+    // ==========================================
+    // Event Form Builder Module Collections
+    // ==========================================
+    match /eventForms/{formId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /eventFormQuestions/{questionId} {
+      allow read: if true;
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /eventFormResponses/{responseId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if isAuthenticated();
+    }
+
+    // ==========================================
+    // Inventory Module Collections
+    // ==========================================
+    match /inventory_items/{itemId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /inventory_categories/{catId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    // ==========================================
+    // Push & System Notifications Collection
+    // ==========================================
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isSuperAdmin() || 
+                              hasPermission('canBroadcast') || 
+                              hasPermission('canManageSchedules') || 
+                              hasPermission('canTakeAttendance');
+      allow update: if isAuthenticated();
     }
   }
 }

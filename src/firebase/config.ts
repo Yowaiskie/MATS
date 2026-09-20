@@ -2,7 +2,7 @@ import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
-const firebaseConfig = {
+export const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
   projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
@@ -15,4 +15,27 @@ const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
 export const db = getFirestore(app)
+
+let messagingInstance: any = null
+
+export const getFirebaseMessaging = async (): Promise<any | null> => {
+  if (typeof window !== 'undefined') {
+    try {
+      const { isSupported, getMessaging } = await import('firebase/messaging')
+      if (await isSupported()) {
+        if (!messagingInstance) {
+          messagingInstance = getMessaging(app)
+        }
+        return messagingInstance
+      }
+    } catch (err) {
+      console.warn('Firebase messaging not supported or failed to load:', err)
+      return null
+    }
+  }
+  return null
+}
+
 export default app
+
+

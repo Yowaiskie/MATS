@@ -1,31 +1,63 @@
 import React, { useState } from 'react'
 import type { Schedule, ScheduleStatus } from '@/types/schedule'
+import type { ScheduleAttendanceState } from '@/types/attendance'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 
 interface CalendarViewProps {
   schedules: Schedule[]
   onSelectSchedule: (schedule: Schedule) => void
   onDateClick?: (dateStr: string) => void
+  getAttendanceState?: (scheduleId: string, status: string, scheduleObj?: Schedule) => ScheduleAttendanceState
+  currentDate?: Date
+  onMonthChange?: (date: Date) => void
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({
   schedules,
   onSelectSchedule,
   onDateClick,
+  getAttendanceState,
+  currentDate: controlledDate,
+  onMonthChange,
 }) => {
-  const [currentDate, setCurrentDate] = useState(new Date())
+  const [internalDate, setInternalDate] = useState(new Date())
+  const currentDate = controlledDate || internalDate
+  const [expandedDates, setExpandedDates] = useState<Record<string, boolean>>({})
+
+  const toggleExpand = (e: React.MouseEvent, dateStr: string) => {
+    e.stopPropagation()
+    setExpandedDates(prev => ({
+      ...prev,
+      [dateStr]: !prev[dateStr]
+    }))
+  }
 
   // Navigation handlers
   const handlePrevMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1))
+    const next = new Date(currentDate.getFullYear(), currentDate.getMonth() - 1, 1)
+    if (onMonthChange) {
+      onMonthChange(next)
+    } else {
+      setInternalDate(next)
+    }
   }
 
   const handleNextMonth = () => {
-    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1))
+    const next = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 1)
+    if (onMonthChange) {
+      onMonthChange(next)
+    } else {
+      setInternalDate(next)
+    }
   }
 
   const handleToday = () => {
-    setCurrentDate(new Date())
+    const today = new Date()
+    if (onMonthChange) {
+      onMonthChange(today)
+    } else {
+      setInternalDate(today)
+    }
   }
 
   // Month information
@@ -111,7 +143,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   }
 
   return (
-    <div className="rounded-xl border border-gray-250 bg-white p-4 space-y-4 shadow-sm">
+    <div className="rounded-xl border border-gray-200 bg-white p-4 space-y-4 shadow-sm">
       
       {/* Calendar Header Navigation */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4 border-b border-gray-100">
@@ -121,8 +153,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         
         <div className="flex items-center space-x-2">
           <button
+            type="button"
             onClick={handlePrevMonth}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 p-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer shadow-xs"
+            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100 p-2 text-xs font-bold text-gray-600 hover:text-gray-900 transition-colors cursor-pointer shadow-2xs"
             aria-label="Previous Month"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -131,15 +164,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           </button>
           
           <button
+            type="button"
             onClick={handleToday}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3.5 py-2 text-xs font-bold text-blue-700 transition-colors cursor-pointer shadow-2xs"
           >
-            Today
+            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <span>Today</span>
           </button>
           
           <button
+            type="button"
             onClick={handleNextMonth}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 p-2 text-xs font-semibold text-gray-500 hover:text-gray-800 transition-colors cursor-pointer shadow-xs"
+            className="inline-flex items-center justify-center rounded-xl border border-gray-200 bg-white hover:bg-gray-100 p-2 text-xs font-bold text-gray-600 hover:text-gray-900 transition-colors cursor-pointer shadow-2xs"
             aria-label="Next Month"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -159,12 +197,13 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
       </div>
 
       {/* Calendar Monthly Grid */}
-      <div className="grid grid-cols-7 gap-px bg-gray-150 border border-gray-200/80 rounded-xl overflow-hidden shadow-xs">
+      <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200/80 rounded-xl overflow-hidden shadow-xs">
         {cells.map((cell, idx) => {
           const daySchedules = schedulesByDate[cell.dateStr] || []
-          const displayLimit = 3
+          const isExpanded = expandedDates[cell.dateStr]
+          const displayLimit = isExpanded ? daySchedules.length : 3
           const displayedSchedules = daySchedules.slice(0, displayLimit)
-          const overflowCount = daySchedules.length - displayLimit
+          const hasOverflow = daySchedules.length > 3
 
           return (
             <div
@@ -187,7 +226,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 >
                   {cell.dayNum}
                 </span>
-                
+
                 {daySchedules.length > 0 && (
                   <span className="text-[10px] text-gray-400 font-bold font-mono">
                     {daySchedules.length}
@@ -200,29 +239,51 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                 {displayedSchedules.map((s) => {
                   const status = getScheduleStatus(s)
                   const dotColor = getStatusColor(status)
-                  
+                  const attendanceState = getAttendanceState?.(s.id, status, s) ?? 'none'
+
                   return (
                     <button
                       key={s.id}
+                      type="button"
                       onClick={(e) => {
                         e.stopPropagation()
                         onSelectSchedule(s)
                       }}
-                      className="w-full text-left bg-gray-50 hover:bg-gray-100/60 border border-gray-150 rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden"
+                      className={`w-full text-left border rounded-lg px-2 py-1 flex items-center space-x-1.5 focus:outline-none transition-colors cursor-pointer select-none overflow-hidden ${
+                        attendanceState === 'finalized'
+                          ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100/70 text-emerald-700 font-semibold shadow-2xs'
+                          : attendanceState === 'in_progress'
+                            ? 'bg-amber-50 border-amber-200 hover:bg-amber-100/70 text-amber-700 font-semibold shadow-2xs'
+                            : attendanceState === 'untaken'
+                              ? 'bg-slate-50 border-slate-200 hover:bg-slate-100/70 text-slate-700 font-semibold shadow-2xs'
+                              : 'bg-gray-50 hover:bg-gray-100/60 border-gray-200 text-gray-700'
+                      }`}
                       title={`${s.title} (${formatTime12(s.startTime)})`}
                     >
                       <span className={`h-1.5 w-1.5 rounded-full shrink-0 ${dotColor}`} />
-                      <span className="text-[10px] text-gray-700 font-semibold truncate block leading-tight">
-                        {formatTime12(s.startTime)}
+                      <span className={`text-[10px] font-bold truncate block leading-tight ${
+                        attendanceState === 'finalized' 
+                          ? 'text-emerald-700' 
+                          : attendanceState === 'in_progress'
+                            ? 'text-amber-700'
+                            : attendanceState === 'untaken'
+                              ? 'text-slate-600'
+                              : 'text-gray-700'
+                      }`}>
+                        {s.title} <span className="font-normal opacity-85 ml-0.5">{formatTime12(s.startTime)}</span>
                       </span>
                     </button>
                   )
                 })}
                 
-                {overflowCount > 0 && (
-                  <div className="text-[9px] text-blue-600 font-bold px-1.5 py-0.5 mt-0.5 leading-none">
-                    +{overflowCount} more
-                  </div>
+                {hasOverflow && (
+                  <button
+                    type="button"
+                    onClick={(e) => toggleExpand(e, cell.dateStr)}
+                    className="text-[9px] text-blue-600 font-bold px-1.5 py-0.5 mt-0.5 leading-none text-left hover:underline cursor-pointer"
+                  >
+                    {isExpanded ? 'Show less' : `+${daySchedules.length - 3} more`}
+                  </button>
                 )}
               </div>
             </div>

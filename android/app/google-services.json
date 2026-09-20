@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "485856675702",
+    "project_id": "mats-c10da",
+    "storage_bucket": "mats-c10da.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:485856675702:android:d4825902b78a9c1e",
+        "android_client_info": {
+          "package_name": "com.mas.mats"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDY66JWXM-xK-503WomT6VzQU6d0FL5pp8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

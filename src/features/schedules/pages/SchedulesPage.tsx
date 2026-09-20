@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { ScheduleCard } from '../components/ScheduleCard'
@@ -7,75 +9,326 @@ import { AssignmentModal } from '../components/AssignmentModal'
 import { CalendarView } from '../components/CalendarView'
 import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
 import { TemplateManagerModal } from '../components/TemplateManagerModal'
-import { CSVImporterModal } from '../components/CSVImporterModal'
+import { PublicationsTab } from '../components/PublicationsTab'
+import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
+import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
+import { RemindAttendanceModal } from '@/components/RemindAttendanceModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { Pagination } from '@/components/Pagination'
+import { Loading } from '@/components/Loading'
+import { FilterDropdown } from '@/components'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import { getScheduleStatus } from '@/utils/scheduleUtils'
+import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
+import { attendanceService } from '@/services/attendanceService'
+import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
+import { useAuth } from '@/features/authentication/AuthContext'
+import { useToast } from '@/context/ToastContext'
 
 const PAGE_SIZE = 12
+const SCHEDULE_FILTERS_STORAGE_KEY = 'mats_schedules_filter_state'
+
+interface SavedScheduleFilters {
+  dateFilterMode?: 'single' | 'range'
+  dateFilter?: string
+  startDateFilter?: string
+  endDateFilter?: string
+  timeFilter?: string
+  searchQuery?: string
+  attendanceFilter?: 'all' | ScheduleAttendanceState
+  viewMode?: 'list' | 'calendar'
+  activeTab?: 'schedules' | 'publications'
+  monthStr?: string
+  currentPage?: number
+}
+
+const getTodayString = () => {
+  const today = new Date()
+  return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+}
+
+const getInitialFilterState = (searchParams: URLSearchParams): SavedScheduleFilters => {
+  const urlDate = searchParams.get('date')
+  const urlMode = searchParams.get('mode') as 'single' | 'range' | null
+  const urlStart = searchParams.get('start')
+  const urlEnd = searchParams.get('end')
+  const urlTime = searchParams.get('time')
+  const urlSearch = searchParams.get('search') || searchParams.get('q')
+  const urlAttendance = searchParams.get('attendance') as 'all' | ScheduleAttendanceState | null
+  const urlView = searchParams.get('view') as 'list' | 'calendar' | null
+  const urlTab = searchParams.get('tab') as 'schedules' | 'publications' | null
+  const urlMonth = searchParams.get('month')
+  const urlPage = searchParams.get('page')
+
+  const hasUrlParams = !!(urlDate || urlMode || urlStart || urlEnd || urlTime || urlSearch || urlAttendance || urlView || urlTab || urlMonth || urlPage)
+
+  if (hasUrlParams) {
+    return {
+      dateFilterMode: urlMode || (urlStart && urlEnd ? 'range' : 'single'),
+      dateFilter: urlDate || getTodayString(),
+      startDateFilter: urlStart || '',
+      endDateFilter: urlEnd || '',
+      timeFilter: urlTime || '',
+      searchQuery: urlSearch || '',
+      attendanceFilter: urlAttendance || 'all',
+      viewMode: urlView || 'list',
+      activeTab: urlTab || 'schedules',
+      monthStr: urlMonth || (urlDate ? urlDate.slice(0, 7) : undefined),
+      currentPage: urlPage ? parseInt(urlPage, 10) || 1 : 1
+    }
+  }
+
+  try {
+    const raw = sessionStorage.getItem(SCHEDULE_FILTERS_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return parsed
+    }
+  } catch {
+    // Ignore error
+  }
+
+  return {
+    dateFilterMode: 'single',
+    dateFilter: getTodayString(),
+    startDateFilter: '',
+    endDateFilter: '',
+    timeFilter: '',
+    searchQuery: '',
+    attendanceFilter: 'all',
+    viewMode: 'list',
+    activeTab: 'schedules',
+    currentPage: 1
+  }
+}
+
+const getThisWeekRange = (): { start: string; end: string } => {
+  const now = new Date()
+  const day = now.getDay()
+  const diffToSun = now.getDate() - day
+  const sun = new Date(now.getFullYear(), now.getMonth(), diffToSun)
+  const sat = new Date(now.getFullYear(), now.getMonth(), diffToSun + 6)
+  const formatD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { start: formatD(sun), end: formatD(sat) }
+}
+
+const getThisMonthRange = (): { start: string; end: string } => {
+  const now = new Date()
+  const y = now.getFullYear()
+  const m = String(now.getMonth() + 1).padStart(2, '0')
+  const lastDay = new Date(y, now.getMonth() + 1, 0).getDate()
+  return { start: `${y}-${m}-01`, end: `${y}-${m}-${String(lastDay).padStart(2, '0')}` }
+}
+
+const getNext7DaysRange = (): { start: string; end: string } => {
+  const now = new Date()
+  const next7 = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 6)
+  const formatD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  return { start: getTodayString(), end: formatD(next7) }
+}
 
 export const SchedulesPage: React.FC = () => {
+  const queryClient = useQueryClient()
+  const { profile, isAdmin, canAction } = useAuth()
+  const { toast } = useToast()
+  const canManage = isAdmin || canAction('canManageSchedules')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const [initialFilters] = useState<SavedScheduleFilters>(() => getInitialFilterState(searchParams))
+
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  // Filter states
-  const [statusFilter, setStatusFilter] = useState<'all' | 'upcoming' | 'ongoing' | 'completed' | 'cancelled'>('all')
-  const [dateFilter, setDateFilter] = useState('')
+  const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>(initialFilters.activeTab || 'schedules')
+
+  // Selected Month State for Scoped Firestore Reads
+  const [selectedMonthDate, setSelectedMonthDate] = useState<Date>(() => {
+    if (initialFilters.monthStr) {
+      const [yStr, mStr] = initialFilters.monthStr.split('-')
+      const y = parseInt(yStr, 10)
+      const m = parseInt(mStr, 10)
+      if (!isNaN(y) && !isNaN(m)) return new Date(y, m - 1, 1)
+    }
+    if (initialFilters.dateFilter) {
+      const [yStr, mStr] = initialFilters.dateFilter.split('-')
+      const y = parseInt(yStr, 10)
+      const m = parseInt(mStr, 10)
+      if (!isNaN(y) && !isNaN(m)) return new Date(y, m - 1, 1)
+    }
+    return new Date()
+  })
+
+  // Filter states (Single Date vs Date Range)
+  const [dateFilterMode, setDateFilterMode] = useState<'single' | 'range'>(initialFilters.dateFilterMode || 'single')
+  const [dateFilter, setDateFilter] = useState(initialFilters.dateFilter || getTodayString())
+  const [startDateFilter, setStartDateFilter] = useState(initialFilters.startDateFilter || '')
+  const [endDateFilter, setEndDateFilter] = useState(initialFilters.endDateFilter || '')
+  const [timeFilter, setTimeFilter] = useState(initialFilters.timeFilter || '')
+  const [searchQuery, setSearchQuery] = useState(initialFilters.searchQuery || '')
+  const [attendanceFilter, setAttendanceFilter] = useState<'all' | ScheduleAttendanceState>(initialFilters.attendanceFilter || 'all')
+  const [attendanceSessions, setAttendanceSessions] = useState<AttendanceSession[]>([])
 
   // Pagination
-  const [currentPage, setCurrentPage] = useState(1)
+  const [currentPage, setCurrentPage] = useState(initialFilters.currentPage || 1)
+  const isInitialMount = useRef(true)
 
   // Bulk select
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkSelectMode, setBulkSelectMode] = useState(false)
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
+  const [bulkDeleteMonthOpen, setBulkDeleteMonthOpen] = useState(false)
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
-  const [csvImportOpen, setCsvImportOpen] = useState(false)
+  const [exportPdfOpen, setExportPdfOpen] = useState(false)
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(null)
   const [selectedDate, setSelectedDate] = useState<string>('')
-  const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar')
+  const [viewMode, setViewMode] = useState<'list' | 'calendar'>(initialFilters.viewMode || 'list')
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
 
   // Dialog state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string } | null>(null)
+  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
-  const loadData = async () => {
-    setLoading(true)
+  // Remind Attendance Messenger Modal state
+  const [remindAttendanceOpen, setRemindAttendanceOpen] = useState(false)
+
+  const loadData = async (showSpinner = true, targetMonthDate?: Date) => {
+    if (showSpinner) setLoading(true)
     setError(null)
     try {
-      const scheduleData = await scheduleService.getSchedules()
-      setSchedules(scheduleData)
+      let scheduleData: Schedule[] = []
+      if (dateFilterMode === 'range' && startDateFilter && endDateFilter) {
+        scheduleData = await scheduleService.getSchedulesByDateRange(startDateFilter, endDateFilter)
+      } else {
+        const monthDate = targetMonthDate || selectedMonthDate
+        const y = monthDate.getFullYear()
+        const m = String(monthDate.getMonth() + 1).padStart(2, '0')
+        const startDate = `${y}-${m}-01`
+        const endDate = `${y}-${m}-31`
+        scheduleData = await scheduleService.getSchedulesByDateRange(startDate, endDate)
+      }
 
-      // Fetch all member profiles (including archived to warn during imports)
-      const memberData = await memberService.getMembers(true)
+      const [memberData, sessionsData] = await Promise.all([
+        queryClient.fetchQuery({
+          queryKey: ['members', 'all-with-archived'],
+          queryFn: () => memberService.getMembers(true),
+          staleTime: 1000 * 60 * 5 // 5-minute memory cache
+        }),
+        attendanceService.getAllSessions()
+      ])
+
+      setSchedules(scheduleData)
       setAllMembersProfiles(memberData)
-      setActiveMembers(memberData.filter(m => m.status === 'active'))
+      setActiveMembers(memberData.filter(m => m.status === 'active' || m.status === 'suspended'))
+      setAttendanceSessions(sessionsData)
     } catch (err: any) {
       console.error(err)
       setError('Failed to load schedule or member records.')
     } finally {
-      setLoading(false)
+      if (showSpinner) setLoading(false)
     }
   }
 
+  // Load data whenever selectedMonthDate or date range changes
   useEffect(() => {
-    loadData()
-  }, [])
+    if (dateFilterMode === 'range' && startDateFilter && endDateFilter) {
+      loadData(true)
+    } else {
+      loadData(true, selectedMonthDate)
+    }
+  }, [selectedMonthDate, dateFilterMode, startDateFilter, endDateFilter])
 
-  // Reset page when filters change
+  // Sync state to URL search params & session storage
   useEffect(() => {
+    const y = selectedMonthDate.getFullYear()
+    const m = String(selectedMonthDate.getMonth() + 1).padStart(2, '0')
+    const monthStr = `${y}-${m}`
+
+    const filterState: SavedScheduleFilters = {
+      dateFilterMode,
+      dateFilter,
+      startDateFilter,
+      endDateFilter,
+      timeFilter,
+      searchQuery,
+      attendanceFilter,
+      viewMode,
+      activeTab,
+      monthStr,
+      currentPage
+    }
+
+    try {
+      sessionStorage.setItem(SCHEDULE_FILTERS_STORAGE_KEY, JSON.stringify(filterState))
+    } catch {
+      // Ignore
+    }
+
+    const params = new URLSearchParams()
+    if (activeTab !== 'schedules') params.set('tab', activeTab)
+    if (viewMode !== 'list') params.set('view', viewMode)
+    if (dateFilterMode === 'single') {
+      if (dateFilter) params.set('date', dateFilter)
+    } else {
+      params.set('mode', 'range')
+      if (startDateFilter) params.set('start', startDateFilter)
+      if (endDateFilter) params.set('end', endDateFilter)
+    }
+    if (timeFilter) params.set('time', timeFilter)
+    if (attendanceFilter !== 'all') params.set('attendance', attendanceFilter)
+    if (searchQuery.trim()) params.set('search', searchQuery.trim())
+    if (currentPage > 1) params.set('page', String(currentPage))
+
+    setSearchParams(params, { replace: true })
+  }, [
+    dateFilterMode,
+    dateFilter,
+    startDateFilter,
+    endDateFilter,
+    timeFilter,
+    searchQuery,
+    attendanceFilter,
+    viewMode,
+    activeTab,
+    selectedMonthDate,
+    currentPage,
+    setSearchParams
+  ])
+
+  const handleDateFilterChange = (newDateStr: string) => {
+    setDateFilter(newDateStr)
+    if (newDateStr) {
+      const [yStr, mStr] = newDateStr.split('-')
+      const y = parseInt(yStr, 10)
+      const m = parseInt(mStr, 10)
+      if (!isNaN(y) && !isNaN(m)) {
+        if (selectedMonthDate.getFullYear() !== y || selectedMonthDate.getMonth() !== (m - 1)) {
+          setSelectedMonthDate(new Date(y, m - 1, 1))
+        }
+      }
+    }
+  }
+
+  // Reset page when filters change (after initial mount)
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
     setCurrentPage(1)
-  }, [statusFilter, dateFilter])
+  }, [dateFilterMode, dateFilter, startDateFilter, endDateFilter, timeFilter, searchQuery, attendanceFilter])
+
+  // Reset time filter when date filter changes
+  useEffect(() => {
+    setTimeFilter('')
+  }, [dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
   // Clear selection when exiting bulk mode
   useEffect(() => {
@@ -86,12 +339,20 @@ export const SchedulesPage: React.FC = () => {
 
   // Callbacks
   const handleAddOrEditSubmit = async (input: ScheduleInput) => {
-    if (selectedSchedule) {
-      await scheduleService.updateSchedule(selectedSchedule.id, input)
-    } else {
-      await scheduleService.addSchedule(input)
+    const actor = profile?.email || 'Admin'
+    try {
+      if (selectedSchedule) {
+        await scheduleService.updateSchedule(selectedSchedule.id, input, actor)
+        toast.success('Schedule Updated', `Successfully updated schedule for "${input.title}".`)
+      } else {
+        await scheduleService.addSchedule(input, actor)
+        toast.success('Schedule Created', `Successfully scheduled "${input.title}".`)
+      }
+      await loadData(false)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Schedule Failed', err.message || 'Failed to save schedule.')
     }
-    await loadData()
   }
 
   const handleDelete = (id: string) => {
@@ -103,17 +364,60 @@ export const SchedulesPage: React.FC = () => {
     const id = confirmDelete
     setConfirmDelete(null)
     try {
-      await scheduleService.deleteSchedule(id)
-      await loadData()
+      await scheduleService.deleteSchedule(id, profile?.email || 'Admin')
+      await loadData(false)
+      toast.success('Schedule Deleted', 'The schedule record was removed.')
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Delete Failed', message: err.message || 'Failed to delete schedule.' })
+      toast.error('Delete Failed', err.message || 'Failed to delete schedule.')
     }
   }
 
-  const handleSaveAssignments = async (scheduleId: string, assignedIds: string[]) => {
-    await scheduleService.assignMembers(scheduleId, assignedIds)
-    await loadData()
+  const handleSaveAssignments = async (scheduleId: string, assignedIds: string[], applyToMonth: boolean) => {
+    const actor = profile?.email || 'Admin'
+    if (applyToMonth) {
+      const sourceSchedule = schedules.find(s => s.id === scheduleId)
+      if (sourceSchedule) {
+        // e.g. "2026-08-05" -> targetMonth is "2026-08"
+        const targetMonth = sourceSchedule.date.substring(0, 7)
+        // Find all matching recurring schedules in the same month with the same title, start time, and category
+        const isSourceSpecial = isSpecialEventOrService(sourceSchedule)
+        const sourceDayOfWeek = sourceSchedule.date ? new Date(sourceSchedule.date + 'T00:00:00').getDay() : -1
+
+        const matchingSchedules = schedules.filter(s => {
+          if (!s.date.startsWith(targetMonth)) return false
+          if (s.title !== sourceSchedule.title) return false
+          if (s.startTime !== sourceSchedule.startTime) return false
+          if ((s.category || '') !== (sourceSchedule.category || '')) return false
+          
+          // Don't mix special events with regular schedules
+          if (isSourceSpecial !== isSpecialEventOrService(s)) return false
+
+          // Match day of week for weekly recurring schedules
+          if (sourceDayOfWeek >= 0) {
+            const sDay = new Date(s.date + 'T00:00:00').getDay()
+            if (sDay !== sourceDayOfWeek) return false
+          }
+
+          return true
+        })
+        
+        // Update all matching schedules
+        for (const s of matchingSchedules) {
+          await scheduleService.assignMembers(s.id, assignedIds, actor)
+        }
+        
+        setAlertModal({
+          title: 'Bulk Assignment Successful',
+          message: `Successfully applied assignments to ${matchingSchedules.length} "${sourceSchedule.title}" schedules in this month.`,
+          variant: 'success'
+        })
+      }
+    } else {
+      await scheduleService.assignMembers(scheduleId, assignedIds, actor)
+    }
+    
+    await loadData(false)
   }
 
   // ── Bulk select helpers ───────────────────────────────────────
@@ -142,11 +446,11 @@ export const SchedulesPage: React.FC = () => {
     setBulkDeleting(true)
     try {
       const ids = Array.from(selectedIds)
-      const { deletedCount, skippedIds } = await scheduleService.bulkDeleteSchedules(ids)
+      const { deletedCount, skippedIds } = await scheduleService.bulkDeleteSchedules(ids, profile?.email || 'Admin')
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
       setBulkSelectMode(false)
-      await loadData()
+      await loadData(false)
 
       if (skippedIds.length > 0) {
         setAlertModal({
@@ -162,16 +466,115 @@ export const SchedulesPage: React.FC = () => {
     }
   }
 
+  const handleToggleLock = async (s: Schedule) => {
+    try {
+      const nextLocked = !s.isLocked
+      await scheduleService.toggleLockSchedule(s.id, nextLocked, profile?.email || 'Admin')
+      await loadData(false)
+      if (nextLocked) {
+        toast.success('Schedule Locked', `Schedule "${s.title}" has been finalized & locked.`)
+      } else {
+        toast.success('Schedule Unlocked', `Schedule "${s.title}" is now unlocked.`)
+      }
+    } catch (err: any) {
+      toast.error('Lock Error', err.message || 'Failed to update schedule lock state.')
+    }
+  }
+
   // ── Filter & paginate ─────────────────────────────────────────
-  const filteredSchedules = useMemo(() =>
-    schedules.filter((s) => {
-      const matchesDate = !dateFilter || s.date === dateFilter
-      const computedStatus = getScheduleStatus(s)
-      const matchesStatus = statusFilter === 'all' || computedStatus === statusFilter
-      return matchesDate && matchesStatus
-    }),
-    [schedules, dateFilter, statusFilter]
-  )
+  const formatTime12 = (timeStr: string) => {
+    if (!timeStr) return ''
+    const parts = timeStr.split(':')
+    if (parts.length < 2) return timeStr
+    let h = parseInt(parts[0], 10)
+    const m = parts[1].padStart(2, '0')
+    const ampm = h >= 12 ? 'PM' : 'AM'
+    h = h % 12
+    h = h ? h : 12
+    return `${h}:${m} ${ampm}`
+  }
+
+  const availableSchedulesForSelectedDate = useMemo(() => {
+    if (dateFilterMode === 'single') {
+      if (!dateFilter) return []
+      return schedules
+        .filter((s) => s.date === dateFilter)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    } else {
+      let rangeSchedules = schedules
+      if (startDateFilter) rangeSchedules = rangeSchedules.filter((s) => s.date >= startDateFilter)
+      if (endDateFilter) rangeSchedules = rangeSchedules.filter((s) => s.date <= endDateFilter)
+      return rangeSchedules.sort((a, b) => a.startTime.localeCompare(b.startTime))
+    }
+  }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
+
+  const getAttendanceState = (scheduleId: string, status: string, _scheduleObj?: Schedule): ScheduleAttendanceState => {
+    if (status === 'upcoming' || status === 'cancelled') return 'none'
+    const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
+    if (!session) return 'untaken'
+    if (session.locked) return 'finalized'
+    if (session.hasRecords === true) return 'in_progress'
+    return 'untaken'
+  }
+
+  const filteredSchedules = useMemo(() => {
+    const getFullMonthName = (dateStr: string) => {
+      if (!dateStr) return ''
+      const parts = dateStr.split('-')
+      if (parts.length !== 3) return dateStr
+      const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+      ]
+      const m = months[parseInt(parts[1], 10) - 1] || parts[1]
+      const d = parseInt(parts[2], 10)
+      return `${m} ${d} ${parts[0]}`
+    }
+
+    return schedules.filter((s) => {
+      // In Calendar View, display all month schedules without restricting to single dateFilter or range
+      let matchesDate = true
+      if (viewMode === 'calendar') {
+        matchesDate = true
+      } else if (dateFilterMode === 'single') {
+        matchesDate = !dateFilter || s.date === dateFilter
+      } else {
+        if (startDateFilter && endDateFilter) {
+          matchesDate = s.date >= startDateFilter && s.date <= endDateFilter
+        } else if (startDateFilter) {
+          matchesDate = s.date >= startDateFilter
+        } else if (endDateFilter) {
+          matchesDate = s.date <= endDateFilter
+        }
+      }
+
+      const matchesTime = !timeFilter || s.startTime === timeFilter
+
+      if (!matchesDate || !matchesTime) return false
+
+      if (attendanceFilter !== 'all') {
+        const attState = getAttendanceState(s.id, getScheduleStatus(s), s)
+        if (attState !== attendanceFilter) return false
+      }
+
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase()
+        const words = q.split(/\s+/)
+        return words.every((word) => {
+          const formattedDate = getFullMonthName(s.date).toLowerCase()
+          const formattedTime = (formatTime12(s.startTime) + ' ' + formatTime12(s.endTime)).toLowerCase()
+          return (
+            s.title.toLowerCase().includes(word) ||
+            s.date.toLowerCase().includes(word) ||
+            formattedDate.includes(word) ||
+            formattedTime.includes(word)
+          )
+        })
+      }
+
+      return true
+    })
+  }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter, timeFilter, attendanceFilter, searchQuery, attendanceSessions, viewMode])
 
   const totalPages = Math.max(1, Math.ceil(filteredSchedules.length / PAGE_SIZE))
   const safePage = Math.min(currentPage, totalPages)
@@ -180,123 +583,376 @@ export const SchedulesPage: React.FC = () => {
   const allFilteredSelected = filteredSchedules.length > 0 && selectedIds.size === filteredSchedules.length
   const someSelected = selectedIds.size > 0
 
+  if (loading) {
+    return (
+      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+        <Loading variant="spinner" label="Loading Schedules..." />
+      </div>
+    )
+  }
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-8">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Schedule Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Create weekly service schedules and assign altar servers.</p>
+          <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 mt-3 w-fit">
+            {[
+              { 
+                key: 'schedules', 
+                label: 'Schedules',
+                icon: (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                )
+              },
+              { 
+                key: 'publications', 
+                label: 'Publications',
+                icon: (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                )
+              }
+            ].map((t) => {
+              const isActive = activeTab === t.key
+              return (
+                <button
+                  key={t.key}
+                  type="button"
+                  onClick={() => setActiveTab(t.key as any)}
+                  className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all duration-200 cursor-pointer ${
+                    isActive
+                      ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/70'
+                  }`}
+                >
+                  {t.icon}
+                  <span className="whitespace-nowrap">{t.label}</span>
+                </button>
+              )
+            })}
+          </div>
         </div>
         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
-          {/* Segmented View Mode Toggle */}
-          <div className="flex border border-gray-200 bg-white rounded-lg p-1 shadow-xs">
-            <button
-              onClick={() => setViewMode('list')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                viewMode === 'list'
-                  ? 'bg-blue-600 text-white font-bold'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              List View
-            </button>
-            <button
-              onClick={() => setViewMode('calendar')}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
-                viewMode === 'calendar'
-                  ? 'bg-blue-600 text-white font-bold'
-                  : 'text-gray-500 hover:text-gray-900'
-              }`}
-            >
-              Calendar View
-            </button>
-          </div>
+          {activeTab === 'schedules' && (
+            <>
+              {/* Segmented View Mode Toggle */}
+              <div className="flex border border-gray-200 bg-white rounded-xl p-1 shadow-2xs">
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                    viewMode === 'list'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                  </svg>
+                  <span>List</span>
+                </button>
+                <button
+                  onClick={() => setViewMode('calendar')}
+                  className={`inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold rounded-lg transition-colors cursor-pointer ${
+                    viewMode === 'calendar'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'text-gray-500 hover:text-gray-900'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span>Calendar</span>
+                </button>
+              </div>
 
-          <button
-            onClick={() => setTemplatesOpen(true)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-          >
-            Templates
-          </button>
+              {canManage && (
+                <>
+                  <button
+                    onClick={() => setRemindAttendanceOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-800 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Bumuo at kopyahin ang paalala sa Messenger para sa mga hindi pa nate-take na attendance"
+                  >
+                    <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                    </svg>
+                    <span>Remind Untaken</span>
+                  </button>
 
-          <button
-            onClick={() => setCsvImportOpen(true)}
-            className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3.5 py-2.5 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-          >
-            Import CSV
-          </button>
+                  <button
+                    onClick={() => setTemplatesOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                  >
+                    <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                    </svg>
+                    <span>Templates</span>
+                  </button>
 
-          <button
-            onClick={() => {
-              setSelectedSchedule(null)
-              setSelectedDate('')
-              setFormOpen(true)
-            }}
-            className="rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors w-full sm:w-auto cursor-pointer shadow-sm"
-          >
-            Create Schedule
-          </button>
+                  <button
+                    onClick={() => setExportPdfOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Export Month Schedule as PDF (Long Landscape)"
+                  >
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span>Export PDF</span>
+                  </button>
+
+                  <button
+                    onClick={() => setBulkDeleteMonthOpen(true)}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    title="Delete all schedules for a specific month"
+                  >
+                    <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                    <span>Bulk Delete Month</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setSelectedSchedule(null)
+                      setSelectedDate('')
+                      setFormOpen(true)
+                    }}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all w-full sm:w-auto cursor-pointer shadow-md shadow-blue-600/20"
+                  >
+                    <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span>Create Schedule</span>
+                  </button>
+                </>
+              )}
+            </>
+          )}
         </div>
       </div>
 
+      {activeTab === 'publications' ? (
+        <PublicationsTab />
+      ) : (
+        <>
       {/* Filters bar */}
-      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-gray-200 bg-white shadow-xs">
-        {/* Date filter */}
+      <div className="flex flex-col sm:flex-row gap-4 p-4 rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+        {/* Search filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-date" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Filter by Date
+          <label htmlFor="filter-search" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Search Schedules
           </label>
           <input
-            id="filter-date"
-            type="date"
-            value={dateFilter}
-            onChange={(e) => setDateFilter(e.target.value)}
-            className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-1.5 text-xs text-gray-750 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+            id="filter-search"
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+            placeholder="e.g. July 5 4 PM Mass"
           />
         </div>
 
-        {/* Status filter */}
+        {/* Date Filter (Single Date vs Date Range) */}
+        <div className="flex flex-col space-y-1 flex-1 min-w-[280px]">
+          <div className="flex items-center justify-between">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              {dateFilterMode === 'single' ? 'Filter by Date' : 'Filter by Date Range'}
+            </label>
+            <div className="flex items-center gap-1 border border-gray-200 bg-slate-50 rounded-lg p-0.5 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setDateFilterMode('single')}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  dateFilterMode === 'single'
+                    ? 'bg-white text-blue-600 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Single
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDateFilterMode('range')
+                  if (!startDateFilter && !endDateFilter) {
+                    const thisWeek = getThisWeekRange()
+                    setStartDateFilter(thisWeek.start)
+                    setEndDateFilter(thisWeek.end)
+                  }
+                }}
+                className={`px-2 py-0.5 rounded transition-all cursor-pointer ${
+                  dateFilterMode === 'range'
+                    ? 'bg-white text-blue-600 shadow-2xs font-extrabold'
+                    : 'text-gray-500 hover:text-gray-800'
+                }`}
+              >
+                Range
+              </button>
+            </div>
+          </div>
+
+          {dateFilterMode === 'single' ? (
+            <div className="flex gap-1.5">
+              <input
+                id="filter-date"
+                type="date"
+                value={dateFilter}
+                onChange={(e) => handleDateFilterChange(e.target.value)}
+                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const today = new Date()
+                  setSelectedMonthDate(today)
+                  setDateFilter(getTodayString())
+                }}
+                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[36px] shadow-2xs"
+              >
+                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>Today</span>
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="date"
+                  value={startDateFilter}
+                  onChange={(e) => setStartDateFilter(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                  title="Start Date (From)"
+                />
+                <span className="text-xs font-bold text-gray-400 shrink-0">to</span>
+                <input
+                  type="date"
+                  value={endDateFilter}
+                  onChange={(e) => setEndDateFilter(e.target.value)}
+                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                  title="End Date (To)"
+                />
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = getThisWeekRange()
+                    setStartDateFilter(r.start)
+                    setEndDateFilter(r.end)
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors cursor-pointer"
+                >
+                  This Week
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = getThisMonthRange()
+                    setStartDateFilter(r.start)
+                    setEndDateFilter(r.end)
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 rounded-md border border-indigo-200 transition-colors cursor-pointer"
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const r = getNext7DaysRange()
+                    setStartDateFilter(r.start)
+                    setEndDateFilter(r.end)
+                  }}
+                  className="px-2 py-0.5 text-[10px] font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-md border border-slate-200 transition-colors cursor-pointer"
+                >
+                  Next 7 Days
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Time / Schedule filter */}
         <div className="flex flex-col space-y-1 flex-1">
-          <label htmlFor="filter-status" className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            Filter by Status
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Select Time
           </label>
-          <select
-            id="filter-status"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="block w-full rounded-lg border border-gray-250 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 transition-colors"
-          >
-            <option value="all">All Statuses</option>
-            <option value="upcoming">Upcoming</option>
-            <option value="ongoing">Ongoing</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-          </select>
+          <FilterDropdown
+            value={timeFilter}
+            onChange={(val) => setTimeFilter(val)}
+            allLabel={
+              dateFilterMode === 'single'
+                ? (dateFilter ? 'All Times' : 'Select Date First')
+                : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times')
+            }
+            options={[
+              {
+                key: '',
+                label: dateFilterMode === 'single'
+                  ? (dateFilter ? 'All Times' : 'Select Date First')
+                  : (startDateFilter || endDateFilter ? 'All Times in Range' : 'All Times'),
+                dot: 'bg-slate-400'
+              },
+              ...Array.from(new Set(availableSchedulesForSelectedDate.map((s) => s.startTime))).map((startTime) => {
+                const matched = availableSchedulesForSelectedDate.find((s) => s.startTime === startTime)
+                return {
+                  key: startTime,
+                  label: `${formatTime12(startTime)} ${matched?.title ? `- ${matched.title}` : ''}`,
+                  dot: 'bg-indigo-500'
+                }
+              })
+            ]}
+          />
+        </div>
+
+        {/* Attendance Status Filter */}
+        <div className="flex flex-col space-y-1 flex-1">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Attendance Tracking
+          </label>
+          <FilterDropdown
+            value={attendanceFilter}
+            onChange={(val) => setAttendanceFilter(val as any)}
+            allLabel="All Tracking Statuses"
+            options={[
+              { key: 'all', label: 'All Tracking Statuses', dot: 'bg-slate-400' },
+              { key: 'untaken', label: 'Untaken (Not Started)', dot: 'bg-amber-500' },
+              { key: 'in_progress', label: 'In Progress (Unfinalized)', dot: 'bg-blue-500' },
+              { key: 'finalized', label: 'Finalized (Locked)', dot: 'bg-emerald-500' }
+            ]}
+          />
         </div>
 
         {/* Clear filters */}
-        {(dateFilter || statusFilter !== 'all') && (
+        {(dateFilter || startDateFilter || endDateFilter || timeFilter || searchQuery || attendanceFilter !== 'all') && (
           <div className="flex items-end justify-start">
             <button
               onClick={() => {
-                setDateFilter('')
-                setStatusFilter('all')
+                const today = new Date()
+                setSelectedMonthDate(today)
+                setDateFilterMode('single')
+                setDateFilter(getTodayString())
+                setStartDateFilter('')
+                setEndDateFilter('')
+                setTimeFilter('')
+                setSearchQuery('')
+                setAttendanceFilter('all')
               }}
-              className="text-xs text-blue-600 hover:text-blue-700 font-bold py-2 px-3 transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs text-blue-700 hover:text-blue-800 font-bold py-2 px-3 bg-blue-50/60 hover:bg-blue-100/80 border border-blue-200/80 rounded-xl transition-all cursor-pointer shadow-2xs"
             >
-              Clear Filters
+              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>Clear Filters</span>
             </button>
           </div>
         )}
       </div>
-
-      {/* Error Panel */}
-      {error && (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-650">
-          {error}
-        </div>
-      )}
 
       {/* Main Grid content */}
       {loading ? (
@@ -307,162 +963,141 @@ export const SchedulesPage: React.FC = () => {
       ) : viewMode === 'calendar' ? (
         <CalendarView
           schedules={filteredSchedules}
+          currentDate={selectedMonthDate}
+          onMonthChange={(newMonthDate) => setSelectedMonthDate(newMonthDate)}
           onSelectSchedule={(s) => {
             setSelectedSchedule(s)
             setDetailsOpen(true)
           }}
           onDateClick={(dateStr) => {
+            if (!canManage) return
             setSelectedSchedule(null)
             setSelectedDate(dateStr)
             setFormOpen(true)
           }}
+          getAttendanceState={getAttendanceState}
         />
       ) : filteredSchedules.length > 0 ? (
         <>
           {/* Bulk actions toolbar */}
-          <div className="flex items-center justify-between gap-3 px-1">
-            <div className="flex items-center gap-3">
-              {/* Bulk select toggle */}
-              <button
-                onClick={() => setBulkSelectMode(v => !v)}
-                className={`text-xs font-semibold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
-                  bulkSelectMode
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'border-gray-200 bg-white text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
-              >
-                {bulkSelectMode ? 'Cancel Selection' : 'Select'}
-              </button>
+          {canManage && (
+            <div className="flex items-center justify-between gap-3 px-1">
+              <div className="flex items-center gap-2.5 flex-wrap">
+                {/* Bulk select toggle */}
+                <button
+                  onClick={() => setBulkSelectMode(v => !v)}
+                  className={`inline-flex items-center gap-1.5 text-xs font-bold px-3.5 py-1.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                    bulkSelectMode
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20'
+                      : 'border-slate-200 bg-white text-slate-700 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <span>{bulkSelectMode ? 'Cancel Selection' : 'Select'}</span>
+                </button>
 
-              {bulkSelectMode && (
-                <>
-                  {/* Select / deselect all across ALL pages */}
-                  <button
-                    onClick={handleSelectAll}
-                    className="text-xs font-semibold text-blue-600 hover:text-blue-700 cursor-pointer transition-colors"
-                  >
-                    {allFilteredSelected ? 'Deselect All' : 'Select All'}
-                  </button>
+                {bulkSelectMode && (
+                  <>
+                    {/* Select / deselect all across ALL pages */}
+                    <button
+                      onClick={handleSelectAll}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 px-3 py-1.5 rounded-xl cursor-pointer transition-all shadow-2xs"
+                    >
+                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span>{allFilteredSelected ? 'Deselect All' : 'Select All'}</span>
+                    </button>
 
-                  {someSelected && (
-                    <span className="text-xs text-gray-500">
-                      {selectedIds.size}{totalPages > 1 ? ` / ${filteredSchedules.length}` : ''} selected
-                    </span>
-                  )}
-                </>
+                    {someSelected && (
+                      <span className="text-xs font-bold text-slate-600 px-2 py-1 bg-slate-100 rounded-lg">
+                        {selectedIds.size}{totalPages > 1 ? ` / ${filteredSchedules.length}` : ''} selected
+                      </span>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Bulk delete button */}
+              {bulkSelectMode && selectedIds.size > 0 && (
+                <button
+                  onClick={() => setBulkDeleteOpen(true)}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-rose-600/20"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Delete {selectedIds.size} Selected</span>
+                </button>
               )}
             </div>
-
-            {/* Bulk delete button */}
-            {bulkSelectMode && selectedIds.size > 0 && (
-              <button
-                onClick={() => setBulkDeleteOpen(true)}
-                className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 px-3.5 py-1.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
-              >
-                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Delete {selectedIds.size} Selected
-              </button>
-            )}
-          </div>
+          )}
 
           {/* Cards grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {currentPageItems.map((schedule) => (
-              <ScheduleCard
-                key={schedule.id}
-                schedule={schedule}
-                totalAssigned={schedule.assignedMembers?.length || 0}
-                isSelected={selectedIds.has(schedule.id)}
-                onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
-                onEdit={(s) => {
-                  setSelectedSchedule(s)
-                  setFormOpen(true)
-                }}
-                onDelete={handleDelete}
-                onManageAssignments={(s) => {
-                  setSelectedSchedule(s)
-                  setAssignmentOpen(true)
-                }}
-              />
-            ))}
-          </div>
+        {currentPageItems.map((schedule) => (
+          <ScheduleCard
+            key={schedule.id}
+            schedule={schedule}
+            totalAssigned={schedule.assignedMembers?.length || 0}
+            isSelected={selectedIds.has(schedule.id)}
+            onToggleSelect={bulkSelectMode ? handleToggleSelect : undefined}
+            attendanceState={getAttendanceState(schedule.id, getScheduleStatus(schedule), schedule)}
+            session={attendanceSessions.find((sess) => sess.scheduleId === schedule.id)}
+            onToggleLock={handleToggleLock}
+            onEdit={(s) => {
+              setSelectedSchedule(s)
+              setFormOpen(true)
+            }}
+            onDelete={handleDelete}
+            onManageAssignments={(s) => {
+              setSelectedSchedule(s)
+              setAssignmentOpen(true)
+            }}
+            onView={(s) => {
+              setSelectedSchedule(s)
+              setDetailsOpen(true)
+            }}
+          />
+        ))}
+      </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-between pt-2">
-              <p className="text-xs text-gray-500">
-                Showing{' '}
-                <span className="font-semibold text-gray-700">
-                  {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredSchedules.length)}
-                </span>{' '}
-                of{' '}
-                <span className="font-semibold text-gray-700">{filteredSchedules.length}</span>{' '}
-                schedules
-              </p>
-
-              <div className="flex items-center gap-1">
-                {/* Previous */}
-                <button
-                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                  disabled={safePage === 1}
-                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  ‹ Prev
-                </button>
-
-                {/* Page numbers */}
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => {
-                  // Show first, last, current ±1, with ellipsis
-                  const show =
-                    page === 1 ||
-                    page === totalPages ||
-                    Math.abs(page - safePage) <= 1
-                  const isEllipsisBefore = page === 2 && safePage > 3
-                  const isEllipsisAfter = page === totalPages - 1 && safePage < totalPages - 2
-
-                  if (isEllipsisBefore || isEllipsisAfter) {
-                    return (
-                      <span key={page} className="px-1 text-xs text-gray-400 select-none">…</span>
-                    )
-                  }
-                  if (!show) return null
-
-                  return (
-                    <button
-                      key={page}
-                      onClick={() => setCurrentPage(page)}
-                      className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer ${
-                        page === safePage
-                          ? 'bg-blue-600 text-white border border-blue-600'
-                          : 'border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  )
-                })}
-
-                {/* Next */}
-                <button
-                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                  disabled={safePage === totalPages}
-                  className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-gray-600 hover:bg-gray-50 hover:text-gray-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
-                >
-                  Next ›
-                </button>
-              </div>
-            </div>
-          )}
+          <Pagination
+            currentPage={safePage}
+            totalItems={filteredSchedules.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            className="mt-4"
+          />
         </>
       ) : (
         <div className="py-16 text-center rounded-xl border border-gray-200 bg-white shadow-xs">
           <svg className="mx-auto h-10 w-10 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
           </svg>
-          <h3 className="mt-2 text-sm font-bold text-gray-900">No schedules found</h3>
-          <p className="mt-1 text-xs text-gray-500">Create a schedule or check active filter values.</p>
+          <h3 className="mt-2 text-sm font-bold text-gray-900">
+            {dateFilter === getTodayString() ? 'No schedule yet' : 'No schedules found'}
+          </h3>
+          <p className="mt-1 text-xs text-gray-500">
+            {dateFilter === getTodayString()
+              ? 'There are no schedules scheduled for today.'
+              : 'No schedules match the selected date. Try a different date.'}
+          </p>
+          {canManage && dateFilter === getTodayString() && (
+            <button
+              onClick={() => {
+                setSelectedSchedule(null)
+                setSelectedDate(getTodayString())
+                setFormOpen(true)
+              }}
+              className="mt-4 rounded-lg bg-blue-600 hover:bg-blue-500 px-4 py-2.5 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+            >
+              Create Schedule for Today
+            </button>
+          )}
         </div>
       )}
 
@@ -494,10 +1129,10 @@ export const SchedulesPage: React.FC = () => {
         isOpen={detailsOpen}
         onClose={() => {
           setDetailsOpen(false)
-          setSelectedSchedule(null)
         }}
         schedule={selectedSchedule}
         activeMembers={allMembersProfiles}
+        attendanceState={selectedSchedule ? getAttendanceState(selectedSchedule.id, getScheduleStatus(selectedSchedule)) : 'none'}
         onEdit={(s) => {
           setSelectedSchedule(s)
           setFormOpen(true)
@@ -512,16 +1147,20 @@ export const SchedulesPage: React.FC = () => {
       <TemplateManagerModal
         isOpen={templatesOpen}
         onClose={() => setTemplatesOpen(false)}
-        activeMembers={activeMembers}
-        allMembers={allMembersProfiles}
-        onGenerateSuccess={loadData}
+        onGenerateSuccess={() => loadData(false)}
       />
 
-      <CSVImporterModal
-        isOpen={csvImportOpen}
-        onClose={() => setCsvImportOpen(false)}
-        activeMembers={allMembersProfiles}
-        onImportSuccess={loadData}
+
+      <BulkDeleteMonthModal
+        isOpen={bulkDeleteMonthOpen}
+        onClose={() => setBulkDeleteMonthOpen(false)}
+        onSuccess={() => loadData(false)}
+      />
+
+      <SchedulePdfExportModal
+        isOpen={exportPdfOpen}
+        onClose={() => setExportPdfOpen(false)}
+        defaultMonth={`${selectedMonthDate.getFullYear()}-${String(selectedMonthDate.getMonth() + 1).padStart(2, '0')}`}
       />
 
       {/* Single Delete Confirm Dialog */}
@@ -549,12 +1188,23 @@ export const SchedulesPage: React.FC = () => {
 
       {/* Alert Dialog */}
       <AlertModal
-        isOpen={!!alertModal}
-        onClose={() => setAlertModal(null)}
-        variant="error"
-        title={alertModal?.title ?? ''}
-        message={alertModal?.message ?? ''}
+        isOpen={!!alertModal || !!error}
+        onClose={() => {
+          setAlertModal(null)
+          setError(null)
+        }}
+        variant={alertModal?.variant ?? (error ? 'error' : 'error')}
+        title={alertModal?.title ?? 'Error'}
+        message={alertModal?.message ?? error ?? ''}
       />
+
+      {/* Remind Attendance Messenger Modal */}
+      <RemindAttendanceModal
+        isOpen={remindAttendanceOpen}
+        onClose={() => setRemindAttendanceOpen(false)}
+      />
+      </>
+      )}
     </div>
   )
 }

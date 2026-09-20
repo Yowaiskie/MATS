@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import type { Member } from '@/types/member'
+import { getOrderBadgeStyle, getMemberOrders } from '@/types/member'
 import type { AttendanceStatus } from '@/types/attendance'
 import { getFullName } from '@/utils/member'
 
@@ -7,10 +8,12 @@ interface AttendanceRowProps {
   member: Member
   status: AttendanceStatus | undefined
   remarks: string
-  onStatusChange: (status: AttendanceStatus) => void
+  onStatusChange: (status: AttendanceStatus | undefined) => void
   onRemarksChange: (remarks: string) => void
   disabled: boolean
   isOtherServer?: boolean
+  isMeetingSchedule?: boolean
+  onRemove?: () => void
 }
 
 export const AttendanceRow: React.FC<AttendanceRowProps> = ({
@@ -21,49 +24,80 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
   onRemarksChange,
   disabled,
   isOtherServer = false,
+  isMeetingSchedule = false,
+  onRemove,
 }) => {
   const [showRemarksInput, setShowRemarksInput] = useState(!!remarks)
 
-  const statusOptions: { value: AttendanceStatus; label: string; activeColor: string }[] = [
+  const allStatusOptions: { value: AttendanceStatus; label: string; activeColor: string }[] = [
     { value: 'present', label: 'Present', activeColor: 'bg-green-600 border-green-600 text-white font-bold' },
     { value: 'late', label: 'Late', activeColor: 'bg-yellow-500 border-yellow-500 text-white font-bold' },
     { value: 'absent', label: 'Absent', activeColor: 'bg-red-600 border-red-600 text-white font-bold' },
     { value: 'excused', label: 'Excused', activeColor: 'bg-gray-500 border-gray-500 text-white font-bold' },
+    { value: 'observer', label: 'Observer', activeColor: 'bg-purple-600 border-purple-600 text-white font-bold' },
+    { value: 'formation', label: 'Formation', activeColor: 'bg-indigo-600 border-indigo-600 text-white font-bold' },
+    { value: 'alumni', label: 'Hide', activeColor: 'bg-teal-600 border-teal-600 text-white font-bold' },
   ]
+
+  const statusOptions = isMeetingSchedule
+    ? allStatusOptions.filter((opt) => opt.value !== 'observer')
+    : allStatusOptions
 
   return (
     <div className="p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 hover:bg-blue-50/40 transition-colors">
       {/* Member Details */}
       <div className="flex-1 min-w-[200px]">
-        <span className="text-sm font-semibold text-gray-900 flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-900 flex items-center gap-2 flex-wrap">
           {getFullName(member)}
+          {member.status === 'suspended' && (
+            <span className="inline-block px-1.5 py-0.5 rounded text-[9px] font-extrabold uppercase bg-rose-50 border border-rose-200 text-rose-700">
+              SUSPENDED
+            </span>
+          )}
           {isOtherServer && (
             <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-50 border border-amber-200 text-amber-600">
               Other Server
             </span>
           )}
         </span>
-        <span className="text-[11px] text-blue-600 uppercase tracking-wider font-medium">
-          {member.rank}
-        </span>
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          <span className="text-[11px] text-blue-600 uppercase tracking-wider font-medium">
+            {member.rank}
+          </span>
+          {getMemberOrders(member.order).map((ord) => (
+            <span
+              key={ord}
+              className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
+            >
+              {ord}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* Input Options Column */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
         {/* Toggle Pills */}
-        <div className="flex items-center border border-gray-200 bg-gray-50 rounded-lg overflow-hidden shadow-sm">
+        <div className="flex flex-wrap items-center gap-1.5">
           {statusOptions.map((opt) => {
             const isActive = status === opt.value
             return (
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => !disabled && onStatusChange(opt.value)}
+                onClick={() => {
+                  if (disabled) return
+                  if (isActive) {
+                    onStatusChange(undefined)
+                  } else {
+                    onStatusChange(opt.value)
+                  }
+                }}
                 disabled={disabled}
-                className={`px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider border-r border-gray-200 last:border-r-0 transition-colors cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider border transition-all cursor-pointer ${
                   isActive 
-                    ? opt.activeColor 
-                    : 'text-gray-500 hover:text-gray-800 hover:bg-gray-100 disabled:opacity-50'
+                    ? opt.activeColor + ' shadow-sm' 
+                    : 'bg-white border-gray-200 text-gray-500 hover:text-gray-800 hover:bg-gray-50 disabled:opacity-50'
                 }`}
               >
                 {opt.label}
@@ -72,19 +106,42 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
           })}
         </div>
 
-        {/* Remarks Toggle Button */}
-        <div>
-          <button
-            type="button"
-            onClick={() => setShowRemarksInput(prev => !prev)}
-            className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold tracking-wide transition-colors cursor-pointer ${
-              showRemarksInput || remarks
-                ? 'border-blue-200 bg-blue-50 text-blue-600'
-                : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            {remarks ? 'Has Remarks' : 'Add Remarks'}
-          </button>
+        <div className="flex items-center gap-2">
+          {/* Remarks Toggle Button */}
+          <div>
+            <button
+              type="button"
+              onClick={() => setShowRemarksInput(prev => !prev)}
+              className={`px-2.5 py-1.5 rounded-lg border text-[11px] font-semibold tracking-wide transition-colors cursor-pointer ${
+                showRemarksInput || remarks
+                  ? 'border-blue-200 bg-blue-50 text-blue-600'
+                  : 'border-gray-200 bg-white text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {remarks ? 'Has Remarks' : 'Add Remarks'}
+            </button>
+          </div>
+
+          {/* Remove Button for any server */}
+          {!disabled && onRemove && (
+            <div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  onRemove()
+                }}
+                className="px-2.5 py-1.5 rounded-lg border border-red-200 bg-red-50 hover:bg-red-100 text-[11px] font-bold tracking-wide text-red-600 transition-all cursor-pointer shadow-sm flex items-center gap-1"
+                title="Remove this server from attendance list"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Remove</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

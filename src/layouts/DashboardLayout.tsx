@@ -1,9 +1,22 @@
 import React, { useState } from 'react'
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom'
 import { useAuth } from '@/features/authentication/AuthContext'
+import type { ModuleKey } from '@/types/auth'
 import { OfflineBanner } from '@/components/OfflineBanner'
 import { InstallPWAButton } from '@/components/InstallPWAButton'
+import { NotificationBell } from '@/components/NotificationBell'
+import { NotificationActions } from '@/components/NotificationActions'
+import { Joyride } from 'react-joyride'
+import { useTutorial } from '@/context/TutorialContext'
+import { useTutorialSteps } from '@/hooks/useTutorialSteps'
+import { TutorialTooltip } from '@/components/TutorialTooltip'
+import { useInactivityRedirect } from '@/hooks/useInactivityRedirect'
+import { dashboardService } from '@/services/dashboardService'
+import { useMaintenance } from '@/context/MaintenanceContext'
+import { MaintenanceScreen } from '@/features/maintenance/components/MaintenanceScreen'
+import { BottomNav } from '@/layouts/BottomNav'
 
+// Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
   Dashboard: (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -30,21 +43,90 @@ const icons: { [key: string]: React.ReactNode } = {
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
     </svg>
   ),
+  'User Management': (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+  ),
   Settings: (
     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
     </svg>
+  ),
+  'Audit Trail': (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  'Change Password': (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2v4a2 2 0 01-2 2H9a2 2 0 01-2-2V9a2 2 0 012-2h6z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 7V5a2 2 0 114 0v2" />
+    </svg>
+  ),
+  Excuses: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  ),
+  Finance: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  ),
+  Events: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+  ),
+  Inventory: (
+    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+    </svg>
   )
 }
 
 export const DashboardLayout: React.FC = () => {
-  const { profile, logout } = useAuth()
+  useInactivityRedirect()
+  const { user, profile, logout, hasModuleAccess } = useAuth()
+  const { isMaintenanceActive, isUserAllowed } = useMaintenance()
   const location = useLocation()
   const navigate = useNavigate()
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
+  const [activeTasksCount, setActiveTasksCount] = useState(0)
+
+  const isBlocked = isMaintenanceActive && !isUserAllowed(user?.uid, user?.email, profile?.role)
+
+  const { run, steps, startTutorial, handleJoyrideCallback } = useTutorial()
+  const { globalSteps } = useTutorialSteps()
+
+  React.useEffect(() => {
+    if (isBlocked) return // Prevent any Firestore activity for blocked users
+
+    const fetchMyTasks = async () => {
+      if (profile?.displayName) {
+        try {
+          const count = await dashboardService.getMyUnreadTasksCount(profile.displayName)
+          setActiveTasksCount(count)
+        } catch (e) {
+          console.error(e)
+        }
+      }
+    }
+    fetchMyTasks()
+  }, [profile?.displayName, location.pathname, isBlocked]) // Refresh on navigation
+
+  React.useEffect(() => {
+    if (isBlocked) return
+    const hasSeenTutorial = localStorage.getItem('mats_tutorial_seen')
+    if (!hasSeenTutorial && globalSteps.length > 0) {
+      startTutorial(globalSteps)
+      localStorage.setItem('mats_tutorial_seen', 'true')
+    }
+  }, [globalSteps, startTutorial, isBlocked])
+
 
   const handleLogout = async () => {
     setLoggingOut(true)
@@ -57,15 +139,6 @@ export const DashboardLayout: React.FC = () => {
       setLoggingOut(false)
     }
   }
-
-  const navigation = [
-    { name: 'Dashboard', href: '/' },
-    { name: 'Members', href: '/members' },
-    { name: 'Schedules', href: '/schedules' },
-    { name: 'Attendance', href: '/attendance' },
-    { name: 'Reports', href: '/reports' },
-    { name: 'Settings', href: '/settings' },
-  ]
 
   const isActive = (href: string) => {
     if (href === '/') {
@@ -82,35 +155,74 @@ export const DashboardLayout: React.FC = () => {
     if (path.startsWith('/schedules')) return 'Schedule Management'
     if (path.startsWith('/attendance')) return 'Attendance Tracking'
     if (path.startsWith('/reports')) return 'Reports & Analytics'
+    if (path.startsWith('/events')) return 'Event Workspace'
+    if (path.startsWith('/inventory')) return 'Ministry Inventory'
+    if (path.startsWith('/finance')) return 'Finance Management'
+    if (path.startsWith('/users')) return 'User Management'
     if (path.startsWith('/settings')) return 'System Settings'
+    if (path.startsWith('/audit')) return 'System Audit Trail'
+    if (path.startsWith('/change-password')) return 'Change Password'
     return 'Dashboard'
+  }
+
+  // Strict Realtime Guard: If Maintenance Mode is active and user is blocked, logout & render MaintenanceScreen directly
+  if (isBlocked) {
+    logout().catch(console.error)
+    return <MaintenanceScreen />
   }
 
   return (
     <div className="h-screen bg-[#f8fafc] text-gray-800 flex flex-col font-sans antialiased overflow-hidden">
+      <Joyride
+        steps={steps}
+        run={run}
+        continuous
+        // @ts-expect-error callback prop type mismatch in v3
+        callback={handleJoyrideCallback}
+        tooltipComponent={TutorialTooltip}
+        locale={{
+          back: 'Bumalik',
+          close: 'Isara',
+          last: 'Tapusin',
+          next: 'Susunod',
+          skip: 'I-skip',
+        }}
+      />
+
       {/* Offline Alert Banner */}
       <OfflineBanner />
 
-      {/* Top Navbar */}
-      <header className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-sm backdrop-blur-md bg-white/95">
-        <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            {/* Hamburger for Mobile */}
-            <button
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="sm:hidden text-gray-500 hover:text-gray-900 focus:outline-none p-1 rounded-lg hover:bg-gray-100 transition-colors"
-              aria-label="Toggle navigation menu"
-            >
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileMenuOpen ? "M6 18L18 6" : "M4 6h16M4 12h16M4 18h16"} />
-              </svg>
-            </button>
+      {/* Maintenance Mode Active Banner for Logged-In Authorized Staff */}
+      {isMaintenanceActive && (
+        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs border-b border-amber-600">
+          <div className="flex items-center gap-2">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950"></span>
+            </span>
+            <span>SYSTEM MAINTENANCE MODE IS ACTIVE</span>
+            <span className="hidden sm:inline font-normal opacity-90">&bull; You are accessing MATS as an authorized user.</span>
+          </div>
+          <Link to="/settings" className="underline hover:text-slate-900 text-[11px] font-extrabold shrink-0">
+            Manage Settings &rarr;
+          </Link>
+        </div>
+      )}
 
-            {/* Collapse toggle for Desktop */}
+      {/* Top Navbar */}
+      {/* paddingTop: safe-area-inset-top pushes content below Android/iOS status bar (battery, time, etc.) */}
+      <header
+        className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+          <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 pr-2">
+            {/* Collapse Toggle Button for Desktop only */}
             <button
               onClick={() => setCollapsed(!collapsed)}
-              className="hidden sm:inline-block text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-colors focus:outline-none"
+              className="hidden sm:inline-flex text-gray-500 hover:text-gray-900 p-1.5 rounded-lg hover:bg-gray-100 transition-all focus:outline-none cursor-pointer border border-transparent hover:border-gray-200 shrink-0"
               aria-label="Toggle sidebar collapse"
+              title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
             >
               <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={collapsed ? "M13 5l7 7-7 7M5 5l7 7-7 7" : "M11 19l-7-7 7-7M19 19l-7-7 7-7"} />
@@ -118,27 +230,28 @@ export const DashboardLayout: React.FC = () => {
             </button>
 
             {/* Breadcrumb / Title display */}
-            <div className="hidden sm:flex items-center space-x-2 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+            <div className="hidden sm:flex items-center space-x-2 text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">
               <span>MATS</span>
               <span>/</span>
               <span className="text-gray-700 font-bold tracking-normal text-sm capitalize">{getPageTitle()}</span>
             </div>
-            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize">{getPageTitle()}</span>
+            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize truncate min-w-0">{getPageTitle()}</span>
           </div>
 
           {/* Top Nav Right Actions */}
-          <div className="flex items-center space-x-3">
-            <InstallPWAButton />
-            <span className="text-xs text-gray-500 hidden md:inline-block">
-              User: <strong className="text-gray-700 font-semibold">{profile?.email || 'Admin'}</strong>
-            </span>
+          <div className="flex items-center space-x-2 sm:space-x-3">
+            <NotificationActions />
+            <NotificationBell />
             <button
-              onClick={handleLogout}
-              disabled={loggingOut}
-              className="rounded-lg border border-gray-200 bg-white hover:bg-gray-550 px-3 py-1.5 text-xs font-semibold text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+              onClick={() => startTutorial(globalSteps)}
+              className="flex items-center justify-center w-8 h-8 rounded-full bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition-colors shadow-2xs cursor-pointer focus:outline-none"
+              title="Start Tutorial"
             >
-              {loggingOut ? 'Signing out...' : 'Sign Out'}
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
             </button>
+            <InstallPWAButton />
           </div>
         </div>
       </header>
@@ -146,110 +259,174 @@ export const DashboardLayout: React.FC = () => {
       <div className="flex-1 flex flex-col sm:flex-row relative overflow-hidden">
         {/* Sidebar for Desktop */}
         <aside 
-          className={`hidden sm:flex flex-col border-r border-gray-200/80 bg-white p-4 space-y-1.5 transition-all duration-200 ease-in-out shrink-0 overflow-y-auto ${
+          className={`hidden sm:flex flex-col border-r border-slate-200/80 bg-white p-4 transition-all duration-200 ease-in-out shrink-0 overflow-y-auto ${
             collapsed ? 'w-20' : 'w-64'
           }`}
         >
           {/* Logo Brand Header */}
-          <div className="flex items-center space-x-3 px-2 pb-4 border-b border-gray-100 mb-4 overflow-hidden">
-            <img 
-              src="/ministy_logo.jpg" 
-              alt="Logo" 
-              className="h-9 w-9 rounded-lg border border-gray-200/60 object-cover shrink-0" 
-            />
+          <div className={`flex items-center ${collapsed ? 'justify-center px-0' : 'space-x-3 px-2'} pb-4 border-b border-slate-100 mb-3 overflow-hidden shrink-0`}>
+            <div className="relative shrink-0">
+              <img 
+                src="/favicon/favicon.png" 
+                alt="MATS Logo" 
+                className="h-9 w-9 rounded-2xl border border-slate-200/80 object-cover shadow-2xs" 
+              />
+            </div>
             {!collapsed && (
-              <span className="font-extrabold text-base tracking-tight text-gray-900 transition-opacity duration-150">
-                MATS Portal
-              </span>
+              <div className="flex items-center gap-2 truncate">
+                <span className="font-extrabold text-base tracking-tight text-slate-900 truncate">
+                  MATS Portal
+                </span>
+                <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                  v.2.1
+                </span>
+              </div>
             )}
           </div>
 
-          <nav className="space-y-1.5 flex-1">
-            {navigation.map((item) => {
-              const active = isActive(item.href)
+          <nav className="space-y-4 flex-1 tour-sidebar-menu">
+            {[
+              {
+                section: 'CORE MENU',
+                items: [
+                  { name: 'Dashboard', href: '/', moduleKey: 'dashboard' },
+                  { name: 'Schedules', href: '/schedules', moduleKey: 'schedules' },
+                  { name: 'Attendance', href: '/attendance', moduleKey: 'attendance' },
+                  { name: 'Members', href: '/members', moduleKey: 'members' },
+                ]
+              },
+              {
+                section: 'OPERATIONS',
+                items: [
+                  { name: 'Events', href: '/events', moduleKey: 'events' as ModuleKey },
+                  { name: 'Inventory', href: '/inventory', moduleKey: 'inventory' as ModuleKey },
+                  { name: 'Finance', href: '/finance', moduleKey: 'finance' },
+                  { name: 'Reports', href: '/reports', moduleKey: 'reports' },
+                  { name: 'Excuses', href: '/excuses', moduleKey: 'excuses' as ModuleKey },
+                ]
+              },
+              {
+                section: 'ADMINISTRATIVE',
+                items: [
+                  { name: 'User Management', href: '/users', moduleKey: 'users' },
+                  { name: 'Settings', href: '/settings', moduleKey: 'settings' },
+                  { name: 'Audit Trail', href: '/audit', moduleKey: 'audit' },
+                  { name: 'Change Password', href: '/change-password', moduleKey: 'changePassword' },
+                ]
+              }
+            ].map((group) => {
+              const allowedItems = group.items.filter(item => hasModuleAccess(item.moduleKey as ModuleKey))
+              if (allowedItems.length === 0) return null
+
               return (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  className={`flex items-center space-x-3 rounded-lg px-3.5 py-2.5 text-sm transition-all duration-150 ${
-                    active
-                      ? 'bg-blue-50 text-blue-600 font-bold border-l-4 border-blue-600'
-                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                  }`}
-                  title={collapsed ? item.name : undefined}
-                >
-                  <span className={`shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`}>
-                    {icons[item.name]}
-                  </span>
+                <div key={group.section} className="space-y-1">
                   {!collapsed && (
-                    <span className="truncate">{item.name}</span>
+                    <div className="text-[10px] font-black uppercase tracking-wider text-slate-400 px-3.5 py-1">
+                      {group.section}
+                    </div>
                   )}
-                </Link>
+                  {allowedItems.map((item) => {
+                    const active = isActive(item.href)
+                    return (
+                      <Link
+                        key={item.name}
+                        to={item.href}
+                        className={`tour-nav-${item.moduleKey} flex items-center rounded-xl py-2.5 text-xs transition-all duration-200 group relative ${
+                          collapsed ? 'justify-center px-0' : 'space-x-3 px-3.5'
+                        } ${
+                          active
+                            ? 'bg-indigo-50 text-indigo-700 font-bold shadow-sm'
+                            : `text-slate-600 font-semibold hover:bg-slate-50 hover:text-slate-900 ${collapsed ? '' : 'hover:translate-x-1'}`
+                        }`}
+                        title={collapsed ? item.name : undefined}
+                      >
+                        <span className={`shrink-0 transition-transform duration-200 group-hover:scale-110 ${active ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`}>
+                          {icons[item.name]}
+                        </span>
+                        {!collapsed && (
+                          <span className="truncate flex-1">{item.name}</span>
+                        )}
+                        {!collapsed && item.name === 'Events' && activeTasksCount > 0 && (
+                           <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-xs">
+                             {activeTasksCount}
+                           </span>
+                        )}
+                        {collapsed && item.name === 'Events' && activeTasksCount > 0 && (
+                           <span className="absolute top-2 right-2 flex h-2 w-2">
+                             <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
+                           </span>
+                        )}
+                      </Link>
+                    )
+                  })}
+                </div>
               )
             })}
           </nav>
-        </aside>
 
-        {/* Mobile Navigation Drawer */}
-        {mobileMenuOpen && (
-          <div className="sm:hidden fixed inset-0 z-50 flex">
-            {/* Overlay */}
-            <div 
-              className="fixed inset-0 bg-black/40 backdrop-blur-xs transition-opacity" 
-              onClick={() => setMobileMenuOpen(false)}
-            ></div>
-
-            {/* Sidebar drawer */}
-            <aside className="relative w-64 max-w-xs bg-white border-r border-gray-200 p-5 space-y-4 flex flex-col z-50 animate-in slide-in-from-left duration-200">
-              <div className="flex items-center justify-between pb-3 border-b border-gray-100">
-                <div className="flex items-center space-x-2">
-                  <img src="/ministy_logo.jpg" alt="Logo" className="h-8 w-8 rounded object-cover" />
-                  <span className="font-extrabold text-sm text-gray-900">MATS Portal</span>
+          {/* User Profile & Sign Out Footer */}
+          <div className="pt-3 border-t border-slate-100 flex flex-col gap-2.5 shrink-0">
+            {!collapsed ? (
+              <>
+                <div className="tour-user-menu flex items-center justify-between text-xs text-slate-500">
+                  <div className="flex items-center gap-2.5 truncate">
+                    <div className="h-8 w-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs shrink-0">
+                      {profile?.displayName?.[0] || profile?.email?.[0]?.toUpperCase() || 'A'}
+                    </div>
+                    <div className="truncate">
+                      <div className="font-extrabold text-slate-900 truncate text-xs">
+                        {profile?.displayName && !profile.displayName.toLowerCase().startsWith('order of') 
+                          ? profile.displayName 
+                          : (profile?.assignedOrder ? `Order Leader of ${profile.assignedOrder.replace(/^Order of\s*/i, '')}` : profile?.email?.split('@')[0] || 'User')}
+                      </div>
+                      <div className="text-[10px] font-semibold text-slate-400 truncate">{profile?.email || 'Admin'}</div>
+                    </div>
+                  </div>
                 </div>
                 <button
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="text-gray-400 hover:text-gray-900 p-1 rounded-lg"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 py-2 px-3 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
                 >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6" />
+                  <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                   </svg>
+                  <span>{loggingOut ? 'Signing out...' : 'Sign Out'}</span>
                 </button>
-              </div>
-
-              <nav className="space-y-1.5 flex-1">
-                {navigation.map((item) => {
-                  const active = isActive(item.href)
-                  return (
-                    <Link
-                      key={item.name}
-                      to={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={`flex items-center space-x-3 rounded-lg px-3.5 py-2.5 text-sm transition-colors ${
-                        active
-                          ? 'bg-blue-50 text-blue-600 font-bold border-l-4 border-blue-600'
-                          : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900'
-                      }`}
-                    >
-                      <span className={`shrink-0 ${active ? 'text-blue-600' : 'text-gray-400'}`}>
-                        {icons[item.name]}
-                      </span>
-                      <span>{item.name}</span>
-                    </Link>
-                  )
-                })}
-              </nav>
-            </aside>
+              </>
+            ) : (
+              <button
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="w-full flex items-center justify-center rounded-xl p-2.5 text-rose-600 hover:bg-rose-50 transition-colors disabled:opacity-50 cursor-pointer"
+                title="Sign Out"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            )}
           </div>
-        )}
+        </aside>
+
+        {/* Mobile Navigation Drawer — removed, replaced by BottomNav bottom tab bar */}
 
         {/* Main Content Pane */}
-        <main className="flex-1 p-6 sm:p-8 overflow-y-auto">
-          <div className="max-w-7xl mx-auto">
+        {/* pb-20 on mobile reserves space above the fixed BottomNav bar; sm:pb-0 resets on desktop */}
+        <main className="flex-1 min-w-0 p-4 sm:p-8 overflow-y-auto pb-20 sm:pb-0">
+          <div className="max-w-7xl mx-auto space-y-6">
             {/* Outlet renders the matched nested route child */}
             <Outlet />
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation Bar (hidden on desktop) */}
+      <BottomNav
+        activeTasksCount={activeTasksCount}
+        onLogout={handleLogout}
+        loggingOut={loggingOut}
+      />
     </div>
   )
 }

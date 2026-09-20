@@ -155,13 +155,18 @@ export const recurringService = {
       const firstMiddleLastSuffix = `${first}${middle}${last}${suffix}`
       const firstLastSuffix = `${first}${last}${suffix}`
       
+      // Overlap checking: if query tokens match member's first or last name
+      const queryTokens = name.toLowerCase().split(/\s+/).map((t: string) => t.replace(/[^a-z0-9]/g, '')).filter(Boolean)
+      
       if (
         normalizedQuery === fullName1 || 
         normalizedQuery === fullName2 || 
         normalizedQuery === getFullNameStr ||
         normalizedQuery === firstMiddleLast ||
         normalizedQuery === firstMiddleLastSuffix ||
-        normalizedQuery === firstLastSuffix
+        normalizedQuery === firstLastSuffix ||
+        queryTokens.includes(first) ||
+        (last && queryTokens.includes(last))
       ) {
         return true
       }
@@ -185,7 +190,8 @@ export const recurringService = {
           normalizedQuery === `${firstWord}${last}` ||
           normalizedQuery === `${last}${firstWord}` ||
           normalizedQuery === `${firstWord}${middle}${last}` ||
-          normalizedQuery === `${firstWord}${last}${suffix}`
+          normalizedQuery === `${firstWord}${last}${suffix}` ||
+          queryTokens.includes(firstWord)
         ) {
           return true
         }
@@ -243,8 +249,7 @@ export const recurringService = {
   async generateSchedules(
     startDate: string,
     endDate: string,
-    templates: ScheduleTemplate[],
-    allMembers: Member[]
+    templates: ScheduleTemplate[]
   ): Promise<{ created: number; skipped: number; duplicates: number; validationErrors: string[] }> {
     const result = {
       created: 0,
@@ -261,9 +266,11 @@ export const recurringService = {
     // Load all existing schedules to check for duplicate entries and assignment conflicts in memory
     const existingSchedules = await scheduleService.getSchedules()
 
-    // Parse date bounds
-    const start = new Date(startDate)
-    const end = new Date(endDate)
+    // Parse date bounds cleanly avoiding UTC timezone offsets
+    const [sY, sM, sD] = startDate.split('-').map(Number)
+    const [eY, eM, eD] = endDate.split('-').map(Number)
+    const start = new Date(sY, sM - 1, sD)
+    const end = new Date(eY, eM - 1, eD)
 
     // Weekday names mapping
     const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -273,17 +280,19 @@ export const recurringService = {
       const currentWeekday = weekdays[d.getDay()]
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-      // Check templates matching this day of week
-      const matchingTemplates = templates.filter(t => t.active && t.dayOfWeek === currentWeekday)
+      // Check templates matching this day of week (case-insensitive)
+      const matchingTemplates = templates.filter(t => 
+        (t.active === undefined || t.active === true) && 
+        t.dayOfWeek.toLowerCase().trim() === currentWeekday.toLowerCase().trim()
+      )
 
       for (const temp of matchingTemplates) {
-        // 1. Time range check
-        if (temp.startTime >= temp.endTime) {
-          result.validationErrors.push(
-            `Template "${temp.name}": Start time (${temp.startTime}) must be before end time (${temp.endTime}).`
-          )
-          result.skipped++
-          continue
+        // Fallback for endTime if not explicitly set
+        let slotEndTime = temp.endTime
+        if (!slotEndTime || temp.startTime >= slotEndTime) {
+          const [h, m] = temp.startTime.split(':').map(Number)
+          const nextH = (h + 1) % 24
+          slotEndTime = `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
         }
 
         // 2. Duplicate schedule check (same title, date, startTime)
@@ -299,60 +308,15 @@ export const recurringService = {
           continue
         }
 
-        // 3. Validation for default assigned members (active check & conflict check)
-        const validAssignedIds: string[] = []
-        let hasConflict = false
-
-        for (const memberId of temp.assignedMembers) {
-          const member = allMembers.find(m => m.id === memberId)
-          if (!member) {
-            result.validationErrors.push(
-              `Date ${dateStr} - Template "${temp.name}": Assigned member ID "${memberId}" not found.`
-            )
-            hasConflict = true
-            break
-          }
-          if (member.status !== 'active') {
-            result.validationErrors.push(
-              `Date ${dateStr} - Template "${temp.name}": Member ${getFullName(member)} is archived and cannot be assigned.`
-            )
-            hasConflict = true
-            break
-          }
-
-          // Check assignment overlap conflicts on this date
-          const conflicting = existingSchedules.find(s => 
-            s.date === dateStr &&
-            s.status !== 'cancelled' &&
-            s.assignedMembers.includes(memberId) &&
-            isTimeOverlapping(temp.startTime, temp.endTime, s.startTime, s.endTime)
-          )
-
-          if (conflicting) {
-            result.validationErrors.push(
-              `Date ${dateStr} - Template "${temp.name}": Member ${getFullName(member)} is already assigned to "${conflicting.title}" (${conflicting.startTime} - ${conflicting.endTime}).`
-            )
-            hasConflict = true
-            break
-          }
-
-          validAssignedIds.push(memberId)
-        }
-
-        if (hasConflict) {
-          result.skipped++
-          continue
-        }
-
         // 4. Create the schedule doc in Firestore
         try {
           const newId = await scheduleService.addSchedule({
             title: temp.title,
             date: dateStr,
             startTime: temp.startTime,
-            endTime: temp.endTime,
+            endTime: slotEndTime,
             status: 'upcoming',
-            assignedMembers: validAssignedIds
+            assignedMembers: []
           })
 
           // Add to in-memory list to catch conflicts in subsequent generator iterations
@@ -361,9 +325,9 @@ export const recurringService = {
             title: temp.title,
             date: dateStr,
             startTime: temp.startTime,
-            endTime: temp.endTime,
+            endTime: slotEndTime,
             status: 'upcoming',
-            assignedMembers: validAssignedIds,
+            assignedMembers: [],
             createdAt: new Date(),
             updatedAt: new Date()
           })
@@ -489,23 +453,15 @@ export const recurringService = {
         continue
       }
 
-      // Duplicate schedule check (same title, date, startTime)
-      const isDuplicate = existingSchedules.some(s =>
+      // Identify if this is an update (same title, date, startTime)
+      const existingSchedule = existingSchedules.find(s =>
         s.title.toLowerCase() === title.toLowerCase() &&
         s.date === normalizedDate &&
         s.startTime === startTime
       )
-
-      if (isDuplicate) {
-        result.duplicates.push({
-          rowNum: i + 1,
-          title,
-          date: normalizedDate,
-          startTime,
-          endTime
-        })
-        continue
-      }
+      
+      const isUpdate = !!existingSchedule
+      const existingId = existingSchedule?.id
 
       // Parse members
       const memberNames = membersStr.split('|').map(n => n.trim()).filter(Boolean)
@@ -536,11 +492,12 @@ export const recurringService = {
           break
         }
 
-        // Check overlapping assignment conflicts on this date
+        // Check overlapping assignment conflicts on this date (ignore self if updating)
         const conflicting = existingSchedules.find(s =>
           s.date === normalizedDate &&
           s.status !== 'cancelled' &&
-          s.assignedMembers.includes(matched.id) &&
+          s.assignedMembers.includes(matched!.id) &&
+          s.id !== existingId &&
           isTimeOverlapping(startTime, endTime, s.startTime, s.endTime)
         )
 
@@ -571,7 +528,9 @@ export const recurringService = {
         endTime,
         assignedMembers: assignedIds,
         memberNames: memberNames,
-        warnings
+        warnings,
+        isUpdate,
+        existingId
       })
     }
 
@@ -581,20 +540,32 @@ export const recurringService = {
   /**
    * Commits the validated CSV rows to Firestore.
    */
-  async importSchedules(validRows: any[]): Promise<number> {
-    let importedCount = 0
+  async importSchedules(validRows: any[]): Promise<{ created: number; updated: number }> {
+    let createdCount = 0
+    let updatedCount = 0
     for (const row of validRows) {
-      await scheduleService.addSchedule({
-        title: row.title,
-        date: row.date,
-        startTime: row.startTime,
-        endTime: row.endTime,
-        status: 'upcoming',
-        assignedMembers: row.assignedMembers
-      })
-      importedCount++
+      if (row.isUpdate && row.existingId) {
+        await scheduleService.updateSchedule(row.existingId, {
+          title: row.title,
+          date: row.date,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          assignedMembers: row.assignedMembers
+        })
+        updatedCount++
+      } else {
+        await scheduleService.addSchedule({
+          title: row.title,
+          date: row.date,
+          startTime: row.startTime,
+          endTime: row.endTime,
+          status: 'upcoming',
+          assignedMembers: row.assignedMembers
+        })
+        createdCount++
+      }
     }
-    return importedCount
+    return { created: createdCount, updated: updatedCount }
   },
 
   /**
@@ -700,5 +671,180 @@ export const recurringService = {
     }
 
     return null
+  },
+
+  /**
+   * Parses CSV content specifically to extract assigned servers grouped by Schedule Slots (Title, DayOfWeek, Time).
+   * This is used by the Template Manager to import/assign server lists directly to Schedule Templates.
+   */
+  async extractTemplateAssignmentsFromCSV(
+    csvText: string,
+    activeMembers: Member[],
+    manualMemberMap: Record<string, string> = {}
+  ): Promise<{
+    slots: Array<{
+      key: string
+      name: string
+      title: string
+      dayOfWeek: string
+      startTime: string
+      endTime: string
+      assignedMemberIds: string[]
+      assignedMemberNames: string[]
+      unknownNames: string[]
+    }>
+    unknownMembers: string[]
+  }> {
+    const lines = csvText.split(/\r?\n/).filter(line => line.trim().length > 0)
+    if (lines.length === 0) return { slots: [], unknownMembers: [] }
+
+    // Header inspection with flexible fallback column matching
+    const headers = this.parseCSVLine(lines[0]).map(h => h.toLowerCase().trim())
+    const titleIdx = headers.findIndex(h => h.includes('title') || h.includes('category') || h.includes('mass') || h.includes('event'))
+    const dayIdx = headers.findIndex(h => h.includes('day') || h.includes('date'))
+    const timeIdx = headers.findIndex(h => h.includes('time') || h.includes('start'))
+    const endIdx = headers.findIndex(h => h.includes('end'))
+    const assignedIdx = headers.findIndex(h => h.includes('server') || h.includes('member') || h.includes('assigned') || h.includes('name'))
+
+    if (assignedIdx === -1 || (timeIdx === -1 && dayIdx === -1)) {
+      throw new Error('Invalid CSV structure. Missing required columns (Day/Date, Time, Server Name).')
+    }
+
+    const parseTimeTo24 = (timeStr: string): string => {
+      if (!timeStr) return '08:00'
+      const clean = timeStr.trim().toUpperCase()
+      const match = clean.match(/^(\d{1,2}):?(\d{2})?\s*(AM|PM)?$/)
+      if (!match) return timeStr
+      let h = parseInt(match[1], 10)
+      const m = match[2] || '00'
+      const ampm = match[3]
+      if (ampm === 'PM' && h < 12) h += 12
+      if (ampm === 'AM' && h === 12) h = 0
+      return `${String(h).padStart(2, '0')}:${m}`
+    }
+
+    const parseEndTimeTo24 = (startTime24: string): string => {
+      const [h, m] = startTime24.split(':').map(Number)
+      const nextH = (h + 1) % 24
+      return `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
+    }
+
+    const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+    const weekdayMap: Record<string, string> = {
+      sun: 'Sunday', sunday: 'Sunday',
+      mon: 'Monday', monday: 'Monday',
+      tue: 'Tuesday', tues: 'Tuesday', tuesday: 'Tuesday',
+      wed: 'Wednesday', wednesday: 'Wednesday',
+      thu: 'Thursday', thur: 'Thursday', thurs: 'Thursday', thursday: 'Thursday',
+      fri: 'Friday', friday: 'Friday',
+      sat: 'Saturday', saturday: 'Saturday'
+    }
+    
+    // Grouping map by slotKey: `${title}_${dayOfWeek}_${startTime}`
+    const slotMap: Record<string, {
+      key: string
+      name: string
+      title: string
+      dayOfWeek: string
+      startTime: string
+      endTime: string
+      memberIdSet: Set<string>
+      memberNameMap: Map<string, string> // id -> name
+      unknownNamesSet: Set<string>
+    }> = {}
+
+    const globalUnknowns = new Set<string>()
+
+    for (let i = 1; i < lines.length; i++) {
+      const cols = this.parseCSVLine(lines[i])
+      if (cols.length === 0) continue
+
+      let rawCategory = (titleIdx !== -1 ? cols[titleIdx] : '')?.trim() || ''
+      let rawDay = (dayIdx !== -1 ? cols[dayIdx] : '')?.trim() || ''
+      let rawTime = (timeIdx !== -1 ? cols[timeIdx] : '')?.trim() || ''
+      let rawEnd = (endIdx !== -1 ? cols[endIdx] : '')?.trim() || ''
+      const assignedRaw = (assignedIdx !== -1 ? cols[assignedIdx] : '')?.trim() || ''
+
+      if (!assignedRaw) continue
+
+      // Resolve Day of Week
+      let dayOfWeek = 'Sunday'
+      if (rawDay) {
+        const dClean = rawDay.toLowerCase().trim()
+        if (weekdayMap[dClean]) {
+          dayOfWeek = weekdayMap[dClean]
+        } else {
+          const normalizedDate = this.parseFlexibleDate(rawDay)
+          if (normalizedDate) {
+            const d = new Date(normalizedDate)
+            if (!isNaN(d.getTime())) dayOfWeek = weekdays[d.getDay()]
+          }
+        }
+      }
+
+      // Resolve Title
+      let title = rawCategory || `${dayOfWeek} Mass`
+      if (title.toLowerCase() === 'sunday' || title.toLowerCase() === 'weekday') {
+        title = `${title.charAt(0).toUpperCase() + title.slice(1)} Mass`
+      }
+
+      // Resolve Times
+      const startTime = parseTimeTo24(rawTime)
+      const endTime = rawEnd ? parseTimeTo24(rawEnd) : parseEndTimeTo24(startTime)
+
+      const slotKey = `${title.toLowerCase()}_${dayOfWeek.toLowerCase()}_${startTime}`
+      
+      if (!slotMap[slotKey]) {
+        slotMap[slotKey] = {
+          key: slotKey,
+          name: `${title} (${startTime})`,
+          title,
+          dayOfWeek,
+          startTime,
+          endTime,
+          memberIdSet: new Set<string>(),
+          memberNameMap: new Map<string, string>(),
+          unknownNamesSet: new Set<string>()
+        }
+      }
+
+      const slot = slotMap[slotKey]
+
+      const rawNames = assignedRaw.split(/[|;]/).map(n => n.trim()).filter(Boolean)
+      for (const rawName of rawNames) {
+        let foundMember: Member | undefined
+        if (manualMemberMap[rawName]) {
+          foundMember = activeMembers.find(m => m.id === manualMemberMap[rawName])
+        } else {
+          foundMember = this.findMemberByName(rawName, activeMembers)
+        }
+
+        if (foundMember) {
+          slot.memberIdSet.add(foundMember.id)
+          slot.memberNameMap.set(foundMember.id, getFullName(foundMember))
+        } else {
+          slot.unknownNamesSet.add(rawName)
+          globalUnknowns.add(rawName)
+        }
+      }
+    }
+
+    const slots = Object.values(slotMap).map(slot => ({
+      key: slot.key,
+      name: slot.name,
+      title: slot.title,
+      dayOfWeek: slot.dayOfWeek,
+      startTime: slot.startTime,
+      endTime: slot.endTime,
+      assignedMemberIds: Array.from(slot.memberIdSet),
+      assignedMemberNames: Array.from(slot.memberNameMap.values()),
+      unknownNames: Array.from(slot.unknownNamesSet)
+    }))
+
+    return {
+      slots,
+      unknownMembers: Array.from(globalUnknowns)
+    }
   }
 }
+

@@ -1,41 +1,33 @@
-# UI Component Guidelines
+# UI Component Guidelines & Design System
 
-All reusable UI elements must be created inside:
+> **Primary Source of Truth:** Refer to [`docs/MATS_UI_DESIGN_SYSTEM.md`](file:///C:/Users/kyle/Desktop/MATS/docs/MATS_UI_DESIGN_SYSTEM.md) for full component specifications, props, and copy-paste page/modal templates.
 
-src/components/
+All reusable UI elements must be imported directly from `@/components`:
 
-Examples:
+```tsx
+import {
+  Button,
+  CustomSelect,
+  FilterDropdown,
+  QuickFilterPills,
+  CurrencyInput,
+  ContactInput,
+  MemberSearchDropdown,
+  StatusBadge,
+  EmptyState,
+  MetricCard,
+  Card,
+  Modal,
+  Pagination,
+  BulkProgressBar,
+  useToast
+} from '@/components'
+```
 
-Button
-Input
-Modal
-Card
-Badge
-Table
-LoadingSpinner
-EmptyState
-ConfirmDialog
-SearchInput
-Pagination
-
-Feature-specific components should remain inside:
-
-src/features/<feature>/components/
-
-Never duplicate UI components.
-
-If a reusable component already exists,
-reuse it instead of creating another version.
-
-All forms should have:
-
-- loading state
-- error state
-- validation state
-- disabled submit while processing
-
-All tables should support:
-
-- empty state
-- loading state
-- responsive layout
+### Strict Policies for All Pages & Modals:
+1. **Zero Browser-Native Selects:** Always use `<CustomSelect>` or `<FilterDropdown>`. Never use raw `<select>` elements.
+2. **Toast Over Success Modal:** Always use `toast.success()` for successful operations. Never show blocking success dialogs.
+3. **No Raw Money / Phone Inputs:** Always use `<CurrencyInput>` for PHP currency and `<ContactInput>` for Philippine mobile numbers.
+4. **Zero Emojis:** Use Heroicons / Lucide style SVG icons exclusively.
+5. **Button Loading State:** Always pass `loading={isSubmitting}` to `<Button>`.
+6. **Card Radii:** Main containers use `rounded-3xl`, inner cards/modals use `rounded-2xl`, inputs/buttons use `rounded-xl`.
