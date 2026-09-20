@@ -2,6 +2,7 @@ import React from 'react'
 import type { Schedule } from '@/types/schedule'
 import type { AttendanceSession } from '@/types/attendance'
 import type { AttendanceSummary } from '@/utils/attendance'
+import { formatScheduleDateWithDay } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 
 interface AttendanceHeaderProps {
@@ -27,12 +28,15 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
 }) => {
   const { isAdmin, canAction } = useAuth()
   const canFinalize = isAdmin || canAction('canFinalizeAttendance')
+  const markedCount = summary.present + summary.late + summary.absent + summary.excused + summary.observer + (summary.formation || 0)
+  const unmarkedCount = Math.max(0, summary.total - markedCount)
+
   return (
     <div className="space-y-4">
       {/* Session details & Lock indicator */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-5 rounded-xl border border-gray-200 bg-white shadow-sm">
         <div>
-          <div className="flex items-center space-x-2 flex-wrap">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <h1 className="text-xl font-bold text-gray-900 tracking-tight">{schedule.title}</h1>
             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
               session.locked
@@ -41,9 +45,14 @@ export const AttendanceHeader: React.FC<AttendanceHeaderProps> = ({
             }`}>
               {session.locked ? 'Finalized & Locked' : 'Open / Unlocked'}
             </span>
+            {!session.locked && summary.total > 0 && unmarkedCount > 0 && (
+              <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-amber-50 border border-amber-200 text-amber-700">
+                {unmarkedCount} Unmarked (Draft)
+              </span>
+            )}
           </div>
           <p className="text-xs text-gray-500 mt-1">
-            {schedule.date} • {schedule.startTime} - {schedule.endTime}
+            {formatScheduleDateWithDay(schedule.date)} • {schedule.startTime} - {schedule.endTime}
           </p>
           {session.locked && session.finalizedBy ? (
             <p className="text-[11px] text-emerald-700 font-medium mt-1 flex items-center gap-1">

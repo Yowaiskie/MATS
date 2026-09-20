@@ -362,28 +362,16 @@ export const AttendancePage: React.FC = () => {
     }))
   }
 
-  // Save changes
+  // Save changes (Allows saving partial / draft attendance with blank members and without remarks)
   const handleSave = async () => {
     if (!session || !schedule) return
 
     const allSessionMembers = [...assignedMembers, ...otherServers]
 
-    // Ensure all displayed members have a status marked
-    const unselectedMembers = allSessionMembers.filter(
-      m => !formState[m.id] || formState[m.id].status === undefined
-    )
-    
-    if (unselectedMembers.length > 0) {
-      const namesList = unselectedMembers.map(m => getFullName(m)).join(', ')
-      setError(`Cannot save. Please select attendance status for: ${namesList}`)
-      return
-    }
-
-    setSaving(true)
-    setError(null)
-
-    try {
-      const inputs = allSessionMembers.map((m) => ({
+    // Collect all members with a valid marked status
+    const markedInputs = allSessionMembers
+      .filter(m => formState[m.id] && formState[m.id].status !== undefined)
+      .map(m => ({
         id: formState[m.id]?.id,
         memberId: m.id,
         status: formState[m.id].status as AttendanceStatus,
@@ -391,35 +379,48 @@ export const AttendancePage: React.FC = () => {
         isOtherServer: formState[m.id].isOtherServer ?? false
       }))
 
-      await attendanceService.saveAttendanceRecords(
-        session.id,
-        schedule.id,
-        schedule.date,
-        inputs,
-        user?.email || 'Admin',
-        schedule.title
-      )
+    // Collect record IDs of members who were previously recorded but now set to blank/unselected
+    const unselectedRecordIds = allSessionMembers
+      .filter(m => (!formState[m.id] || formState[m.id].status === undefined) && formState[m.id]?.id)
+      .map(m => formState[m.id].id!)
 
-      // Delete removed other servers from Firestore
-      if (pendingDeleteIds.length > 0) {
+    setSaving(true)
+    setError(null)
+
+    try {
+      if (markedInputs.length > 0) {
+        await attendanceService.saveAttendanceRecords(
+          session.id,
+          schedule.id,
+          schedule.date,
+          markedInputs,
+          user?.email || 'Admin',
+          schedule.title
+        )
+      }
+
+      // Delete removed other servers and any cleared records from Firestore
+      const toDelete = [...pendingDeleteIds, ...unselectedRecordIds]
+      if (toDelete.length > 0) {
         await Promise.all(
-          pendingDeleteIds.map(recordId => attendanceService.deleteAttendanceRecord(recordId))
+          toDelete.map(recordId => attendanceService.deleteAttendanceRecord(recordId))
         )
         setPendingDeleteIds([])
       }
 
-      toast.success('Attendance Saved', 'Attendance records have been successfully saved.')
+      const allMarked = markedInputs.length === allSessionMembers.length
+      if (allSessionMembers.length === 0) {
+        toast.success('Attendance Saved', 'Session has no assigned servers.')
+      } else if (allMarked) {
+        toast.success('Attendance Saved', 'All attendance records have been successfully saved.')
+      } else {
+        toast.success('Attendance Draft Saved', `${markedInputs.length} of ${allSessionMembers.length} server(s) recorded. Remaining servers can be marked before finalization.`)
+      }
       
       // Re-fetch updated records to refresh document IDs and reset baseline without full page reload
       const records = await attendanceService.getAttendanceForSession(session.id)
       const updatedFormState: FormState = { ...formState }
-      assignedMembers.forEach((m) => {
-        const record = records.find(r => r.memberId === m.id)
-        if (updatedFormState[m.id]) {
-          updatedFormState[m.id].id = record?.id
-        }
-      })
-      otherServers.forEach((m) => {
+      allSessionMembers.forEach((m) => {
         const record = records.find(r => r.memberId === m.id)
         if (updatedFormState[m.id]) {
           updatedFormState[m.id].id = record?.id
@@ -443,6 +444,18 @@ export const AttendancePage: React.FC = () => {
       // Unlocking requires account password verification!
       setUnlockPasswordModalOpen(true)
     } else {
+      // Strict validation before finalizing: Ensure 100% of servers have an attendance status
+      const allSessionMembers = [...assignedMembers, ...otherServers]
+      const unselectedMembers = allSessionMembers.filter(
+        m => !formState[m.id] || formState[m.id].status === undefined
+      )
+      
+      if (unselectedMembers.length > 0) {
+        const namesList = unselectedMembers.map(m => getFullName(m)).join(', ')
+        setError(`Cannot finalize & lock session. ${unselectedMembers.length} server(s) still have a blank attendance status (${namesList}). Please mark all servers before finalization.`)
+        return
+      }
+
       setLockConfirm({ nextLocked: true })
     }
   }
@@ -482,7 +495,7 @@ export const AttendancePage: React.FC = () => {
         
         if (unselectedMembers.length > 0) {
           const namesList = unselectedMembers.map(m => getFullName(m)).join(', ')
-          setError(`Cannot lock session. Please select attendance status for: ${namesList}`)
+          setError(`Cannot finalize & lock session. Please select attendance status for: ${namesList}`)
           setSaving(false)
           return
         }
@@ -510,7 +523,7 @@ export const AttendancePage: React.FC = () => {
 
       await attendanceService.setSessionLockState(session.id, nextLocked, adminEmail, schedule.title)
       toast.success(
-        nextLocked ? 'Session Locked' : 'Session Unlocked',
+        nextLocked ? 'Session Finalized & Locked' : 'Session Unlocked',
         nextLocked
           ? 'Attendance session finalized and locked successfully.'
           : 'Attendance session unlocked successfully.'

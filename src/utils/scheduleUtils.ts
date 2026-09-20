@@ -391,3 +391,30 @@ export const calculateMonthsBetween = (start: string, end: string): number => {
   return Math.max(1, Math.round(diffDays / 30))
 }
 
+/**
+ * Formats a YYYY-MM-DD date string with full or short day of week (e.g. "Tuesday, Sep 18, 2026").
+ */
+export const formatScheduleDateWithDay = (
+  dateStr: string, 
+  options: { shortDay?: boolean; shortMonth?: boolean } = {}
+): string => {
+  if (!dateStr) return ''
+  const parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
+  const year = parseInt(parts[0], 10)
+  const month = parseInt(parts[1], 10)
+  const day = parseInt(parts[2], 10)
+  const dateObj = new Date(year, month - 1, day)
+  if (isNaN(dateObj.getTime())) return dateStr
+
+  const fullDays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+  const shortDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+  const dayName = options.shortDay ? shortDays[dateObj.getDay()] : fullDays[dateObj.getDay()]
+  const m = months[month - 1] || parts[1]
+
+  return `${dayName}, ${m} ${day}, ${year}`
+}
+
+

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { ScheduleAttendanceState, AttendanceRecord } from '@/types/attendance'
-import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { getScheduleStatus, formatScheduleDateWithDay } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { attendanceService } from '@/services/attendanceService'
@@ -108,19 +108,9 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
     onClose()
   }
 
-  // Format date helper
+  // Format date helper with Day of Week
   const formatHeaderDate = (dateStr: string) => {
-    if (!dateStr) return ''
-    const parts = dateStr.split('-')
-    if (parts.length !== 3) return dateStr
-    const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ]
-    const y = parts[0]
-    const m = months[parseInt(parts[1], 10) - 1] || parts[1]
-    const d = parseInt(parts[2], 10)
-    return `${m} ${d}, ${y}`
+    return formatScheduleDateWithDay(dateStr)
   }
 
   // Format 12-hour time format helper

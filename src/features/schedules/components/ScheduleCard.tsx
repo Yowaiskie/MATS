@@ -2,7 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import type { Schedule } from '@/types/schedule'
 import type { ScheduleAttendanceState, AttendanceSession } from '@/types/attendance'
-import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { getScheduleStatus, formatScheduleDateWithDay } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ActionMenu } from '@/components'
 
@@ -60,18 +60,9 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
     return ''
   }
 
-  // Helper to format date nicely
+  // Helper to format date with day name (e.g. "Tuesday, Sep 18, 2026")
   const formatCardDate = (dateStr: string) => {
-    if (!dateStr) return ''
-    const parts = dateStr.split('-')
-    if (parts.length !== 3) return dateStr
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-    ]
-    const m = months[parseInt(parts[1], 10) - 1] || parts[1]
-    const d = parseInt(parts[2], 10)
-    return `${m} ${d}, ${parts[0]}`
+    return formatScheduleDateWithDay(dateStr)
   }
 
   // Helper to format 12-hour clock

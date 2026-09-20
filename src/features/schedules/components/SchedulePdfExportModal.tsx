@@ -127,7 +127,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
   const [loading, setLoading] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [activeTab, setActiveTab] = useState<'preview' | 'edit'>('preview')
-  const [nameFormat, setNameFormat] = useState<'short' | 'full'>('short')
+  const [nameFormat, setNameFormat] = useState<'nickname' | 'short' | 'full'>('short')
 
   // Duration and Month Range State
   const now = new Date()
@@ -149,13 +149,28 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
   const [celebrations, setCelebrations] = useState<LiturgicalCelebrationExport[]>(getInitialCelebrations)
   const [savedPresetSuccess, setSavedPresetSuccess] = useState(false)
 
-  const formatMemberDisplayName = (m: Member, fmt: 'short' | 'full' = 'short'): string => {
+  const formatMemberDisplayName = (m: Member, fmt: 'nickname' | 'short' | 'full' = 'short'): string => {
     if (fmt === 'full') {
       return `${m.firstName || ''} ${m.lastName || ''}`.trim()
     }
     const rawFirst = (m.firstName || '').trim()
     const rawLast = (m.lastName || '').trim()
     const lowerFirst = rawFirst.toLowerCase()
+
+    if (fmt === 'nickname') {
+      if (m.nickname && m.nickname.trim()) {
+        return m.nickname.trim()
+      }
+      // Fallback to first name if no nickname configured
+      if (lowerFirst.startsWith('el thon') || m.nickname?.toLowerCase() === 'el thon') {
+        return 'El Thon'
+      } else if (lowerFirst.startsWith('ma. ') || lowerFirst.startsWith('maria ')) {
+        const parts = rawFirst.split(/\s+/)
+        return parts.slice(0, 2).join(' ')
+      } else {
+        return rawFirst.split(/\s+/)[0] || rawFirst
+      }
+    }
 
     let firstOnly = ''
 
@@ -967,11 +982,22 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                     <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                       Server Name Format
                     </label>
-                    <div className="flex border border-slate-200 rounded-xl p-0.5 bg-slate-50 text-xs font-bold">
+                    <div className="grid grid-cols-3 border border-slate-200 rounded-xl p-0.5 bg-slate-50 text-xs font-bold gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setNameFormat('nickname')}
+                        className={`py-1.5 px-2 rounded-lg transition-all cursor-pointer text-center text-xs truncate ${
+                          nameFormat === 'nickname'
+                            ? 'bg-white text-indigo-600 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        Nickname (Pat)
+                      </button>
                       <button
                         type="button"
                         onClick={() => setNameFormat('short')}
-                        className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        className={`py-1.5 px-2 rounded-lg transition-all cursor-pointer text-center text-xs truncate ${
                           nameFormat === 'short'
                             ? 'bg-white text-indigo-600 shadow-xs'
                             : 'text-slate-500 hover:text-slate-800'
@@ -982,7 +1008,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                       <button
                         type="button"
                         onClick={() => setNameFormat('full')}
-                        className={`flex-1 py-1.5 rounded-lg transition-all cursor-pointer ${
+                        className={`py-1.5 px-2 rounded-lg transition-all cursor-pointer text-center text-xs truncate ${
                           nameFormat === 'full'
                             ? 'bg-white text-indigo-600 shadow-xs'
                             : 'text-slate-500 hover:text-slate-800'
