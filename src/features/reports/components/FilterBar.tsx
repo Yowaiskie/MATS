@@ -1,5 +1,6 @@
 import React from 'react'
 import { FilterDropdown } from '@/components'
+import type { SchedulePublication } from '@/types/publication'
 
 interface FilterBarProps {
   activeTab: 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour' | 'qualifications'
@@ -13,6 +14,9 @@ interface FilterBarProps {
   onSearchQueryChange: (val: string) => void
   statusFilter?: string
   onStatusFilterChange?: (val: string) => void
+  publications?: SchedulePublication[]
+  selectedPublicationId?: string
+  onPublicationChange?: (pubId: string) => void
 }
 
 export const FilterBar: React.FC<FilterBarProps> = ({
@@ -27,60 +31,41 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onSearchQueryChange,
   statusFilter = 'all',
   onStatusFilterChange,
+  publications = [],
+  selectedPublicationId = '',
+  onPublicationChange,
 }) => {
   const years = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - 5 + i)
 
   return (
     <div className="flex flex-col md:flex-row gap-4 p-4 rounded-xl border border-slate-200/80 bg-white shadow-2xs select-none">
-      {/* Date Presets for Member / Schedule tabs */}
-      {(activeTab === 'member' || activeTab === 'schedule') && (
-        <div className="flex flex-col space-y-1.5">
-          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-            Quick Date Presets
+      {/* Schedule Cycle / Publication Selector */}
+      {publications.length > 0 && (activeTab === 'member' || activeTab === 'schedule' || activeTab === 'summary') && (
+        <div className="flex flex-col space-y-1.5 w-full md:w-64">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center justify-between">
+            <span>Operating Schedule Cycle</span>
+            {selectedPublicationId && selectedPublicationId !== 'custom' && (
+              <span className="text-[9px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                Active Cycle
+              </span>
+            )}
           </label>
-          <div className="flex flex-wrap gap-1">
-            <button
-              type="button"
-              onClick={() => {
-                const now = new Date()
-                const start = new Date(now.getFullYear(), now.getMonth(), 1)
-                const end = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-                onStartDateChange(start.toISOString().split('T')[0])
-                onEndDateChange(end.toISOString().split('T')[0])
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-            >
-              This Month
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const now = new Date()
-                const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-                const end = new Date(now.getFullYear(), now.getMonth(), 0)
-                onStartDateChange(start.toISOString().split('T')[0])
-                onEndDateChange(end.toISOString().split('T')[0])
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-            >
-              Last Month
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                const now = new Date()
-                const start = new Date(now.getFullYear(), 0, 1)
-                const end = new Date(now.getFullYear(), 11, 31)
-                onStartDateChange(start.toISOString().split('T')[0])
-                onEndDateChange(end.toISOString().split('T')[0])
-              }}
-              className="px-2.5 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-            >
-              This Year
-            </button>
-          </div>
+          <FilterDropdown
+            value={selectedPublicationId || 'custom'}
+            onChange={(val) => onPublicationChange?.(val)}
+            allLabel="Custom Date Range"
+            options={[
+              ...publications.map(p => ({
+                key: p.id,
+                label: p.status === 'published' ? `● ${p.name} (Active)` : `${p.name}`,
+                dot: p.status === 'published' ? 'bg-emerald-500' : 'bg-slate-400'
+              })),
+              { key: 'custom', label: 'Custom Date Range', dot: 'bg-indigo-400' }
+            ]}
+          />
         </div>
       )}
+
 
       {/* Custom Date Range Pickers */}
       {activeTab !== 'monthly' && (

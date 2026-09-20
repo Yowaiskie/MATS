@@ -13,6 +13,10 @@ import { Pagination } from '@/components/Pagination'
 import { MemberReportExportModal } from '../components/MemberReportExportModal'
 import { HolyHourAnalyticsTab } from '../components/HolyHourAnalyticsTab'
 import { QualificationsTab } from '../components/QualificationsTab'
+import { publicationService } from '@/services/publicationService'
+import { calculateMonthsBetween } from '@/utils/scheduleUtils'
+import type { SchedulePublication } from '@/types/publication'
+import type { SuspensionPolicySettings } from '@/services/settingsService'
 
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour' | 'qualifications'
 
@@ -28,6 +32,10 @@ export const ReportsPage: React.FC = () => {
     const r = String(d.getDate()).padStart(2, '0')
     return `${y}-${m}-${r}`
   }
+
+  // Publications list and selected active cycle
+  const [publications, setPublications] = useState<SchedulePublication[]>([])
+  const [selectedPublicationId, setSelectedPublicationId] = useState<string>('')
 
   // Date and filter states (Default to start and end of current month)
   const [startDate, setStartDate] = useState(() =>
@@ -50,6 +58,37 @@ export const ReportsPage: React.FC = () => {
   const [selectedMemberRow, setSelectedMemberRow] = useState<MemberReportRow | null>(null)
   const [showBreakdownModal, setShowBreakdownModal] = useState(false)
   const [showExportPdfModal, setShowExportPdfModal] = useState(false)
+
+  // Load publications and auto-bind to the active published publication on mount
+  useEffect(() => {
+    const fetchPublications = async () => {
+      try {
+        const pubs = await publicationService.getPublications()
+        setPublications(pubs)
+        const active = await publicationService.getActivePublication()
+        if (active) {
+          setSelectedPublicationId(active.id)
+          setStartDate(active.startDate)
+          setEndDate(active.endDate)
+        }
+      } catch (err) {
+        console.error('Failed to load schedule publications:', err)
+      }
+    }
+    fetchPublications()
+  }, [])
+
+  const handlePublicationChange = (pubId: string) => {
+    setSelectedPublicationId(pubId)
+    if (pubId === 'custom' || !pubId) {
+      return
+    }
+    const pub = publications.find(p => p.id === pubId)
+    if (pub) {
+      setStartDate(pub.startDate)
+      setEndDate(pub.endDate)
+    }
+  }
 
   // Load baseline data on change of date filters
   const loadData = async () => {
@@ -83,6 +122,39 @@ export const ReportsPage: React.FC = () => {
   useEffect(() => {
     setCurrentPage(1)
   }, [searchQuery, statusFilter, startDate, endDate, selectedYear])
+
+  // Compute active publication policy overrides
+  const selectedPub = publications.find(p => p.id === selectedPublicationId)
+  const getActivePolicy = (): SuspensionPolicySettings => {
+    const basePolicy = rawData?.policy || {
+      warningAbsenceThreshold: 2,
+      suspensionAbsenceThreshold: 3,
+      evaluationMonths: 1,
+      includeSundays: true,
+      includeWeekdays: false,
+      includeMeetings: true
+    }
+
+    if (selectedPub) {
+      const pubMonths = calculateMonthsBetween(selectedPub.startDate, selectedPub.endDate)
+      const defaultWarning = pubMonths === 2 ? 3 : pubMonths >= 3 ? 4 : 2
+      const defaultSuspension = pubMonths === 2 ? 5 : pubMonths >= 3 ? 7 : 3
+
+      return {
+        ...basePolicy,
+        warningAbsenceThreshold: selectedPub.warningAbsenceThreshold ?? defaultWarning,
+        suspensionAbsenceThreshold: selectedPub.suspensionAbsenceThreshold ?? defaultSuspension,
+        evaluationMonths: pubMonths,
+        includeSundays: selectedPub.includeSundays !== undefined ? selectedPub.includeSundays : basePolicy.includeSundays,
+        includeWeekdays: selectedPub.includeWeekdays !== undefined ? selectedPub.includeWeekdays : basePolicy.includeWeekdays,
+        includeMeetings: selectedPub.includeMeetings !== undefined ? selectedPub.includeMeetings : basePolicy.includeMeetings,
+      }
+    }
+
+    return basePolicy
+  }
+
+  const activePolicy = getActivePolicy()
 
   // Compute scoped raw data based on logged in user's assignedOrder (or permissions assignedOrder)
   const getScopedRawData = (): ReportRawData | null => {
@@ -128,7 +200,7 @@ export const ReportsPage: React.FC = () => {
   const getFilteredMemberRows = (): MemberReportRow[] => {
     if (!scopedData) return []
 
-    let rows = reportService.generateMemberReport(scopedData)
+    let rows = reportService.generateMemberReport(scopedData, activePolicy)
 
     // Apply search query filter
     if (searchQuery.trim()) {
@@ -164,7 +236,14 @@ export const ReportsPage: React.FC = () => {
     ? (() => {
         const p = rawData.policy
         const cats = [p.includeSundays && 'Sun', p.includeWeekdays && 'Weekday', p.includeMeetings && 'Meeting'].filter(Boolean).join(', ')
-        return `Warning @ ${p.warningAbsenceThreshold} | Suspension @ ${p.suspensionAbsenceThreshold} | ${cats || 'No categories'} | ${p.evaluationMonths === 0 ? 'All Time' : `${p.evaluationMonths}mo`}`
+        const durationLabel = p.evaluationMonthStr
+          ? `Month: ${p.evaluationMonthStr}`
+          : p.evaluationMonths === 0
+          ? 'All Time'
+          : p.evaluationMonths === 2
+          ? '2-Month Publication Cycle'
+          : `${p.evaluationMonths}mo Duration`
+        return `Warning @ ${p.warningAbsenceThreshold} | Suspension @ ${p.suspensionAbsenceThreshold} Absences | ${cats || 'No categories'} | ${durationLabel}`
       })()
     : ''
 
@@ -231,7 +310,7 @@ export const ReportsPage: React.FC = () => {
         })}
       </div>
 
-      {/* Filter component */}
+      {/* Filter component with Cycle Selector */}
       <FilterBar
         activeTab={activeTab}
         startDate={startDate}
@@ -244,6 +323,9 @@ export const ReportsPage: React.FC = () => {
         onSearchQueryChange={setSearchQuery}
         statusFilter={statusFilter}
         onStatusFilterChange={setStatusFilter}
+        publications={publications}
+        selectedPublicationId={selectedPublicationId}
+        onPublicationChange={handlePublicationChange}
       />
 
       {/* Order Leader Scope Banner */}
@@ -258,17 +340,47 @@ export const ReportsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Policy Summary Banner (visible on Member tab) */}
-      {activeTab === 'member' && !loading && rawData?.policy && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50/60">
-          <div className="flex items-center gap-2">
-            <svg className="h-4 w-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-            <span className="text-xs font-semibold text-amber-800">Active Policy: {policyLabel}</span>
+      {/* Operating Schedule Cycle / Policy Summary Banner (visible on Member tab) */}
+      {activeTab === 'member' && !loading && (
+        selectedPub ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-indigo-200 bg-indigo-50/70 shadow-2xs">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1.5 bg-indigo-600 text-white rounded-xl shrink-0 shadow-2xs">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-indigo-950">{selectedPub.name}</span>
+                  <span className={`px-1.5 py-0.5 rounded text-[9px] font-black uppercase ${
+                    selectedPub.status === 'published'
+                      ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      : 'bg-slate-200 text-slate-700'
+                  }`}>
+                    {selectedPub.status === 'published' ? 'Active Schedule Cycle' : 'Archived Cycle'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-indigo-800 font-medium mt-0.5">
+                  Operating Period: <strong className="text-indigo-950">{selectedPub.startDate}</strong> to <strong className="text-indigo-950">{selectedPub.endDate}</strong> • Warning @ <strong className="text-amber-700">{activePolicy.warningAbsenceThreshold}</strong> • Suspension @ <strong className="text-rose-700">{activePolicy.suspensionAbsenceThreshold} Absences</strong>
+                </p>
+              </div>
+            </div>
+            <span className="text-[10px] font-bold text-indigo-700 bg-white/90 px-2.5 py-1 rounded-lg border border-indigo-200 self-start sm:self-auto shadow-2xs">
+              Auto-Synced to Cycle ({activePolicy.evaluationMonths}mo)
+            </span>
           </div>
-          <span className="text-[11px] text-amber-600">Configured in Settings</span>
-        </div>
+        ) : rawData?.policy ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50/60">
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="text-xs font-semibold text-amber-800">Active Policy: {policyLabel}</span>
+            </div>
+            <span className="text-[11px] text-amber-600">Configured in Settings</span>
+          </div>
+        ) : null
       )}
 
       {/* Renewal & Category Qualifications Tab View */}
@@ -582,7 +694,7 @@ export const ReportsPage: React.FC = () => {
           setSelectedMemberRow(null)
         }}
         memberRow={selectedMemberRow}
-        policy={rawData?.policy ?? null}
+        policy={activePolicy}
         onMemberUpdated={loadData}
       />
 

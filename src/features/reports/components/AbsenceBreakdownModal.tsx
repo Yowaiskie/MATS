@@ -54,6 +54,14 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
         .join(', ') || 'No Days'
     : 'Configured Days'
 
+  const durationLabel = policy?.evaluationMonthStr
+    ? `Month: ${policy.evaluationMonthStr}`
+    : policy?.evaluationMonths === 0
+    ? 'All Time'
+    : policy?.evaluationMonths === 2
+    ? '2-Month Publication Cycle'
+    : `${policy?.evaluationMonths ?? 1}mo`
+
   const activeSchedules = activeTab === 'missed' ? memberRow.missedSchedules : memberRow.otherServerSchedules || []
 
   const handleLiftSuspension = async () => {
@@ -112,7 +120,7 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
                 <p className="text-[11px] text-gray-700 font-medium mt-0.5">
                   Warning @ <strong className="text-amber-700">{warningThreshold}</strong> • Suspension @ <strong className="text-red-700">{suspensionThreshold} Absences</strong>
                   {policy && (
-                    <span className="text-gray-500"> ({policyDayLabel}, {policy.evaluationMonths === 0 ? 'All Time' : `${policy.evaluationMonths}mo`})</span>
+                    <span className="text-gray-500"> ({policyDayLabel}, {durationLabel})</span>
                   )}
                 </p>
               </div>

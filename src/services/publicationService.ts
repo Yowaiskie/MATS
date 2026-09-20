@@ -43,6 +43,28 @@ export const publicationService = {
   },
 
   /**
+   * Retrieves the currently active published publication.
+   */
+  async getActivePublication(): Promise<SchedulePublication | null> {
+    const list = await this.getPublications()
+    if (list.length === 0) return null
+
+    // 1. Find published publications
+    const published = list.filter(p => p.status === 'published')
+    const today = new Date().toISOString().split('T')[0]
+
+    if (published.length > 0) {
+      // Prioritize the published publication spanning today's date
+      const current = published.find(p => p.startDate <= today && today <= p.endDate)
+      return current || published[0]
+    }
+
+    // 2. If no publication is explicitly marked 'published', check if any publication spans today
+    const currentAny = list.find(p => p.startDate <= today && today <= p.endDate)
+    return currentAny || list[0]
+  },
+
+  /**
    * Adds a new publication.
    */
   async addPublication(input: SchedulePublicationInput, performedBy = 'System'): Promise<string> {
@@ -58,6 +80,14 @@ export const publicationService = {
       maxWeekdaysPerServer: input.maxWeekdaysPerServer ?? 8,
       maxServersPerSundaySlot: input.maxServersPerSundaySlot ?? 5,
       maxServersPerWeekdaySlot: input.maxServersPerWeekdaySlot ?? 5,
+      includeSundays: input.includeSundays ?? true,
+      includeWeekdays: input.includeWeekdays ?? true,
+      includeHolyHour: input.includeHolyHour ?? false,
+      includeMeetings: input.includeMeetings ?? false,
+      customExcludedKeywords: input.customExcludedKeywords || [],
+      allowedRanks: input.allowedRanks || ['Chevaliers', 'Paladins'],
+      warningAbsenceThreshold: input.warningAbsenceThreshold ?? 3,
+      suspensionAbsenceThreshold: input.suspensionAbsenceThreshold ?? 5,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
     })
@@ -92,6 +122,14 @@ export const publicationService = {
     if (input.maxWeekdaysPerServer !== undefined) updateData.maxWeekdaysPerServer = input.maxWeekdaysPerServer
     if (input.maxServersPerSundaySlot !== undefined) updateData.maxServersPerSundaySlot = input.maxServersPerSundaySlot
     if (input.maxServersPerWeekdaySlot !== undefined) updateData.maxServersPerWeekdaySlot = input.maxServersPerWeekdaySlot
+    if (input.includeSundays !== undefined) updateData.includeSundays = input.includeSundays
+    if (input.includeWeekdays !== undefined) updateData.includeWeekdays = input.includeWeekdays
+    if (input.includeHolyHour !== undefined) updateData.includeHolyHour = input.includeHolyHour
+    if (input.includeMeetings !== undefined) updateData.includeMeetings = input.includeMeetings
+    if (input.customExcludedKeywords !== undefined) updateData.customExcludedKeywords = input.customExcludedKeywords
+    if (input.allowedRanks !== undefined) updateData.allowedRanks = input.allowedRanks
+    if (input.warningAbsenceThreshold !== undefined) updateData.warningAbsenceThreshold = input.warningAbsenceThreshold
+    if (input.suspensionAbsenceThreshold !== undefined) updateData.suspensionAbsenceThreshold = input.suspensionAbsenceThreshold
 
     await updateDoc(docRef, updateData)
 

@@ -21,6 +21,8 @@ export interface SchedulePublication {
   customExcludedKeywords?: string[]
   allowedRanks?: string[]
   submittedMembers?: string[]
+  warningAbsenceThreshold?: number
+  suspensionAbsenceThreshold?: number
   createdAt: Timestamp
   updatedAt: Timestamp
 }
@@ -42,5 +44,7 @@ export interface SchedulePublicationInput {
   includeMeetings?: boolean
   customExcludedKeywords?: string[]
   allowedRanks?: string[]
+  warningAbsenceThreshold?: number
+  suspensionAbsenceThreshold?: number
 }
 

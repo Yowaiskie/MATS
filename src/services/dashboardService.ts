@@ -8,8 +8,9 @@ import { db } from '@/firebase/config'
 import type { Schedule } from '@/types/schedule'
 import type { AttendanceSession } from '@/types/attendance'
 import { memberService } from './memberService'
-import { getScheduleStatus } from '@/utils/scheduleUtils'
-
+import { getScheduleStatus, calculateMonthsBetween } from '@/utils/scheduleUtils'
+import { publicationService } from './publicationService'
+import { settingsService, type SuspensionPolicySettings } from './settingsService'
 import { reportService } from './reportService'
 
 export interface BirthdayCelebrant {
@@ -34,11 +35,15 @@ export interface DashboardStats {
   archivedMembers: number
   suspendedMembersCount: number
   userOrderSuspendedCount: number
+  warningMembersCount: number
+  userOrderWarningCount: number
   userOrder?: string
   upcomingSchedules: number
   ongoingSchedules: number
   completedSchedules: number
   attendanceSessionsCount: number
+  operatingCycleTitle?: string
+  operatingCycleMonths?: number
 }
 
 export interface ActivityLog {
@@ -76,63 +81,108 @@ export const dashboardService = {
       console.warn('Could not load attendanceSessions for dashboard:', err)
     }
 
-    const allMembers = await memberService.getMembers(true)
+    const [allMembers, activePub, basePolicy] = await Promise.all([
+      memberService.getMembers(true),
+      publicationService.getActivePublication(),
+      settingsService.getPolicySettings()
+    ])
 
-    // Calculate dates for current month
+    // Calculate dates and active operating cycle policy
     const today = new Date()
     const currentYear = today.getFullYear()
     const currentMonthNum = today.getMonth() + 1
     const currentMonthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`
-    const startDate = `${currentMonthStr}-01`
     const lastDayOfMonth = new Date(currentYear, currentMonthNum, 0).getDate()
-    const endDate = `${currentMonthStr}-${String(lastDayOfMonth).padStart(2, '0')}`
+
+    let startDate: string
+    let endDate: string
+    let activePolicy: SuspensionPolicySettings
+    let operatingCycleTitle: string
+    let operatingCycleMonths: number = 1
+
+    if (activePub) {
+      startDate = activePub.startDate
+      endDate = activePub.endDate
+      operatingCycleTitle = activePub.name
+      operatingCycleMonths = calculateMonthsBetween(startDate, endDate)
+
+      const defaultWarning = operatingCycleMonths === 2 ? 3 : operatingCycleMonths >= 3 ? 4 : 2
+      const defaultSuspension = operatingCycleMonths === 2 ? 5 : operatingCycleMonths >= 3 ? 7 : 3
+
+      activePolicy = {
+        ...basePolicy,
+        warningAbsenceThreshold: activePub.warningAbsenceThreshold ?? defaultWarning,
+        suspensionAbsenceThreshold: activePub.suspensionAbsenceThreshold ?? defaultSuspension,
+        evaluationMonths: operatingCycleMonths,
+        includeSundays: activePub.includeSundays !== undefined ? activePub.includeSundays : basePolicy.includeSundays,
+        includeWeekdays: activePub.includeWeekdays !== undefined ? activePub.includeWeekdays : basePolicy.includeWeekdays,
+        includeMeetings: activePub.includeMeetings !== undefined ? activePub.includeMeetings : basePolicy.includeMeetings,
+      }
+    } else {
+      startDate = `${currentMonthStr}-01`
+      endDate = `${currentMonthStr}-${String(lastDayOfMonth).padStart(2, '0')}`
+      operatingCycleTitle = 'This Month'
+      operatingCycleMonths = basePolicy.evaluationMonths || 1
+      activePolicy = basePolicy
+    }
 
     let suspendedMembersCount = 0
     let userOrderSuspendedCount = 0
     let monthSchedules: Schedule[] = []
 
     const suspendedMemberIds = new Set<string>()
+    const warningMemberIds = new Set<string>()
 
-    // 1. Collect members whose profile status is explicitly 'suspended' (and active in this month)
+    // 1. Collect members whose profile status is explicitly / manually 'suspended' (as is)
     allMembers.forEach(m => {
       if (m.status === 'suspended') {
         const sStart = m.suspensionStartDate || ''
         const sEnd = m.suspensionEndDate || ''
 
-        // Check if suspension period overlaps with current month
-        const isSuspensionActiveThisMonth = !sStart || (
+        // Check if suspension period overlaps with current operating cycle
+        const isSuspensionActiveThisPeriod = !sStart || (
           sStart <= endDate && (!sEnd || sEnd >= startDate)
         )
 
-        if (isSuspensionActiveThisMonth) {
+        if (isSuspensionActiveThisPeriod) {
           suspendedMemberIds.add(m.id)
         }
       }
     })
 
-    // 2. Combine with dynamic attendance policy infraction suspensions for this month
+    // 2. Combine with dynamic attendance policy infractions for this cycle
     try {
       const reportData = await reportService.loadReportData(startDate, endDate, allMembers)
       monthSchedules = reportData.schedules
-      const memberRows = reportService.generateMemberReport(reportData)
+      const memberRows = reportService.generateMemberReport(reportData, activePolicy)
       memberRows.forEach(r => {
         if (r.warningStatus === 'suspended') {
           suspendedMemberIds.add(r.memberId)
+        } else if (r.warningStatus === 'warning') {
+          warningMemberIds.add(r.memberId)
         }
       })
     } catch (err) {
-      console.warn('Could not calculate suspended members count from reports:', err)
+      console.warn('Could not calculate suspended and warning members count from reports:', err)
     }
 
     suspendedMembersCount = suspendedMemberIds.size
+    const warningMembersCount = warningMemberIds.size
+    let userOrderWarningCount = 0
 
     if (userOrder) {
       userOrderSuspendedCount = Array.from(suspendedMemberIds).filter(id => {
         const m = allMembers.find(mem => mem.id === id)
         return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
       }).length
+
+      userOrderWarningCount = Array.from(warningMemberIds).filter(id => {
+        const m = allMembers.find(mem => mem.id === id)
+        return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
+      }).length
     } else {
       userOrderSuspendedCount = suspendedMembersCount
+      userOrderWarningCount = warningMembersCount
     }
 
     // 1. Calculate statistics
@@ -155,11 +205,15 @@ export const dashboardService = {
       archivedMembers,
       suspendedMembersCount,
       userOrderSuspendedCount,
+      warningMembersCount,
+      userOrderWarningCount,
       userOrder,
       upcomingSchedules,
       ongoingSchedules,
       completedSchedules,
-      attendanceSessionsCount: attendanceSessions.length
+      attendanceSessionsCount: attendanceSessions.length,
+      operatingCycleTitle,
+      operatingCycleMonths
     }
 
     // 2. Filter today's schedules

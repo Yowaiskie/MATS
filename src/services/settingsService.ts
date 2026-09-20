@@ -52,9 +52,9 @@ export interface ReminderSettings {
 }
 
 export interface SuspensionPolicySettings {
-  warningAbsenceThreshold: number // default 2
-  suspensionAbsenceThreshold: number // default 3
-  evaluationMonths: number // default 1 (0 = All Time)
+  warningAbsenceThreshold: number // default 2 (or 3 for 2-months)
+  suspensionAbsenceThreshold: number // default 3 (or 5 for 2-months)
+  evaluationMonths: number // default 1 (0 = All Time, 2 = 2-Month Publication Cycle)
   evaluationMonthStr?: string // e.g. "2026-07"
   includeSundays: boolean // default true
   includeWeekdays: boolean // default false
@@ -70,6 +70,46 @@ export interface SuspensionPolicySettings {
   excludeSuspendedFromAutoAssign?: boolean // default true
   updatedAt?: any
 }
+
+export interface PolicyPreset {
+  id: string
+  name: string
+  description: string
+  warningAbsenceThreshold: number
+  suspensionAbsenceThreshold: number
+  evaluationMonths: number
+  badge: string
+}
+
+export const POLICY_PRESETS: PolicyPreset[] = [
+  {
+    id: 'preset_1_month',
+    name: '1-Month Standard Cycle',
+    description: 'Warning: 2 absences • Suspension: 3 absences (Monthly)',
+    warningAbsenceThreshold: 2,
+    suspensionAbsenceThreshold: 3,
+    evaluationMonths: 1,
+    badge: '1 Month'
+  },
+  {
+    id: 'preset_2_months',
+    name: '2-Month Publication Cycle',
+    description: 'Warning: 3 absences • Suspension: 5 absences (Bi-Monthly Publication)',
+    warningAbsenceThreshold: 3,
+    suspensionAbsenceThreshold: 5,
+    evaluationMonths: 2,
+    badge: '2 Months (Recommended)'
+  },
+  {
+    id: 'preset_3_months',
+    name: '3-Month Quarterly Cycle',
+    description: 'Warning: 4 absences • Suspension: 7 absences (Quarterly)',
+    warningAbsenceThreshold: 4,
+    suspensionAbsenceThreshold: 7,
+    evaluationMonths: 3,
+    badge: '3 Months'
+  }
+]
 
 export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
   warningAbsenceThreshold: 2,
@@ -498,9 +538,17 @@ export const settingsService = {
           warningAbsenceThreshold: data.warningAbsenceThreshold ?? DEFAULT_POLICY_SETTINGS.warningAbsenceThreshold,
           suspensionAbsenceThreshold: data.suspensionAbsenceThreshold ?? DEFAULT_POLICY_SETTINGS.suspensionAbsenceThreshold,
           evaluationMonths: data.evaluationMonths ?? DEFAULT_POLICY_SETTINGS.evaluationMonths,
+          evaluationMonthStr: data.evaluationMonthStr ?? DEFAULT_POLICY_SETTINGS.evaluationMonthStr,
           includeSundays: data.includeSundays ?? DEFAULT_POLICY_SETTINGS.includeSundays,
           includeWeekdays: data.includeWeekdays ?? DEFAULT_POLICY_SETTINGS.includeWeekdays,
-          includeMeetings: data.includeMeetings ?? DEFAULT_POLICY_SETTINGS.includeMeetings
+          includeMeetings: data.includeMeetings ?? DEFAULT_POLICY_SETTINGS.includeMeetings,
+          unsuspensionRequiresMeeting: data.unsuspensionRequiresMeeting ?? DEFAULT_POLICY_SETTINGS.unsuspensionRequiresMeeting,
+          unsuspensionRequiredMeetingMonths: data.unsuspensionRequiredMeetingMonths ?? DEFAULT_POLICY_SETTINGS.unsuspensionRequiredMeetingMonths,
+          unsuspensionRequiredMeetingCount: data.unsuspensionRequiredMeetingCount ?? DEFAULT_POLICY_SETTINGS.unsuspensionRequiredMeetingCount,
+          unsuspensionRequiresFormation: data.unsuspensionRequiresFormation ?? DEFAULT_POLICY_SETTINGS.unsuspensionRequiresFormation,
+          unsuspensionRequiredFormationCount: data.unsuspensionRequiredFormationCount ?? DEFAULT_POLICY_SETTINGS.unsuspensionRequiredFormationCount,
+          autoPromptOnSchedulingSuspended: data.autoPromptOnSchedulingSuspended ?? DEFAULT_POLICY_SETTINGS.autoPromptOnSchedulingSuspended,
+          excludeSuspendedFromAutoAssign: data.excludeSuspendedFromAutoAssign ?? DEFAULT_POLICY_SETTINGS.excludeSuspendedFromAutoAssign
         }
       }
       return DEFAULT_POLICY_SETTINGS
@@ -519,9 +567,17 @@ export const settingsService = {
       warningAbsenceThreshold: Number(settings.warningAbsenceThreshold),
       suspensionAbsenceThreshold: Number(settings.suspensionAbsenceThreshold),
       evaluationMonths: Number(settings.evaluationMonths),
+      evaluationMonthStr: settings.evaluationMonthStr || '',
       includeSundays: Boolean(settings.includeSundays),
       includeWeekdays: Boolean(settings.includeWeekdays),
       includeMeetings: Boolean(settings.includeMeetings),
+      unsuspensionRequiresMeeting: Boolean(settings.unsuspensionRequiresMeeting ?? true),
+      unsuspensionRequiredMeetingMonths: Number(settings.unsuspensionRequiredMeetingMonths ?? 1),
+      unsuspensionRequiredMeetingCount: Number(settings.unsuspensionRequiredMeetingCount ?? 1),
+      unsuspensionRequiresFormation: Boolean(settings.unsuspensionRequiresFormation ?? false),
+      unsuspensionRequiredFormationCount: Number(settings.unsuspensionRequiredFormationCount ?? 1),
+      autoPromptOnSchedulingSuspended: Boolean(settings.autoPromptOnSchedulingSuspended ?? true),
+      excludeSuspendedFromAutoAssign: Boolean(settings.excludeSuspendedFromAutoAssign ?? true),
       updatedAt: serverTimestamp()
     }
 

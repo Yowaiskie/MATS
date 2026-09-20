@@ -381,7 +381,14 @@ export const reportService = {
       const warningCount = [sundayWarning, weekdayWarning, meetingWarning].filter(Boolean).length
 
       const effectiveTotal = summary.total - summary.excused
-      if (summary.present === 0 && summary.absent > 0 && otherServerSchedules.length === 0 && effectiveTotal > 0) {
+      if (member.status === 'suspended') {
+        warningStatus = 'suspended'
+        if (suspendedCount > 1) warningCategory = 'multiple'
+        else if (sundaySuspended) warningCategory = 'sunday'
+        else if (weekdaySuspended) warningCategory = 'weekday'
+        else if (meetingSuspended) warningCategory = 'meeting'
+        else warningCategory = 'multiple'
+      } else if (summary.present === 0 && summary.absent > 0 && otherServerSchedules.length === 0 && effectiveTotal > 0) {
         warningStatus = 'inactive'
       } else if (suspendedCount > 0) {
         warningStatus = 'suspended'

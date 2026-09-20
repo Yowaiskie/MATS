@@ -94,28 +94,34 @@ export const DashboardPreviewPage: React.FC = () => {
       )
     },
     { 
-      name: userOrder ? `Suspended (${userOrder})` : 'Suspended (This Month)', 
-      value: String(userOrder ? data.stats.userOrderSuspendedCount : data.stats.suspendedMembersCount), 
-      color: 'text-rose-600', 
-      bg: 'bg-rose-50/60', 
-      border: 'border-rose-100', 
-      desc: userOrder ? `${data.stats.userOrderSuspendedCount} suspended in ${userOrder}` : 'Total suspended this month',
+      name: userOrder ? `Warning (${userOrder})` : (data.stats.operatingCycleTitle ? `Warning (${data.stats.operatingCycleTitle})` : 'Warning for Suspension'), 
+      value: String(userOrder ? (data.stats.userOrderWarningCount ?? 0) : (data.stats.warningMembersCount ?? 0)), 
+      color: 'text-amber-600', 
+      bg: 'bg-amber-50/60', 
+      border: 'border-amber-100', 
+      desc: userOrder 
+        ? `${data.stats.userOrderWarningCount ?? 0} servers under warning in ${userOrder}` 
+        : 'Servers with active attendance warning',
       icon: (
-        <svg className="h-5 w-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <svg className="h-5 w-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
         </svg>
       )
     },
     { 
-      name: 'Upcoming Schedules', 
-      value: String(data.stats.upcomingSchedules), 
-      color: 'text-indigo-600', 
-      bg: 'bg-indigo-50/60', 
-      border: 'border-indigo-100', 
-      desc: 'Future services planned',
+      name: userOrder ? `Suspended (${userOrder})` : (data.stats.operatingCycleTitle ? `Suspended (${data.stats.operatingCycleTitle})` : 'Suspended (This Month)'), 
+      value: String(userOrder ? data.stats.userOrderSuspendedCount : data.stats.suspendedMembersCount), 
+      color: 'text-rose-600', 
+      bg: 'bg-rose-50/60', 
+      border: 'border-rose-100', 
+      desc: userOrder 
+        ? `${data.stats.userOrderSuspendedCount} suspended in ${userOrder}` 
+        : (data.stats.operatingCycleMonths && data.stats.operatingCycleMonths > 1
+            ? `Total suspended profiles in ${data.stats.operatingCycleMonths}-month operating cycle`
+            : 'Total suspended profiles for current cycle'),
       icon: (
-        <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+        <svg className="h-5 w-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
         </svg>
       )
     },

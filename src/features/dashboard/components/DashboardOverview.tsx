@@ -208,16 +208,27 @@ export const DashboardOverview: React.FC = () => {
   const cardStats = [
     { name: 'Active Members', value: String(data.stats.activeMembers), color: 'text-green-600', bg: 'bg-green-50/50', border: 'border-green-100', desc: 'Registered and active servers' },
     { 
-      name: userOrder ? `Suspended (${userOrder})` : 'Suspended (This Month)', 
+      name: userOrder ? `Warning (${userOrder})` : (data.stats.operatingCycleTitle ? `Warning (${data.stats.operatingCycleTitle})` : 'Warning for Suspension'), 
+      value: String(userOrder ? (data.stats.userOrderWarningCount ?? 0) : (data.stats.warningMembersCount ?? 0)), 
+      color: 'text-amber-600', 
+      bg: 'bg-amber-50/50', 
+      border: 'border-amber-100', 
+      desc: userOrder 
+        ? `${data.stats.userOrderWarningCount ?? 0} servers under warning in ${userOrder}` 
+        : 'Servers with active attendance warning' 
+    },
+    { 
+      name: userOrder ? `Suspended (${userOrder})` : (data.stats.operatingCycleTitle ? `Suspended (${data.stats.operatingCycleTitle})` : 'Suspended (This Month)'), 
       value: String(userOrder ? data.stats.userOrderSuspendedCount : data.stats.suspendedMembersCount), 
       color: 'text-red-600', 
       bg: 'bg-red-50/50', 
       border: 'border-red-100', 
       desc: userOrder 
-        ? `${data.stats.userOrderSuspendedCount} suspended this month in ${userOrder}` 
-        : 'Total suspended profiles for current month' 
+        ? `${data.stats.userOrderSuspendedCount} suspended in ${userOrder}` 
+        : (data.stats.operatingCycleMonths && data.stats.operatingCycleMonths > 1
+            ? `Total suspended profiles in ${data.stats.operatingCycleMonths}-month operating cycle`
+            : 'Total suspended profiles for current cycle')
     },
-    { name: 'Upcoming Schedules', value: String(data.stats.upcomingSchedules), color: 'text-emerald-600', bg: 'bg-emerald-50/50', border: 'border-emerald-100', desc: 'Future services planned' },
   ]
 
   // Helper for clean user greeting display
@@ -319,6 +330,10 @@ export const DashboardOverview: React.FC = () => {
                 <span className="shrink-0">
                   {stat.name.startsWith('Suspended') ? (
                     <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                    </svg>
+                  ) : stat.name.startsWith('Warning') ? (
+                    <svg className="h-5 w-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                     </svg>
                   ) : statIcons[stat.name]}

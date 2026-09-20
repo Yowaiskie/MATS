@@ -40,10 +40,42 @@ export const PublicationFormModal: React.FC<Props> = ({
   const [customExcludedKeywords, setCustomExcludedKeywords] = useState<string>('')
   const [allowedRanks, setAllowedRanks] = useState<string[]>(['Chevaliers', 'Paladins'])
   const [generateSchedules, setGenerateSchedules] = useState<boolean>(true)
+  const [warningAbsenceThreshold, setWarningAbsenceThreshold] = useState<number>(3)
+  const [suspensionAbsenceThreshold, setSuspensionAbsenceThreshold] = useState<number>(5)
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState('')
+
+  // Calculate approximate duration in months from start and end dates
+  const calculateDurationMonths = (start: string, end: string): number => {
+    if (!start || !end) return 2
+    const d1 = new Date(start)
+    const d2 = new Date(end)
+    const diffDays = Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24))
+    if (diffDays <= 35) return 1
+    if (diffDays <= 75) return 2
+    if (diffDays <= 110) return 3
+    return Math.round(diffDays / 30)
+  }
+
+  const handleDateChange = (newStart: string, newEnd: string) => {
+    setStartDate(newStart)
+    setEndDate(newEnd)
+    if (newStart && newEnd && newStart <= newEnd) {
+      const months = calculateDurationMonths(newStart, newEnd)
+      if (months === 1) {
+        setWarningAbsenceThreshold(2)
+        setSuspensionAbsenceThreshold(3)
+      } else if (months === 2) {
+        setWarningAbsenceThreshold(3)
+        setSuspensionAbsenceThreshold(5)
+      } else if (months >= 3) {
+        setWarningAbsenceThreshold(4)
+        setSuspensionAbsenceThreshold(7)
+      }
+    }
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -64,6 +96,8 @@ export const PublicationFormModal: React.FC<Props> = ({
         setIncludeMeetings(publication.includeMeetings ?? false)
         setCustomExcludedKeywords((publication.customExcludedKeywords || []).join(', '))
         setAllowedRanks(publication.allowedRanks ?? ['Chevaliers', 'Paladins'])
+        setWarningAbsenceThreshold(publication.warningAbsenceThreshold ?? 3)
+        setSuspensionAbsenceThreshold(publication.suspensionAbsenceThreshold ?? 5)
         setGenerateSchedules(false) // Default to false when editing
       } else {
         setName('')
@@ -82,6 +116,8 @@ export const PublicationFormModal: React.FC<Props> = ({
         setIncludeMeetings(false)
         setCustomExcludedKeywords('')
         setAllowedRanks(['Chevaliers', 'Paladins'])
+        setWarningAbsenceThreshold(3)
+        setSuspensionAbsenceThreshold(5)
         setGenerateSchedules(true) // Default to true when creating
       }
       const loadTemplates = async () => {
@@ -130,7 +166,9 @@ export const PublicationFormModal: React.FC<Props> = ({
         includeSundays, includeWeekdays,
         includeHolyHour, includeMeetings,
         customExcludedKeywords: excludedKwList,
-        allowedRanks
+        allowedRanks,
+        warningAbsenceThreshold,
+        suspensionAbsenceThreshold
       }, generateSchedules, selectedTemplateIds)
       onClose()
     } catch (err: any) {
@@ -199,7 +237,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                 <input
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onChange={(e) => handleDateChange(e.target.value, endDate)}
                   required
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
@@ -211,7 +249,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                 <input
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onChange={(e) => handleDateChange(startDate, e.target.value)}
                   required
                   className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
                 />
@@ -439,6 +477,55 @@ export const PublicationFormModal: React.FC<Props> = ({
                       </label>
                     )
                   })}
+                </div>
+              </div>
+
+              {/* Section 5: Attendance Policy & Suspension Rules for this Publication */}
+              <div className="bg-rose-50/50 p-3.5 rounded-xl border border-rose-200/80 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <span className="block text-xs font-black text-rose-950">5. Attendance Suspension Rules for this Cycle</span>
+                    <span className="text-[10px] text-rose-700 font-medium leading-tight block mt-0.5">
+                      These thresholds will automatically apply across the system and in Member Reports during this schedule cycle.
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-md text-[9px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200 shrink-0">
+                    {calculateDurationMonths(startDate, endDate)} Month(s) Cycle
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-amber-900 mb-1">
+                      Warning Absence Threshold
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={warningAbsenceThreshold}
+                      onChange={(e) => setWarningAbsenceThreshold(parseInt(e.target.value, 10) || 1)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-amber-300 text-xs bg-white focus:border-amber-500 focus:ring-1 focus:ring-amber-500 font-bold text-amber-950"
+                    />
+                    <span className="text-[10px] text-amber-700 block mt-0.5">Yellow warning in reports</span>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-extrabold uppercase text-rose-900 mb-1">
+                      Suspension Absence Threshold
+                    </label>
+                    <input
+                      type="number"
+                      min="2"
+                      max="50"
+                      value={suspensionAbsenceThreshold}
+                      onChange={(e) => setSuspensionAbsenceThreshold(parseInt(e.target.value, 10) || 2)}
+                      className="w-full px-3 py-1.5 rounded-lg border border-rose-300 text-xs bg-white focus:border-rose-500 focus:ring-1 focus:ring-rose-500 font-bold text-rose-950"
+                    />
+                    <span className="text-[10px] text-rose-700 block mt-0.5">
+                      {calculateDurationMonths(startDate, endDate) === 2 ? 'At least 5 absences for 2-month cycle' : 'Triggers red suspended status'}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>

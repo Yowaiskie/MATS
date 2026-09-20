@@ -377,3 +377,17 @@ export const isMemberEligibleForPublication = (
   return !(r.includes('squire') || o.includes('squire') || p.includes('squire'))
 }
 
+/**
+ * Calculates approximate duration in months between two YYYY-MM-DD date strings.
+ */
+export const calculateMonthsBetween = (start: string, end: string): number => {
+  if (!start || !end) return 1
+  const d1 = new Date(start)
+  const d2 = new Date(end)
+  const diffDays = Math.ceil((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays <= 35) return 1
+  if (diffDays <= 75) return 2
+  if (diffDays <= 110) return 3
+  return Math.max(1, Math.round(diffDays / 30))
+}
+
