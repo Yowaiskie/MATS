@@ -16,6 +16,8 @@ interface NotificationContextType {
   markAsRead: (notificationId: string) => Promise<void>
   markUntakenAsRead: (scheduleId: string) => void
   markAllAsRead: () => Promise<void>
+  deleteNotification: (notificationId: string) => Promise<void>
+  clearAllNotifications: () => Promise<void>
   refreshUntaken: () => Promise<void>
   remindSchedule: (schedule: Schedule) => Promise<{ success: boolean; notifiedCount: number }>
 }
@@ -261,6 +263,27 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }
 
+  const deleteNotification = async (notificationId: string) => {
+    // Optimistic local update
+    setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
+    try {
+      await notificationService.deleteNotification(notificationId)
+    } catch (err) {
+      console.error('Failed to delete notification:', err)
+    }
+  }
+
+  const clearAllNotifications = async () => {
+    const ids = notifications.map((n) => n.id)
+    // Optimistic local update
+    setNotifications([])
+    try {
+      await notificationService.clearNotifications(ids)
+    } catch (err) {
+      console.error('Failed to clear notifications:', err)
+    }
+  }
+
   const remindSchedule = async (schedule: Schedule) => {
     const res = await notificationService.remindSingleSchedule(
       schedule,
@@ -282,6 +305,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     markAsRead,
     markUntakenAsRead,
     markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
     refreshUntaken,
     remindSchedule
   }

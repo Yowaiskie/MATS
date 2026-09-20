@@ -1109,6 +1109,40 @@ class NotificationService {
   }
 
   /**
+   * Delete an individual notification document
+   */
+  async deleteNotification(notificationId: string): Promise<void> {
+    if (!notificationId) return
+    try {
+      await deleteDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId))
+    } catch (err) {
+      console.error('Failed to delete notification:', err)
+      throw err
+    }
+  }
+
+  /**
+   * Clear / delete notifications in batch from Firestore
+   */
+  async clearNotifications(notificationIds?: string[]): Promise<void> {
+    try {
+      if (notificationIds && notificationIds.length > 0) {
+        await Promise.all(
+          notificationIds.map(id => deleteDoc(doc(db, NOTIFICATIONS_COLLECTION, id)).catch(() => {}))
+        )
+      } else {
+        const snap = await getDocs(collection(db, NOTIFICATIONS_COLLECTION))
+        await Promise.all(
+          snap.docs.map(d => deleteDoc(d.ref).catch(() => {}))
+        )
+      }
+    } catch (err) {
+      console.error('Failed to clear notifications:', err)
+      throw err
+    }
+  }
+
+  /**
    * Check all users and count who has push enabled vs not enabled
    */
   async getPushNotificationCoverage(): Promise<{
