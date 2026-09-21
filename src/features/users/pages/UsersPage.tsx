@@ -16,7 +16,6 @@ import { Button } from '@/components/Button'
 import { ActionMenu, type ActionMenuItem } from '@/components'
 import { CustomSelect } from '@/components/CustomSelect'
 import { QuickFilterPills } from '@/components/QuickFilterPills'
-import { StatusBadge } from '@/components/StatusBadge'
 import { EmptyState } from '@/components/EmptyState'
 import { useToast } from '@/context/ToastContext'
 
@@ -98,7 +97,7 @@ export const UsersPage: React.FC = () => {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'order_leader' | 'user'>('all')
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'coordinator' | 'order_leader' | 'user'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Presets Management Modal State
@@ -710,6 +709,16 @@ export const UsersPage: React.FC = () => {
     setAssignedOrder(userToEdit.assignedOrder || '')
 
     const perms = userToEdit.permissions
+    const presetName = perms?.presetName
+    const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : null
+    if (matchedPreset) {
+      setActivePresetId(matchedPreset.id)
+      setActivePresetName(matchedPreset.name)
+    } else {
+      setActivePresetId(null)
+      setActivePresetName(presetName || '')
+    }
+
     if (userToEdit.role === 'admin') {
       const adminPreset = presets.find(p => p.role === 'admin') || DEFAULT_PERMISSION_PRESETS.find(p => p.id === 'preset_admin')
       if (adminPreset) applyPreset(adminPreset)
@@ -1037,7 +1046,9 @@ export const UsersPage: React.FC = () => {
         const email = (u.email || '').toLowerCase()
         const name = (u.displayName || u.memberName || '').toLowerCase()
         const role = (u.role || '').toLowerCase()
-        if (!email.includes(q) && !name.includes(q) && !role.includes(q)) return false
+        const presetName = (u.permissions?.presetName || '').toLowerCase()
+        const assignedOrder = (u.assignedOrder || '').toLowerCase()
+        if (!email.includes(q) && !name.includes(q) && !role.includes(q) && !presetName.includes(q) && !assignedOrder.includes(q)) return false
       }
       return true
     })
@@ -1101,10 +1112,22 @@ export const UsersPage: React.FC = () => {
               count: users.filter(u => u.role === 'admin').length,
             },
             {
+              label: 'Coordinators',
+              active: roleFilter === 'coordinator',
+              onClick: () => { setRoleFilter('coordinator'); setCurrentPage(1); },
+              count: users.filter(u => u.role === 'coordinator').length,
+            },
+            {
               label: 'Order Leaders',
               active: roleFilter === 'order_leader',
               onClick: () => { setRoleFilter('order_leader'); setCurrentPage(1); },
               count: users.filter(u => u.role === 'order_leader').length,
+            },
+            {
+              label: 'Officers & Users',
+              active: roleFilter === 'user',
+              onClick: () => { setRoleFilter('user'); setCurrentPage(1); },
+              count: users.filter(u => !u.role || u.role === 'user').length,
             },
           ]}
         />
@@ -1171,10 +1194,47 @@ export const UsersPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge
-                            status={u.role === 'admin' ? 'Administrator' : u.role === 'order_leader' ? `Order Leader${u.assignedOrder ? ` (${u.assignedOrder})` : ''}` : 'User Account'}
-                            size="sm"
-                          />
+                          {(() => {
+                            if (u.role === 'admin') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                                  Administrator
+                                </span>
+                              )
+                            }
+                            if (u.role === 'coordinator') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                  Coordinator
+                                </span>
+                              )
+                            }
+                            if (u.role === 'order_leader') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                  Order Leader{u.assignedOrder ? ` (${u.assignedOrder})` : ''}
+                                </span>
+                              )
+                            }
+                            const presetName = u.permissions?.presetName
+                            if (presetName) {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  {presetName}
+                                </span>
+                              )
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                                User Account
+                              </span>
+                            )
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-xs whitespace-nowrap">
                           {(() => {
@@ -1182,6 +1242,14 @@ export const UsersPage: React.FC = () => {
                               return (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
                                   Full System Access
+                                </span>
+                              )
+                            }
+
+                            if (u.role === 'coordinator') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                                  Parish Coordinator
                                 </span>
                               )
                             }
@@ -1334,7 +1402,7 @@ export const UsersPage: React.FC = () => {
                   Account Profile
                 </h4>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">User Email *</label>
                     <input
@@ -1368,7 +1436,78 @@ export const UsersPage: React.FC = () => {
                       }}
                     />
                   </div>
+                  <div>
+                    <CustomSelect
+                      label="Account Role *"
+                      value={role}
+                      onChange={(e) => {
+                        const newRole = e.target.value as UserRole
+                        setRole(newRole)
+                        if (newRole === 'admin') {
+                          const adminPreset = presets.find(p => p.role === 'admin') || DEFAULT_PERMISSION_PRESETS.find(p => p.id === 'preset_admin')
+                          if (adminPreset) applyPreset(adminPreset)
+                        } else if (newRole === 'coordinator') {
+                          const coordPreset = presets.find(p => p.role === 'coordinator' || p.name.toLowerCase().includes('coordinator'))
+                          if (coordPreset) {
+                            applyPreset(coordPreset)
+                          } else {
+                            setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports', 'members', 'excuses'])
+                            setCanViewSchedules(true)
+                            setCanManageSchedules(true)
+                            setCanTakeAttendance(true)
+                            setCanFinalizeAttendance(true)
+                            setCanViewReports(true)
+                            setCanExportReports(true)
+                            setCanViewMembers(true)
+                            setCanManageMembers(true)
+                            setCanReviewExcuses(true)
+                            setCanApproveExcuses(true)
+                            setActivePresetId(null)
+                            setActivePresetName('Parish Coordinator')
+                          }
+                        } else if (newRole === 'order_leader') {
+                          const olPreset = presets.find(p => p.role === 'order_leader' || p.name.toLowerCase().includes('order leader'))
+                          if (olPreset) {
+                            applyPreset(olPreset)
+                          } else {
+                            setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports', 'members'])
+                            setCanTakeAttendance(true)
+                            setCanFinalizeAttendance(false)
+                            setCanViewSchedules(true)
+                            setCanManageSchedules(false)
+                            setCanViewReports(true)
+                            setCanExportReports(true)
+                            setCanViewMembers(true)
+                            setActivePresetId(null)
+                            setActivePresetName('Order Leader')
+                          }
+                        }
+                      }}
+                      options={[
+                        { value: 'user', label: 'Officer / Standard User' },
+                        { value: 'order_leader', label: 'Order Leader' },
+                        { value: 'coordinator', label: 'Coordinator' },
+                        { value: 'admin', label: 'Administrator' },
+                      ]}
+                      helperText="Authorization level and system privileges."
+                    />
+                  </div>
                 </div>
+
+                {role === 'order_leader' && (
+                  <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl">
+                    <CustomSelect
+                      label="Assigned Order Group *"
+                      value={assignedOrder}
+                      onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
+                      options={[
+                        { value: '', label: '-- Select Order Group --' },
+                        ...ORDER_GROUPS.map((grp) => ({ value: grp, label: grp }))
+                      ]}
+                      helperText="Order Leaders are scoped to manage attendance and reports for their assigned Order Group."
+                    />
+                  </div>
+                )}
 
                 {/* Password Fields / Reset Email Action */}
                 {!editingUser && (
@@ -2100,7 +2239,7 @@ export const UsersPage: React.FC = () => {
                   {presetEditing ? `Edit Preset: ${presetEditing.name}` : 'Create New Permission Preset'}
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Preset Name *</label>
                     <input
@@ -2110,6 +2249,20 @@ export const UsersPage: React.FC = () => {
                       onChange={(e) => setPresetFormName(e.target.value)}
                       placeholder="e.g. Secretary"
                       className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <CustomSelect
+                      label="Base Account Role"
+                      required
+                      value={presetFormRole}
+                      onChange={(e) => setPresetFormRole(e.target.value as UserRole)}
+                      options={[
+                        { value: 'user', label: 'Officer / User' },
+                        { value: 'order_leader', label: 'Order Leader' },
+                        { value: 'coordinator', label: 'Coordinator' },
+                        { value: 'admin', label: 'Administrator' },
+                      ]}
                     />
                   </div>
                   <div>
@@ -2124,7 +2277,8 @@ export const UsersPage: React.FC = () => {
                         { value: 'shield', label: 'Shield (Admin)' },
                         { value: 'calendar', label: 'Calendar (Schedules)' },
                         { value: 'chart', label: 'Chart (Reports)' },
-                        { value: 'settings', label: 'Settings (Config)' }
+                        { value: 'settings', label: 'Settings (Config)' },
+                        { value: 'bank', label: 'Bank (Finance)' }
                       ]}
                     />
                   </div>
