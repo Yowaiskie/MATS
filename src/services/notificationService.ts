@@ -31,6 +31,7 @@ export interface SendAttendanceReminderOptions {
   scheduleIds?: string[]
   targetAudienceType?: 'assigned_accounts_only' | 'all_officers' | 'custom_members'
   customMemberIds?: string[]
+  additionalUserIds?: string[]
   customMessage?: string
   performedBy?: string
 }
@@ -840,6 +841,33 @@ class NotificationService {
       console.warn('Could not fetch users/members for reminder mapping:', e)
     }
 
+    // Pre-resolve additional user target IDs (e.g. Secretary, Coordinators, Admins)
+    const additionalTargetIdsSet = new Set<string>()
+    if (opts.additionalUserIds && opts.additionalUserIds.length > 0) {
+      const additionalKeySet = new Set(opts.additionalUserIds.map(k => String(k).toLowerCase().trim()))
+      usersList.forEach(u => {
+        const uMemberId = u.memberId ? String(u.memberId).toLowerCase().trim() : ''
+        const uUid = (u.uid || u.id || '').toLowerCase().trim()
+        const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
+
+        if (
+          (uUid && additionalKeySet.has(uUid)) ||
+          (uMemberId && additionalKeySet.has(uMemberId)) ||
+          (uEmail && additionalKeySet.has(uEmail))
+        ) {
+          if (u.uid || u.id) additionalTargetIdsSet.add(u.uid || u.id)
+          if (u.memberId) additionalTargetIdsSet.add(String(u.memberId).trim())
+          if (u.email) additionalTargetIdsSet.add(u.email.toLowerCase().trim())
+        }
+      })
+      // Also add raw additional IDs passed in
+      opts.additionalUserIds.forEach(k => {
+        if (k && String(k).trim()) {
+          additionalTargetIdsSet.add(String(k).trim())
+        }
+      })
+    }
+
     // 4. Create targeted attendance reminder notification for each pending schedule
     let totalReminded = 0
     let totalOfficers = 0
@@ -873,12 +901,16 @@ class NotificationService {
         })
       }
 
-      // If no targeted users are assigned to THIS schedule and not broadcasting to all officers, skip this schedule
-      if (opts.targetAudienceType !== 'all_officers' && targetUsersForThisSchedule.length === 0) {
+      // If no targeted users are assigned to THIS schedule AND no additional recipients exist, skip this schedule (unless all_officers)
+      if (
+        opts.targetAudienceType !== 'all_officers' &&
+        targetUsersForThisSchedule.length === 0 &&
+        additionalTargetIdsSet.size === 0
+      ) {
         continue
       }
 
-      // Build target IDs strictly for users assigned to THIS schedule
+      // Build target IDs for users assigned to THIS schedule + additional target users (e.g. Secretary)
       const targetIdsSet = new Set<string>()
       targetUsersForThisSchedule.forEach(u => {
         const uMemberId = u.memberId ? String(u.memberId).trim() : ''
@@ -889,6 +921,9 @@ class NotificationService {
         if (uMemberId) targetIdsSet.add(uMemberId)
         if (uEmail) targetIdsSet.add(uEmail)
       })
+
+      // Merge additional targeted accounts
+      additionalTargetIdsSet.forEach(id => targetIdsSet.add(id))
 
       const targetIds = Array.from(targetIdsSet)
 
@@ -922,7 +957,8 @@ class NotificationService {
 
       await setDoc(notifRef, reminderPayload)
       totalReminded++
-      totalOfficers += targetUsersForThisSchedule.length > 0 ? targetUsersForThisSchedule.length : 1
+      const totalRecipientsCount = Math.max(1, targetUsersForThisSchedule.length + (opts.additionalUserIds?.length || 0))
+      totalOfficers += totalRecipientsCount
 
       const percent = Math.round(40 + ((i + 1) / pendingSchedules.length) * 55)
       onProgress?.({

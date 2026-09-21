@@ -7,6 +7,8 @@ import {
   notificationService, 
   type UntakenScheduleInfo 
 } from '@/services/notificationService'
+import { userService } from '@/services/userService'
+import type { UserProfile } from '@/types/auth'
 import type { Schedule } from '@/types/schedule'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
 import { formatReadableDate, getDayOfWeek } from '@/utils/communityReport'
@@ -126,10 +128,15 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
 
   const [loading, setLoading] = useState(true)
   const [untakenSchedules, setUntakenSchedules] = useState<UntakenScheduleInfo[]>([])
+  const [allUsers, setAllUsers] = useState<UserProfile[]>([])
 
   // Selection & Filter states
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<string[]>([])
   const [selectedRecipientKeys, setSelectedRecipientKeys] = useState<string[]>([])
+  const [selectedAdditionalUserIds, setSelectedAdditionalUserIds] = useState<string[]>([])
+  const [additionalUserSearch, setAdditionalUserSearch] = useState('')
+  const [recipientTab, setRecipientTab] = useState<'assigned' | 'additional'>('assigned')
+
   const [scheduleSearch, setScheduleSearch] = useState('')
   const [categoryFilter, setCategoryFilter] = useState<ScheduleCategoryFilter>('all')
   const [datePreset, setDatePreset] = useState<DatePresetFilter>('all')
@@ -151,7 +158,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
   const [isRecipientsSectionOpen, setIsRecipientsSectionOpen] = useState(true)
   const [isPreviewSectionOpen, setIsPreviewSectionOpen] = useState(true)
 
-  // Load untaken schedules & reminder template
+  // Load untaken schedules, registered users & reminder template
   useEffect(() => {
     if (!isOpen) return
 
@@ -164,6 +171,15 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
       })
       .catch(err => {
         console.error('Failed to load reminder template:', err)
+      })
+
+    // Fetch registered user profiles for additional recipients
+    userService.getUsers()
+      .then(usersData => {
+        if (isMounted) setAllUsers(usersData || [])
+      })
+      .catch(err => {
+        console.warn('Failed to load registered users:', err)
       })
 
     notificationService.getUntakenSchedules()
@@ -293,6 +309,45 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     return Array.from(map.values())
   }, [filteredSchedules, selectedScheduleObjects])
 
+  // Filtered registered users for additional recipients
+  const filteredAdditionalUsers = useMemo(() => {
+    return allUsers.filter(u => {
+      if (!additionalUserSearch.trim()) return true
+      const q = additionalUserSearch.toLowerCase().trim()
+      const dName = (u.displayName || '').toLowerCase()
+      const mName = (u.memberName || '').toLowerCase()
+      const email = (u.email || '').toLowerCase()
+      const role = (u.role || '').toLowerCase()
+      const preset = (u.presetName || '').toLowerCase()
+
+      return (
+        dName.includes(q) ||
+        mName.includes(q) ||
+        email.includes(q) ||
+        role.includes(q) ||
+        preset.includes(q)
+      )
+    })
+  }, [allUsers, additionalUserSearch])
+
+  // Selected additional user objects
+  const selectedAdditionalUserObjects = useMemo(() => {
+    const set = new Set(selectedAdditionalUserIds)
+    return allUsers.filter(u => set.has(u.uid))
+  }, [allUsers, selectedAdditionalUserIds])
+
+  // Total unique accounts count (assigned + additional, deduplicated)
+  const totalUniqueRecipientsCount = useMemo(() => {
+    const uniqueIdentifiers = new Set<string>()
+    selectedRecipientKeys.forEach(k => uniqueIdentifiers.add(k.toLowerCase().trim()))
+    selectedAdditionalUserObjects.forEach(u => {
+      if (u.uid) uniqueIdentifiers.add(u.uid.toLowerCase().trim())
+      if (u.email) uniqueIdentifiers.add(u.email.toLowerCase().trim())
+      if (u.memberId) uniqueIdentifiers.add(u.memberId.toLowerCase().trim())
+    })
+    return uniqueIdentifiers.size
+  }, [selectedRecipientKeys, selectedAdditionalUserObjects])
+
   // Auto-sync selected schedule IDs whenever category or date preset changes
   useEffect(() => {
     setSelectedScheduleIds(filteredSchedules.map(item => item.schedule.id))
@@ -346,6 +401,16 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
     }
   }
 
+  const handleToggleAdditionalUser = (uid: string) => {
+    setSelectedAdditionalUserIds(prev =>
+      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+    )
+  }
+
+  const handleClearAllAdditional = () => {
+    setSelectedAdditionalUserIds([])
+  }
+
   const handleCopy = async () => {
     if (selectedScheduleIds.length === 0) {
       toast.warning('Select Schedules', 'Please select at least one schedule to copy the reminder.')
@@ -368,8 +433,11 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
       toast.warning('Select Schedules', 'Please select at least one schedule to send reminders.')
       return
     }
-    if (selectedRecipientKeys.length === 0) {
-      toast.warning('Select Server Accounts', 'Please select at least one altar server account to receive the notification.')
+    if (selectedRecipientKeys.length === 0 && selectedAdditionalUserIds.length === 0) {
+      toast.warning(
+        'Select Recipient Accounts',
+        'Please select at least one assigned server account or additional user (e.g. Secretary) to receive the notification.'
+      )
       return
     }
 
@@ -395,6 +463,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
           customMessage: customNote,
           targetAudienceType: 'custom_members',
           customMemberIds: targetRecipientIds,
+          additionalUserIds: selectedAdditionalUserIds,
           performedBy: profile?.displayName || profile?.memberName || user?.email || 'Administrator'
         },
         (prog) => {
@@ -411,7 +480,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
       if (res.schedulesReminded > 0 || res.officersNotified > 0) {
         toast.success(
           'In-App Reminders Dispatched!',
-          `Sent in-app notification alerts for ${res.schedulesReminded} schedule(s) to ${selectedRecipientKeys.length} selected server account(s).`
+          `Sent in-app notification alerts for ${res.schedulesReminded} schedule(s) to ${totalUniqueRecipientsCount} recipient account(s).`
         )
       } else {
         toast.info('Completed', 'Notification process completed.')
@@ -713,72 +782,246 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
                       2. Target Accounts to Notify
                     </span>
                     <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-900 border border-amber-300 shrink-0">
-                      {selectedRecipientKeys.length}/{availableRecipientAccounts.length}
+                      {totalUniqueRecipientsCount} total
                     </span>
                   </div>
 
-                  {availableRecipientAccounts.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        handleToggleAllRecipients()
-                      }}
-                      className="text-[11px] font-extrabold text-amber-900 hover:underline cursor-pointer shrink-0"
-                    >
-                      {selectedRecipientKeys.length === availableRecipientAccounts.length ? 'Deselect All' : 'Select All'}
-                    </button>
-                  )}
+                  <div className="flex items-center gap-2 shrink-0">
+                    {recipientTab === 'assigned' && availableRecipientAccounts.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleToggleAllRecipients()
+                        }}
+                        className="text-[11px] font-extrabold text-amber-900 hover:underline cursor-pointer"
+                      >
+                        {selectedRecipientKeys.length === availableRecipientAccounts.length ? 'Deselect All' : 'Select All'}
+                      </button>
+                    )}
+                    {recipientTab === 'additional' && selectedAdditionalUserIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          handleClearAllAdditional()
+                        }}
+                        className="text-[11px] font-extrabold text-amber-900 hover:underline cursor-pointer"
+                      >
+                        Clear Additional ({selectedAdditionalUserIds.length})
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Collapsible Body */}
                 {isRecipientsSectionOpen && (
-                  <div className="p-3 space-y-2 bg-amber-50/20 animate-in fade-in duration-150">
-                    {availableRecipientAccounts.length === 0 ? (
-                      <div className="py-4 text-center text-xs text-slate-400 italic">
-                        No active server accounts linked to the selected schedules.
-                      </div>
-                    ) : (
-                      <div className="max-h-[170px] overflow-y-auto space-y-1.5 pr-1">
-                        {availableRecipientAccounts.map((acc) => {
-                          const isChecked = selectedRecipientKeys.includes(acc.key)
-                          return (
-                            <div
-                              key={acc.key}
-                              onClick={() => handleToggleRecipient(acc.key)}
-                              className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
-                                isChecked
-                                  ? 'bg-white border-amber-300 shadow-2xs'
-                                  : 'bg-amber-100/30 border-amber-200/60 opacity-60'
-                              }`}
-                            >
-                              <div className="flex items-center gap-2.5 min-w-0">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleRecipient(acc.key)
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                                />
-                                <div className="min-w-0">
-                                  <span className="text-xs font-bold text-slate-900 block truncate">
-                                    {acc.memberName}
-                                  </span>
-                                  <span className="text-[10px] text-slate-500 block truncate">
-                                    {acc.email || 'Registered Server Account'}
+                  <div className="p-3 space-y-3 bg-amber-50/20 animate-in fade-in duration-150">
+                    {/* Tab Switcher */}
+                    <div className="grid grid-cols-2 gap-1 p-1 bg-amber-100/70 rounded-xl border border-amber-200/80">
+                      <button
+                        type="button"
+                        onClick={() => setRecipientTab('assigned')}
+                        className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs transition-all cursor-pointer ${
+                          recipientTab === 'assigned'
+                            ? 'bg-white text-amber-950 shadow-xs font-extrabold'
+                            : 'text-amber-800 hover:text-amber-950 hover:bg-white/50 font-bold'
+                        }`}
+                      >
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                        </svg>
+                        <span>Assigned Servers</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                          recipientTab === 'assigned' ? 'bg-amber-100 text-amber-900' : 'bg-amber-200/70 text-amber-800'
+                        }`}>
+                          {selectedRecipientKeys.length}/{availableRecipientAccounts.length}
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setRecipientTab('additional')}
+                        className={`flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg text-xs transition-all cursor-pointer ${
+                          recipientTab === 'additional'
+                            ? 'bg-white text-indigo-950 shadow-xs font-extrabold'
+                            : 'text-slate-700 hover:text-slate-900 hover:bg-white/50 font-bold'
+                        }`}
+                      >
+                        <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zM4 19.235v-.11a6.375 6.375 0 0112.75 0v.109A12.318 12.318 0 0110.374 21c-2.331 0-4.512-.645-6.374-1.766z" />
+                        </svg>
+                        <span>Additional Accounts</span>
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${
+                          selectedAdditionalUserIds.length > 0 ? 'bg-indigo-600 text-white' : (recipientTab === 'additional' ? 'bg-slate-200 text-slate-800' : 'bg-slate-200/70 text-slate-600')
+                        }`}>
+                          {selectedAdditionalUserIds.length}
+                        </span>
+                      </button>
+                    </div>
+
+                    {/* TAB 1: Assigned Altar Server Accounts */}
+                    {recipientTab === 'assigned' && (
+                      <div>
+                        {availableRecipientAccounts.length === 0 ? (
+                          <div className="py-4 text-center text-xs text-slate-400 italic">
+                            No active server accounts linked to the selected schedules. You can select officers in the &quot;Additional Accounts&quot; tab.
+                          </div>
+                        ) : (
+                          <div className="max-h-[170px] overflow-y-auto space-y-1.5 pr-1">
+                            {availableRecipientAccounts.map((acc) => {
+                              const isChecked = selectedRecipientKeys.includes(acc.key)
+                              return (
+                                <div
+                                  key={acc.key}
+                                  onClick={() => handleToggleRecipient(acc.key)}
+                                  className={`flex items-center justify-between p-2.5 rounded-xl border transition-all cursor-pointer text-left ${
+                                    isChecked
+                                      ? 'bg-white border-amber-300 shadow-2xs'
+                                      : 'bg-amber-100/30 border-amber-200/60 opacity-60'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        e.stopPropagation()
+                                        handleToggleRecipient(acc.key)
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-3.5 w-3.5 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                                    />
+                                    <div className="min-w-0">
+                                      <span className="text-xs font-bold text-slate-900 block truncate">
+                                        {acc.memberName}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 block truncate">
+                                        {acc.email || 'Registered Server Account'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-200 shrink-0 ml-2">
+                                    {acc.scheduleTitles.length} duty
                                   </span>
                                 </div>
-                              </div>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
-                              <span className="text-[9px] font-extrabold px-2 py-0.5 rounded-md bg-amber-100 text-amber-900 border border-amber-200 shrink-0 ml-2">
-                                {acc.scheduleTitles.length} duty
+                    {/* TAB 2: Additional Accounts & Officers (Secretary, etc.) */}
+                    {recipientTab === 'additional' && (
+                      <div className="space-y-2.5">
+                        {/* Search Bar */}
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={additionalUserSearch}
+                            onChange={(e) => setAdditionalUserSearch(e.target.value)}
+                            placeholder="Search name, email, or role..."
+                            className="w-full text-xs rounded-xl border border-slate-200 bg-white pl-8 pr-7 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                          />
+                          <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                          </svg>
+                          {additionalUserSearch && (
+                            <button
+                              type="button"
+                              onClick={() => setAdditionalUserSearch('')}
+                              className="text-slate-400 hover:text-slate-600 absolute right-2.5 top-2 cursor-pointer p-0.5"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Selected Chips Bar */}
+                        {selectedAdditionalUserObjects.length > 0 && (
+                          <div className="flex flex-wrap gap-1 max-h-[56px] overflow-y-auto p-1.5 bg-white/90 rounded-xl border border-slate-200/80">
+                            {selectedAdditionalUserObjects.map(u => (
+                              <span
+                                key={u.uid}
+                                className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200"
+                              >
+                                <span className="truncate max-w-[120px]">{u.displayName || u.memberName || u.email}</span>
+                                {u.presetName && <span className="text-[9px] text-indigo-500">({u.presetName})</span>}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleAdditionalUser(u.uid)}
+                                  className="text-indigo-400 hover:text-indigo-700 ml-0.5 cursor-pointer p-0.5"
+                                >
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                </button>
                               </span>
-                            </div>
-                          )
-                        })}
+                            ))}
+                          </div>
+                        )}
+
+                        {/* User List */}
+                        {filteredAdditionalUsers.length === 0 ? (
+                          <div className="py-4 text-center text-xs text-slate-400 italic">
+                            No registered accounts match your search.
+                          </div>
+                        ) : (
+                          <div className="max-h-[160px] overflow-y-auto space-y-1.5 pr-1">
+                            {filteredAdditionalUsers.map(u => {
+                              const isChecked = selectedAdditionalUserIds.includes(u.uid)
+                              const roleLabel = u.presetName || u.role || 'Member'
+                              return (
+                                <div
+                                  key={u.uid}
+                                  onClick={() => handleToggleAdditionalUser(u.uid)}
+                                  className={`flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer text-left ${
+                                    isChecked
+                                      ? 'bg-indigo-50/90 border-indigo-300 shadow-2xs'
+                                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        e.stopPropagation()
+                                        handleToggleAdditionalUser(u.uid)
+                                      }}
+                                      onClick={(e) => e.stopPropagation()}
+                                      className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                                    />
+                                    <div className="min-w-0">
+                                      <span className="text-xs font-bold text-slate-900 block truncate">
+                                        {u.displayName || u.memberName || u.email}
+                                      </span>
+                                      <span className="text-[10px] text-slate-500 block truncate">
+                                        {u.email}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-md border shrink-0 ml-2 capitalize ${
+                                    roleLabel.toLowerCase().includes('sec')
+                                      ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                      : (roleLabel.toLowerCase().includes('admin')
+                                          ? 'bg-rose-50 text-rose-800 border-rose-200'
+                                          : (roleLabel.toLowerCase().includes('coord')
+                                              ? 'bg-purple-50 text-purple-800 border-purple-200'
+                                              : 'bg-slate-100 text-slate-700 border-slate-200'))
+                                  }`}>
+                                    {roleLabel}
+                                  </span>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -843,37 +1086,72 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
           </div>
         )}
 
-        {/* Progressive Progress Bar for Bulk Dispatching */}
+        {/* Dedicated Dispatch Progress Modal Overlay */}
         {sendProgress && (
-          <div className="rounded-2xl border border-blue-200 bg-gradient-to-r from-blue-50 via-indigo-50/70 to-blue-50 p-4 shadow-2xs animate-in fade-in slide-in-from-bottom-2 duration-200">
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="relative flex h-2.5 w-2.5 shrink-0">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-600"></span>
-                </span>
-                <p className="text-xs font-bold text-slate-800 truncate">
-                  {sendProgress.statusLabel || 'Sending reminders...'}
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+            <div className="w-full max-w-sm rounded-3xl bg-white p-6 shadow-2xl border border-slate-100 text-center space-y-4 animate-in zoom-in-95 duration-200">
+              {/* Icon Badge */}
+              <div className="flex justify-center">
+                {sendProgress.percentage >= 100 ? (
+                  <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shadow-sm animate-in zoom-in duration-300">
+                    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="relative w-16 h-16 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shadow-sm">
+                    <span className="animate-ping absolute inline-flex h-10 w-10 rounded-full bg-indigo-400 opacity-30"></span>
+                    <svg className="w-8 h-8 relative animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+                    </svg>
+                  </div>
+                )}
+              </div>
+
+              {/* Title & Status */}
+              <div className="space-y-1">
+                <h4 className="text-base font-black text-slate-900">
+                  {sendProgress.percentage >= 100 ? 'Reminders Dispatched!' : 'Sending In-App Reminders'}
+                </h4>
+                <p className="text-xs text-slate-500 font-medium px-2 truncate">
+                  {sendProgress.statusLabel || 'Delivering reminder notifications...'}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs font-black text-blue-700 font-mono bg-white px-2 py-0.5 rounded-md border border-blue-100 shadow-2xs">
-                  {sendProgress.percentage}%
+
+              {/* Progress Bar & Percentage */}
+              <div className="space-y-2 pt-1">
+                <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner p-0.5 border border-slate-200/60">
+                  <div
+                    className="bg-gradient-to-r from-blue-600 via-indigo-600 to-indigo-700 h-full rounded-full transition-all duration-300 ease-out shadow-xs"
+                    style={{ width: `${Math.min(100, Math.max(5, sendProgress.percentage))}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-xs font-bold text-slate-600 px-1">
+                  <span className="text-[11px] font-semibold text-slate-400">
+                    {sendProgress.current} of {sendProgress.total} schedules
+                  </span>
+                  <span className="text-indigo-600 font-mono font-black text-xs">
+                    {sendProgress.percentage}%
+                  </span>
+                </div>
+              </div>
+
+              {/* Status footer pill */}
+              <div className="pt-2">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-500 bg-slate-50 px-3 py-1 rounded-xl border border-slate-200/70">
+                  {sendProgress.percentage >= 100 ? (
+                    <span className="text-emerald-700">All notifications delivered successfully</span>
+                  ) : (
+                    <>
+                      <svg className="w-3 h-3 text-indigo-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth={4}></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+                      </svg>
+                      <span>Please wait while alerts are dispatching...</span>
+                    </>
+                  )}
                 </span>
               </div>
-            </div>
-
-            {/* Progressive Bar Track */}
-            <div className="w-full bg-slate-200/80 rounded-full h-2.5 overflow-hidden shadow-inner">
-              <div
-                className="bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 h-full rounded-full transition-all duration-300 ease-out shadow-xs"
-                style={{ width: `${Math.min(100, Math.max(5, sendProgress.percentage))}%` }}
-              />
-            </div>
-
-            <div className="flex items-center justify-between text-[10px] text-slate-500 font-semibold mt-2">
-              <span>Progress: {sendProgress.current} / {sendProgress.total} schedules processed</span>
-              <span>{sendProgress.percentage >= 100 ? '✅ Completed!' : '⚡ Dispatching alerts...'}</span>
             </div>
           </div>
         )}
@@ -881,10 +1159,10 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
         {/* Modal Action Buttons */}
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
           <div className="text-[11px] text-slate-500 font-medium">
-            {selectedRecipientKeys.length > 0 ? (
+            {totalUniqueRecipientsCount > 0 ? (
               <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                {selectedRecipientKeys.length} server account(s) selected for notification
+                {totalUniqueRecipientsCount} recipient account(s) selected ({selectedRecipientKeys.length} assigned + {selectedAdditionalUserIds.length} additional)
               </span>
             ) : (
               <span className="text-slate-400 italic">No accounts selected for notification</span>
@@ -926,7 +1204,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
               variant="primary"
               size="dense"
               onClick={handleSendInAppNotifications}
-              disabled={selectedScheduleIds.length === 0 || selectedRecipientKeys.length === 0 || isSendingNotifications}
+              disabled={selectedScheduleIds.length === 0 || totalUniqueRecipientsCount === 0 || isSendingNotifications}
               loading={isSendingNotifications}
               icon={
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -934,7 +1212,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
                 </svg>
               }
             >
-              Send In-App Notification ({selectedRecipientKeys.length})
+              Send In-App Notification ({totalUniqueRecipientsCount})
             </Button>
           </div>
         </div>
