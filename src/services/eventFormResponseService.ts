@@ -40,11 +40,12 @@ export const eventFormResponseService = {
         throw new Error('Form submission window has closed.')
       }
 
-      // --- Option Limits Backend Validation ---
+      // --- Option & Appointment Limits Backend Validation ---
       const questions = await eventFormQuestionService.getQuestionsByFormId(form.id)
       const limitedQuestions = questions.filter(q => q.optionLimits && Object.keys(q.optionLimits).length > 0)
+      const appointmentQuestions = questions.filter(q => q.type === 'appointment_slots' && q.appointmentConfig && q.appointmentConfig.length > 0)
 
-      if (limitedQuestions.length > 0) {
+      if (limitedQuestions.length > 0 || appointmentQuestions.length > 0) {
         const freshResponses = await this.getResponsesByFormId(form.id)
 
         for (const q of limitedQuestions) {
@@ -69,6 +70,29 @@ export const eventFormResponseService = {
                   throw new Error(`The option "${selOpt}" is already full (${maxLimit} max slots reached). Please select another option.`)
                 }
               }
+            }
+          }
+        }
+
+        for (const q of appointmentQuestions) {
+          const val = answers[q.id] as any
+          if (!val || typeof val !== 'object' || !val.slotId || !val.date) continue
+
+          const dateCfg = (q.appointmentConfig || []).find(d => d.date === val.date)
+          const slotCfg = dateCfg?.slots.find(s => s.id === val.slotId)
+
+          if (slotCfg && slotCfg.maxCapacity && slotCfg.maxCapacity > 0) {
+            const usedCount = freshResponses.reduce((count, r) => {
+              if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
+              const rAns = r.answers?.[q.id] as any
+              if (rAns && typeof rAns === 'object' && rAns.date === val.date && rAns.slotId === val.slotId) {
+                return count + 1
+              }
+              return count
+            }, 0)
+
+            if (usedCount >= slotCfg.maxCapacity) {
+              throw new Error(`The appointment slot "${val.timeRange || slotCfg.startTime}" on ${val.dateLabel || val.date} is already full (${slotCfg.maxCapacity} max capacity reached). Please select another slot.`)
             }
           }
         }
@@ -386,6 +410,13 @@ export const eventFormResponseService = {
             return `"${formattedCompanions.replace(/"/g, '""')}"`
           }
           return `"${val.join(', ').replace(/"/g, '""')}"`
+        }
+        if (typeof val === 'object' && val !== null) {
+          if (q.type === 'appointment_slots' || 'timeRange' in val) {
+            const appt = val as any
+            const formattedAppt = `${appt.date || ''} • ${appt.timeRange || ''}${appt.slotLabel ? ` (${appt.slotLabel})` : ''}`.trim()
+            return `"${formattedAppt.replace(/"/g, '""')}"`
+          }
         }
         return `"${String(val).replace(/"/g, '""')}"`
       })

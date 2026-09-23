@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry, AppointmentSlotAnswer } from '@/types/eventForm'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
@@ -36,6 +36,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<'responded' | 'pending' | 'all'>('responded')
   const [orderFilter, setOrderFilter] = useState<string>('all')
+  const [appointmentSlotFilter, setAppointmentSlotFilter] = useState<string>('all')
   const [selectedResponse, setSelectedResponse] = useState<EventFormResponse | null>(null)
   const [responseToEdit, setResponseToEdit] = useState<EventFormResponse | null>(null)
   const [responseToDelete, setResponseToDelete] = useState<EventFormResponse | null>(null)
@@ -129,6 +130,49 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
   const hasTargetMembers = questions.some(q => q.type === 'member_selector')
 
+  const appointmentQuestions = questions.filter(
+    q => q.type === 'appointment_slots' && q.appointmentConfig && q.appointmentConfig.length > 0
+  )
+
+  const formatQuestionAnswer = (q: EventFormQuestion, val: any): string => {
+    if (val === undefined || val === null || val === '') return '-'
+
+    if (q.type === 'appointment_slots') {
+      if (typeof val === 'object' && val.date && val.timeRange) {
+        const slotAns = val as AppointmentSlotAnswer
+        const dateText = slotAns.dateLabel ? `${slotAns.dateLabel} (${slotAns.date})` : slotAns.date
+        const labelText = slotAns.slotLabel ? ` [${slotAns.slotLabel}]` : ''
+        return `${dateText} • ${slotAns.timeRange}${labelText}`
+      }
+      return String(val)
+    }
+
+    if (q.type === 'companion_repeater' && Array.isArray(val)) {
+      return (val as unknown as CompanionEntry[])
+        .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
+        .join('; ')
+    }
+
+    if (q.type === 'member_selector' && typeof val === 'string') {
+      return membersMap[val] || val
+    }
+
+    if (typeof val === 'string' && membersMap[val]) {
+      return membersMap[val]
+    }
+
+    return Array.isArray(val) ? val.join(', ') : String(val)
+  }
+
+  const matchesSlotFilter = (r: EventFormResponse | undefined): boolean => {
+    if (appointmentSlotFilter === 'all') return true
+    if (!r || !r.answers) return false
+    const [filterQId, filterDate, filterSlotId] = appointmentSlotFilter.split('::')
+    const ans = r.answers[filterQId] as unknown as AppointmentSlotAnswer | undefined
+    if (!ans || typeof ans !== 'object') return false
+    return ans.date === filterDate && ans.slotId === filterSlotId
+  }
+
   // Find form target member filter from member_selector question if present
   const memberSelectorQ = questions.find(q => q.type === 'member_selector' && q.memberFilterType && q.memberFilterType !== 'all')
 
@@ -173,7 +217,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     }
   })
 
-  // Filter members based on order filter, tab filter, and search term
+  // Filter members based on order filter, tab filter, appointment slot filter, and search term
   const filteredMemberRows = memberRows.filter(row => {
     // 1. Order / Group Filter
     if (orderFilter !== 'all') {
@@ -193,7 +237,12 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     if (activeTab === 'responded' && !row.hasResponded) return false
     if (activeTab === 'pending' && row.hasResponded) return false
 
-    // 3. Search term
+    // 3. Appointment Slot Filter
+    if (appointmentSlotFilter !== 'all') {
+      if (!row.hasResponded || !matchesSlotFilter(row.response)) return false
+    }
+
+    // 4. Search term
     const term = searchTerm.toLowerCase()
     if (!term) return true
 
@@ -217,6 +266,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const guestResponses = responses.filter(r => !r.respondentMemberUid || !membersMap[r.respondentMemberUid])
   const filteredGuestResponses = guestResponses.filter(r => {
     if (activeTab === 'pending') return false
+    if (!matchesSlotFilter(r)) return false
     const term = searchTerm.toLowerCase()
     if (!term) return true
     const trackingMatch = (r.trackingNumber || '').toLowerCase().includes(term)
@@ -230,6 +280,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
   // Filter general submissions when there is no target member selector
   const filteredGeneralResponses = responses.filter(r => {
+    if (!matchesSlotFilter(r)) return false
     const term = searchTerm.toLowerCase().trim()
     if (!term) return true
     const nameMatch = (r.respondentMemberName || '').toLowerCase().includes(term)
@@ -431,54 +482,261 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                 })}
               </div>
 
-              {/* Search & Order Filter Controls */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
-                {/* Order Filter Dropdown */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <span className="text-xs font-bold text-slate-500 whitespace-nowrap shrink-0">Group:</span>
-                  <CustomSelect
-                    value={orderFilter}
-                    onChange={e => setOrderFilter(e.target.value)}
-                    options={[
-                      { value: 'all', label: 'All Groups' },
-                      ...ORDER_GROUPS.map(og => ({ value: og, label: og }))
-                    ]}
-                    className="w-full sm:w-44"
+                {/* Search & Order Filter Controls */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3 w-full lg:w-auto">
+                  {/* Appointment Slot Filter Dropdown */}
+                  {appointmentQuestions.length > 0 && (
+                    <div className="flex items-center gap-2 w-full sm:w-auto">
+                      <span className="text-xs font-bold text-slate-500 whitespace-nowrap shrink-0">Slot:</span>
+                      <CustomSelect
+                        value={appointmentSlotFilter}
+                        onChange={e => setAppointmentSlotFilter(e.target.value)}
+                        options={[
+                          { value: 'all', label: 'All Scheduled Slots' },
+                          ...appointmentQuestions.flatMap(q =>
+                            (q.appointmentConfig || []).flatMap(dateCfg =>
+                              dateCfg.slots.map(slot => ({
+                                value: `${q.id}::${dateCfg.date}::${slot.id}`,
+                                label: `${dateCfg.label ? `${dateCfg.label}: ` : `${dateCfg.date}: `}${slot.startTime}-${slot.endTime}${slot.label ? ` (${slot.label})` : ''}`
+                              }))
+                            )
+                          )
+                        ]}
+                        className="w-full sm:w-56"
+                      />
+                    </div>
+                  )}
+
+                  {/* Order Filter Dropdown */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto">
+                    <span className="text-xs font-bold text-slate-500 whitespace-nowrap shrink-0">Group:</span>
+                    <CustomSelect
+                      value={orderFilter}
+                      onChange={e => setOrderFilter(e.target.value)}
+                      options={[
+                        { value: 'all', label: 'All Groups' },
+                        ...ORDER_GROUPS.map(og => ({ value: og, label: og }))
+                      ]}
+                      className="w-full sm:w-44"
+                    />
+                  </div>
+
+                  {/* Search Input */}
+                  <input
+                    type="text"
+                    placeholder="Search member, order, answer..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="w-full sm:w-60 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
                   />
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold">
+                    All Responses ({filteredGeneralResponses.length})
+                  </span>
+
+                  {appointmentQuestions.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-bold text-slate-500 whitespace-nowrap">Slot:</span>
+                      <CustomSelect
+                        value={appointmentSlotFilter}
+                        onChange={e => setAppointmentSlotFilter(e.target.value)}
+                        options={[
+                          { value: 'all', label: 'All Scheduled Slots' },
+                          ...appointmentQuestions.flatMap(q =>
+                            (q.appointmentConfig || []).flatMap(dateCfg =>
+                              dateCfg.slots.map(slot => ({
+                                value: `${q.id}::${dateCfg.date}::${slot.id}`,
+                                label: `${dateCfg.label ? `${dateCfg.label}: ` : `${dateCfg.date}: `}${slot.startTime}-${slot.endTime}${slot.label ? ` (${slot.label})` : ''}`
+                              }))
+                            )
+                          )
+                        ]}
+                        className="w-48 sm:w-56"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Search Input */}
                 <input
                   type="text"
-                  placeholder="Search member, order, answer..."
+                  placeholder="Search responses by name, email, answer..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full sm:w-60 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-hidden"
+                  className="w-full sm:w-72 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                 />
               </div>
-            </>
-          ) : (
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
-              <div className="flex items-center space-x-2">
-                <span className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-xl text-xs font-bold">
-                  All Responses ({filteredGeneralResponses.length})
-                </span>
+            )}
+          </div>
+
+          {/* Content Table */}
+          <div className="flex-1 overflow-auto p-6 bg-slate-50">
+            {/* Appointment Schedule & Real-Time Slot Occupancy Overview */}
+            {!loading && appointmentQuestions.length > 0 && (
+              <div className="mb-5 bg-white p-4.5 rounded-2xl border border-indigo-200/80 shadow-xs space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-2.5">
+                  <div className="flex items-center space-x-2">
+                    <span className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                    </span>
+                    <div>
+                      <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                        Appointment & Time Slot Booking Capacity
+                      </h4>
+                      <span className="text-[11px] text-slate-500 font-medium">
+                        Click any slot to filter responses roster
+                      </span>
+                    </div>
+                  </div>
+                  {appointmentSlotFilter !== 'all' && (
+                    <button
+                      type="button"
+                      onClick={() => setAppointmentSlotFilter('all')}
+                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline self-start sm:self-auto cursor-pointer"
+                    >
+                      Clear Slot Filter
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-4">
+                  {appointmentQuestions.map(q => (
+                    <div key={q.id} className="space-y-3">
+                      <span className="text-xs font-bold text-indigo-900 block">{q.question}</span>
+                      <div className="space-y-3">
+                        {(q.appointmentConfig || []).map(dateCfg => {
+                          const totalBookingsForDate = responses.filter(r => {
+                            const ans = r.answers?.[q.id] as unknown as AppointmentSlotAnswer | undefined
+                            return ans?.date === dateCfg.date
+                          }).length
+
+                          return (
+                            <div key={dateCfg.id} className="bg-slate-50/60 p-3 rounded-xl border border-slate-200/80 space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-black text-slate-700 flex items-center gap-1.5">
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>{dateCfg.label ? `${dateCfg.label} (${dateCfg.date})` : dateCfg.date}</span>
+                                </span>
+                                <span className="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                                  {totalBookingsForDate} Booked Total
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                                {dateCfg.slots.map(slot => {
+                                  const filterKey = `${q.id}::${dateCfg.date}::${slot.id}`
+                                  const isActive = appointmentSlotFilter === filterKey
+
+                                  const bookedCount = responses.filter(r => {
+                                    const ans = r.answers?.[q.id] as unknown as AppointmentSlotAnswer | undefined
+                                    return ans?.date === dateCfg.date && ans?.slotId === slot.id
+                                  }).length
+
+                                  const maxCap = slot.maxCapacity || 0
+                                  const hasCap = maxCap > 0
+                                  const openSlots = hasCap ? Math.max(0, maxCap - bookedCount) : null
+                                  const percent = hasCap ? Math.min(100, Math.round((bookedCount / maxCap) * 100)) : 0
+                                  const isFull = hasCap && openSlots === 0
+
+                                  return (
+                                    <button
+                                      key={slot.id}
+                                      type="button"
+                                      onClick={() => setAppointmentSlotFilter(isActive ? 'all' : filterKey)}
+                                      className={`p-2.5 rounded-xl border transition cursor-pointer text-left ${
+                                        isActive
+                                          ? 'bg-indigo-600 text-white border-indigo-700 shadow-sm ring-2 ring-indigo-400/50'
+                                          : isFull
+                                          ? 'bg-rose-50/60 border-rose-200 hover:border-rose-300'
+                                          : openSlots !== null && openSlots <= 3
+                                          ? 'bg-amber-50/60 border-amber-200 hover:border-amber-300'
+                                          : 'bg-white border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/30'
+                                      }`}
+                                    >
+                                      <div className="flex items-center justify-between mb-1">
+                                        <span className={`font-black text-xs truncate max-w-[130px] ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                                          {slot.startTime} - {slot.endTime}
+                                        </span>
+                                        {hasCap ? (
+                                          isFull ? (
+                                            <span className={`text-[10px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${isActive ? 'bg-white text-rose-700' : 'bg-rose-100 text-rose-700 border border-rose-200'}`}>
+                                              FULL
+                                            </span>
+                                          ) : (
+                                            <span
+                                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${
+                                                isActive
+                                                  ? 'bg-indigo-700 text-white border-indigo-500'
+                                                  : openSlots! <= 3
+                                                  ? 'bg-amber-100 text-amber-800 border-amber-200'
+                                                  : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                                              }`}
+                                            >
+                                              {openSlots} left
+                                            </span>
+                                          )
+                                        ) : (
+                                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? 'bg-indigo-700 text-indigo-100' : 'bg-slate-200 text-slate-700'}`}>
+                                            Unlimited
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {slot.label && (
+                                        <div className={`text-[11px] truncate font-medium mb-1 ${isActive ? 'text-indigo-100' : 'text-slate-600'}`}>
+                                          {slot.label}
+                                        </div>
+                                      )}
+
+                                      {hasCap && (
+                                        <div className="mt-1">
+                                          <div className={`w-full h-1.5 rounded-full overflow-hidden mb-1 ${isActive ? 'bg-indigo-800' : 'bg-slate-200'}`}>
+                                            <div
+                                              className={`h-full rounded-full transition-all duration-300 ${
+                                                isActive
+                                                  ? 'bg-white'
+                                                  : isFull
+                                                  ? 'bg-rose-500'
+                                                  : percent >= 75
+                                                  ? 'bg-amber-500'
+                                                  : 'bg-emerald-500'
+                                              }`}
+                                              style={{ width: `${percent}%` }}
+                                            />
+                                          </div>
+                                          <div className={`flex items-center justify-between text-[10px] font-medium ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                            <span>{bookedCount} / {maxCap}</span>
+                                            <span>{percent}%</span>
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {!hasCap && (
+                                        <div className={`text-[10px] font-medium mt-1 ${isActive ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                          {bookedCount} booked
+                                        </div>
+                                      )}
+                                    </button>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-
-              {/* Search Input */}
-              <input
-                type="text"
-                placeholder="Search responses by name, email, answer..."
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                className="w-full sm:w-72 p-2 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
-              />
-            </div>
-          )}
-        </div>
-
-        {/* Content Table */}
-        <div className="flex-1 overflow-auto p-6 bg-slate-50">
+            )}
           {/* Category Slot Capacity & Open Slots Overview */}
           {!loading && questions.some(q => q.optionLimits && Object.keys(q.optionLimits).length > 0) && (
             <div className="mb-5 bg-white p-4.5 rounded-2xl border border-slate-200 shadow-xs space-y-3">
@@ -640,20 +898,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                                 return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
                               }
                               const val = r.answers[q.id]
-                              let displayVal = '-'
-                              if (val !== undefined && val !== null && val !== '') {
-                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                  displayVal = (val as unknown as CompanionEntry[])
-                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                    .join('; ')
-                                } else if (q.type === 'member_selector' && typeof val === 'string') {
-                                  displayVal = membersMap[val] || val
-                                } else if (typeof val === 'string' && membersMap[val]) {
-                                  displayVal = membersMap[val]
-                                } else {
-                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                                }
-                              }
+                              const displayVal = formatQuestionAnswer(q, val)
                               return (
                                 <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
                                   {displayVal}
@@ -727,16 +972,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                             </td>
                             {questions.map(q => {
                               const val = r.answers[q.id]
-                              let displayVal = '-'
-                              if (val !== undefined && val !== null && val !== '') {
-                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                  displayVal = (val as unknown as CompanionEntry[])
-                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                    .join('; ')
-                                } else {
-                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                                }
-                              }
+                              const displayVal = formatQuestionAnswer(q, val)
                               return (
                                 <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
                                   {displayVal}
@@ -823,20 +1059,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                           <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
                             {questions.slice(0, 3).map(q => {
                               const val = r.answers[q.id]
-                              let displayVal = '-'
-                              if (val !== undefined && val !== null && val !== '') {
-                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                  displayVal = (val as unknown as CompanionEntry[])
-                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}`)
-                                    .join('; ')
-                                } else if (q.type === 'member_selector' && typeof val === 'string') {
-                                  displayVal = membersMap[val] || val
-                                } else if (typeof val === 'string' && membersMap[val]) {
-                                  displayVal = membersMap[val]
-                                } else {
-                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                                }
-                              }
+                              const displayVal = formatQuestionAnswer(q, val)
                               return (
                                 <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                                   <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
@@ -922,10 +1145,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                         <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
                           {questions.slice(0, 3).map(q => {
                             const val = r.answers[q.id]
-                            let displayVal = '-'
-                            if (val !== undefined && val !== null && val !== '') {
-                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                            }
+                            const displayVal = formatQuestionAnswer(q, val)
                             return (
                               <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                                 <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
@@ -1024,20 +1244,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                             </td>
                             {questions.map(q => {
                               const val = r.answers[q.id]
-                              let displayVal = '-'
-                              if (val !== undefined && val !== null && val !== '') {
-                                if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                                  displayVal = (val as unknown as CompanionEntry[])
-                                    .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                                    .join('; ')
-                                } else if (q.type === 'member_selector' && typeof val === 'string') {
-                                  displayVal = membersMap[val] || val
-                                } else if (typeof val === 'string' && membersMap[val]) {
-                                  displayVal = membersMap[val]
-                                } else {
-                                  displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                                }
-                              }
+                              const displayVal = formatQuestionAnswer(q, val)
                               return (
                                 <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
                                   {displayVal}
@@ -1117,10 +1324,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                         <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
                           {questions.slice(0, 3).map(q => {
                             const val = r.answers[q.id]
-                            let displayVal = '-'
-                            if (val !== undefined && val !== null && val !== '') {
-                              displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                            }
+                            const displayVal = formatQuestionAnswer(q, val)
                             return (
                               <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
                                 <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
@@ -1198,9 +1402,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               <button
                 type="button"
                 onClick={() => setSelectedResponse(null)}
-                className="text-slate-400 hover:text-slate-600 font-bold p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
               >
-                ✕
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -1214,20 +1420,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                 <h4 className="font-bold text-slate-800 uppercase tracking-wider text-[11px]">Submitted Answers</h4>
                 {questions.map((q, idx) => {
                   const val = selectedResponse.answers[q.id]
-                  let displayVal = '-'
-                  if (val !== undefined && val !== null && val !== '') {
-                    if (q.type === 'companion_repeater' && Array.isArray(val)) {
-                      displayVal = (val as unknown as CompanionEntry[])
-                        .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
-                        .join('; ')
-                    } else if (q.type === 'member_selector' && typeof val === 'string') {
-                      displayVal = membersMap[val] || val
-                    } else if (typeof val === 'string' && membersMap[val]) {
-                      displayVal = membersMap[val]
-                    } else {
-                      displayVal = Array.isArray(val) ? val.join(', ') : String(val)
-                    }
-                  }
+                  const displayVal = formatQuestionAnswer(q, val)
 
                   return (
                     <div key={q.id} className="p-3 border border-slate-200 rounded-xl bg-white space-y-1">
@@ -1317,9 +1510,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
               <button
                 type="button"
                 onClick={() => setExportPdfModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
+                className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 cursor-pointer shrink-0"
               >
-                ✕
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
             </div>
 
@@ -1366,6 +1561,24 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                             options={[
                               { value: '', label: 'Select option...' },
                               ...selQ.options.map(opt => ({ value: opt, label: opt }))
+                            ]}
+                          />
+                        )
+                      }
+                      if (selQ && selQ.type === 'appointment_slots' && selQ.appointmentConfig) {
+                        const slotOptions = selQ.appointmentConfig.flatMap(dateCfg =>
+                          dateCfg.slots.map(slot => ({
+                            value: `${dateCfg.date}|${slot.id}`,
+                            label: `${dateCfg.label ? `${dateCfg.label}: ` : `${dateCfg.date}: `}${slot.startTime}-${slot.endTime}${slot.label ? ` (${slot.label})` : ''}`
+                          }))
+                        )
+                        return (
+                          <CustomSelect
+                            value={pdfFilterValue}
+                            onChange={e => setPdfFilterValue(e.target.value)}
+                            options={[
+                              { value: '', label: 'Select appointment slot...' },
+                              ...slotOptions
                             ]}
                           />
                         )

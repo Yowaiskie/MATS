@@ -149,9 +149,11 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
                 <span
                   onClick={handleClear}
                   title="Clear selection"
-                  className="text-[10px] font-bold text-slate-400 hover:text-rose-600 px-1.5 py-0.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                  className="text-[10px] font-bold text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition cursor-pointer flex items-center justify-center"
                 >
-                  ✕
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </span>
               )}
               <span className="text-[10px] font-extrabold text-indigo-600 bg-white px-2.5 py-1 rounded-xl border border-indigo-200 shadow-xs">
@@ -164,7 +166,14 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
             <span className="text-xs font-bold text-slate-400 truncate">
               {placeholder}
             </span>
-            <span className={`text-xs text-slate-400 font-bold shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`}>▼</span>
+            <svg
+              className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         )}
       </button>
@@ -177,9 +186,12 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md cursor-pointer"
+              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer"
             >
-              Close ✕
+              <span>Close</span>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 

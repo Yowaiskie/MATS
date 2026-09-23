@@ -7,7 +7,9 @@ import type {
   ConditionOperator,
   FormPurposeTag,
   FormContactItem,
-  ContactType
+  ContactType,
+  AppointmentDateConfig,
+  AppointmentTimeSlot
 } from '@/types/eventForm'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
@@ -32,6 +34,7 @@ const QUESTION_TYPES: { type: QuestionType; label: string; group: string; descri
   { type: 'number', label: 'Number', group: 'Text & Input', description: 'Numeric value or age' },
   { type: 'date', label: 'Date', group: 'Date & Time', description: 'Date selection input' },
   { type: 'time', label: 'Time', group: 'Date & Time', description: 'Time selection input' },
+  { type: 'appointment_slots', label: 'Appointment & Time Slots', group: 'Date & Time', description: 'Event date & time slot booking with slot capacity' },
   { type: 'name_selector', label: 'Participant Name', group: 'MATS Selectors', description: 'Full name of respondent' },
   { type: 'member_selector', label: 'Member Selector', group: 'MATS Selectors', description: 'Select active member from MATS DB' },
   { type: 'relationship_selector', label: 'Relationship Selector', group: 'MATS Selectors', description: 'Relationship to participant' },
@@ -115,6 +118,13 @@ const QuestionTypeIcon: React.FC<{ type: QuestionType; className?: string }> = (
       return (
         <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      )
+    case 'appointment_slots':
+      return (
+        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v3l2 2" />
         </svg>
       )
     case 'name_selector':
@@ -216,6 +226,15 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null)
 
+  // Bulk Time Slot Generator State
+  const [bulkGenQuestionId, setBulkGenQuestionId] = useState<string | null>(null)
+  const [bulkGenDate, setBulkGenDate] = useState(new Date().toISOString().split('T')[0])
+  const [bulkGenDateLabel, setBulkGenDateLabel] = useState('Day 1')
+  const [bulkGenStartTime, setBulkGenStartTime] = useState('08:00')
+  const [bulkGenEndTime, setBulkGenEndTime] = useState('17:00')
+  const [bulkGenIntervalMinutes, setBulkGenIntervalMinutes] = useState(60)
+  const [bulkGenCapacity, setBulkGenCapacity] = useState(10)
+
   useEffect(() => {
     if (formToEdit?.id) {
       queryClient
@@ -229,14 +248,14 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
           if (qs.length > 0) setActiveQuestionId(qs[0].id)
         })
     } else {
-      const initQId = `q_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
+      const initQId = `q_${Date.now()}`
       const defaultQ: EventFormQuestion = {
         id: initQId,
         formId: '',
         eventId,
-        type: 'member_selector',
-        question: 'Select Participant Name',
-        description: 'Please select your registered MATS member profile',
+        type: 'name_selector',
+        question: 'Full Name',
+        description: 'Please enter your complete name (Last Name, First Name)',
         required: true,
         order: 0
       }
@@ -268,6 +287,75 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
     setContacts(prev => prev.filter(c => c.id !== id))
   }
 
+  const handleGenerateBulkSlots = (qId: string) => {
+    const q = questions.find(item => item.id === qId)
+    if (!q) return
+
+    const formatTime = (mins: number) => {
+      const h = Math.floor(mins / 60)
+      const m = mins % 60
+      const period = h >= 12 ? 'PM' : 'AM'
+      const displayH = h === 0 ? 12 : h > 12 ? h - 12 : h
+      return `${displayH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')} ${period}`
+    }
+
+    const [startH, startM] = bulkGenStartTime.split(':').map(Number)
+    const [endH, endM] = bulkGenEndTime.split(':').map(Number)
+    const startTotal = (startH || 8) * 60 + (startM || 0)
+    const endTotal = (endH || 17) * 60 + (endM || 0)
+    const interval = Math.max(15, bulkGenIntervalMinutes || 60)
+
+    const generatedSlots: AppointmentTimeSlot[] = []
+    let current = startTotal
+    let batchIndex = 1
+
+    while (current + interval <= endTotal) {
+      const slotStart = formatTime(current)
+      const slotEnd = formatTime(current + interval)
+      generatedSlots.push({
+        id: `slot_${Date.now()}_${batchIndex}`,
+        startTime: slotStart,
+        endTime: slotEnd,
+        label: `Batch ${batchIndex}`,
+        maxCapacity: bulkGenCapacity > 0 ? bulkGenCapacity : undefined
+      })
+      current += interval
+      batchIndex++
+    }
+
+    if (generatedSlots.length === 0) {
+      toast.warning('Invalid Time Range', 'End time must be greater than start time by at least 1 interval.')
+      return
+    }
+
+    const currentConfigs = q.appointmentConfig || []
+    const existingDateIdx = currentConfigs.findIndex(d => d.date === bulkGenDate)
+
+    let updatedConfigs: AppointmentDateConfig[]
+    if (existingDateIdx !== -1) {
+      updatedConfigs = [...currentConfigs]
+      updatedConfigs[existingDateIdx] = {
+        ...updatedConfigs[existingDateIdx],
+        label: bulkGenDateLabel || updatedConfigs[existingDateIdx].label,
+        slots: [...updatedConfigs[existingDateIdx].slots, ...generatedSlots]
+      }
+    } else {
+      updatedConfigs = [
+        ...currentConfigs,
+        {
+          id: `date_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
+          date: bulkGenDate,
+          label: bulkGenDateLabel || `Day ${currentConfigs.length + 1}`,
+          slots: generatedSlots
+        }
+      ]
+    }
+
+    handleUpdateQuestion(qId, { appointmentConfig: updatedConfigs })
+    toast.success('Slots Generated', `Generated ${generatedSlots.length} time slots for ${bulkGenDate}.`)
+    setBulkGenQuestionId(null)
+  }
+
   const handleAddQuestion = (type: QuestionType = 'short_text', afterIndex?: number) => {
     const newId = `q_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`
     const defaultOptions =
@@ -275,6 +363,22 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         ? ['Guardian', 'Parent', 'Sibling', 'Relative']
         : type === 'multiple_choice' || type === 'dropdown' || type === 'checkbox'
         ? ['Option 1', 'Option 2']
+        : undefined
+
+    const defaultAppointmentConfig: AppointmentDateConfig[] | undefined =
+      type === 'appointment_slots'
+        ? [
+            {
+              id: 'date_' + Date.now(),
+              date: new Date().toISOString().split('T')[0],
+              label: 'Day 1',
+              slots: [
+                { id: 'slot_1', startTime: '09:00 AM', endTime: '10:00 AM', label: 'Morning Session 1', maxCapacity: 10 },
+                { id: 'slot_2', startTime: '10:00 AM', endTime: '11:00 AM', label: 'Morning Session 2', maxCapacity: 10 },
+                { id: 'slot_3', startTime: '01:00 PM', endTime: '02:00 PM', label: 'Afternoon Session 1', maxCapacity: 10 }
+              ]
+            }
+          ]
         : undefined
 
     const newQuestion: EventFormQuestion = {
@@ -286,7 +390,8 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
       description: '',
       required: false,
       order: questions.length,
-      options: defaultOptions
+      options: defaultOptions,
+      appointmentConfig: defaultAppointmentConfig
     }
 
     if (afterIndex !== undefined && afterIndex >= 0 && afterIndex < questions.length) {
@@ -1031,6 +1136,425 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                           </div>
                         )}
 
+                        {/* Appointment & Time Slots Config */}
+                        {q.type === 'appointment_slots' && (
+                          <div className="p-4 bg-indigo-50/40 border border-indigo-200/80 rounded-2xl space-y-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-100 pb-3">
+                              <div>
+                                <div className="flex items-center gap-1.5">
+                                  <QuestionTypeIcon type="appointment_slots" className="w-4 h-4 text-indigo-600" />
+                                  <h4 className="text-xs font-black text-indigo-950">Appointment Dates & Time Slots</h4>
+                                </div>
+                                <p className="text-[11px] text-slate-500 mt-0.5">
+                                  Define event dates, appointment time windows, and slot capacity limits.
+                                </p>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setBulkGenQuestionId(q.id)
+                                    setBulkGenDate(new Date().toISOString().split('T')[0])
+                                  }}
+                                  className="px-2.5 py-1.5 rounded-xl bg-white hover:bg-indigo-50 border border-indigo-300 text-indigo-700 text-xs font-bold shadow-2xs transition cursor-pointer flex items-center gap-1.5"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                  </svg>
+                                  <span>Bulk Slot Generator</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const configs = q.appointmentConfig || []
+                                    const nextDay = new Date()
+                                    nextDay.setDate(nextDay.getDate() + configs.length)
+                                    const newDateStr = nextDay.toISOString().split('T')[0]
+                                    const newDateItem: AppointmentDateConfig = {
+                                      id: 'date_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                                      date: newDateStr,
+                                      label: `Day ${configs.length + 1}`,
+                                      slots: [
+                                        { id: 'slot_1', startTime: '09:00 AM', endTime: '10:00 AM', label: 'Morning Session 1', maxCapacity: 10 },
+                                        { id: 'slot_2', startTime: '10:00 AM', endTime: '11:00 AM', label: 'Morning Session 2', maxCapacity: 10 }
+                                      ]
+                                    }
+                                    handleUpdateQuestion(q.id, { appointmentConfig: [...configs, newDateItem] })
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer flex items-center gap-1"
+                                >
+                                  <span>+ Add Date</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Bulk Generator Inline Drawer */}
+                            {bulkGenQuestionId === q.id && (
+                              <div className="p-4 bg-white border border-indigo-300 rounded-2xl shadow-xs space-y-3 animate-in fade-in duration-150">
+                                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                                    </svg>
+                                    <span className="text-xs font-black text-indigo-900">Bulk Time Slot Generator</span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setBulkGenQuestionId(null)}
+                                    className="text-xs font-bold text-slate-400 hover:text-slate-600 cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Date:</label>
+                                    <input
+                                      type="date"
+                                      value={bulkGenDate}
+                                      onChange={e => setBulkGenDate(e.target.value)}
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Date Label (Optional):</label>
+                                    <input
+                                      type="text"
+                                      value={bulkGenDateLabel}
+                                      onChange={e => setBulkGenDateLabel(e.target.value)}
+                                      placeholder="e.g. Day 1 - Pax Tecum"
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Slot Capacity (Pax):</label>
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      value={bulkGenCapacity}
+                                      onChange={e => setBulkGenCapacity(parseInt(e.target.value) || 0)}
+                                      placeholder="0 = Unlimited"
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Start Time (24h):</label>
+                                    <input
+                                      type="time"
+                                      value={bulkGenStartTime}
+                                      onChange={e => setBulkGenStartTime(e.target.value)}
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">End Time (24h):</label>
+                                    <input
+                                      type="time"
+                                      value={bulkGenEndTime}
+                                      onChange={e => setBulkGenEndTime(e.target.value)}
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="text-[11px] font-bold text-slate-700 block mb-1">Slot Duration:</label>
+                                    <select
+                                      value={bulkGenIntervalMinutes}
+                                      onChange={e => setBulkGenIntervalMinutes(parseInt(e.target.value))}
+                                      className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                    >
+                                      <option value="15">Every 15 minutes</option>
+                                      <option value="30">Every 30 minutes</option>
+                                      <option value="45">Every 45 minutes</option>
+                                      <option value="60">Every 1 hour (60m)</option>
+                                      <option value="90">Every 1.5 hours (90m)</option>
+                                      <option value="120">Every 2 hours (120m)</option>
+                                    </select>
+                                  </div>
+                                </div>
+
+                                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                                  <button
+                                    type="button"
+                                    onClick={() => setBulkGenQuestionId(null)}
+                                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGenerateBulkSlots(q.id)}
+                                    className="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black shadow-xs transition cursor-pointer"
+                                  >
+                                    Generate Time Slots
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Configured Dates List */}
+                            {(!q.appointmentConfig || q.appointmentConfig.length === 0) ? (
+                              <div className="p-6 text-center border-2 border-dashed border-indigo-200 rounded-2xl bg-white/60">
+                                <p className="text-xs font-bold text-slate-600">No appointment dates configured yet.</p>
+                                <p className="text-[11px] text-slate-400 mt-0.5">Click "+ Add Date" or use the Bulk Slot Generator above.</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-4">
+                                {q.appointmentConfig.map((dateConfig, dIdx) => (
+                                  <div
+                                    key={dateConfig.id || dIdx}
+                                    className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-3"
+                                  >
+                                    {/* Date Header Row */}
+                                    <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+                                      <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+                                        <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs">
+                                          {dIdx + 1}
+                                        </span>
+                                        <input
+                                          type="date"
+                                          value={dateConfig.date}
+                                          onChange={e => {
+                                            const updated = [...(q.appointmentConfig || [])]
+                                            updated[dIdx] = { ...updated[dIdx], date: e.target.value }
+                                            handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                          }}
+                                          className="p-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                        <input
+                                          type="text"
+                                          value={dateConfig.label || ''}
+                                          onChange={e => {
+                                            const updated = [...(q.appointmentConfig || [])]
+                                            updated[dIdx] = { ...updated[dIdx], label: e.target.value }
+                                            handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                          }}
+                                          placeholder="Date label (e.g. Day 1, Saturday Batch)"
+                                          className="flex-1 min-w-[140px] p-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:bg-white focus:ring-1 focus:ring-indigo-500"
+                                        />
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5">
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const configs = [...(q.appointmentConfig || [])]
+                                            const newDateItem: AppointmentDateConfig = {
+                                              ...dateConfig,
+                                              id: 'date_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                                              label: (dateConfig.label || '') + ' (Copy)',
+                                              slots: dateConfig.slots.map((s, sI) => ({
+                                                ...s,
+                                                id: `slot_${Date.now()}_${sI}`
+                                              }))
+                                            }
+                                            configs.splice(dIdx + 1, 0, newDateItem)
+                                            handleUpdateQuestion(q.id, { appointmentConfig: configs })
+                                            toast.success('Date Duplicated', 'Duplicated event date and its time slots.')
+                                          }}
+                                          className="px-2 py-1 rounded-lg text-[11px] font-bold text-slate-600 hover:bg-slate-100 border border-slate-200 cursor-pointer"
+                                          title="Duplicate Date"
+                                        >
+                                          Duplicate
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const configs = (q.appointmentConfig || []).filter((_, idx) => idx !== dIdx)
+                                            handleUpdateQuestion(q.id, { appointmentConfig: configs })
+                                          }}
+                                          className="p-1 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 cursor-pointer transition"
+                                          title="Delete Date"
+                                        >
+                                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                          </svg>
+                                        </button>
+                                      </div>
+                                    </div>
+
+                                    {/* Slots List for this Date */}
+                                    <div className="space-y-2">
+                                      <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 px-1">
+                                        <span>Time Slots ({dateConfig.slots.length})</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            const updated = [...(q.appointmentConfig || [])]
+                                            const newSlot: AppointmentTimeSlot = {
+                                              id: 'slot_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                                              startTime: '09:00 AM',
+                                              endTime: '10:00 AM',
+                                              label: `Batch ${dateConfig.slots.length + 1}`,
+                                              maxCapacity: 10
+                                            }
+                                            updated[dIdx] = {
+                                              ...updated[dIdx],
+                                              slots: [...updated[dIdx].slots, newSlot]
+                                            }
+                                            handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                          }}
+                                          className="text-indigo-600 hover:underline cursor-pointer font-bold"
+                                        >
+                                          + Add Time Slot
+                                        </button>
+                                      </div>
+
+                                      {dateConfig.slots.length === 0 ? (
+                                        <div className="p-3 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                                          No time slots for this date. Click "+ Add Time Slot" above.
+                                        </div>
+                                      ) : (
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                          {dateConfig.slots.map((slot, sIdx) => (
+                                            <div
+                                              key={slot.id || sIdx}
+                                              className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/70 hover:bg-slate-50 transition space-y-1.5"
+                                            >
+                                              <div className="flex items-center justify-between gap-1">
+                                                <span className="text-[10px] font-black text-indigo-700 bg-indigo-100/70 px-1.5 py-0.5 rounded-md">
+                                                  #{sIdx + 1}
+                                                </span>
+                                                <input
+                                                  type="text"
+                                                  value={slot.label || ''}
+                                                  onChange={e => {
+                                                    const updated = [...(q.appointmentConfig || [])]
+                                                    const slots = [...updated[dIdx].slots]
+                                                    slots[sIdx] = { ...slots[sIdx], label: e.target.value }
+                                                    updated[dIdx] = { ...updated[dIdx], slots }
+                                                    handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                                  }}
+                                                  placeholder="Slot Label (e.g. Morning Batch)"
+                                                  className="flex-1 p-1 text-[11px] bg-white border border-slate-200 rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                                                />
+                                                <button
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const updated = [...(q.appointmentConfig || [])]
+                                                    const slots = updated[dIdx].slots.filter((_, idx) => idx !== sIdx)
+                                                    updated[dIdx] = { ...updated[dIdx], slots }
+                                                    handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                                  }}
+                                                  className="text-slate-400 hover:text-red-600 p-0.5 rounded cursor-pointer"
+                                                  title="Delete Slot"
+                                                >
+                                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                                  </svg>
+                                                </button>
+                                              </div>
+
+                                              <div className="grid grid-cols-3 gap-1.5">
+                                                <div>
+                                                  <label className="text-[9px] font-bold text-slate-500 block">Start:</label>
+                                                  <input
+                                                    type="text"
+                                                    value={slot.startTime}
+                                                    onChange={e => {
+                                                      const updated = [...(q.appointmentConfig || [])]
+                                                      const slots = [...updated[dIdx].slots]
+                                                      slots[sIdx] = { ...slots[sIdx], startTime: e.target.value }
+                                                      updated[dIdx] = { ...updated[dIdx], slots }
+                                                      handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                                    }}
+                                                    placeholder="09:00 AM"
+                                                    className="w-full p-1 text-[11px] font-bold bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="text-[9px] font-bold text-slate-500 block">End:</label>
+                                                  <input
+                                                    type="text"
+                                                    value={slot.endTime}
+                                                    onChange={e => {
+                                                      const updated = [...(q.appointmentConfig || [])]
+                                                      const slots = [...updated[dIdx].slots]
+                                                      slots[sIdx] = { ...slots[sIdx], endTime: e.target.value }
+                                                      updated[dIdx] = { ...updated[dIdx], slots }
+                                                      handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                                    }}
+                                                    placeholder="10:00 AM"
+                                                    className="w-full p-1 text-[11px] font-bold bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                                                  />
+                                                </div>
+                                                <div>
+                                                  <label className="text-[9px] font-bold text-slate-500 block">Capacity:</label>
+                                                  <input
+                                                    type="number"
+                                                    min="0"
+                                                    value={slot.maxCapacity === undefined ? '' : slot.maxCapacity}
+                                                    onChange={e => {
+                                                      const val = e.target.value === '' ? undefined : parseInt(e.target.value) || 0
+                                                      const updated = [...(q.appointmentConfig || [])]
+                                                      const slots = [...updated[dIdx].slots]
+                                                      slots[sIdx] = { ...slots[sIdx], maxCapacity: val }
+                                                      updated[dIdx] = { ...updated[dIdx], slots }
+                                                      handleUpdateQuestion(q.id, { appointmentConfig: updated })
+                                                    }}
+                                                    placeholder="Pax (0 = ∞)"
+                                                    className="w-full p-1 text-[11px] font-bold bg-white border border-slate-200 rounded-lg text-slate-900 focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
+                                                  />
+                                                </div>
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {/* Full Slot Behavior */}
+                            <div className="p-3 bg-white border border-indigo-200 rounded-xl space-y-2">
+                              <label className="text-[11px] font-bold text-slate-700 block">
+                                When a Time Slot Reaches Max Capacity:
+                              </label>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                <label
+                                  className={`flex items-center gap-1.5 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                                    (q.fullOptionBehavior || 'disable') === 'disable'
+                                      ? 'bg-indigo-100/80 border-indigo-400 text-indigo-900 font-bold'
+                                      : 'bg-white border-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`full_slot_behavior_${q.id}`}
+                                    checked={(q.fullOptionBehavior || 'disable') === 'disable'}
+                                    onChange={() => handleUpdateQuestion(q.id, { fullOptionBehavior: 'disable' })}
+                                    className="h-3.5 w-3.5 text-indigo-600"
+                                  />
+                                  <span>Disable Slot (Show "FULL" Badge)</span>
+                                </label>
+
+                                <label
+                                  className={`flex items-center gap-1.5 p-2 rounded-lg border text-xs cursor-pointer transition ${
+                                    q.fullOptionBehavior === 'hide'
+                                      ? 'bg-indigo-100/80 border-indigo-400 text-indigo-900 font-bold'
+                                      : 'bg-white border-slate-200 text-slate-600'
+                                  }`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`full_slot_behavior_${q.id}`}
+                                    checked={q.fullOptionBehavior === 'hide'}
+                                    onChange={() => handleUpdateQuestion(q.id, { fullOptionBehavior: 'hide' })}
+                                    className="h-3.5 w-3.5 text-indigo-600"
+                                  />
+                                  <span>Hide Slot Completely</span>
+                                </label>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Member Selector Filter Config */}
                         {q.type === 'member_selector' && (
                           <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
@@ -1383,6 +1907,31 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                           <div className="p-2.5 border rounded-xl bg-slate-50 text-xs text-slate-600 flex justify-between">
                             <span>Dynamic Companions List</span>
                             <span className="text-indigo-600 font-bold">+ Add Companion</span>
+                          </div>
+                        )}
+                        {q.type === 'appointment_slots' && (
+                          <div className="p-2.5 border border-indigo-200 rounded-xl bg-indigo-50/40 text-xs text-slate-700 space-y-1.5">
+                            <div className="flex items-center justify-between text-[11px] font-bold text-indigo-950">
+                              <span className="flex items-center gap-1">
+                                <QuestionTypeIcon type="appointment_slots" className="w-3.5 h-3.5 text-indigo-600" />
+                                <span>Appointment Slots</span>
+                              </span>
+                              <span className="text-indigo-700 font-extrabold">
+                                {(q.appointmentConfig || []).length} Date(s) Configured
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap gap-1">
+                              {(q.appointmentConfig || []).slice(0, 3).map((d, dIdx) => (
+                                <span key={dIdx} className="px-2 py-0.5 rounded-md bg-white border border-indigo-200 text-indigo-800 text-[10px] font-bold">
+                                  {d.date} ({d.slots.length} slots)
+                                </span>
+                              ))}
+                              {(q.appointmentConfig || []).length > 3 && (
+                                <span className="text-[10px] text-slate-400 font-bold self-center">
+                                  +{(q.appointmentConfig || []).length - 3} more
+                                </span>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>

@@ -49,6 +49,7 @@ export type QuestionType =
   | 'number'
   | 'date'
   | 'time'
+  | 'appointment_slots'
   | 'name_selector'
   | 'member_selector'
   | 'relationship_selector'
@@ -61,6 +62,29 @@ export interface CompanionEntry {
   memberId?: string
   relationship?: string
   notes?: string
+}
+
+export interface AppointmentTimeSlot {
+  id: string
+  startTime: string // e.g. "09:00 AM" or "09:00"
+  endTime: string   // e.g. "10:00 AM" or "10:00"
+  label?: string    // e.g. "Batch 1 (Morning Session)"
+  maxCapacity?: number // 0 or undefined = unlimited
+}
+
+export interface AppointmentDateConfig {
+  id: string
+  date: string // YYYY-MM-DD
+  label?: string // e.g. "Day 1 - Pax Tecum Retreat"
+  slots: AppointmentTimeSlot[]
+}
+
+export interface AppointmentSlotAnswer {
+  date: string       // "2026-12-10"
+  dateLabel?: string // "Day 1 - Pax Tecum Retreat"
+  slotId: string     // "slot_1"
+  timeRange: string  // "09:00 AM - 10:00 AM"
+  slotLabel?: string // "Batch 1"
 }
 
 export type ConditionOperator = 'equals' | 'not_equals' | 'is_filled' | 'is_empty' | 'contains'
@@ -86,6 +110,7 @@ export interface EventFormQuestion {
   otherOptionPlaceholder?: string
   optionLimits?: Record<string, number>
   fullOptionBehavior?: 'disable' | 'hide'
+  appointmentConfig?: AppointmentDateConfig[]
   visibilityCondition?: VisibilityCondition
   memberFilterType?: 'all' | 'order' | 'rank'
   memberFilterValue?: string | string[]

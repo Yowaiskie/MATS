@@ -92,6 +92,9 @@ export const eventFormQuestionService = {
         if (q.fullOptionBehavior) {
           fullQuestionData.fullOptionBehavior = q.fullOptionBehavior
         }
+        if (q.appointmentConfig) {
+          fullQuestionData.appointmentConfig = q.appointmentConfig
+        }
         if (q.hasOtherOption !== undefined) {
           fullQuestionData.hasOtherOption = q.hasOtherOption
         }

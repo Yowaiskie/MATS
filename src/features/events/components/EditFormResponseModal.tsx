@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry, AppointmentSlotAnswer } from '@/types/eventForm'
 import type { Member } from '@/types/member'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -450,6 +450,106 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                         }))
                       ]}
                     />
+                  )}
+
+                  {/* Appointment & Time Slots */}
+                  {q.type === 'appointment_slots' && (
+                    <div className="space-y-3 pt-1">
+                      {/* Current Selection summary */}
+                      {currentVal && typeof currentVal === 'object' && currentVal.slotId ? (
+                        <div className="p-3 bg-indigo-50 border border-indigo-200 rounded-xl flex items-center justify-between">
+                          <div className="text-xs">
+                            <span className="font-bold text-indigo-900 flex items-center gap-2 flex-wrap">
+                              <span className="inline-flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                                <span>{currentVal.dateLabel || currentVal.date}</span>
+                              </span>
+                              <span>•</span>
+                              <span className="inline-flex items-center gap-1">
+                                <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>{currentVal.timeRange}</span>
+                              </span>
+                            </span>
+                            {currentVal.slotLabel && (
+                              <span className="text-[11px] text-indigo-700 font-medium">
+                                Slot Label: {currentVal.slotLabel}
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleAnswerChange(q.id, null)}
+                            className="text-xs font-bold text-rose-600 hover:text-rose-800 underline cursor-pointer"
+                          >
+                            Clear Slot
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 italic">
+                          No appointment slot currently booked.
+                        </div>
+                      )}
+
+                      {/* Configured Slots Selector */}
+                      {q.appointmentConfig && q.appointmentConfig.length > 0 && (
+                        <div className="space-y-2 pt-1">
+                          <label className="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">
+                            Reassign Date & Time Slot:
+                          </label>
+                          <div className="space-y-3 max-h-56 overflow-y-auto border border-slate-200 rounded-xl p-2.5 bg-slate-50/70">
+                            {q.appointmentConfig.map(dateCfg => (
+                              <div key={dateCfg.id} className="space-y-1.5 bg-white p-2.5 rounded-lg border border-slate-200">
+                                <div className="text-xs font-black text-slate-800 flex items-center gap-1.5">
+                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                  </svg>
+                                  <span>{dateCfg.label ? `${dateCfg.label} (${dateCfg.date})` : dateCfg.date}</span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-1">
+                                  {dateCfg.slots.map(slot => {
+                                    const timeRange = `${slot.startTime} - ${slot.endTime}`
+                                    const isSelected =
+                                      currentVal?.date === dateCfg.date && currentVal?.slotId === slot.id
+                                    return (
+                                      <button
+                                        key={slot.id}
+                                        type="button"
+                                        onClick={() => {
+                                          const slotAns: AppointmentSlotAnswer = {
+                                            date: dateCfg.date,
+                                            dateLabel: dateCfg.label || undefined,
+                                            slotId: slot.id,
+                                            timeRange,
+                                            slotLabel: slot.label || undefined
+                                          }
+                                          handleAnswerChange(q.id, slotAns)
+                                        }}
+                                        className={`p-2 rounded-lg border text-left text-xs transition cursor-pointer flex flex-col justify-between ${
+                                          isSelected
+                                            ? 'bg-indigo-600 text-white border-indigo-700 font-bold shadow-xs'
+                                            : 'bg-slate-50 text-slate-800 border-slate-200 hover:border-indigo-300 hover:bg-white'
+                                        }`}
+                                      >
+                                        <div className="font-semibold">{timeRange}</div>
+                                        {slot.label && (
+                                          <div className={`text-[10px] truncate mt-0.5 ${isSelected ? 'text-indigo-100' : 'text-slate-500'}`}>
+                                            {slot.label}
+                                          </div>
+                                        )}
+                                      </button>
+                                    )
+                                  })}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* Companion Repeater */}

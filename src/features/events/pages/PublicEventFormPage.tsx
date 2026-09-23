@@ -7,7 +7,14 @@ import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { eventService } from '@/services/eventService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type {
+  EventForm,
+  EventFormQuestion,
+  EventFormResponse,
+  CompanionEntry,
+  AppointmentSlotAnswer,
+  AppointmentDateConfig
+} from '@/types/eventForm'
 import type { Event } from '@/types/event'
 import type { Member } from '@/types/member'
 import { AlertModal } from '@/components/Dialog'
@@ -38,6 +45,7 @@ export const PublicEventFormPage: React.FC = () => {
   // Answers State: maps questionId -> value
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({})
+  const [selectedAppointmentDates, setSelectedAppointmentDates] = useState<Record<string, string>>({})
 
   // Helper to compute used and remaining open slots for an option/category
   const getOptionSlotInfo = (q: EventFormQuestion, opt: string) => {
@@ -54,6 +62,40 @@ export const PublicEventFormPage: React.FC = () => {
         return ans.includes(opt) ? count + 1 : count
       }
       return ans === opt ? count + 1 : count
+    }, 0)
+
+    const openSlots = Math.max(0, maxLimit - usedSlots)
+    const isFull = openSlots <= 0
+
+    return {
+      hasLimit: true,
+      maxSlots: maxLimit,
+      usedSlots,
+      openSlots,
+      isFull
+    }
+  }
+
+  // Helper to compute used and remaining open slots for an appointment slot
+  const getAppointmentSlotInfo = (q: EventFormQuestion, dateStr: string, slotId: string) => {
+    const dateConfig = q.appointmentConfig?.find(d => d.date === dateStr)
+    const slot = dateConfig?.slots.find(s => s.id === slotId)
+    const maxLimit = slot?.maxCapacity
+
+    if (!maxLimit || maxLimit <= 0) {
+      return { hasLimit: false, maxSlots: 0, usedSlots: 0, openSlots: 0, isFull: false }
+    }
+
+    const usedSlots = formResponses.reduce((count, r) => {
+      if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
+      const ans = r.answers?.[q.id]
+      if (ans && typeof ans === 'object' && !Array.isArray(ans)) {
+        const appointmentAns = ans as AppointmentSlotAnswer
+        if (appointmentAns.date === dateStr && appointmentAns.slotId === slotId) {
+          return count + 1
+        }
+      }
+      return count
     }, 0)
 
     const openSlots = Math.max(0, maxLimit - usedSlots)
@@ -480,6 +522,20 @@ export const PublicEventFormPage: React.FC = () => {
           }
         }
       }
+
+      // Validate appointment slot limits
+      if (q.type === 'appointment_slots') {
+        const val = answers[q.id]
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          const appointmentAns = val as AppointmentSlotAnswer
+          if (appointmentAns.date && appointmentAns.slotId) {
+            const slotInfo = getAppointmentSlotInfo(q, appointmentAns.date, appointmentAns.slotId)
+            if (slotInfo.isFull) {
+              errorsMap[q.id] = `The selected appointment time slot (${appointmentAns.timeRange}) is already full. Please select another available time slot.`
+            }
+          }
+        }
+      }
     }
 
     if (Object.keys(errorsMap).length > 0) {
@@ -555,6 +611,39 @@ export const PublicEventFormPage: React.FC = () => {
               {form.confirmationMessage || 'Thank you for submitting your registration response.'}
             </p>
           </div>
+
+          {/* Booked Appointment Summary Badge */}
+          {(() => {
+            const appointmentQ = questions.find(q => q.type === 'appointment_slots')
+            const appointmentAns = appointmentQ ? (answers[appointmentQ.id] as AppointmentSlotAnswer | undefined) : undefined
+            if (!appointmentAns || !appointmentAns.date) return null
+
+            return (
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-left space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-xs font-black text-indigo-900">
+                  <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v3l2 2" />
+                  </svg>
+                  <span>Booked Appointment Schedule</span>
+                </div>
+                <div className="text-xs text-slate-700 space-y-1">
+                  <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>{appointmentAns.date} {appointmentAns.dateLabel ? `(${appointmentAns.dateLabel})` : ''}</span>
+                  </div>
+                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{appointmentAns.timeRange} {appointmentAns.slotLabel ? `• ${appointmentAns.slotLabel}` : ''}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           <div className="pt-2 flex flex-col gap-2.5">
             {/* Show Edit Button ONLY if allowEditResponse is ON */}
@@ -689,32 +778,25 @@ export const PublicEventFormPage: React.FC = () => {
             )}
           </div>
 
-          {/* Linked Event Info Banner */}
-          {form.showEventBanner !== false && linkedEvent && (
-            <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-extrabold text-blue-950 flex items-center gap-1.5">
-                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {linkedEvent.title}
-                </span>
-                {linkedEvent.stage && (
-                  <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
-                    {linkedEvent.stage}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-blue-900/80 pt-1 border-t border-blue-100">
+          {/* Linked Event Schedule & Venue Banner */}
+          {form.showEventBanner !== false && linkedEvent && (linkedEvent.startDate || linkedEvent.startTime || linkedEvent.location) && (
+            <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-2xl text-xs text-blue-950">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-blue-900/80">
                 {(linkedEvent.startDate || linkedEvent.startTime) && (
                   <div className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                     <span className="font-semibold text-blue-950">Schedule:</span>
                     <span>{linkedEvent.startDate} {linkedEvent.startTime && `• ${linkedEvent.startTime}`}</span>
                   </div>
                 )}
                 {linkedEvent.location && (
                   <div className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                     <span className="font-semibold text-blue-950">Location:</span>
                     <span className="line-clamp-1">{linkedEvent.location}</span>
                   </div>
@@ -1361,9 +1443,12 @@ export const PublicEventFormPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => setOpenMemberPickerQuestionId(null)}
-                                  className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md"
+                                  className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer"
                                 >
-                                  Close ✕
+                                  <span>Close</span>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
                                 </button>
                               </div>
 
@@ -1435,6 +1520,199 @@ export const PublicEventFormPage: React.FC = () => {
                     className="w-full p-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden"
                   />
                 )}
+
+                {q.type === 'appointment_slots' && (() => {
+                  const configs: AppointmentDateConfig[] = q.appointmentConfig || []
+                  if (configs.length === 0) {
+                    return (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xs text-slate-500 font-medium">
+                        No appointment schedule configured for this question.
+                      </div>
+                    )
+                  }
+
+                  const selectedAns = answers[q.id] as AppointmentSlotAnswer | undefined
+                  const activeDate = selectedAppointmentDates[q.id] || selectedAns?.date || configs[0]?.date
+                  const activeDateConfig = configs.find(d => d.date === activeDate) || configs[0]
+
+                  const formatDatePill = (dateStr: string) => {
+                    try {
+                      const d = new Date(dateStr + 'T00:00:00')
+                      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })
+                      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      return { dayName, monthDay }
+                    } catch (e) {
+                      return { dayName: 'Day', monthDay: dateStr }
+                    }
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Step 1: Select Date */}
+                      <div>
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-2">
+                          1. Select Event Date
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {configs.map((dConfig, dIdx) => {
+                            const isDateActive = activeDateConfig?.date === dConfig.date
+                            const { dayName, monthDay } = formatDatePill(dConfig.date)
+                            const isDateSelected = selectedAns?.date === dConfig.date
+
+                            return (
+                              <button
+                                key={dConfig.id || dIdx}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAppointmentDates(prev => ({ ...prev, [q.id]: dConfig.date }))
+                                }}
+                                className={`px-4 py-2.5 rounded-2xl border text-left transition cursor-pointer flex flex-col items-start min-w-[110px] ${
+                                  isDateActive
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/20 ring-2 ring-indigo-600/30'
+                                    : isDateSelected
+                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold'
+                                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                                }`}
+                              >
+                                <span className={`text-[10px] uppercase font-bold ${isDateActive ? 'text-indigo-200' : 'text-slate-500'}`}>
+                                  {dayName} {dConfig.label ? `• ${dConfig.label}` : ''}
+                                </span>
+                                <span className="text-sm font-black mt-0.5">
+                                  {monthDay}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Step 2: Select Time Slot for the active date */}
+                      {activeDateConfig && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                              2. Select Time Slot for {formatDatePill(activeDateConfig.date).monthDay}
+                            </span>
+                            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                              {activeDateConfig.slots.length} available {activeDateConfig.slots.length === 1 ? 'slot' : 'slots'}
+                            </span>
+                          </div>
+
+                          {activeDateConfig.slots.length === 0 ? (
+                            <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                              No time slots available for this date.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {activeDateConfig.slots.map((slot, sIdx) => {
+                                const slotInfo = getAppointmentSlotInfo(q, activeDateConfig.date, slot.id)
+                                if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                                  return null
+                                }
+
+                                const isSlotFull = slotInfo.isFull
+                                const isSelected =
+                                  selectedAns?.date === activeDateConfig.date && selectedAns?.slotId === slot.id
+
+                                return (
+                                  <div
+                                    key={slot.id || sIdx}
+                                    onClick={() => {
+                                      if (isSlotFull) return
+                                      const ansVal: AppointmentSlotAnswer = {
+                                        date: activeDateConfig.date,
+                                        dateLabel: activeDateConfig.label,
+                                        slotId: slot.id,
+                                        timeRange: `${slot.startTime} - ${slot.endTime}`,
+                                        slotLabel: slot.label
+                                      }
+                                      handleInputChange(q.id, ansVal)
+                                    }}
+                                    className={`p-3.5 rounded-2xl border transition relative ${
+                                      isSlotFull
+                                        ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed select-none'
+                                        : isSelected
+                                        ? 'bg-indigo-50/90 border-2 border-indigo-600 shadow-sm ring-2 ring-indigo-500/20 cursor-pointer'
+                                        : 'bg-white border-slate-200/90 hover:border-indigo-300 hover:bg-indigo-50/30 cursor-pointer shadow-2xs'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="space-y-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                                            isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300 bg-white'
+                                          }`}>
+                                            {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                          </div>
+                                          <span className={`text-xs font-black ${isSelected ? 'text-indigo-950' : 'text-slate-900'}`}>
+                                            {slot.startTime} – {slot.endTime}
+                                          </span>
+                                        </div>
+                                        {slot.label && (
+                                          <span className="block text-[11px] text-slate-500 font-semibold pl-5">
+                                            {slot.label}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Capacity status pill */}
+                                      <div className="shrink-0">
+                                        {isSlotFull ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                            FULL (0 Left)
+                                          </span>
+                                        ) : slotInfo.hasLimit ? (
+                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                            slotInfo.openSlots <= 3
+                                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${slotInfo.openSlots <= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                            {slotInfo.openSlots} open {slotInfo.openSlots === 1 ? 'slot' : 'slots'}
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                            Available
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Selected Booking Preview Banner */}
+                      {selectedAns && (
+                        <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </span>
+                            <div className="text-xs text-indigo-950 font-bold">
+                              <span>Selected: </span>
+                              <strong>{selectedAns.date}</strong> • <strong>{selectedAns.timeRange}</strong>
+                              {selectedAns.slotLabel && <span className="text-indigo-700 font-normal"> ({selectedAns.slotLabel})</span>}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange(q.id, undefined)}
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
 
                 {q.type === 'date' && (
                   <input
@@ -1511,9 +1789,12 @@ export const PublicEventFormPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveCompanion(comp.id)}
-                                  className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition cursor-pointer"
+                                  className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition cursor-pointer flex items-center gap-1"
                                 >
-                                  Remove ✕
+                                  <span>Remove</span>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
                                 </button>
                               </div>
 
