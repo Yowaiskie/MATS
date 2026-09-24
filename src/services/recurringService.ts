@@ -13,6 +13,9 @@ import type { Member } from '@/types/member'
 import { isTimeOverlapping } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { scheduleService } from './scheduleService'
+import { memberService } from './memberService'
+import { settingsService } from './settingsService'
+import { orderRotationService } from './orderRotationService'
 
 const TEMPLATES_COLLECTION = 'scheduleTemplates'
 
@@ -249,7 +252,11 @@ export const recurringService = {
   async generateSchedules(
     startDate: string,
     endDate: string,
-    templates: ScheduleTemplate[]
+    templates: ScheduleTemplate[],
+    options?: {
+      autoRotateOrderGroups?: boolean
+      startingGroup?: string
+    }
   ): Promise<{ created: number; skipped: number; duplicates: number; validationErrors: string[] }> {
     const result = {
       created: 0,
@@ -261,6 +268,31 @@ export const recurringService = {
     if (startDate > endDate) {
       result.validationErrors.push('Start Date must be before or equal to End Date.')
       return result
+    }
+
+    // Load rotation settings & members if autoRotateOrderGroups is enabled
+    let rotationSettings = await settingsService.getOrderRotationSettings()
+    let allMembers: Member[] = []
+    let rotationStartIndex = 0
+    const trackRotationIndices: Record<string, number> = {}
+
+    if (options?.autoRotateOrderGroups) {
+      try {
+        allMembers = await memberService.getMembers(true)
+        const sequence = rotationSettings.rotationSequence && rotationSettings.rotationSequence.length > 0
+          ? rotationSettings.rotationSequence
+          : ['Order of San Pedro', 'Order of San Juan', 'Order of San Tiago', 'Order of San Andres']
+
+        if (options.startingGroup) {
+          const normStart = orderRotationService.normalizeOrderName(options.startingGroup)
+          const foundIdx = sequence.findIndex(g => orderRotationService.normalizeOrderName(g) === normStart)
+          if (foundIdx !== -1) {
+            rotationStartIndex = foundIdx
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load members for order rotation during generation:', err)
+      }
     }
 
     // Load all existing schedules to check for duplicate entries and assignment conflicts in memory
@@ -308,6 +340,28 @@ export const recurringService = {
           continue
         }
 
+        // 3. Resolve assigned members (Auto-rotate order groups if applicable)
+        let assignedMemberIds: string[] = []
+        if (options?.autoRotateOrderGroups && orderRotationService.matchesRotationTarget(temp, rotationSettings)) {
+          const sequence = rotationSettings.rotationSequence && rotationSettings.rotationSequence.length > 0
+            ? rotationSettings.rotationSequence
+            : ['Order of San Pedro', 'Order of San Juan', 'Order of San Tiago', 'Order of San Andres']
+
+          const trackKey = orderRotationService.getServiceTrack(temp)
+          const currentIdx = trackRotationIndices[trackKey] !== undefined
+            ? trackRotationIndices[trackKey]
+            : rotationStartIndex
+
+          const assignedGroup = sequence[currentIdx % sequence.length]
+          const groupMembers = orderRotationService.getMembersForOrder(
+            assignedGroup,
+            allMembers,
+            rotationSettings.includeSuspended
+          )
+          assignedMemberIds = groupMembers.map(m => m.id)
+          trackRotationIndices[trackKey] = currentIdx + 1
+        }
+
         // 4. Create the schedule doc in Firestore
         try {
           const newId = await scheduleService.addSchedule({
@@ -316,7 +370,7 @@ export const recurringService = {
             startTime: temp.startTime,
             endTime: slotEndTime,
             status: 'upcoming',
-            assignedMembers: []
+            assignedMembers: assignedMemberIds
           })
 
           // Add to in-memory list to catch conflicts in subsequent generator iterations
@@ -327,7 +381,7 @@ export const recurringService = {
             startTime: temp.startTime,
             endTime: slotEndTime,
             status: 'upcoming',
-            assignedMembers: [],
+            assignedMembers: assignedMemberIds,
             createdAt: new Date(),
             updatedAt: new Date()
           })
@@ -339,6 +393,7 @@ export const recurringService = {
         }
       }
     }
+
 
     return result
   },

@@ -5,6 +5,7 @@ import type { Schedule } from '@/types/schedule'
 import { getFullName } from '@/utils/member'
 import { isTimeOverlapping, formatTime12Hour } from '@/utils/scheduleUtils'
 import { qualificationService } from '@/services/qualificationService'
+import { orderRotationService } from '@/services/orderRotationService'
 import { ConfirmModal } from '@/components/Dialog'
 
 interface AssignmentModalProps {
@@ -35,6 +36,9 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   const isMeetingOrFormation = schedule
     ? (qualificationService.scheduleMatchesCategory(schedule, 'meeting') || qualificationService.scheduleMatchesCategory(schedule, 'formation'))
     : false
+
+  // Determine if this schedule matches Holy Hour / Binyag rotation
+  const isRotatingService = schedule ? orderRotationService.matchesRotationTarget(schedule) : false
 
   useEffect(() => {
     if (schedule) {
@@ -196,11 +200,57 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
           )}
 
+          {/* Smart Rotating Order Group helper banner */}
+          {isRotatingService && (
+            <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <span className="p-1 rounded-lg bg-indigo-600 text-white shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </span>
+                <div>
+                  <span className="text-xs font-black text-indigo-950 block leading-tight">
+                    Rotating Service: Holy Hour & Binyag Rotation
+                  </span>
+                  <span className="text-[10px] font-bold text-indigo-700">
+                    Click an Order Group below to select all members:
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[
+                  { grp: 'Order of San Pedro', activeCls: 'bg-red-600 border-red-600 text-white ring-2 ring-red-600/30', idleCls: 'bg-white border-red-200 text-red-900 hover:bg-red-50' },
+                  { grp: 'Order of San Juan', activeCls: 'bg-blue-600 border-blue-600 text-white ring-2 ring-blue-600/30', idleCls: 'bg-white border-blue-200 text-blue-900 hover:bg-blue-50' },
+                  { grp: 'Order of San Tiago', activeCls: 'bg-emerald-600 border-emerald-600 text-white ring-2 ring-emerald-600/30', idleCls: 'bg-white border-emerald-200 text-emerald-900 hover:bg-emerald-50' },
+                  { grp: 'Order of San Andres', activeCls: 'bg-amber-500 border-amber-500 text-white ring-2 ring-amber-500/30', idleCls: 'bg-white border-amber-200 text-amber-900 hover:bg-amber-50' }
+                ].map(({ grp, activeCls, idleCls }, idx) => {
+                  const groupMembers = activeMembers.filter(m => m.order === grp)
+                  const allSelected = groupMembers.length > 0 && groupMembers.every(m => selectedIds.includes(m.id))
+                  return (
+                    <button
+                      key={grp}
+                      type="button"
+                      onClick={() => handleToggleOrderGroup(grp)}
+                      className={`px-2.5 py-1 rounded-xl text-[11px] font-black border transition-all cursor-pointer shadow-2xs ${
+                        allSelected ? activeCls : idleCls
+                      }`}
+                    >
+                      {idx + 1}. {grp.replace('Order of ', '')} ({groupMembers.length})
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Quick Select by Order Group */}
           <div>
             <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
               Quick Select Order / Group:
             </span>
+
             <div className="flex flex-wrap gap-1.5">
               {ORDER_GROUPS.map((grp) => {
                 const groupMembers = activeMembers.filter(m => m.order === grp)

@@ -197,15 +197,15 @@ export const InventoryPage: React.FC = () => {
 
   const getStatusBadge = (status: string, qty: number) => {
     if (qty === 0 || status === 'Out of Stock') {
-      return <StatusBadge status="error" size="sm" className="!text-red-700 !bg-red-50 !border-red-200" />
+      return <StatusBadge status="error" label="Out of Stock" size="sm" className="!text-red-700 !bg-red-50 !border-red-200" />
     }
     if (status === 'Under Maintenance') {
-      return <StatusBadge status="warning" size="sm" className="!text-rose-800 !bg-rose-50 !border-rose-200" />
+      return <StatusBadge status="warning" label="Under Maintenance" size="sm" className="!text-purple-700 !bg-purple-50 !border-purple-200" />
     }
     if (qty <= 2 || status === 'Low Stock') {
-      return <StatusBadge status="pending" size="sm" className="!text-amber-800 !bg-amber-50 !border-amber-200" />
+      return <StatusBadge status="pending" label="Low Stock" size="sm" className="!text-amber-800 !bg-amber-50 !border-amber-200" />
     }
-    return <StatusBadge status="active" size="sm" className="!text-emerald-800 !bg-emerald-50 !border-emerald-200" />
+    return <StatusBadge status="active" label="In Stock" size="sm" className="!text-emerald-800 !bg-emerald-50 !border-emerald-200" />
   }
 
   return (

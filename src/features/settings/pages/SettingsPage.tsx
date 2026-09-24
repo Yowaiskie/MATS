@@ -15,6 +15,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 import { ReminderTemplateEditor } from '../components/ReminderTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
+import { OrderRotationSettingsCard } from '../components/OrderRotationSettingsCard'
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
 
@@ -74,11 +75,17 @@ const mockUntakenSchedules: Schedule[] = [
   }
 ]
 
-type TabId = 'policy' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
+type TabId = 'policy' | 'order_rotation' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const ArrowPathIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
   </svg>
 )
 
@@ -118,6 +125,7 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
+  { id: 'order_rotation', label: 'Order Rotation', icon: <ArrowPathIcon className="w-4 h-4" /> },
   { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
   { id: 'reminder_template', label: 'Reminder Template', icon: <BellIcon className="w-4 h-4" /> },
   { id: 'signatures', label: 'Signature Presets', icon: <SignatureIcon className="w-4 h-4" /> },
@@ -277,6 +285,13 @@ export const SettingsPage: React.FC = () => {
         <div>
           {activeTab === 'policy' && (
             <PolicySettingsCard
+              onNotifySuccess={(msg) => toast.success(msg)}
+              onNotifyError={(msg) => setError(msg)}
+            />
+          )}
+
+          {activeTab === 'order_rotation' && (
+            <OrderRotationSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => setError(msg)}
             />

@@ -6,6 +6,8 @@ import type { SignaturePreset } from '@/types/signature'
 import { DEFAULT_SIGNATURE_PRESETS } from '@/types/signature'
 import type { QualificationPreset } from '@/types/attendanceCategory'
 import { DEFAULT_QUALIFICATION_PRESETS } from '@/types/attendanceCategory'
+import type { OrderRotationSettings } from '@/types/orderRotation'
+import { DEFAULT_ORDER_ROTATION_SETTINGS } from '@/types/orderRotation'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
@@ -13,8 +15,10 @@ const REMINDER_TEMPLATE_DOC = 'reminderTemplate'
 const POLICY_DOC = 'suspensionPolicy'
 const SIGNATURE_PRESETS_DOC = 'signaturePresets'
 const QUALIFICATION_PRESETS_DOC = 'qualificationPresets'
+const ORDER_ROTATION_DOC = 'orderRotation'
 const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v2'
 const LOCAL_STORAGE_QUALIFICATION_KEY = 'mats_qualification_presets_v1'
+const LOCAL_STORAGE_ORDER_ROTATION_KEY = 'mats_order_rotation_settings_v1'
 
 export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
 
@@ -767,7 +771,79 @@ export const settingsService = {
       performedBy,
       payload
     )
+  },
+
+  /**
+   * Retrieves order rotation settings from Firestore with fallback to localStorage & defaults.
+   */
+  async getOrderRotationSettings(): Promise<OrderRotationSettings> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, ORDER_ROTATION_DOC)
+      const docSnap = await getDoc(docRef)
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Partial<OrderRotationSettings>
+        return {
+          enabled: data.enabled !== undefined ? data.enabled : DEFAULT_ORDER_ROTATION_SETTINGS.enabled,
+          rotationSequence: data.rotationSequence && data.rotationSequence.length > 0
+            ? data.rotationSequence
+            : DEFAULT_ORDER_ROTATION_SETTINGS.rotationSequence,
+          targetKeywords: data.targetKeywords && data.targetKeywords.length > 0
+            ? data.targetKeywords
+            : DEFAULT_ORDER_ROTATION_SETTINGS.targetKeywords,
+          targetCategories: data.targetCategories && data.targetCategories.length > 0
+            ? data.targetCategories
+            : DEFAULT_ORDER_ROTATION_SETTINGS.targetCategories,
+          includeSuspended: Boolean(data.includeSuspended)
+        }
+      }
+
+      try {
+        const cached = localStorage.getItem(LOCAL_STORAGE_ORDER_ROTATION_KEY)
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          return {
+            ...DEFAULT_ORDER_ROTATION_SETTINGS,
+            ...parsed
+          }
+        }
+      } catch {}
+
+      return DEFAULT_ORDER_ROTATION_SETTINGS
+    } catch (err) {
+      console.error('Failed to get order rotation settings:', err)
+      return DEFAULT_ORDER_ROTATION_SETTINGS
+    }
+  },
+
+  /**
+   * Saves order rotation settings to Firestore and localStorage.
+   */
+  async saveOrderRotationSettings(settings: OrderRotationSettings, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, ORDER_ROTATION_DOC)
+    const payload = {
+      enabled: Boolean(settings.enabled),
+      rotationSequence: settings.rotationSequence,
+      targetKeywords: settings.targetKeywords,
+      targetCategories: settings.targetCategories,
+      includeSuspended: Boolean(settings.includeSuspended),
+      updatedAt: serverTimestamp()
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    try {
+      localStorage.setItem(LOCAL_STORAGE_ORDER_ROTATION_KEY, JSON.stringify(payload))
+    } catch {}
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated order group rotation settings (Sequence: ${settings.rotationSequence.join(' -> ')})`,
+      performedBy,
+      payload
+    )
   }
 }
+
 
 

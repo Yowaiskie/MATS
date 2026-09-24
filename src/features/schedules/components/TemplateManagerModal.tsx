@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
 import { ConfirmModal } from '@/components/Dialog'
-import { CustomSelect } from '@/components'
+import { CustomSelect, DatePicker } from '@/components'
 
 const formatTime12 = (timeStr: string) => {
   if (!timeStr) return ''
@@ -53,6 +53,8 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   const [genEndDate, setGenEndDate] = useState('')
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
   const [generationReport, setGenerationReport] = useState<any | null>(null)
+  const [autoRotateOrders, setAutoRotateOrders] = useState(true)
+  const [generatorStartingGroup, setGeneratorStartingGroup] = useState('Order of San Pedro')
 
   // Confirm delete dialog state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
@@ -287,7 +289,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       const report = await recurringService.generateSchedules(
         genStartDate,
         genEndDate,
-        selectedTemplates
+        selectedTemplates,
+        {
+          autoRotateOrderGroups: autoRotateOrders,
+          startingGroup: generatorStartingGroup
+        }
       )
       setGenerationReport(report)
       setMode('report')
@@ -825,26 +831,66 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="flex flex-col space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Start Date</label>
-                    <input
-                      type="date"
-                      required
+                    <DatePicker
                       value={genStartDate}
-                      onChange={(e) => setGenStartDate(e.target.value)}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:border-blue-500 shadow-2xs"
+                      onChange={setGenStartDate}
+                      placeholder="Select start date"
+                      size="dense"
                     />
                   </div>
 
                   <div className="flex flex-col space-y-1">
                     <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">End Date</label>
-                    <input
-                      type="date"
-                      required
+                    <DatePicker
                       value={genEndDate}
-                      onChange={(e) => setGenEndDate(e.target.value)}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:border-blue-500 shadow-2xs"
+                      onChange={setGenEndDate}
+                      placeholder="Select end date"
+                      size="dense"
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Order Groups Auto-Rotation Section */}
+              <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <input
+                      type="checkbox"
+                      id="gen-auto-rotate-orders"
+                      checked={autoRotateOrders}
+                      onChange={(e) => setAutoRotateOrders(e.target.checked)}
+                      className="h-4 w-4 mt-0.5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <div>
+                      <label htmlFor="gen-auto-rotate-orders" className="text-xs font-black text-indigo-950 cursor-pointer block">
+                        Auto-Assign Order Groups Rotation
+                      </label>
+                      <p className="text-[11px] font-medium text-indigo-700/80 mt-0.5">
+                        Automatically assign servers from rotating Order Groups for Holy Hour and Baptism schedules in continuous sequence: San Pedro → San Juan → Santiago → San Andres.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {autoRotateOrders && (
+                  <div className="pt-2 border-t border-indigo-100/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <label className="text-[11px] font-bold text-indigo-900 shrink-0">Starting Order Group for first date:</label>
+                    <div className="w-full sm:w-64">
+                      <CustomSelect
+                        value={generatorStartingGroup}
+                        onChange={(e) => setGeneratorStartingGroup(e.target.value)}
+                        options={[
+                          { value: 'Order of San Pedro', label: 'Order of San Pedro' },
+                          { value: 'Order of San Juan', label: 'Order of San Juan' },
+                          { value: 'Order of San Tiago', label: 'Order of San Tiago (Santiago)' },
+                          { value: 'Order of San Andres', label: 'Order of San Andres' }
+                        ]}
+                        className="!h-8 text-xs bg-white border-indigo-200"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Templates Selector Grouped cleanly by Category */}
