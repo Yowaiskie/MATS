@@ -30,12 +30,14 @@ import { ToastProvider } from '@/context/ToastContext'
 import { NotificationProvider } from '@/context/NotificationContext'
 import { useEffect } from 'react'
 import { initializeNativeBridge } from '@/utils/nativeAppBridge'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 import { useNavigate } from 'react-router-dom'
 
 function NativeBridgeInit() {
   const navigate = useNavigate()
   useEffect(() => {
     const cleanup = initializeNativeBridge((path) => navigate(path))
+    nativeWidgetService.syncUpcomingMassesWidget().catch(() => {})
     return cleanup
   }, [navigate])
   return null

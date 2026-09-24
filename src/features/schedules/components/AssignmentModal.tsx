@@ -46,6 +46,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       setSuspendedConfirmMember(null)
       setError(null)
       setApplyToMonth(false)
+      setSearch('')
     }
   }, [schedule, isOpen])
 
@@ -137,11 +138,14 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     setSelectedIds([])
   }
 
+  const isSearching = search.trim().length > 0
+
   const filteredMembers = activeMembers.filter((m) => {
     const q = search.toLowerCase().trim()
     if (!q) return true
     return (
       getFullName(m).toLowerCase().includes(q) ||
+      (m.nickname && m.nickname.toLowerCase().includes(q)) ||
       (m.order && m.order.toLowerCase().includes(q))
     )
   })
@@ -161,65 +165,63 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 overflow-y-auto overscroll-contain animate-in fade-in duration-200">
       {/* Backdrop */}
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={onClose}></div>
 
-      {/* Modal */}
-      <div className="relative w-full max-w-2xl rounded-3xl border border-slate-200/80 bg-white p-6 shadow-2xl z-10 text-slate-800 flex flex-col max-h-[88vh] overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-white">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-2xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-sm shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      {/* Modal Body: Expansive height for mobile */}
+      <div className="relative w-full max-w-2xl h-[94dvh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-3xl border border-slate-200/80 bg-white p-3.5 sm:p-5 shadow-2xl z-10 text-slate-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+        
+        {/* Top Header */}
+        <div className="flex items-center justify-between pb-2 sm:pb-3 border-b border-slate-100 bg-white shrink-0">
+          <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+            <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg sm:rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 font-extrabold text-xs shrink-0">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
               </svg>
             </div>
-            <div>
-              <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 inline-block mb-0.5">
-                Roster Assignment
-              </span>
-              <h3 className="text-base font-black text-slate-900 tracking-tight">Assign Servers</h3>
-              <p className="text-xs font-semibold text-slate-500 mt-0.5">
-                Select members for "{schedule.title}" ({formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)})
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="text-xs sm:text-sm font-black text-slate-900 tracking-tight truncate">Assign Servers</h3>
+                <span className="text-[9px] sm:text-[10px] font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100 truncate">
+                  {formatTime12Hour(schedule.startTime)} - {formatTime12Hour(schedule.endTime)}
+                </span>
+              </div>
+              <p className="text-[10.5px] sm:text-xs font-semibold text-slate-500 truncate">
+                {schedule.title}
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none shrink-0">
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Content Section */}
-        <div className="mt-4 flex-1 flex flex-col overflow-hidden space-y-3">
+        {/* Content Body: Flex-1 to maximize search list space */}
+        <div className="mt-2.5 flex-1 flex flex-col min-h-0 space-y-2 overflow-hidden">
           {error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-650 font-medium">
+            <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-650 font-medium shrink-0">
               {error}
             </div>
           )}
 
-          {/* Smart Rotating Order Group helper banner */}
-          {isRotatingService && (
-            <div className="p-3 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 shadow-2xs">
-              <div className="flex items-center gap-2">
-                <span className="p-1 rounded-lg bg-indigo-600 text-white shrink-0">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          {/* Smart Rotating Order Group helper banner (auto-hidden when searching to maximize results view) */}
+          {isRotatingService && !isSearching && (
+            <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 shadow-2xs shrink-0">
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="p-1 rounded bg-indigo-600 text-white shrink-0">
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
                 </span>
-                <div>
-                  <span className="text-xs font-black text-indigo-950 block leading-tight">
-                    Rotating Service: Holy Hour & Binyag Rotation
-                  </span>
-                  <span className="text-[10px] font-bold text-indigo-700">
-                    Click an Order Group below to select all members:
-                  </span>
-                </div>
+                <span className="text-[10.5px] sm:text-xs font-black text-indigo-950 truncate">
+                  Holy Hour &amp; Binyag Rotation:
+                </span>
               </div>
 
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 touch-pan-x no-scrollbar">
                 {[
                   { grp: 'Order of San Pedro', activeCls: 'bg-red-600 border-red-600 text-white ring-2 ring-red-600/30', idleCls: 'bg-white border-red-200 text-red-900 hover:bg-red-50' },
                   { grp: 'Order of San Juan', activeCls: 'bg-blue-600 border-blue-600 text-white ring-2 ring-blue-600/30', idleCls: 'bg-white border-blue-200 text-blue-900 hover:bg-blue-50' },
@@ -233,7 +235,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                       key={grp}
                       type="button"
                       onClick={() => handleToggleOrderGroup(grp)}
-                      className={`px-2.5 py-1 rounded-xl text-[11px] font-black border transition-all cursor-pointer shadow-2xs ${
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition-all cursor-pointer whitespace-nowrap shadow-2xs ${
                         allSelected ? activeCls : idleCls
                       }`}
                     >
@@ -245,134 +247,153 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
           )}
 
-          {/* Quick Select by Order Group */}
-          <div>
-            <span className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1.5">
-              Quick Select Order / Group:
-            </span>
+          {/* Quick Select by Order Group (auto-hidden when searching to maximize results view) */}
+          {!isSearching && (
+            <div className="shrink-0">
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 touch-pan-x no-scrollbar">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-gray-400 shrink-0 mr-0.5">
+                  Orders:
+                </span>
+                {ORDER_GROUPS.map((grp) => {
+                  const groupMembers = activeMembers.filter(m => m.order === grp)
+                  if (groupMembers.length === 0) return null
+                  const allSelected = groupMembers.every(m => selectedIds.includes(m.id))
+                  return (
+                    <button
+                      key={grp}
+                      type="button"
+                      onClick={() => handleToggleOrderGroup(grp)}
+                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
+                        allSelected
+                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                          : 'bg-indigo-50/50 border-indigo-200/80 text-indigo-800 hover:bg-indigo-100'
+                      }`}
+                    >
+                      {allSelected ? '✓ ' : '+ '} {grp.replace('Order of ', '')} ({groupMembers.length})
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
 
-            <div className="flex flex-wrap gap-1.5">
-              {ORDER_GROUPS.map((grp) => {
-                const groupMembers = activeMembers.filter(m => m.order === grp)
-                if (groupMembers.length === 0) return null
-                const allSelected = groupMembers.every(m => selectedIds.includes(m.id))
-                return (
+          {/* Search bar & Quick Action bar */}
+          <div className="space-y-1.5 shrink-0">
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </span>
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="block w-full pl-8 pr-8 py-1.5 sm:py-2 border border-gray-200 bg-white rounded-xl text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all duration-150"
+                placeholder="Search server name, nickname, or order..."
+                disabled={loading}
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch('')}
+                  className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 cursor-pointer"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+
+            {/* Action pills & Result Counter */}
+            <div className="flex items-center justify-between gap-1 text-[10px] shrink-0">
+              <span className="font-bold text-gray-500">
+                {isSearching ? (
+                  <>Found <span className="text-indigo-600 font-black">{filteredMembers.length}</span> results • Selected: <span className="text-indigo-600 font-black">{selectedIds.length}</span></>
+                ) : (
+                  <>Total: <span className="text-slate-800 font-black">{activeMembers.length}</span> • Selected: <span className="text-indigo-600 font-black">{selectedIds.length}</span></>
+                )}
+              </span>
+              <div className="flex items-center gap-1">
+                {isSearching ? (
                   <button
-                    key={grp}
                     type="button"
-                    onClick={() => handleToggleOrderGroup(grp)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
-                      allSelected
-                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
-                        : 'bg-indigo-50/50 border-indigo-200/80 text-indigo-800 hover:bg-indigo-100'
-                    }`}
+                    onClick={handleSelectAllVisible}
+                    disabled={loading || filteredMembers.length === 0}
+                    className="rounded-md border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 px-2 py-0.5 font-bold text-emerald-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
                   >
-                    {allSelected ? '✓ ' : '+ '} {grp} ({groupMembers.length})
+                    <span>Select Filtered ({filteredMembers.length})</span>
                   </button>
-                )
-              })}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleAssignAll}
+                    disabled={loading || activeMembers.length === 0}
+                    className="rounded-md border border-blue-200 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 font-bold text-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+                  >
+                    <span>Assign All</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleClearAll}
+                  disabled={loading || selectedIds.length === 0}
+                  className="rounded-md border border-gray-200 bg-white hover:bg-gray-100 px-2 py-0.5 font-bold text-gray-500 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
+                >
+                  <span>Clear</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Search bar */}
-          <div className="relative">
-            <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </span>
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="block w-full pl-9 pr-3 py-2 border border-gray-200 bg-white rounded-lg text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-blue-500 disabled:opacity-50 transition-shadow duration-150"
-              placeholder="Filter members by name or order..."
-              disabled={loading}
-            />
-          </div>
-
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Selected: {selectedIds.length}
-            </span>
-            <div className="flex items-center gap-2 flex-wrap">
-              <button
-                type="button"
-                onClick={handleAssignAll}
-                disabled={loading || activeMembers.length === 0}
-                className="inline-flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50/80 hover:bg-blue-100 px-2.5 py-1 text-[10px] font-bold text-blue-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
-              >
-                <svg className="w-3 h-3 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-                </svg>
-                <span>Assign All Active</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSelectAllVisible}
-                disabled={loading || filteredMembers.length === 0}
-                className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50/80 hover:bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-700 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
-              >
-                <svg className="w-3 h-3 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Select All Visible</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleClearAll}
-                disabled={loading || selectedIds.length === 0}
-                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white hover:bg-gray-100 px-2.5 py-1 text-[10px] font-bold text-gray-500 transition-colors disabled:opacity-50 cursor-pointer shadow-2xs"
-              >
-                <svg className="w-3 h-3 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span>Clear All</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Members checklist container */}
-          <div className="flex-1 border border-gray-200 bg-white rounded-lg overflow-y-auto divide-y divide-gray-100 shadow-xs">
+          {/* Members Checklist / Search Results: GIVEN MAXIMUM PROMINENT SCROLLABLE SPACE */}
+          <div 
+            className="flex-1 min-h-[220px] sm:min-h-[280px] border border-gray-200 bg-white rounded-xl overflow-y-auto overscroll-contain divide-y divide-gray-100 shadow-xs touch-pan-y"
+            style={{ WebkitOverflowScrolling: 'touch' }}
+          >
             {filteredMembers.length > 0 ? (
               filteredMembers.map((member) => {
                 const isSelected = selectedIds.includes(member.id)
                 const conflictWith = getConflictDetails(member.id)
-                const disabled = (!!conflictWith && !isSelected) || loading // disable checking if double booked or loading
+                const disabled = (!!conflictWith && !isSelected) || loading
 
                 return (
                   <label 
                     key={member.id} 
-                    className={`flex items-center justify-between p-3 transition-colors ${
+                    className={`flex items-center justify-between p-2.5 sm:p-3 transition-colors select-none ${
                       disabled 
                         ? 'opacity-40 cursor-not-allowed' 
-                        : 'cursor-pointer hover:bg-gray-50/60'
+                        : isSelected
+                          ? 'bg-indigo-50/50 hover:bg-indigo-50/80 cursor-pointer'
+                          : 'cursor-pointer hover:bg-gray-50 active:bg-gray-100'
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2.5 sm:space-x-3 min-w-0 pr-2">
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={() => !disabled && handleToggle(member.id)}
                         disabled={disabled}
-                        className="h-4 w-4 rounded border-gray-300 bg-white text-blue-600 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
+                        className="h-4 w-4 rounded border-gray-300 bg-white text-indigo-600 focus:ring-indigo-500 accent-indigo-600 disabled:opacity-50 cursor-pointer shrink-0"
                       />
-                      <div>
-                        <span className="text-sm font-bold text-gray-900 block">
+                      <div className="min-w-0">
+                        <span className="text-xs sm:text-sm font-bold text-gray-900 block truncate">
                           {getFullName(member)}
+                          {member.nickname && <span className="text-slate-400 font-normal ml-1">({member.nickname})</span>}
                         </span>
-                        <div className="flex items-center gap-1.5 mt-0.5">
-                          <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                        <div className="flex items-center gap-1 mt-0.5 flex-wrap">
+                          <span className="text-[9px] sm:text-[10px] text-indigo-600 font-bold uppercase tracking-wider">
                             {member.rank}
                           </span>
                           {member.order && (
-                            <span className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(member.order)}`}>
+                            <span className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-bold border ${getOrderBadgeStyle(member.order)}`}>
                               {member.order}
                             </span>
                           )}
                           {member.status === 'suspended' && (
                             <span 
-                              className={`inline-block px-1.5 py-0.2 rounded text-[10px] font-extrabold cursor-help ${
+                              className={`inline-block px-1.5 py-0.2 rounded text-[9px] font-extrabold cursor-help ${
                                 isMeetingOrFormation
                                   ? 'bg-purple-50 text-purple-700 border border-purple-200'
                                   : 'bg-rose-50 text-rose-700 border border-rose-200'
@@ -390,7 +411,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
 
                     {/* Conflict tag warning */}
                     {conflictWith && (
-                      <span className="inline-block rounded-md bg-red-50 border border-red-100 text-red-600 px-2 py-0.5 text-[10px] font-semibold max-w-[150px] truncate" title={`Assigned to ${conflictWith}`}>
+                      <span className="inline-block rounded-md bg-red-50 border border-red-100 text-red-600 px-1.5 py-0.5 text-[9px] font-semibold max-w-[120px] sm:max-w-[150px] truncate shrink-0" title={`Assigned to ${conflictWith}`}>
                         Booked: {conflictWith}
                       </span>
                     )}
@@ -398,31 +419,32 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 )
               })
             ) : (
-              <div className="p-8 text-center text-sm text-gray-400 italic">
-                No active members found.
+              <div className="p-8 text-center text-xs text-gray-400 italic">
+                No active members match "{search}".
               </div>
             )}
           </div>
         </div>
 
-        {/* Footer Actions */}
-        <div className="flex flex-col space-y-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
-          <label className="flex items-center space-x-2 cursor-pointer bg-indigo-50/50 p-2.5 rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-colors">
+        {/* Compact Integrated Footer */}
+        <div className="flex items-center justify-between gap-2 pt-2.5 sm:pt-3 border-t border-slate-100 mt-2 bg-white shrink-0">
+          <label className="flex items-center space-x-1.5 cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 px-2 py-1.5 rounded-lg border border-indigo-100/80 transition-colors min-w-0">
             <input
               type="checkbox"
               checked={applyToMonth}
               onChange={(e) => setApplyToMonth(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer"
+              className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 accent-indigo-600 cursor-pointer shrink-0"
             />
-            <span className="text-xs font-extrabold text-indigo-950">
-              Apply to all "{schedule.title}" schedules in this month
+            <span className="text-[10px] sm:text-xs font-bold text-indigo-950 truncate">
+              Apply to month
             </span>
           </label>
-          <div className="flex items-center justify-end space-x-3">
+
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
+              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
               disabled={loading}
             >
               Cancel
@@ -430,13 +452,13 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               disabled={loading}
             >
-              <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
-              <span>{loading ? 'Saving...' : 'Save Assignments'}</span>
+              <span>{loading ? 'Saving...' : 'Save'}</span>
             </button>
           </div>
         </div>

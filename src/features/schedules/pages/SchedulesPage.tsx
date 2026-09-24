@@ -25,6 +25,7 @@ import { attendanceService } from '@/services/attendanceService'
 import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useToast } from '@/context/ToastContext'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 
 const PAGE_SIZE = 12
 const SCHEDULE_FILTERS_STORAGE_KEY = 'mats_schedules_filter_state'
@@ -230,6 +231,7 @@ export const SchedulesPage: React.FC = () => {
       setAllMembersProfiles(memberData)
       setActiveMembers(memberData.filter(m => m.status === 'active' || m.status === 'suspended'))
       setAttendanceSessions(sessionsData)
+      nativeWidgetService.syncUpcomingMassesWidget(scheduleData, memberData, profile).catch(() => {})
     } catch (err: any) {
       console.error(err)
       setError('Failed to load schedule or member records.')

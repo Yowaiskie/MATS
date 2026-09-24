@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compact_widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_bg"
+    android:orientation="vertical"
+    android:padding="8dp">
+
+    <!-- Top Header Bar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingBottom="5dp">
+
+        <ImageView
+            android:layout_width="15dp"
+            android:layout_height="15dp"
+            android:contentDescription="MATS Icon"
+            android:src="@mipmap/ic_launcher" />
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="5dp"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="MATS"
+            android:textColor="#F8FAFC"
+            android:textSize="11sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/compact_user_duty_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_badge_duty"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="1.5dp"
+            android:text="SCHEDULE"
+            android:textColor="#FFFFFF"
+            android:textSize="7.5sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/compact_count_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/widget_badge_today"
+            android:paddingHorizontal="5dp"
+            android:paddingVertical="1.5dp"
+            android:text="0 Masses"
+            android:textColor="#FFFFFF"
+            android:textSize="7.5sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- User Schedule Alert Banner -->
+    <LinearLayout
+        android:id="@+id/compact_user_duty_banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:background="@drawable/widget_user_duty_bar"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="6dp"
+        android:paddingVertical="3dp"
+        android:visibility="gone">
+
+        <TextView
+            android:id="@+id/compact_user_duty_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:text="Your Schedule: Tomorrow at 6:00 AM"
+            android:textColor="#86EFAC"
+            android:textSize="8.5sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Empty State View -->
+    <TextView
+        android:id="@+id/compact_empty_text"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:gravity="center"
+        android:padding="6dp"
+        android:text="No upcoming mass.\nTap to open MATS."
+        android:textAlignment="center"
+        android:textColor="#64748B"
+        android:textSize="9.5sp"
+        android:visibility="gone" />
+
+    <!-- Scrollable ListView -->
+    <ListView
+        android:id="@+id/compact_list_view"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:divider="@android:color/transparent"
+        android:dividerHeight="3dp"
+        android:nestedScrollingEnabled="true"
+        android:scrollbars="none" />
+
+</LinearLayout>

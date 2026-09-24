@@ -100,9 +100,16 @@ export const isUserMatchedWithServer = (
     ].filter(c => c && c.length >= 2)
 
     for (const uN of userNames) {
+      const uNAlpha = uN.replace(/[^a-z0-9]/g, '')
       // Direct string match
       for (const cand of candidates) {
-        if (cand && (uN === cand || uN.replace(/[,.]/g, '') === cand.replace(/[,.]/g, ''))) {
+        if (!cand) continue
+        const candAlpha = cand.replace(/[^a-z0-9]/g, '')
+        if (
+          uN === cand ||
+          uN.replace(/[,.]/g, '') === cand.replace(/[,.]/g, '') ||
+          (uNAlpha.length >= 3 && candAlpha.length >= 3 && (uNAlpha === candAlpha || (uNAlpha.length >= 4 && candAlpha.includes(uNAlpha))))
+        ) {
           return true
         }
       }
@@ -126,8 +133,14 @@ export const isUserMatchedWithServer = (
 
   // If mId itself is a name string (e.g. "Kyle Doe" or "Doe, Kyle")
   if (cleanMid && cleanMid.length >= 3) {
+    const cleanMidAlpha = cleanMid.replace(/[^a-z0-9]/g, '')
     for (const uN of userNames) {
-      if (uN === cleanMid || uN.replace(/[,.]/g, '') === cleanMid.replace(/[,.]/g, '')) {
+      const uNAlpha = uN.replace(/[^a-z0-9]/g, '')
+      if (
+        uN === cleanMid ||
+        uN.replace(/[,.]/g, '') === cleanMid.replace(/[,.]/g, '') ||
+        (uNAlpha.length >= 3 && cleanMidAlpha.length >= 3 && uNAlpha === cleanMidAlpha)
+      ) {
         return true
       }
     }

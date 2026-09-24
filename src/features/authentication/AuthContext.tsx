@@ -7,6 +7,7 @@ import { authService } from '@/services/authService'
 import { auditService } from '@/services/auditService'
 import { maintenanceService } from '@/services/maintenanceService'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 
 interface AuthContextType {
   user: User | null
@@ -63,6 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const userProfile = snap.data() as UserProfile
                 setProfile(userProfile)
                 setError(null)
+                try {
+                  localStorage.setItem('mats_current_profile', JSON.stringify(userProfile))
+                } catch {}
+                nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, userProfile).catch(() => {})
               } else {
                 // Fallback: attempt legacy lookup and auto-fix via authService
                 try {
@@ -70,10 +75,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   if (userProfile) {
                     setProfile(userProfile)
                     setError(null)
+                    try {
+                      localStorage.setItem('mats_current_profile', JSON.stringify(userProfile))
+                    } catch {}
+                    nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, userProfile).catch(() => {})
                   } else {
                     setError('Unauthorized. This user is not registered in the system.')
                     setUser(null)
                     setProfile(null)
+                    try {
+                      localStorage.removeItem('mats_current_profile')
+                    } catch {}
+                    nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, null).catch(() => {})
                     await authService.logout()
                   }
                 } catch (err: any) {
@@ -100,6 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUser(null)
         setProfile(null)
+        try {
+          localStorage.removeItem('mats_current_profile')
+        } catch {}
+        nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, null).catch(() => {})
         setLoading(false)
       }
     })

@@ -4,4 +4,8 @@
     <string name="title_activity_main">MATS Portal</string>
     <string name="package_name">com.mas.mats</string>
     <string name="custom_url_scheme">com.mas.mats</string>
+    <string name="widget_name">MATS - Upcoming Masses</string>
+    <string name="widget_description">Display Today\'s and Tomorrow\'s Masses and assigned Altar Servers on your home screen.</string>
+    <string name="compact_widget_name">MATS - Next Mass (Compact 2x2)</string>
+    <string name="compact_widget_description">Display the next upcoming mass and assigned servers in a compact 2x2 widget.</string>
 </resources>

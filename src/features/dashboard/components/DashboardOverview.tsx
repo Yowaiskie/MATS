@@ -6,6 +6,7 @@ import type { Schedule } from '@/types/schedule'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { getOrderBadgeStyle } from '@/types/member'
 import { DashboardCharts } from './DashboardCharts'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 
 const statIcons: { [key: string]: React.ReactNode } = {
   'Active Members': (
@@ -157,6 +158,7 @@ export const DashboardOverview: React.FC = () => {
         setLoading(true)
         const dashboardData = await dashboardService.getDashboardData(userOrder)
         setData(dashboardData)
+        nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, profile).catch(() => {})
       } catch (err: any) {
         console.error(err)
         setError('Failed to fetch real-time dashboard data.')
