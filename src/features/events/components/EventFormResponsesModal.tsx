@@ -14,6 +14,7 @@ import { EditFormResponseModal } from './EditFormResponseModal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
 import type { SignatureConfig } from '@/types/signature'
 import { DEFAULT_MINISTRY_NAME, DEFAULT_PARISH_NAME } from '@/types/signature'
+import { formatContactNumber } from '@/utils/contactNumberHelper'
 
 interface EventFormResponsesModalProps {
   isOpen: boolean
@@ -145,6 +146,10 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
         return `${dateText} • ${slotAns.timeRange}${labelText}`
       }
       return String(val)
+    }
+
+    if (q.type === 'contact_number') {
+      return formatContactNumber(String(val))
     }
 
     if (q.type === 'companion_repeater' && Array.isArray(val)) {
@@ -1425,7 +1430,22 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                   return (
                     <div key={q.id} className="p-3 border border-slate-200 rounded-xl bg-white space-y-1">
                       <p className="font-bold text-slate-900">#{idx + 1}. {q.question}</p>
-                      <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100 break-words">{displayVal}</p>
+                      {q.type === 'contact_number' && val ? (
+                        <div className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100 flex items-center justify-between">
+                          <span className="font-mono font-bold text-slate-900">{displayVal}</span>
+                          <a
+                            href={`tel:${String(val).replace(/[^0-9\+]/g, '')}`}
+                            className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md border border-indigo-200 transition"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            <span>Call</span>
+                          </a>
+                        </div>
+                      ) : (
+                        <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100 break-words">{displayVal}</p>
+                      )}
                     </div>
                   )
                 })}

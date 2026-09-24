@@ -310,23 +310,26 @@ export const ReportsPage: React.FC = () => {
         })}
       </div>
 
-      {/* Filter component with Cycle Selector */}
-      <FilterBar
-        activeTab={activeTab}
-        startDate={startDate}
-        endDate={endDate}
-        onStartDateChange={setStartDate}
-        onEndDateChange={setEndDate}
-        selectedYear={selectedYear}
-        onYearChange={setSelectedYear}
-        searchQuery={searchQuery}
-        onSearchQueryChange={setSearchQuery}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        publications={publications}
-        selectedPublicationId={selectedPublicationId}
-        onPublicationChange={handlePublicationChange}
-      />
+      {/* Filter component with Cycle Selector (Hidden in Qualifications tab to avoid duplicate date pickers) */}
+      {activeTab !== 'qualifications' && (
+        <FilterBar
+          activeTab={activeTab}
+          startDate={startDate}
+          endDate={endDate}
+          onStartDateChange={setStartDate}
+          onEndDateChange={setEndDate}
+          selectedYear={selectedYear}
+          onYearChange={setSelectedYear}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          publications={publications}
+          selectedPublicationId={selectedPublicationId}
+          onPublicationChange={handlePublicationChange}
+        />
+      )}
+
 
       {/* Order Leader Scope Banner */}
       {(profile?.role === 'order_leader' || profile?.permissions?.assignedOrder || profile?.assignedOrder) && (profile?.permissions?.assignedOrder || profile?.assignedOrder) && (

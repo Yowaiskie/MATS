@@ -27,6 +27,7 @@ interface EventFormBuilderModalProps {
 const QUESTION_TYPES: { type: QuestionType; label: string; group: string; description: string }[] = [
   { type: 'short_text', label: 'Short Text', group: 'Text & Input', description: 'Single line text answer' },
   { type: 'long_text', label: 'Long Text (Paragraph)', group: 'Text & Input', description: 'Multi-line detailed answer' },
+  { type: 'contact_number', label: 'Contact Number (Mobile / Landline)', group: 'Text & Input', description: 'Dual mobile (11-digit) or landline with smart 11-digit limit' },
   { type: 'multiple_choice', label: 'Multiple Choice', group: 'Choices', description: 'Select 1 option from a list' },
   { type: 'checkbox', label: 'Checkboxes', group: 'Choices', description: 'Select 1 or more options' },
   { type: 'dropdown', label: 'Dropdown', group: 'Choices', description: 'Select 1 option from a menu' },
@@ -74,6 +75,12 @@ const QuestionTypeIcon: React.FC<{ type: QuestionType; className?: string }> = (
       return (
         <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 10h16M4 14h16M4 18h10" />
+        </svg>
+      )
+    case 'contact_number':
+      return (
+        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       )
     case 'multiple_choice':
@@ -1863,6 +1870,17 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                         )}
                         {q.type === 'long_text' && (
                           <div className="p-2 border rounded-xl text-xs bg-slate-50 text-slate-400 h-12">Paragraph text...</div>
+                        )}
+                        {q.type === 'contact_number' && (
+                          <div className="p-2 border rounded-xl text-xs bg-slate-50 text-slate-400 flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                              </svg>
+                              <span>0917-123-4567 or (02) 8123-4567</span>
+                            </div>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md">Max 11 digits</span>
+                          </div>
                         )}
                         {['multiple_choice', 'checkbox', 'relationship_selector'].includes(q.type) && (
                           <div className="space-y-1">

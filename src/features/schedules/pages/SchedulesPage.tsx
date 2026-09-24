@@ -16,7 +16,7 @@ import { RemindAttendanceModal } from '@/components/RemindAttendanceModal'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
-import { FilterDropdown } from '@/components'
+import { FilterDropdown, DatePicker } from '@/components'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
@@ -583,15 +583,8 @@ export const SchedulesPage: React.FC = () => {
   const allFilteredSelected = filteredSchedules.length > 0 && selectedIds.size === filteredSchedules.length
   const someSelected = selectedIds.size > 0
 
-  if (loading) {
-    return (
-      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
-        <Loading variant="spinner" label="Loading Schedules..." />
-      </div>
-    )
-  }
-
   return (
+
     <div className="space-y-6 pb-8">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -796,22 +789,23 @@ export const SchedulesPage: React.FC = () => {
           </div>
 
           {dateFilterMode === 'single' ? (
-            <div className="flex gap-1.5">
-              <input
+            <div className="flex gap-1.5 items-center">
+              <DatePicker
                 id="filter-date"
-                type="date"
                 value={dateFilter}
-                onChange={(e) => handleDateFilterChange(e.target.value)}
-                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                onChange={handleDateFilterChange}
+                placeholder="Select date"
+                className="flex-1"
+                showTodayButton={true}
               />
               <button
                 type="button"
                 onClick={() => {
                   const today = new Date()
                   setSelectedMonthDate(today)
-                  setDateFilter(getTodayString())
+                  handleDateFilterChange(getTodayString())
                 }}
-                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[36px] shadow-2xs"
+                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[40px] shadow-2xs"
               >
                 <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -822,20 +816,22 @@ export const SchedulesPage: React.FC = () => {
           ) : (
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
+                <DatePicker
                   value={startDateFilter}
-                  onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-                  title="Start Date (From)"
+                  onChange={val => setStartDateFilter(val)}
+                  maxDate={endDateFilter || undefined}
+                  placeholder="Start date"
+                  className="flex-1"
+                  size="dense"
                 />
                 <span className="text-xs font-bold text-gray-400 shrink-0">to</span>
-                <input
-                  type="date"
+                <DatePicker
                   value={endDateFilter}
-                  onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-                  title="End Date (To)"
+                  onChange={val => setEndDateFilter(val)}
+                  minDate={startDateFilter || undefined}
+                  placeholder="End date"
+                  className="flex-1"
+                  size="dense"
                 />
               </div>
               <div className="flex items-center gap-1 flex-wrap">
@@ -875,6 +871,7 @@ export const SchedulesPage: React.FC = () => {
               </div>
             </div>
           )}
+
         </div>
 
         {/* Time / Schedule filter */}
@@ -956,11 +953,11 @@ export const SchedulesPage: React.FC = () => {
 
       {/* Main Grid content */}
       {loading ? (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-white rounded-xl border border-gray-205 shadow-sm">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-          <span className="text-xs text-gray-500">Loading schedules...</span>
+        <div className="py-20 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+          <Loading variant="spinner" label="Loading Schedules..." />
         </div>
       ) : viewMode === 'calendar' ? (
+
         <CalendarView
           schedules={filteredSchedules}
           currentDate={selectedMonthDate}

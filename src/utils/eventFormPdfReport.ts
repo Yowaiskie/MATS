@@ -31,6 +31,7 @@ const loadImage = (url: string): Promise<HTMLImageElement> => {
 import type { SignatureConfig } from '@/types/signature'
 import { renderPdfSignatures } from '@/utils/pdfSignatureHelper'
 import { formatDocCodeWithDate, applyStandardPdfFooters } from '@/utils/pdfFooterHelper'
+import { formatContactNumber } from '@/utils/contactNumberHelper'
 
 export interface EventFormPdfOptions {
   documentTitle: string
@@ -184,6 +185,8 @@ export const downloadEventFormPdf = async (
             displayVal = rawName.replace(/\s*\([^)]*\)/g, '').trim()
           } else if (typeof val === 'string' && membersMap[val]) {
             displayVal = membersMap[val].replace(/\s*\([^)]*\)/g, '').trim()
+          } else if (q && q.type === 'contact_number') {
+            displayVal = formatContactNumber(String(val))
           } else if ((q && q.type === 'appointment_slots') || (typeof val === 'object' && val !== null && 'timeRange' in val)) {
             const appt = val as any
             displayVal = `${appt.date || ''} • ${appt.timeRange || ''}${appt.slotLabel ? ` (${appt.slotLabel})` : ''}`.trim()

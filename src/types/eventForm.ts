@@ -42,6 +42,7 @@ export interface EventForm {
 export type QuestionType =
   | 'short_text'
   | 'long_text'
+  | 'contact_number'
   | 'multiple_choice'
   | 'dropdown'
   | 'checkbox'
@@ -102,6 +103,7 @@ export interface EventFormQuestion {
   type: QuestionType
   question: string
   description?: string
+  placeholder?: string
   required: boolean
   order: number
   options?: string[]

@@ -5,6 +5,7 @@ import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Button, MemberSearchDropdown, CustomSelect } from '@/components'
 import { useToast } from '@/context/ToastContext'
+import { formatContactNumber, detectContactType, getRawContactDigits } from '@/utils/contactNumberHelper'
 
 interface EditFormResponseModalProps {
   isOpen: boolean
@@ -230,6 +231,49 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                       className="w-full p-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-medium"
                     />
                   )}
+
+                  {/* Contact Number (Mobile / Landline) */}
+                  {q.type === 'contact_number' && (() => {
+                    const strVal = currentVal !== undefined && currentVal !== null ? String(currentVal) : ''
+                    const rawDigits = getRawContactDigits(strVal)
+                    const detected = detectContactType(strVal)
+
+                    return (
+                      <div className="space-y-1.5">
+                        <div className="relative flex items-center">
+                          <div className="absolute left-3 text-slate-400 pointer-events-none">
+                            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                          </div>
+                          <input
+                            type="tel"
+                            value={strVal}
+                            onChange={e => handleAnswerChange(q.id, formatContactNumber(e.target.value))}
+                            placeholder="e.g. 0917-123-4567 or (02) 8123-4567"
+                            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="flex items-center justify-between text-[11px] px-1">
+                          <div className="flex items-center gap-1.5">
+                            {detected === 'mobile' && (
+                              <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                                Mobile Number (11 Digits)
+                              </span>
+                            )}
+                            {detected === 'landline' && (
+                              <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                                Landline Number
+                              </span>
+                            )}
+                          </div>
+                          <span className={`font-mono font-bold ${rawDigits.length === 11 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                            {rawDigits.length} / 11 digits
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {q.type === 'long_text' && (
                     <textarea

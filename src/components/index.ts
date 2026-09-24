@@ -22,6 +22,7 @@ export * from './NotificationBell'
 export * from './NotificationActions'
 export * from './RemindAttendanceModal'
 export * from './ActionMenu'
+export * from './DatePicker'
 export * from '../context/ToastContext'
 
 

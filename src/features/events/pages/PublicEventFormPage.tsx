@@ -21,6 +21,12 @@ import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
 import { FormattedText } from '@/components/FormattedText'
 import { CustomSelect } from '@/components'
+import {
+  formatContactNumber,
+  detectContactType,
+  getRawContactDigits,
+  isValidContactNumber
+} from '@/utils/contactNumberHelper'
 
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
@@ -536,6 +542,19 @@ export const PublicEventFormPage: React.FC = () => {
           }
         }
       }
+
+      // Validate contact number format
+      if (q.type === 'contact_number') {
+        const val = answers[q.id]
+        if (val && !isValidContactNumber(val, q.required)) {
+          const raw = getRawContactDigits(val)
+          if (raw.startsWith('09') && raw.length !== 11) {
+            errorsMap[q.id] = 'Please provide a complete 11-digit mobile number (e.g. 0917-123-4567).'
+          } else {
+            errorsMap[q.id] = 'Please provide a valid contact number (7-11 digits).'
+          }
+        }
+      }
     }
 
     if (Object.keys(errorsMap).length > 0) {
@@ -728,6 +747,10 @@ export const PublicEventFormPage: React.FC = () => {
     if (q.type === 'companion_repeater' && Array.isArray(val) && val.length > 0) {
       const allNamed = val.every((c: any) => c && typeof c.name === 'string' && c.name.trim().length > 0)
       if (!allNamed) return false
+    }
+    if (q.type === 'contact_number') {
+      if (!q.required && (!val || val === '')) return true
+      return isValidContactNumber(val, q.required)
     }
     if (!q.required) return true
     if (val === undefined || val === null || val === '') return false
@@ -1710,6 +1733,63 @@ export const PublicEventFormPage: React.FC = () => {
                           </button>
                         </div>
                       )}
+                    </div>
+                  )
+                })()}
+
+                {/* Unified Contact Number (Mobile / Landline) */}
+                {q.type === 'contact_number' && (() => {
+                  const currentVal = answers[q.id] ? String(answers[q.id]) : ''
+                  const rawDigits = getRawContactDigits(currentVal)
+                  const detected = detectContactType(currentVal)
+
+                  const handleContactInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const formatted = formatContactNumber(e.target.value)
+                    handleInputChange(q.id, formatted)
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="relative flex items-center">
+                        <div className="absolute left-3.5 text-slate-400 pointer-events-none">
+                          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </div>
+                        <input
+                          type="tel"
+                          required={q.required}
+                          value={currentVal}
+                          onChange={handleContactInput}
+                          placeholder={q.placeholder || 'e.g. 0917-123-4567 or (02) 8123-4567'}
+                          className="w-full pl-10 pr-3.5 py-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono font-medium tracking-wide"
+                        />
+                      </div>
+
+                      {/* Real-time Indicator & Digit Counter */}
+                      <div className="flex items-center justify-between px-1 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          {detected === 'mobile' && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                              Mobile Number (11 Digits)
+                            </span>
+                          )}
+                          {detected === 'landline' && (
+                            <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                              Landline Number
+                            </span>
+                          )}
+                          {detected === 'unknown' && rawDigits.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
+                              Contact Number
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`font-mono font-bold ${rawDigits.length === 11 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {rawDigits.length} / 11 digits
+                        </span>
+                      </div>
                     </div>
                   )
                 })()}

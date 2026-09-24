@@ -17,7 +17,7 @@ import { qualificationService } from '@/services/qualificationService'
 import { settingsService } from '@/services/settingsService'
 import { getFullName } from '@/utils/member'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
-import { ActionMenu, FilterDropdown } from '@/components'
+import { ActionMenu, FilterDropdown, DatePicker } from '@/components'
 import { QualificationsExportModal } from './QualificationsExportModal'
 
 interface QualificationsTabProps {
@@ -596,24 +596,27 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
             </span>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[9px] font-bold text-slate-500">From</label>
-                <input
-                  type="date"
+                <label className="block text-[9px] font-bold text-slate-500 mb-1">From</label>
+                <DatePicker
                   value={startDate}
-                  onChange={e => onDateChange(e.target.value, endDate)}
-                  className="w-full text-xs font-bold p-2 border border-slate-200 rounded-xl bg-white focus:border-indigo-500 outline-none"
+                  onChange={val => onDateChange(val, endDate)}
+                  maxDate={endDate || undefined}
+                  size="dense"
+                  placeholder="From date"
                 />
               </div>
               <div>
-                <label className="block text-[9px] font-bold text-slate-500">To</label>
-                <input
-                  type="date"
+                <label className="block text-[9px] font-bold text-slate-500 mb-1">To</label>
+                <DatePicker
                   value={endDate}
-                  onChange={e => onDateChange(startDate, e.target.value)}
-                  className="w-full text-xs font-bold p-2 border border-slate-200 rounded-xl bg-white focus:border-indigo-500 outline-none"
+                  onChange={val => onDateChange(startDate, val)}
+                  minDate={startDate || undefined}
+                  size="dense"
+                  placeholder="To date"
                 />
               </div>
             </div>
+
           </div>
 
           {/* Active Rules Badges */}
