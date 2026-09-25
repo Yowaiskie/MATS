@@ -1,4 +1,4 @@
-export type NotificationType = 'attendance_reminder' | 'admin_broadcast' | 'system_alert'
+export type NotificationType = 'attendance_reminder' | 'admin_broadcast' | 'system_alert' | 'excuse_request'
 export type NotificationPriority = 'urgent' | 'important' | 'info'
 export type NotificationTarget = 'all' | 'officers' | 'admins'
 
@@ -11,6 +11,8 @@ export interface AppNotification {
   targetAudience: NotificationTarget
   targetMemberIds?: string[] // IDs of specific assigned members
   scheduleId?: string
+  excuseId?: string
+  memberId?: string
   actionUrl?: string
   actionLabel?: string
   createdBy: string

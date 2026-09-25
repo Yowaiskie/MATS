@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
-import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
+import { getOrderBadgeStyle } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { getFullName } from '@/utils/member'
 import { isTimeOverlapping, formatTime12Hour } from '@/utils/scheduleUtils'
 import { qualificationService } from '@/services/qualificationService'
-import { orderRotationService } from '@/services/orderRotationService'
 import { ConfirmModal } from '@/components/Dialog'
 
 interface AssignmentModalProps {
@@ -36,9 +35,6 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
   const isMeetingOrFormation = schedule
     ? (qualificationService.scheduleMatchesCategory(schedule, 'meeting') || qualificationService.scheduleMatchesCategory(schedule, 'formation'))
     : false
-
-  // Determine if this schedule matches Holy Hour / Binyag rotation
-  const isRotatingService = schedule ? orderRotationService.matchesRotationTarget(schedule) : false
 
   useEffect(() => {
     if (schedule) {
@@ -89,24 +85,6 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     setSelectedIds(prev => [...prev, memberId])
   }
 
-  const handleToggleOrderGroup = (orderGroup: string) => {
-    setError(null)
-    const groupMembers = activeMembers.filter(m => m.order === orderGroup)
-    const groupMemberIds = groupMembers.map(m => m.id)
-    if (groupMemberIds.length === 0) return
-
-    const allSelected = groupMemberIds.every(id => selectedIds.includes(id))
-
-    if (allSelected) {
-      setSelectedIds(prev => prev.filter(id => !groupMemberIds.includes(id)))
-    } else {
-      const selectableIds = groupMembers
-        .filter(m => (!getConflictDetails(m.id) && !isExcludedSuspended(m)) || selectedIds.includes(m.id))
-        .map(m => m.id)
-      setSelectedIds(prev => Array.from(new Set([...prev, ...selectableIds])))
-    }
-  }
-
   const getSelectableMemberIds = (members: Member[]) => {
     return members
       .filter((m) => (!getConflictDetails(m.id) && !isExcludedSuspended(m)) || selectedIds.includes(m.id))
@@ -146,7 +124,8 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
     return (
       getFullName(m).toLowerCase().includes(q) ||
       (m.nickname && m.nickname.toLowerCase().includes(q)) ||
-      (m.order && m.order.toLowerCase().includes(q))
+      (m.order && m.order.toLowerCase().includes(q)) ||
+      (m.rank && m.rank.toLowerCase().includes(q))
     )
   })
 
@@ -169,7 +148,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       {/* Backdrop */}
       <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md transition-opacity" onClick={onClose}></div>
 
-      {/* Modal Body: Expansive height for mobile */}
+      {/* Modal Body: Spacious layout with maximum list view */}
       <div className="relative w-full max-w-2xl h-[94dvh] sm:h-auto sm:max-h-[90vh] rounded-t-3xl sm:rounded-3xl border border-slate-200/80 bg-white p-3.5 sm:p-5 shadow-2xl z-10 text-slate-800 flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
         
         {/* Top Header */}
@@ -199,7 +178,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
           </button>
         </div>
 
-        {/* Content Body: Flex-1 to maximize search list space */}
+        {/* Content Body */}
         <div className="mt-2.5 flex-1 flex flex-col min-h-0 space-y-2 overflow-hidden">
           {error && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-650 font-medium shrink-0">
@@ -207,77 +186,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
           )}
 
-          {/* Smart Rotating Order Group helper banner (auto-hidden when searching to maximize results view) */}
-          {isRotatingService && !isSearching && (
-            <div className="p-2 sm:p-2.5 rounded-xl bg-indigo-50/70 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 shadow-2xs shrink-0">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <span className="p-1 rounded bg-indigo-600 text-white shrink-0">
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </span>
-                <span className="text-[10.5px] sm:text-xs font-black text-indigo-950 truncate">
-                  Holy Hour &amp; Binyag Rotation:
-                </span>
-              </div>
-
-              <div className="flex items-center gap-1 overflow-x-auto pb-0.5 touch-pan-x no-scrollbar">
-                {[
-                  { grp: 'Order of San Pedro', activeCls: 'bg-red-600 border-red-600 text-white ring-2 ring-red-600/30', idleCls: 'bg-white border-red-200 text-red-900 hover:bg-red-50' },
-                  { grp: 'Order of San Juan', activeCls: 'bg-blue-600 border-blue-600 text-white ring-2 ring-blue-600/30', idleCls: 'bg-white border-blue-200 text-blue-900 hover:bg-blue-50' },
-                  { grp: 'Order of San Tiago', activeCls: 'bg-emerald-600 border-emerald-600 text-white ring-2 ring-emerald-600/30', idleCls: 'bg-white border-emerald-200 text-emerald-900 hover:bg-emerald-50' },
-                  { grp: 'Order of San Andres', activeCls: 'bg-amber-500 border-amber-500 text-white ring-2 ring-amber-500/30', idleCls: 'bg-white border-amber-200 text-amber-900 hover:bg-amber-50' }
-                ].map(({ grp, activeCls, idleCls }, idx) => {
-                  const groupMembers = activeMembers.filter(m => m.order === grp)
-                  const allSelected = groupMembers.length > 0 && groupMembers.every(m => selectedIds.includes(m.id))
-                  return (
-                    <button
-                      key={grp}
-                      type="button"
-                      onClick={() => handleToggleOrderGroup(grp)}
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-black border transition-all cursor-pointer whitespace-nowrap shadow-2xs ${
-                        allSelected ? activeCls : idleCls
-                      }`}
-                    >
-                      {idx + 1}. {grp.replace('Order of ', '')} ({groupMembers.length})
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Quick Select by Order Group (auto-hidden when searching to maximize results view) */}
-          {!isSearching && (
-            <div className="shrink-0">
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 touch-pan-x no-scrollbar">
-                <span className="text-[9.5px] font-bold uppercase tracking-wider text-gray-400 shrink-0 mr-0.5">
-                  Orders:
-                </span>
-                {ORDER_GROUPS.map((grp) => {
-                  const groupMembers = activeMembers.filter(m => m.order === grp)
-                  if (groupMembers.length === 0) return null
-                  const allSelected = groupMembers.every(m => selectedIds.includes(m.id))
-                  return (
-                    <button
-                      key={grp}
-                      type="button"
-                      onClick={() => handleToggleOrderGroup(grp)}
-                      className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition-all cursor-pointer whitespace-nowrap shrink-0 ${
-                        allSelected
-                          ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
-                          : 'bg-indigo-50/50 border-indigo-200/80 text-indigo-800 hover:bg-indigo-100'
-                      }`}
-                    >
-                      {allSelected ? '✓ ' : '+ '} {grp.replace('Order of ', '')} ({groupMembers.length})
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Search bar & Quick Action bar */}
+          {/* Search bar */}
           <div className="space-y-1.5 shrink-0">
             <div className="relative">
               <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400">
@@ -290,8 +199,9 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="block w-full pl-8 pr-8 py-1.5 sm:py-2 border border-gray-200 bg-white rounded-xl text-xs text-gray-800 placeholder-gray-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all duration-150"
-                placeholder="Search server name, nickname, or order..."
+                placeholder="Search server name, nickname, rank, or order..."
                 disabled={loading}
+                autoFocus={false}
               />
               {search && (
                 <button
@@ -347,9 +257,9 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
           </div>
 
-          {/* Members Checklist / Search Results: GIVEN MAXIMUM PROMINENT SCROLLABLE SPACE */}
+          {/* Members Checklist / Search Results: MAXIMUM PROMINENT SCROLLABLE SPACE */}
           <div 
-            className="flex-1 min-h-[220px] sm:min-h-[280px] border border-gray-200 bg-white rounded-xl overflow-y-auto overscroll-contain divide-y divide-gray-100 shadow-xs touch-pan-y"
+            className="flex-1 min-h-[240px] sm:min-h-[300px] border border-gray-200 bg-white rounded-xl overflow-y-auto overscroll-contain divide-y divide-gray-100 shadow-xs touch-pan-y"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {filteredMembers.length > 0 ? (

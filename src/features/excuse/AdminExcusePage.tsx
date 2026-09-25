@@ -6,6 +6,7 @@ import type { ExcuseRequest } from '@/types/excuse'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { ReviewExcuseModal } from './ReviewExcuseModal'
+import { CollapsibleScheduleList } from './CollapsibleScheduleList'
 import { ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
@@ -14,8 +15,8 @@ import { QuickFilterPills } from '@/components/QuickFilterPills'
 import { StatusBadge } from '@/components/StatusBadge'
 import { EmptyState } from '@/components/EmptyState'
 import { useToast } from '@/context/ToastContext'
-import { formatTime12Hour } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useNotificationContext } from '@/context/NotificationContext'
 import { authService } from '@/services/authService'
 
 const PAGE_SIZE = 10
@@ -23,6 +24,7 @@ const PAGE_SIZE = 10
 export const AdminExcusePage: React.FC = () => {
   const { user, profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
+  const { notifications, markAsRead, markAllExcusesAsRead } = useNotificationContext()
   const [requests, setRequests] = useState<ExcuseRequest[]>([])
   const [membersMap, setMembersMap] = useState<Map<string, Member>>(new Map())
   const [schedulesMap, setSchedulesMap] = useState<Map<string, Schedule>>(new Map())
@@ -75,6 +77,20 @@ export const AdminExcusePage: React.FC = () => {
     loadData()
   }, [])
 
+  // Automatically mark all unread excuse_request notifications and pending excuses as read when viewing the page
+  useEffect(() => {
+    if (!user?.uid) return
+    markAllExcusesAsRead()
+    const unreadExcuseNotifs = notifications.filter(
+      n => n.type === 'excuse_request' && (!n.readBy || !n.readBy.includes(user.uid))
+    )
+    if (unreadExcuseNotifs.length > 0) {
+      unreadExcuseNotifs.forEach(n => {
+        markAsRead(n.id).catch(() => {})
+      })
+    }
+  }, [notifications, user?.uid, markAsRead, markAllExcusesAsRead])
+
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
       // Archive vs Active filter
@@ -107,33 +123,6 @@ export const AdminExcusePage: React.FC = () => {
       return `${member.lastName}, ${member.firstName}`
     }
     return req.memberName || `Server #${req.memberId.substring(0, 8)}`
-  }
-
-  const renderScheduleBadge = (scheduleId: string) => {
-    const sched = schedulesMap.get(scheduleId)
-    if (!sched) {
-      return (
-        <span key={scheduleId} className="inline-block text-[11px] text-slate-500 italic bg-slate-100 px-2 py-0.5 rounded">
-          Schedule #{scheduleId.substring(0, 8)}
-        </span>
-      )
-    }
-
-    const timeStr = sched.startTime ? (
-      sched.endTime 
-        ? `${formatTime12Hour(sched.startTime)} - ${formatTime12Hour(sched.endTime)}` 
-        : formatTime12Hour(sched.startTime)
-    ) : ''
-
-    return (
-      <div key={scheduleId} className="text-xs bg-slate-50 p-2 rounded-xl border border-slate-200/80 space-y-0.5">
-        <div className="font-bold text-slate-900 leading-tight">{sched.title || 'Church Service'}</div>
-        <div className="text-[11px] text-indigo-600 font-semibold flex items-center gap-1">
-          <span>{sched.date}</span>
-          {timeStr && <span>• {timeStr}</span>}
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -241,7 +230,7 @@ export const AdminExcusePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Requests Table */}
+      {/* Main Container */}
       <div className="bg-white rounded-2xl shadow-2xs border border-slate-200/80 overflow-hidden">
         {loading ? (
           <div className="py-16">
@@ -254,7 +243,8 @@ export const AdminExcusePage: React.FC = () => {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View (hidden on mobile, visible on md and up) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50/90 border-b border-slate-200/80 text-[11px] uppercase text-slate-400 font-black tracking-wider whitespace-nowrap">
                   <tr>
@@ -295,18 +285,21 @@ export const AdminExcusePage: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Schedules Requested */}
-                        <td className="px-5 py-4 align-top min-w-[240px]">
-                          <div className="space-y-1.5">
-                            {req.schedules?.map(sId => renderScheduleBadge(sId))}
-                          </div>
+                        {/* Schedules Requested with Collapsible List */}
+                        <td className="px-5 py-4 align-top min-w-[240px] max-w-sm">
+                          <CollapsibleScheduleList
+                            scheduleIds={req.schedules || []}
+                            schedulesMap={schedulesMap}
+                            maxInitialDisplay={2}
+                            compact
+                          />
                         </td>
 
-                        {/* Reason */}
-                        <td className="px-5 py-4 align-top max-w-xs">
-                          <p className="text-xs text-slate-700 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-200/60">
+                        {/* Reason with non-clipped wrapping */}
+                        <td className="px-5 py-4 align-top min-w-[200px] max-w-xs">
+                          <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 break-words whitespace-pre-wrap">
                             {req.reason}
-                          </p>
+                          </div>
                         </td>
 
                         {/* Status */}
@@ -338,7 +331,7 @@ export const AdminExcusePage: React.FC = () => {
                                   variant="secondary"
                                   size="xs"
                                   onClick={() => setSelectedRequest(req)}
-                                  title={req.status === 'approved' ? 'View approved excuse details (Locked)' : 'View excuse details'}
+                                  title={req.status === 'approved' ? 'View approved excuse details' : 'View excuse details'}
                                   icon={
                                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -402,7 +395,7 @@ export const AdminExcusePage: React.FC = () => {
                                 className="bg-emerald-600 hover:bg-emerald-700 text-white"
                                 icon={
                                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                   </svg>
                                 }
                               >
@@ -436,6 +429,153 @@ export const AdminExcusePage: React.FC = () => {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card List View (visible on mobile < md, hidden on desktop) */}
+            <div className="block md:hidden divide-y divide-slate-100">
+              {paginatedRequests.map(req => {
+                const member = membersMap.get(req.memberId)
+
+                return (
+                  <div key={req.id || Math.random().toString()} className="p-4 space-y-3.5">
+                    {/* Card Top Row: Name & Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          {getMemberDisplayName(req)}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-1 flex-wrap">
+                          {member?.order && (
+                            <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded text-[10px] font-bold border border-blue-100">
+                              {member.order}
+                            </span>
+                          )}
+                          {member?.rank && (
+                            <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                              {member.rank}
+                            </span>
+                          )}
+                          {req.isArchived && (
+                            <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded text-[10px] font-bold border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <StatusBadge status={req.status} size="sm" />
+                    </div>
+
+                    {/* Requested Schedules */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                        Requested Schedules ({req.schedules?.length || 0})
+                      </span>
+                      <CollapsibleScheduleList
+                        scheduleIds={req.schedules || []}
+                        schedulesMap={schedulesMap}
+                        maxInitialDisplay={2}
+                        compact
+                      />
+                    </div>
+
+                    {/* Reason - Full readable wrapping on mobile */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                        Reason
+                      </span>
+                      <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/60 break-words whitespace-pre-wrap">
+                        {req.reason}
+                      </div>
+                    </div>
+
+                    {/* Mobile Action Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 flex-wrap">
+                      {!req.isArchived && (
+                        req.status === 'pending' && canReview ? (
+                          <Button 
+                            variant="primary"
+                            size="dense"
+                            onClick={() => setSelectedRequest(req)}
+                            icon={
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            }
+                          >
+                            Review
+                          </Button>
+                        ) : (
+                          <Button 
+                            variant="secondary"
+                            size="dense"
+                            onClick={() => setSelectedRequest(req)}
+                            icon={
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                            }
+                          >
+                            View
+                          </Button>
+                        )
+                      )}
+
+                      {!req.isArchived && canDelete && (
+                        <Button 
+                          variant="secondary"
+                          size="dense"
+                          onClick={() => setArchiveConfirm({ 
+                            id: req.id!, 
+                            name: getMemberDisplayName(req) 
+                          })}
+                          className="text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
+                        >
+                          Archive
+                        </Button>
+                      )}
+
+                      {req.isArchived && (
+                        <Button 
+                          variant="secondary"
+                          size="dense"
+                          onClick={() => setSelectedRequest(req)}
+                        >
+                          View
+                        </Button>
+                      )}
+
+                      {req.isArchived && canDelete && (
+                        <Button 
+                          variant="primary"
+                          size="dense"
+                          onClick={() => setRestoreConfirm({ 
+                            id: req.id!, 
+                            name: getMemberDisplayName(req) 
+                          })}
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        >
+                          Restore
+                        </Button>
+                      )}
+
+                      {req.isArchived && isAdmin && (
+                        <Button 
+                          variant="danger"
+                          size="dense"
+                          onClick={() => setDeleteConfirm({ 
+                            id: req.id!, 
+                            name: getMemberDisplayName(req) 
+                          })}
+                        >
+                          Hard Delete
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             <Pagination

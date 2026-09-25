@@ -401,7 +401,8 @@ service cloud.firestore {
     // ==========================================
     match /notifications/{notificationId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isSuperAdmin() || 
+      allow create: if true; // Allows public portal excuse request alerts and system broadcast creation
+      allow delete: if isSuperAdmin() || 
                               hasPermission('canBroadcast') || 
                               hasPermission('canManageSchedules') || 
                               hasPermission('canTakeAttendance');

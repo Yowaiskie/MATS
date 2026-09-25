@@ -142,13 +142,14 @@ const ALL_SECONDARY_ITEMS: { name: string; href: string; moduleKey: ModuleKey; l
 
 interface BottomNavProps {
   activeTasksCount: number
+  unreadExcuseCount?: number
   onLogout: () => void
   loggingOut: boolean
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export const BottomNav: React.FC<BottomNavProps> = ({ activeTasksCount, onLogout, loggingOut }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ activeTasksCount, unreadExcuseCount = 0, onLogout, loggingOut }) => {
   const { profile, hasModuleAccess } = useAuth()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -226,6 +227,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTasksCount, onLogout
                       {activeTasksCount > 9 ? '9+' : activeTasksCount}
                     </span>
                   )}
+                  {/* Excuse badge */}
+                  {tab.name === 'Excuses' && unreadExcuseCount > 0 && (
+                    <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-black text-white ring-2 ring-white">
+                      {unreadExcuseCount > 9 ? '9+' : unreadExcuseCount}
+                    </span>
+                  )}
                 </span>
                 <span
                   className={`text-[10px] font-semibold leading-none transition-colors duration-150 ${
@@ -245,7 +252,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTasksCount, onLogout
               className="relative flex-1 flex flex-col items-center justify-center gap-1 transition-all duration-150 active:scale-90 select-none"
             >
               <span
-                className={`flex items-center justify-center rounded-2xl transition-all duration-200 ${
+                className={`relative flex items-center justify-center rounded-2xl transition-all duration-200 ${
                   moreOpen || isMoreActive ? 'bg-indigo-600 shadow-sm' : 'bg-transparent'
                 }`}
                 style={{ width: 40, height: 28 }}
@@ -262,6 +269,12 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTasksCount, onLogout
                   <circle cx="12" cy="12" r="1.5" />
                   <circle cx="19" cy="12" r="1.5" />
                 </svg>
+                {/* Badge indicator on More button */}
+                {(activeTasksCount > 0 || unreadExcuseCount > 0) && (
+                  <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-rose-500 text-[8px] font-black text-white ring-2 ring-white">
+                    {(activeTasksCount + unreadExcuseCount) > 9 ? '9+' : (activeTasksCount + unreadExcuseCount)}
+                  </span>
+                )}
               </span>
               <span
                 className={`text-[10px] font-semibold leading-none transition-colors duration-150 ${
@@ -356,8 +369,14 @@ export const BottomNav: React.FC<BottomNavProps> = ({ activeTasksCount, onLogout
                     </span>
                     {/* Events badge */}
                     {item.name === 'Events' && activeTasksCount > 0 && (
-                      <span className="flex h-5 min-w-5 px-1 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white">
+                      <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-red-500 text-[10px] font-black text-white shadow-xs">
                         {activeTasksCount > 9 ? '9+' : activeTasksCount}
+                      </span>
+                    )}
+                    {/* Excuses badge */}
+                    {item.name === 'Excuses' && unreadExcuseCount > 0 && (
+                      <span className="flex h-5 min-w-5 px-1.5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-black text-white shadow-xs">
+                        {unreadExcuseCount > 9 ? '9+' : unreadExcuseCount}
                       </span>
                     )}
                     {/* Chevron */}

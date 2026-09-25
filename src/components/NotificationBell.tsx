@@ -33,8 +33,11 @@ export const NotificationBell: React.FC = () => {
 
   const {
     notifications,
+    pendingExcuses,
+    readExcuseIds,
     unreadCount,
     markAsRead,
+    markExcuseAsRead,
     markAllAsRead,
     deleteNotification,
     clearAllNotifications,
@@ -148,6 +151,16 @@ export const NotificationBell: React.FC = () => {
     return true
   })
 
+  const relevantPendingExcuses = pendingExcuses.filter(e => activeTab === 'all' || !readExcuseIds.includes(e.id || ''))
+  const totalAlertsCount = notifications.length + pendingExcuses.length
+  const hasAnyAlerts = filteredNotifications.length > 0 || relevantPendingExcuses.length > 0
+
+  const handleExcuseClick = (excuseId: string) => {
+    if (excuseId) markExcuseAsRead(excuseId)
+    setIsOpen(false)
+    navigate('/excuses')
+  }
+
   return (
     <div className="relative" ref={popoverRef}>
       {/* Bell Trigger Button */}
@@ -208,7 +221,7 @@ export const NotificationBell: React.FC = () => {
                     <span>Mark read</span>
                   </button>
                 )}
-                {notifications.length > 0 && (
+                {totalAlertsCount > 0 && (
                   <button
                     type="button"
                     onClick={() => setConfirmClearOpen(true)}
@@ -235,7 +248,7 @@ export const NotificationBell: React.FC = () => {
                     : 'hover:text-slate-900 hover:bg-slate-200/60'
                 }`}
               >
-                All Alerts ({notifications.length})
+                All Alerts ({totalAlertsCount})
               </button>
               <button
                 type="button"
@@ -252,7 +265,7 @@ export const NotificationBell: React.FC = () => {
 
             {/* Main Content Area */}
             <div className="max-h-96 overflow-y-auto divide-y divide-slate-100">
-              {filteredNotifications.length === 0 ? (
+              {!hasAnyAlerts ? (
                 <div className="py-10 px-4 text-center">
                   <div className="w-10 h-10 mx-auto mb-2 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
                     <BellIcon className="w-5 h-5" />
@@ -278,9 +291,49 @@ export const NotificationBell: React.FC = () => {
                 </div>
               ) : (
                 <>
+                  {/* Real-Time Pending Excuse Requests */}
+                  {relevantPendingExcuses.map((excuse) => {
+                    const isUnread = !readExcuseIds.includes(excuse.id || '')
+                    return (
+                      <div
+                        key={`excuse-item-${excuse.id}`}
+                        onClick={() => handleExcuseClick(excuse.id || '')}
+                        className={`p-3.5 text-left transition-colors cursor-pointer hover:bg-slate-50 border-l-4 ${
+                          isUnread ? 'bg-rose-50/50 border-rose-500' : 'bg-white border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2 mb-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                              Excuse Request
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400">
+                              {excuse.memberName || 'Altar Server'}
+                            </span>
+                          </div>
+                          {isUnread && (
+                            <span className="w-2 h-2 rounded-full bg-rose-500 shrink-0" />
+                          )}
+                        </div>
+                        <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                          Excuse Request: {excuse.memberName || 'Altar Server'}
+                        </h4>
+                        <p className="text-[11px] text-slate-600 mt-1 leading-relaxed line-clamp-2">
+                          {excuse.reason ? `Reason: ${excuse.reason}` : 'Server filed an excuse request for assigned mass schedules.'}
+                        </p>
+                        <div className="mt-2 flex items-center justify-end">
+                          <span className="text-[10px] font-bold text-rose-600 hover:underline inline-flex items-center gap-1">
+                            Review Excuse Request →
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
                   {filteredNotifications.map((notif) => {
                     const isUnread = !notif.readBy || !notif.readBy.includes(user?.uid || '')
                     const isAttendanceReminder = notif.type === 'attendance_reminder'
+                    const isExcuseRequest = notif.type === 'excuse_request'
 
                     return (
                       <div
@@ -292,7 +345,12 @@ export const NotificationBell: React.FC = () => {
                       >
                         <div className="flex items-start justify-between gap-2 mb-1">
                           <div className="flex items-center gap-1.5 flex-wrap">
-                            {isAttendanceReminder ? (
+                            {isExcuseRequest ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                Excuse Request
+                              </span>
+                            ) : isAttendanceReminder ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                                 Reminder

@@ -633,6 +633,44 @@ class NotificationService {
   }
 
   /**
+   * Dispatch an excuse request notification to officers and administrators
+   */
+  async sendExcuseRequestNotification(data: {
+    excuseId: string
+    trackingNumber: string
+    memberName: string
+    reason: string
+    scheduleCount: number
+    memberId: string
+    performedBy?: string
+  }): Promise<string> {
+    const notifRef = doc(collection(db, NOTIFICATIONS_COLLECTION))
+    const serverName = data.memberName || 'Altar Server'
+    const scheduleCountStr = `${data.scheduleCount} schedule${data.scheduleCount > 1 ? 's' : ''}`
+    const reasonSnippet = data.reason ? ` Reason: ${data.reason.length > 80 ? data.reason.substring(0, 80) + '...' : data.reason}` : ''
+
+    const payload: AppNotification = {
+      id: notifRef.id,
+      type: 'excuse_request',
+      title: `Excuse Request: ${serverName}`,
+      message: `${serverName} has submitted an excuse request for ${scheduleCountStr}.${reasonSnippet}`,
+      priority: 'important',
+      targetAudience: 'officers',
+      excuseId: data.excuseId,
+      memberId: data.memberId,
+      actionUrl: '/excuses',
+      actionLabel: 'Review Excuse',
+      createdBy: data.performedBy || 'Public Portal',
+      createdByName: serverName,
+      createdAt: serverTimestamp(),
+      readBy: []
+    }
+
+    await setDoc(notifRef, payload)
+    return notifRef.id
+  }
+
+  /**
    * Remind assigned servers for a single untaken schedule
    */
   async remindSingleSchedule(
@@ -1061,7 +1099,13 @@ class NotificationService {
           return false
         }
 
-        // 3. Broadcasts and system alerts
+        // 3. Excuse requests (sent to admins, coordinators, and officers with excuse module access)
+        if (n.type === 'excuse_request') {
+          if (isAdminOrCoordinator || userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer') return true
+          return isDirectTarget
+        }
+
+        // 4. Broadcasts and system alerts
         if (n.targetAudience === 'all') return true
         if (n.targetAudience === 'admins' && isAdminOrCoordinator) return true
         if (n.targetAudience === 'officers') {
@@ -1100,8 +1144,10 @@ class NotificationService {
 
           // Formulate alert title with visual indicator
           let displayTitle = notif.title
-          if (notif.type === 'admin_broadcast') {
-            const prefix = notif.priority === 'urgent' ? '🚨 [URGENT]' : (notif.priority === 'important' ? '📢 [ANNOUNCEMENT]' : 'ℹ️ [INFO]')
+          if (notif.type === 'excuse_request') {
+            displayTitle = `[EXCUSE] ${notif.title}`
+          } else if (notif.type === 'admin_broadcast') {
+            const prefix = notif.priority === 'urgent' ? '[URGENT]' : (notif.priority === 'important' ? '[ANNOUNCEMENT]' : '[INFO]')
             displayTitle = `${prefix} ${notif.title}`
           }
 

@@ -15,6 +15,7 @@ import { dashboardService } from '@/services/dashboardService'
 import { useMaintenance } from '@/context/MaintenanceContext'
 import { MaintenanceScreen } from '@/features/maintenance/components/MaintenanceScreen'
 import { BottomNav } from '@/layouts/BottomNav'
+import { useNotificationContext } from '@/context/NotificationContext'
 
 // Icon mappings
 const icons: { [key: string]: React.ReactNode } = {
@@ -96,6 +97,8 @@ export const DashboardLayout: React.FC = () => {
   const [collapsed, setCollapsed] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
   const [activeTasksCount, setActiveTasksCount] = useState(0)
+
+  const { unreadExcuseCount } = useNotificationContext()
 
   const isBlocked = isMaintenanceActive && !isUserAllowed(user?.uid, user?.email, profile?.role)
 
@@ -356,6 +359,16 @@ export const DashboardLayout: React.FC = () => {
                              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
                            </span>
                         )}
+                        {!collapsed && item.name === 'Excuses' && unreadExcuseCount > 0 && (
+                           <span className="bg-rose-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full ml-auto shadow-xs">
+                             {unreadExcuseCount > 9 ? '9+' : unreadExcuseCount}
+                           </span>
+                        )}
+                        {collapsed && item.name === 'Excuses' && unreadExcuseCount > 0 && (
+                           <span className="absolute top-2 right-2 flex h-2 w-2">
+                             <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
+                           </span>
+                        )}
                       </Link>
                     )
                   })}
@@ -424,6 +437,7 @@ export const DashboardLayout: React.FC = () => {
       {/* Mobile Bottom Navigation Bar (hidden on desktop) */}
       <BottomNav
         activeTasksCount={activeTasksCount}
+        unreadExcuseCount={unreadExcuseCount}
         onLogout={handleLogout}
         loggingOut={loggingOut}
       />

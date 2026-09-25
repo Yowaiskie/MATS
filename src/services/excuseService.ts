@@ -13,6 +13,7 @@ import {
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
 import { attendanceService } from '@/services/attendanceService'
+import { notificationService } from '@/services/notificationService'
 import type { ExcuseRequest, ExcuseStatus } from '@/types/excuse'
 
 const EXCUSES_COLLECTION = 'excuseRequests'
@@ -58,6 +59,19 @@ export const excuseService = {
         performedBy,
         { trackingNumber: generatedTrackingNumber, memberId: data.memberId }
       ).catch(() => {})
+
+      // Non-blocking real-time notification dispatch to officers and administrators
+      notificationService.sendExcuseRequestNotification({
+        excuseId: excuseRef.id,
+        trackingNumber: generatedTrackingNumber,
+        memberName: data.memberName || 'Altar Server',
+        reason: data.reason || '',
+        scheduleCount: data.schedules?.length || 0,
+        memberId: data.memberId,
+        performedBy
+      }).catch((notifErr) => {
+        console.warn('Failed to dispatch excuse notification:', notifErr)
+      })
 
       return generatedTrackingNumber
     } catch (error: any) {
@@ -227,6 +241,69 @@ export const excuseService = {
     } catch (error) {
       console.error('Error rejecting excuse request:', error)
       throw new Error('Failed to reject excuse request.')
+    }
+  },
+
+  /**
+   * Authorized administrative status override for previously finalized excuse requests.
+   */
+  async overrideExcuseStatus(
+    id: string,
+    trackingNumber: string,
+    targetStatus: ExcuseStatus,
+    remarksOrReason: string,
+    adminUid: string,
+    adminName: string
+  ): Promise<void> {
+    try {
+      const ref = doc(db, EXCUSES_COLLECTION, id)
+      const snap = await getDoc(ref)
+      if (!snap.exists()) {
+        throw new Error('Excuse request not found.')
+      }
+      const existing = snap.data() as ExcuseRequest
+      const prevStatus = existing.status
+
+      const isApproved = targetStatus === 'approved'
+
+      await updateDoc(ref, {
+        status: targetStatus,
+        adminRemarks: isApproved ? remarksOrReason : (existing.adminRemarks || remarksOrReason),
+        rejectionReason: !isApproved ? remarksOrReason : '',
+        reviewedAt: serverTimestamp(),
+        reviewedByUid: adminUid,
+        reviewedByName: adminName
+      })
+
+      // Update public tracking document
+      const statusRef = doc(db, 'excuseStatus', trackingNumber)
+      await updateDoc(statusRef, {
+        status: targetStatus,
+        adminRemarks: isApproved ? remarksOrReason : (existing.adminRemarks || remarksOrReason),
+        rejectionReason: !isApproved ? remarksOrReason : ''
+      }).catch(() => {})
+
+      // If overriding to approved, mark attendance records
+      if (isApproved && existing.schedules && existing.schedules.length > 0 && existing.memberId) {
+        await attendanceService.markExcuseForSchedules(
+          existing.schedules,
+          existing.memberId,
+          existing.reason || '',
+          remarksOrReason,
+          adminName
+        )
+      }
+
+      await auditService.logAction(
+        'EXCUSE_OVERRIDDEN' as any,
+        'excuse',
+        `Overrode excuse request ${trackingNumber} status from ${prevStatus} to ${targetStatus}`,
+        adminName,
+        { trackingNumber, excuseId: id, previousStatus: prevStatus, newStatus: targetStatus }
+      )
+    } catch (error: any) {
+      console.error('Error overriding excuse request status:', error)
+      throw new Error(error.message || 'Failed to override excuse status.')
     }
   },
 
