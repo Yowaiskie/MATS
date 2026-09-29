@@ -13,7 +13,8 @@ import {
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
-import { isTimeOverlapping, isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
+import type { SchedulePublication } from '@/types/publication'
+import { isTimeOverlapping, isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import type { Member } from '@/types/member'
 import { auditService } from '@/services/auditService'
@@ -145,6 +146,8 @@ export const scheduleService = {
       updatedAt: serverTimestamp()
     }
     if (input.category) newScheduleDoc.category = input.category
+    if (input.location !== undefined) newScheduleDoc.location = input.location ? input.location.trim() : ''
+    if (input.liturgicalColor !== undefined) newScheduleDoc.liturgicalColor = input.liturgicalColor
 
     const docRef = await addDoc(schedulesRef, newScheduleDoc)
 
@@ -160,7 +163,7 @@ export const scheduleService = {
   },
 
   /**
-   * Updates schedule details (title, date, start/end time, or cancellation status).
+   * Updates schedule details (title, date, start/end time, location, liturgical color, or cancellation status).
    */
   async updateSchedule(id: string, input: Partial<ScheduleInput>, performedBy = 'System'): Promise<void> {
     const docRef = doc(db, SCHEDULES_COLLECTION, id)
@@ -173,6 +176,8 @@ export const scheduleService = {
     if (input.date !== undefined) updateData.date = input.date
     if (input.startTime !== undefined) updateData.startTime = input.startTime
     if (input.endTime !== undefined) updateData.endTime = input.endTime
+    if (input.location !== undefined) updateData.location = input.location ? input.location.trim() : ''
+    if (input.liturgicalColor !== undefined) updateData.liturgicalColor = input.liturgicalColor
     if (input.status !== undefined) updateData.status = input.status
 
     await updateDoc(docRef, updateData)
@@ -295,7 +300,8 @@ export const scheduleService = {
     endDate: string,
     memberIds: string[],
     scope: 'all' | 'sunday' | 'weekday' = 'all',
-    performedBy = 'System'
+    performedBy = 'System',
+    publication?: Partial<SchedulePublication> | null
   ): Promise<number> {
     const schedulesRef = collection(db, SCHEDULES_COLLECTION)
     const q = query(
@@ -308,8 +314,13 @@ export const scheduleService = {
     let updatedCount = 0
     await Promise.all(
       snapshot.docs.map(async (docSnap) => {
-        const schedule = docSnap.data() as Schedule
+        const schedule = { id: docSnap.id, ...docSnap.data() } as Schedule
         if (!schedule.assignedMembers || schedule.assignedMembers.length === 0) return
+
+        // If publication filter is provided, ONLY affect schedules included in this publication
+        if (publication && !isScheduleIncludedInPublication(schedule, publication)) {
+          return
+        }
 
         // Filter by scope if sunday or weekday is selected
         if (scope === 'sunday' || scope === 'weekday') {

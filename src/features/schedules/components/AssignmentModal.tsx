@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import type { Member } from '@/types/member'
 import { getOrderBadgeStyle } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
@@ -45,6 +45,17 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
       setSearch('')
     }
   }, [schedule, isOpen])
+
+  const selectedRankCounts = useMemo(() => {
+    const counts: Record<string, number> = { Chevaliers: 0, Paladins: 0, Squires: 0 }
+    const selectedMembers = activeMembers.filter(m => selectedIds.includes(m.id))
+    selectedMembers.forEach(m => {
+      if (m.rank) {
+        counts[m.rank] = (counts[m.rank] || 0) + 1
+      }
+    })
+    return counts
+  }, [activeMembers, selectedIds])
 
   if (!isOpen || !schedule) return null
 
@@ -217,14 +228,31 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </div>
 
             {/* Action pills & Result Counter */}
-            <div className="flex items-center justify-between gap-1 text-[10px] shrink-0">
-              <span className="font-bold text-gray-500">
-                {isSearching ? (
-                  <>Found <span className="text-indigo-600 font-black">{filteredMembers.length}</span> results • Selected: <span className="text-indigo-600 font-black">{selectedIds.length}</span></>
-                ) : (
-                  <>Total: <span className="text-slate-800 font-black">{activeMembers.length}</span> • Selected: <span className="text-indigo-600 font-black">{selectedIds.length}</span></>
+            <div className="flex items-center justify-between gap-1 text-[10px] shrink-0 flex-wrap">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-bold text-gray-500">
+                  {isSearching ? (
+                    <>Found <span className="text-indigo-600 font-black">{filteredMembers.length}</span> results • Selected: <span className="text-indigo-600 font-black">{selectedIds.length}</span></>
+                  ) : (
+                    <>Total: <span className="text-slate-800 font-black">{activeMembers.length}</span> • Selected: <span className="text-indigo-600 font-black">{selectedIds.length}</span></>
+                  )}
+                </span>
+                {selectedIds.length > 0 && (
+                  <div className="inline-flex items-center gap-1 text-[9px] font-extrabold">
+                    <span className="px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      Chev: {selectedRankCounts.Chevaliers || 0}
+                    </span>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Pal: {selectedRankCounts.Paladins || 0}
+                    </span>
+                    {selectedRankCounts.Squires > 0 && (
+                      <span className="px-1.5 py-0.2 rounded bg-purple-50 text-purple-700 border border-purple-200">
+                        Squires: {selectedRankCounts.Squires}
+                      </span>
+                    )}
+                  </div>
                 )}
-              </span>
+              </div>
               <div className="flex items-center gap-1">
                 {isSearching ? (
                   <button

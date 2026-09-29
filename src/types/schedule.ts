@@ -9,6 +9,8 @@ export interface Schedule {
   date: string // YYYY-MM-DD
   startTime: string // HH:MM
   endTime: string // HH:MM
+  location?: string // Optional street, venue, or chapel (e.g. Street Mass / Block Rosary)
+  liturgicalColor?: string // e.g. 'green' | 'white' | 'purple' | 'red' | 'rose' | 'blue' | 'gold'
   status: ScheduleStatus
   isLocked?: boolean
   assignedMembers: string[] // Array of member document IDs
@@ -22,6 +24,8 @@ export interface ScheduleInput {
   date: string
   startTime: string
   endTime: string
+  location?: string
+  liturgicalColor?: string
   status?: ScheduleStatus
   isLocked?: boolean
   assignedMembers?: string[]
@@ -34,6 +38,8 @@ export interface ScheduleTemplate {
   dayOfWeek: string // 'Sunday' | 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday'
   startTime: string
   endTime: string
+  location?: string
+  liturgicalColor?: string
   assignedMembers: string[]
   active: boolean
   createdAt: any
@@ -46,6 +52,8 @@ export interface ScheduleTemplateInput {
   dayOfWeek: string
   startTime: string
   endTime: string
+  location?: string
+  liturgicalColor?: string
   assignedMembers: string[]
   active: boolean
 }

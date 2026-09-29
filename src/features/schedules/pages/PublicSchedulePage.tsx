@@ -8,7 +8,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { SchedulePublication } from '@/types/publication'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
+import { formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication, getRankLimitForSlot, getSlotRankBreakdown } from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface SchedulePattern {
@@ -17,8 +17,140 @@ interface SchedulePattern {
   dayName: string
   startTime: string
   title?: string
+  location?: string
+  liturgicalColor?: string
   scheduleIds: string[]
   assignedMembers: string[]
+}
+
+export const getLiturgicalTheme = (colorKey?: string, isSpecialPubFallback: boolean = false) => {
+  const key = colorKey?.toLowerCase()
+  switch (key) {
+    case 'green':
+      return {
+        name: 'Green (Ordinary Time)',
+        bannerGradient: 'bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950 border-emerald-700',
+        bannerSubtext: 'text-emerald-200',
+        bannerIcon: 'text-emerald-200',
+        buttonClass: 'bg-emerald-600 hover:bg-emerald-700 active:scale-[0.99] text-white shadow-emerald-600/30',
+        headerIconBg: 'bg-emerald-100/80 text-emerald-700',
+        timeClass: 'text-emerald-700',
+        locationBadgeClass: 'bg-emerald-50 border-emerald-200 text-emerald-950',
+        locationIconClass: 'text-emerald-600',
+        subtextClass: 'text-[10px] text-emerald-800 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-emerald-600 text-white border-emerald-600 shadow-md ring-2 ring-emerald-300 scale-[1.02] cursor-pointer hover:bg-emerald-700 active:scale-95',
+        cellDotClass: 'bg-emerald-500'
+      }
+    case 'white':
+    case 'gold':
+      return {
+        name: 'White / Gold (Feasts & Solemnities)',
+        bannerGradient: 'bg-gradient-to-r from-amber-950 via-amber-900 to-yellow-950 border-amber-600',
+        bannerSubtext: 'text-amber-200',
+        bannerIcon: 'text-amber-200',
+        buttonClass: 'bg-amber-600 hover:bg-amber-700 active:scale-[0.99] text-white shadow-amber-600/30',
+        headerIconBg: 'bg-amber-100/80 text-amber-800',
+        timeClass: 'text-amber-700',
+        locationBadgeClass: 'bg-amber-50 border-amber-300 text-amber-950',
+        locationIconClass: 'text-amber-600',
+        subtextClass: 'text-[10px] text-amber-800 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-amber-500 text-white border-amber-500 shadow-md ring-2 ring-amber-200 scale-[1.02] cursor-pointer hover:bg-amber-600 active:scale-95',
+        cellDotClass: 'bg-amber-500'
+      }
+    case 'purple':
+    case 'violet':
+      return {
+        name: 'Violet / Purple (Advent, Lent, Memorials)',
+        bannerGradient: 'bg-gradient-to-r from-purple-950 via-purple-900 to-indigo-950 border-purple-700',
+        bannerSubtext: 'text-purple-200',
+        bannerIcon: 'text-purple-200',
+        buttonClass: 'bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white shadow-purple-600/30',
+        headerIconBg: 'bg-purple-100/80 text-purple-700',
+        timeClass: 'text-purple-600',
+        locationBadgeClass: 'bg-purple-50 border-purple-200 text-purple-900',
+        locationIconClass: 'text-purple-600',
+        subtextClass: 'text-[10px] text-purple-800 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-300 scale-[1.02] cursor-pointer hover:bg-purple-700 active:scale-95',
+        cellDotClass: 'bg-purple-500'
+      }
+    case 'red':
+      return {
+        name: 'Red (Pentecost, Passion, Martyrs)',
+        bannerGradient: 'bg-gradient-to-r from-rose-950 via-rose-900 to-red-950 border-rose-700',
+        bannerSubtext: 'text-rose-200',
+        bannerIcon: 'text-rose-200',
+        buttonClass: 'bg-rose-600 hover:bg-rose-700 active:scale-[0.99] text-white shadow-rose-600/30',
+        headerIconBg: 'bg-rose-100/80 text-rose-700',
+        timeClass: 'text-rose-600',
+        locationBadgeClass: 'bg-rose-50 border-rose-200 text-rose-900',
+        locationIconClass: 'text-rose-600',
+        subtextClass: 'text-[10px] text-rose-800 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-rose-600 text-white border-rose-600 shadow-md ring-2 ring-rose-300 scale-[1.02] cursor-pointer hover:bg-rose-700 active:scale-95',
+        cellDotClass: 'bg-rose-500'
+      }
+    case 'rose':
+    case 'pink':
+      return {
+        name: 'Rose / Pink (Gaudete & Laetare)',
+        bannerGradient: 'bg-gradient-to-r from-pink-950 via-pink-900 to-rose-950 border-pink-700',
+        bannerSubtext: 'text-pink-200',
+        bannerIcon: 'text-pink-200',
+        buttonClass: 'bg-pink-500 hover:bg-pink-600 active:scale-[0.99] text-white shadow-pink-500/30',
+        headerIconBg: 'bg-pink-100/80 text-pink-700',
+        timeClass: 'text-pink-600',
+        locationBadgeClass: 'bg-pink-50 border-pink-200 text-pink-900',
+        locationIconClass: 'text-pink-500',
+        subtextClass: 'text-[10px] text-pink-800 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-pink-500 text-white border-pink-500 shadow-md ring-2 ring-pink-200 scale-[1.02] cursor-pointer hover:bg-pink-600 active:scale-95',
+        cellDotClass: 'bg-pink-500'
+      }
+    case 'blue':
+      return {
+        name: 'Blue (Marian Feasts)',
+        bannerGradient: 'bg-gradient-to-r from-sky-950 via-sky-900 to-blue-950 border-sky-700',
+        bannerSubtext: 'text-sky-200',
+        bannerIcon: 'text-sky-200',
+        buttonClass: 'bg-sky-600 hover:bg-sky-700 active:scale-[0.99] text-white shadow-sky-600/30',
+        headerIconBg: 'bg-sky-100/80 text-sky-700',
+        timeClass: 'text-sky-600',
+        locationBadgeClass: 'bg-sky-50 border-sky-200 text-sky-900',
+        locationIconClass: 'text-sky-600',
+        subtextClass: 'text-[10px] text-sky-800 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-sky-600 text-white border-sky-600 shadow-md ring-2 ring-sky-300 scale-[1.02] cursor-pointer hover:bg-sky-700 active:scale-95',
+        cellDotClass: 'bg-sky-500'
+      }
+    default:
+      if (isSpecialPubFallback) {
+        return {
+          name: 'Purple (Special Event)',
+          bannerGradient: 'bg-gradient-to-r from-purple-950 via-purple-900 to-indigo-950 border-purple-700',
+          bannerSubtext: 'text-purple-200',
+          bannerIcon: 'text-purple-200',
+          buttonClass: 'bg-purple-600 hover:bg-purple-700 active:scale-[0.99] text-white shadow-purple-600/30',
+          headerIconBg: 'bg-purple-100/80 text-purple-700',
+          timeClass: 'text-purple-600',
+          locationBadgeClass: 'bg-amber-50 border-amber-200 text-amber-900',
+          locationIconClass: 'text-amber-600',
+          subtextClass: 'text-[10px] text-slate-500 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+          cellSelectedClass: 'bg-purple-600 text-white border-purple-600 shadow-md ring-2 ring-purple-300 scale-[1.02] cursor-pointer hover:bg-purple-700 active:scale-95',
+          cellDotClass: 'bg-purple-500'
+        }
+      }
+      return {
+        name: 'Standard Indigo',
+        bannerGradient: 'bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 border-indigo-700',
+        bannerSubtext: 'text-indigo-200',
+        bannerIcon: 'text-indigo-200',
+        buttonClass: 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white shadow-indigo-600/30',
+        headerIconBg: 'bg-indigo-100/70 text-indigo-600',
+        timeClass: 'text-indigo-600',
+        locationBadgeClass: 'bg-amber-50 border-amber-200 text-amber-900',
+        locationIconClass: 'text-amber-600',
+        subtextClass: 'text-[10px] text-slate-500 font-bold truncate max-w-[150px] mx-auto mt-0.5',
+        cellSelectedClass: 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300 scale-[1.02] cursor-pointer hover:bg-indigo-700 active:scale-95',
+        cellDotClass: 'bg-indigo-500'
+      }
+  }
 }
 
 export const PublicSchedulePage: React.FC = () => {
@@ -115,15 +247,62 @@ export const PublicSchedulePage: React.FC = () => {
     setSelectedScheduleIds(initial)
   }, [selectedMemberId, publicationSchedules])
 
+  const isSpecialPub = publication?.publicationType === 'special_event'
+
   // Group into patterns
-  const { sundayPatterns, weekdayPatterns } = useMemo(() => {
+  const { sundayPatterns, weekdayPatterns, specialPatterns } = useMemo(() => {
+    if (isSpecialPub) {
+      // For special events, group by schedule date, startTime, title, and location, ordered chronologically
+      const sortedSchedules = [...publicationSchedules].sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date)
+        return a.startTime.localeCompare(b.startTime)
+      })
+
+      const patternMap = new Map<string, SchedulePattern>()
+      sortedSchedules.forEach(s => {
+        const d = new Date(s.date + 'T00:00:00')
+        const dayOfWeek = d.getDay()
+        const dayName = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }).toUpperCase()
+        const patternId = `${s.date}-${s.startTime}-${s.title || 'Special Mass'}-${s.location || ''}`
+
+        if (!patternMap.has(patternId)) {
+          patternMap.set(patternId, {
+            id: patternId,
+            dayOfWeek,
+            dayName,
+            startTime: s.startTime,
+            title: s.title,
+            location: s.location,
+            liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
+            scheduleIds: [],
+            assignedMembers: []
+          })
+        }
+
+        const pattern = patternMap.get(patternId)!
+        pattern.scheduleIds.push(s.id)
+
+        s.assignedMembers?.forEach(memId => {
+          if (!pattern.assignedMembers.includes(memId)) {
+            pattern.assignedMembers.push(memId)
+          }
+        })
+      })
+
+      return {
+        sundayPatterns: [],
+        weekdayPatterns: [],
+        specialPatterns: Array.from(patternMap.values())
+      }
+    }
+
     const patternMap = new Map<string, SchedulePattern>()
 
     publicationSchedules.forEach(s => {
-      const d = new Date(s.date)
+      const d = new Date(s.date + 'T00:00:00')
       const dayOfWeek = d.getDay()
       const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()
-      const patternId = `${dayOfWeek}-${s.startTime}-${s.title}`
+      const patternId = `${dayOfWeek}-${s.startTime}-${s.title || ''}-${s.location || ''}`
 
       if (!patternMap.has(patternId)) {
         patternMap.set(patternId, {
@@ -132,6 +311,8 @@ export const PublicSchedulePage: React.FC = () => {
           dayName,
           startTime: s.startTime,
           title: s.title,
+          location: s.location,
+          liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
           scheduleIds: [],
           assignedMembers: []
         })
@@ -166,9 +347,10 @@ export const PublicSchedulePage: React.FC = () => {
 
     return {
       sundayPatterns: allPatterns.filter(p => p.dayOfWeek === 0 || (p.dayOfWeek === 6 && p.startTime >= '16:00')),
-      weekdayPatterns: allPatterns.filter(p => p.dayOfWeek !== 0 && !(p.dayOfWeek === 6 && p.startTime >= '16:00'))
+      weekdayPatterns: allPatterns.filter(p => p.dayOfWeek !== 0 && !(p.dayOfWeek === 6 && p.startTime >= '16:00')),
+      specialPatterns: []
     }
-  }, [publicationSchedules])
+  }, [publicationSchedules, isSpecialPub])
 
   const memberMap = useMemo(() => {
     return new Map(members.map(m => [m.id, getFullName(m)]))
@@ -191,6 +373,15 @@ export const PublicSchedulePage: React.FC = () => {
     })
     return currentMaxAssigned
   }, [weekdayPatterns, publication])
+
+  const maxRowsSpecial = useMemo(() => {
+    const configuredLimit = publication?.maxServersPerSpecialSlot ?? 6
+    let currentMaxAssigned = configuredLimit
+    specialPatterns.forEach(p => {
+      if (p.assignedMembers.length > currentMaxAssigned) currentMaxAssigned = p.assignedMembers.length
+    })
+    return currentMaxAssigned
+  }, [specialPatterns, publication])
 
   const hasSubmitted = useMemo(() => {
     if (!publication || !selectedMemberId) return false
@@ -223,6 +414,10 @@ export const PublicSchedulePage: React.FC = () => {
     return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
   }, [weekdayPatterns, selectedScheduleIds])
 
+  const selectedSpecialCount = useMemo(() => {
+    return specialPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+  }, [specialPatterns, selectedScheduleIds])
+
   const selectedMember = useMemo(() => {
     if (!selectedMemberId) return null
     return members.find(mem => mem.id === selectedMemberId) || null
@@ -236,6 +431,18 @@ export const PublicSchedulePage: React.FC = () => {
   const isSuspended = selectedMember?.status === 'suspended'
 
   const { isQuotaMaxed, confirmModalMessage } = useMemo(() => {
+    if (isSpecialPub) {
+      const maxSpecial = publication?.maxSpecialPerServer ?? 2
+      const maxed = selectedSpecialCount >= maxSpecial
+      let msg = ''
+      if (maxed) {
+        msg = `You have selected ${selectedSpecialCount} Special Occasion slot(s), reaching your maximum quota. Once saved, your submission will be finalized.`
+      } else {
+        msg = `You have currently selected ${selectedSpecialCount}/${maxSpecial} Special Occasion slot(s). Since you haven't reached the full quota yet, your chosen slots will be saved and locked, and you can still select more slots later.`
+      }
+      return { isQuotaMaxed: maxed, confirmModalMessage: msg }
+    }
+
     const maxSun = publication?.maxSundaysPerServer ?? 4
     const maxWk = publication?.maxWeekdaysPerServer ?? 8
     const hasSun = sundayPatterns.length > 0
@@ -253,9 +460,9 @@ export const PublicSchedulePage: React.FC = () => {
     }
 
     return { isQuotaMaxed: maxed, confirmModalMessage: msg }
-  }, [publication, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
+  }, [publication, isSpecialPub, selectedSpecialCount, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
 
-  const handleCellClick = (patternId: string, isSunday: boolean) => {
+  const handleCellClick = (patternId: string, category: 'sunday' | 'weekday' | 'special') => {
     if (isFinalized) return
     if (hasSubmitted) return
 
@@ -266,14 +473,19 @@ export const PublicSchedulePage: React.FC = () => {
       return
     }
 
-    if (isSuspended) {
+    if (isSuspended && !isSpecialPub) {
       const suspMsg = 'Your serving privileges are currently SUSPENDED. You cannot select or submit slots for Sunday/Weekday Mass schedules until your suspension is cleared. Please attend the required monthly meetings.'
       setMessage({ type: 'error', text: suspMsg })
       setLimitModal({ title: 'Account Suspended', message: suspMsg })
       return
     }
 
-    const patterns = isSunday ? sundayPatterns : weekdayPatterns
+    const patterns = category === 'special'
+      ? specialPatterns
+      : category === 'sunday'
+        ? sundayPatterns
+        : weekdayPatterns
+
     const pattern = patterns.find(p => p.id === patternId)
     if (!pattern) return
 
@@ -291,33 +503,101 @@ export const PublicSchedulePage: React.FC = () => {
 
     // Enforce limits when trying to add a new selection
     if (!isSelected && publication) {
-      // 1. Per-Mass Slot Server Capacity Check
-      const maxServersForSlot = isSunday 
-        ? (publication.maxServersPerSundaySlot ?? 5) 
-        : (publication.maxServersPerWeekdaySlot ?? 5)
-      
-      const currentAssignedCount = pattern.assignedMembers.length
-      if (currentAssignedCount >= maxServersForSlot) {
-        const capacityMsg = `Mass Slot Full: This ${isSunday ? 'Sunday' : 'Weekday'} Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
-        setMessage({ type: 'error', text: capacityMsg })
-        setLimitModal({ title: 'Mass Slot Full', message: capacityMsg })
-        return
+      const currentMember = members.find(m => m.id === selectedMemberId)
+
+      // Check rank quota for this slot
+      if (currentMember?.rank) {
+        const isSunday = category === 'sunday'
+        const isSpecial = category === 'special'
+        const rankLimit = getRankLimitForSlot(publication, currentMember.rank, isSunday, isSpecial)
+        if (rankLimit !== undefined) {
+          const currentRankCount = pattern.assignedMembers.filter(id => {
+            const m = members.find(mem => mem.id === id)
+            return m?.rank?.toLowerCase().trim() === currentMember.rank?.toLowerCase().trim()
+          }).length
+
+          if (currentRankCount >= rankLimit) {
+            // Find which other ranks still have open reserved slots in this pattern
+            const allowedRanks = publication.allowedRanks && publication.allowedRanks.length > 0
+              ? publication.allowedRanks
+              : ['Chevaliers', 'Paladins']
+
+            const availableReservedRanks: string[] = []
+            allowedRanks.forEach(r => {
+              if (r.toLowerCase().trim() !== currentMember.rank?.toLowerCase().trim()) {
+                const otherLimit = getRankLimitForSlot(publication, r, isSunday, isSpecial)
+                const otherAssignedCount = pattern.assignedMembers.filter(id => {
+                  const m = members.find(mem => mem.id === id)
+                  return m?.rank?.toLowerCase().trim() === r.toLowerCase().trim()
+                }).length
+
+                if (otherLimit === undefined) {
+                  availableReservedRanks.push(r)
+                } else if (otherAssignedCount < otherLimit) {
+                  const openCount = otherLimit - otherAssignedCount
+                  availableReservedRanks.push(`${r} (${openCount} slot${openCount > 1 ? 's' : ''} available)`)
+                }
+              }
+            })
+
+            const reservedText = availableReservedRanks.length > 0
+              ? `The remaining open slot(s) are reserved for: ${availableReservedRanks.join(', ')}.`
+              : `All slot allotments in this Mass are currently filled.`
+
+            const rankMsg = `Rank Limit Reached: This ${isSpecial ? 'Special Event' : isSunday ? 'Sunday' : 'Weekday'} Mass slot already reached its capacity of ${rankLimit} server(s) for ${currentMember.rank}. ${reservedText}`
+            setMessage({ type: 'error', text: rankMsg })
+            setLimitModal({ 
+              title: `${currentMember.rank} Full (Reserved for ${availableReservedRanks.map(r => r.split(' ')[0]).join(', ') || 'Others'})`, 
+              message: rankMsg 
+            })
+            return
+          }
+        }
       }
 
-      // 2. Individual Per-Person Limits Check
-      if (isSunday) {
-        const currentSelectedCount = sundayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+      if (category === 'special') {
+        const maxServersForSlot = publication.maxServersPerSpecialSlot ?? 6
+        if (pattern.assignedMembers.length >= maxServersForSlot) {
+          const capacityMsg = `Slot Full: This Special Occasion Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
+          setMessage({ type: 'error', text: capacityMsg })
+          setLimitModal({ title: 'Slot Full', message: capacityMsg })
+          return
+        }
+
+        const max = publication.maxSpecialPerServer ?? 2
+        if (selectedSpecialCount >= max) {
+          const limitMsg = `Personal Limit Reached: You can only select up to ${max} Special Occasion schedule(s) for yourself.`
+          setMessage({ type: 'error', text: limitMsg })
+          setLimitModal({ title: 'Special Event Limit Reached', message: limitMsg })
+          return
+        }
+      } else if (category === 'sunday') {
+        const maxServersForSlot = publication.maxServersPerSundaySlot ?? 5
+        if (pattern.assignedMembers.length >= maxServersForSlot) {
+          const capacityMsg = `Mass Slot Full: This Sunday Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
+          setMessage({ type: 'error', text: capacityMsg })
+          setLimitModal({ title: 'Mass Slot Full', message: capacityMsg })
+          return
+        }
+
         const max = publication.maxSundaysPerServer ?? 4
-        if (currentSelectedCount >= max) {
+        if (selectedSundayCount >= max) {
           const limitMsg = `Personal Limit Reached: You can only select up to ${max} Sunday schedule(s) for yourself.`
           setMessage({ type: 'error', text: limitMsg })
           setLimitModal({ title: 'Sunday Personal Limit Reached', message: limitMsg })
           return
         }
       } else {
-        const currentSelectedCount = weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
+        const maxServersForSlot = publication.maxServersPerWeekdaySlot ?? 5
+        if (pattern.assignedMembers.length >= maxServersForSlot) {
+          const capacityMsg = `Mass Slot Full: This Weekday Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
+          setMessage({ type: 'error', text: capacityMsg })
+          setLimitModal({ title: 'Mass Slot Full', message: capacityMsg })
+          return
+        }
+
         const max = publication.maxWeekdaysPerServer ?? 8
-        if (currentSelectedCount >= max) {
+        if (selectedWeekdayCount >= max) {
           const limitMsg = `Personal Limit Reached: You can only select up to ${max} Weekday schedule(s) for yourself.`
           setMessage({ type: 'error', text: limitMsg })
           setLimitModal({ title: 'Weekday Personal Limit Reached', message: limitMsg })
@@ -346,7 +626,7 @@ export const PublicSchedulePage: React.FC = () => {
       return
     }
 
-    if (isSuspended) {
+    if (isSuspended && !isSpecialPub) {
       const suspMsg = 'Your serving privileges are currently SUSPENDED. You cannot submit Mass schedules. Please attend monthly meetings for clearance.'
       setMessage({ type: 'error', text: suspMsg })
       setLimitModal({ title: 'Account Suspended', message: suspMsg })
@@ -354,7 +634,7 @@ export const PublicSchedulePage: React.FC = () => {
     }
 
     if (selectedScheduleIds.size === 0) {
-      const noSelectionMsg = 'Please select at least one Mass schedule slot from the table before saving.'
+      const noSelectionMsg = 'Please select at least one schedule slot from the table before saving.'
       setMessage({ type: 'error', text: noSelectionMsg })
       setLimitModal({ title: 'No Schedule Selected', message: noSelectionMsg })
       return
@@ -378,26 +658,44 @@ export const PublicSchedulePage: React.FC = () => {
 
       await scheduleService.submitPublicScheduleSelections(selectedMemberId, selections)
       
-      const maxSun = publication?.maxSundaysPerServer ?? 4
-      const maxWk = publication?.maxWeekdaysPerServer ?? 8
-      const hasSun = sundayPatterns.length > 0
-      const hasWk = weekdayPatterns.length > 0
+      if (isSpecialPub) {
+        const maxSpecial = publication?.maxSpecialPerServer ?? 2
+        const fullyCompleted = selectedSpecialCount >= maxSpecial
 
-      const sunMaxed = !hasSun || selectedSundayCount >= maxSun
-      const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
-      const fullyCompleted = sunMaxed && wkMaxed
-
-      if (publication && fullyCompleted) {
-        await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
-        setMessage({ 
-          type: 'success', 
-          text: `Awesome! You have reached your quota (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) and your submission is now finalized.` 
-        })
+        if (publication && fullyCompleted) {
+          await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
+          setMessage({ 
+            type: 'success', 
+            text: `Awesome! You have reached your quota (${selectedSpecialCount} Special Occasion slots) and your submission is now finalized.` 
+          })
+        } else {
+          setMessage({ 
+            type: 'success', 
+            text: `Your selections (${selectedSpecialCount} Special Occasion slot(s)) have been saved! Since you haven't reached the full quota yet, your name remains in the list so you can select the remaining slots later.` 
+          })
+        }
       } else {
-        setMessage({ 
-          type: 'success', 
-          text: `Your selections (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) have been saved! Since you haven't reached the full quota yet, your name remains in the list so you can select the remaining slots later.` 
-        })
+        const maxSun = publication?.maxSundaysPerServer ?? 4
+        const maxWk = publication?.maxWeekdaysPerServer ?? 8
+        const hasSun = sundayPatterns.length > 0
+        const hasWk = weekdayPatterns.length > 0
+
+        const sunMaxed = !hasSun || selectedSundayCount >= maxSun
+        const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
+        const fullyCompleted = sunMaxed && wkMaxed
+
+        if (publication && fullyCompleted) {
+          await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
+          setMessage({ 
+            type: 'success', 
+            text: `Awesome! You have reached your quota (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) and your submission is now finalized.` 
+          })
+        } else {
+          setMessage({ 
+            type: 'success', 
+            text: `Your selections (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) have been saved! Since you haven't reached the full quota yet, your name remains in the list so you can select the remaining slots later.` 
+          })
+        }
       }
 
       // Refresh schedules and publication from backend
@@ -421,7 +719,12 @@ export const PublicSchedulePage: React.FC = () => {
       setPublication(updatedPub)
       setSchedules(updatedScheds)
 
-      if (fullyCompleted) {
+      const isCompleted = isSpecialPub 
+        ? selectedSpecialCount >= (updatedPub.maxSpecialPerServer ?? 2)
+        : (sundayPatterns.length === 0 || selectedSundayCount >= (updatedPub.maxSundaysPerServer ?? 4)) && 
+          (weekdayPatterns.length === 0 || selectedWeekdayCount >= (updatedPub.maxWeekdaysPerServer ?? 8))
+
+      if (isCompleted) {
         setSelectedMemberId('')
         setSelectedScheduleIds(new Set())
       }
@@ -514,17 +817,30 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
-  const renderTable = (patterns: SchedulePattern[], maxRows: number, isSunday: boolean, title: string, subtitle: string, icon: React.ReactNode) => {
+  const bannerTheme = getLiturgicalTheme(publication?.liturgicalColor, isSpecialPub)
+
+  const renderTable = (patterns: SchedulePattern[], maxRows: number, category: 'sunday' | 'weekday' | 'special', title: string, subtitle: string, icon: React.ReactNode) => {
     if (patterns.length === 0) return null
 
-    const maxPerServer = isSunday ? (publication?.maxSundaysPerServer ?? 4) : (publication?.maxWeekdaysPerServer ?? 8)
-    const currentCount = isSunday ? selectedSundayCount : selectedWeekdayCount
+    const maxPerServer = category === 'special'
+      ? (publication?.maxSpecialPerServer ?? 2)
+      : category === 'sunday'
+        ? (publication?.maxSundaysPerServer ?? 4)
+        : (publication?.maxWeekdaysPerServer ?? 8)
+
+    const currentCount = category === 'special'
+      ? selectedSpecialCount
+      : category === 'sunday'
+        ? selectedSundayCount
+        : selectedWeekdayCount
+
+    const sectionTheme = getLiturgicalTheme(publication?.liturgicalColor, category === 'special')
 
     return (
       <div className="mb-8 sm:mb-10">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
           <div className="flex items-center gap-3 sm:gap-4">
-            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-indigo-100/70 text-indigo-600 flex items-center justify-center shrink-0 shadow-xs">
+            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${sectionTheme.headerIconBg} flex items-center justify-center shrink-0 shadow-xs`}>
               {icon}
             </div>
             <div>
@@ -534,7 +850,7 @@ export const PublicSchedulePage: React.FC = () => {
           </div>
 
           {selectedMemberId && !hasSubmitted && (
-            <div className="inline-flex items-center gap-2 self-start sm:self-auto bg-indigo-50 border border-indigo-200/80 px-3 py-1.5 rounded-xl text-xs font-bold text-indigo-900">
+            <div className={`inline-flex items-center gap-2 self-start sm:self-auto ${category === 'special' ? 'bg-purple-50 border-purple-200/80 text-purple-900' : 'bg-indigo-50 border-indigo-200/80 text-indigo-900'} border px-3 py-1.5 rounded-xl text-xs font-bold`}>
               <span>Your Limit:</span>
               <span className={`px-2 py-0.5 rounded-md font-extrabold ${currentCount >= maxPerServer ? 'bg-amber-100 text-amber-900' : 'bg-white text-indigo-700 shadow-xs'}`}>
                 {currentCount} / {maxPerServer} Selected
@@ -545,7 +861,7 @@ export const PublicSchedulePage: React.FC = () => {
 
         {/* Horizontal scroll hint on mobile */}
         <div className="sm:hidden mb-2 flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1">
-          <span>👈 Swipe horizontally to view all times 👉</span>
+          <span>Swipe horizontally to view all times</span>
           <span>{patterns.length} slots</span>
         </div>
 
@@ -557,13 +873,47 @@ export const PublicSchedulePage: React.FC = () => {
                   <th className="px-3 sm:px-6 py-3.5 sm:py-5 font-extrabold text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest w-16 sm:w-24 sticky left-0 bg-slate-100 sm:bg-slate-50/95 z-20 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
                     ROLE
                   </th>
-                  {patterns.map(p => (
-                    <th key={p.id} className="px-3 sm:px-6 py-3.5 sm:py-5 text-center min-w-[130px] sm:min-w-[170px]">
-                      <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{p.dayName}</div>
-                      <div className="font-extrabold text-xs text-indigo-600 mt-0.5">{formatTime12Hour(p.startTime)}</div>
-                      {p.title && <div className="text-[10px] text-slate-400 font-medium truncate max-w-[150px] mx-auto mt-0.5">{p.title}</div>}
-                    </th>
-                  ))}
+                  {patterns.map(p => {
+                    const theme = getLiturgicalTheme(p.liturgicalColor || publication?.liturgicalColor, category === 'special')
+                    return (
+                      <th key={p.id} className="px-3 sm:px-6 py-3.5 sm:py-5 text-center min-w-[130px] sm:min-w-[170px]">
+                        <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{p.dayName}</div>
+                        <div className={`font-extrabold text-xs ${theme.timeClass} mt-0.5`}>
+                          {formatTime12Hour(p.startTime)}
+                        </div>
+                        {p.location && (
+                          <div className={`inline-flex items-center justify-center gap-1 px-2.5 py-0.5 mt-1 rounded-md border text-[10px] font-extrabold max-w-[150px] mx-auto truncate shadow-2xs ${theme.locationBadgeClass}`}>
+                            <svg className={`w-2.5 h-2.5 shrink-0 ${theme.locationIconClass}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span className="truncate">{p.location}</span>
+                          </div>
+                        )}
+                        {p.title && (!p.location || p.title.toLowerCase().trim() !== p.location.toLowerCase().trim()) && (
+                          <div className={theme.subtextClass}>{p.title}</div>
+                        )}
+
+                        {publication?.enableRankQuotas && (
+                          <div className="mt-1.5 flex items-center justify-center gap-1 flex-wrap text-[9px] font-bold">
+                            {getSlotRankBreakdown(p.assignedMembers, members, publication, category === 'sunday', category === 'special').items.map(item => (
+                              <span
+                                key={item.rank}
+                                className={`px-1.5 py-0.5 rounded-md border text-[9px] font-bold ${
+                                  item.isFull
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : 'bg-slate-100 text-slate-600 border-slate-200'
+                                }`}
+                                title={`${item.rank}: ${item.current} / ${item.limit !== undefined ? item.limit : 'Unlimited'}`}
+                              >
+                                {item.rank.slice(0, 4)}: {item.current}/{item.limit !== undefined ? item.limit : '∞'}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </th>
+                    )
+                  })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -573,6 +923,7 @@ export const PublicSchedulePage: React.FC = () => {
                       S-{rowIndex + 1}
                     </td>
                     {patterns.map(pattern => {
+                      const theme = getLiturgicalTheme(pattern.liturgicalColor || publication?.liturgicalColor, category === 'special')
                       const isSelectedByCurrentMember = pattern.scheduleIds.some(id => selectedScheduleIds.has(id))
                       const savedMemberIds = pattern.assignedMembers
                       
@@ -620,19 +971,19 @@ export const PublicSchedulePage: React.FC = () => {
                         <td key={pattern.id} className="px-2 sm:px-3 py-2.5 sm:py-3 text-center align-middle">
                           {displayMemberName ? (
                             <div
-                              onClick={() => !isOtherUserCell && handleCellClick(pattern.id, isSunday)}
+                              onClick={() => !isOtherUserCell && handleCellClick(pattern.id, category)}
                               className={`inline-flex items-center justify-center px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[120px] sm:min-w-[140px] max-w-[145px] sm:max-w-[160px] text-center ${
                                 isMyCell
-                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-md ring-2 ring-indigo-300 scale-[1.02] cursor-pointer hover:bg-indigo-700 active:scale-95'
+                                  ? theme.cellSelectedClass
                                   : 'bg-slate-50 border-slate-200 text-slate-800 cursor-not-allowed opacity-85 shadow-xs'
                               }`}
                             >
-                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 shrink-0 ${isMyCell ? 'bg-white' : 'bg-indigo-500'}`} />
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 shrink-0 ${isMyCell ? 'bg-white' : theme.cellDotClass}`} />
                               <span className="truncate">{displayMemberName}</span>
                             </div>
                           ) : (
                             <div
-                              onClick={() => handleCellClick(pattern.id, isSunday)}
+                              onClick={() => handleCellClick(pattern.id, category)}
                               className={`w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
                                 !isFinalized && !hasSubmitted
                                   ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 active:bg-indigo-100/50'
@@ -841,7 +1192,7 @@ export const PublicSchedulePage: React.FC = () => {
               </div>
 
               {/* Suspended Account Notice Banner */}
-              {isSuspended && (
+              {isSuspended && !isSpecialPub && (
                 <div className="bg-rose-50/90 border border-rose-200 p-4 rounded-2xl text-xs text-rose-950 leading-relaxed shadow-xs space-y-1.5">
                   <div className="flex items-center gap-1.5 font-extrabold text-rose-900">
                     <svg className="h-4 w-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -860,17 +1211,29 @@ export const PublicSchedulePage: React.FC = () => {
                   <strong className="block mb-1 text-amber-950 font-extrabold">Finalized</strong>
                   You have already saved your schedule for this publication. If you need to make changes, please contact your administrator.
                 </div>
-              ) : !isSuspended && (
-                <div className="bg-indigo-50/80 border border-indigo-100 p-3.5 sm:p-4 rounded-2xl text-xs text-indigo-900 leading-relaxed shadow-xs">
-                  <strong className="block mb-1 text-indigo-950 font-extrabold">2. Select Slots in the Table</strong>
-                  Tap any slot below to choose your serving time. When done, tap Save Schedule.
-                  {selectedMemberId && (
-                    <div className="mt-2.5 pt-2 border-t border-indigo-200/60 flex items-center justify-between font-bold text-[11px]">
-                      <span>Sunday: {selectedSundayCount}/{publication?.maxSundaysPerServer ?? 4}</span>
-                      <span>Weekday: {selectedWeekdayCount}/{publication?.maxWeekdaysPerServer ?? 8}</span>
-                    </div>
-                  )}
-                </div>
+              ) : (!isSuspended || isSpecialPub) && (
+                isSpecialPub ? (
+                  <div className="bg-purple-50/80 border border-purple-100 p-3.5 sm:p-4 rounded-2xl text-xs text-purple-900 leading-relaxed shadow-xs">
+                    <strong className="block mb-1 text-purple-950 font-extrabold">2. Select Special Occasion Slots</strong>
+                    Tap any special event slot below to choose your serving time. When done, tap Save Schedule.
+                    {selectedMemberId && (
+                      <div className="mt-2.5 pt-2 border-t border-purple-200/60 flex items-center justify-between font-bold text-[11px]">
+                        <span>Special Slots: {selectedSpecialCount}/{publication?.maxSpecialPerServer ?? 2}</span>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-indigo-50/80 border border-indigo-100 p-3.5 sm:p-4 rounded-2xl text-xs text-indigo-900 leading-relaxed shadow-xs">
+                    <strong className="block mb-1 text-indigo-950 font-extrabold">2. Select Slots in the Table</strong>
+                    Tap any slot below to choose your serving time. When done, tap Save Schedule.
+                    {selectedMemberId && (
+                      <div className="mt-2.5 pt-2 border-t border-indigo-200/60 flex items-center justify-between font-bold text-[11px]">
+                        <span>Sunday: {selectedSundayCount}/{publication?.maxSundaysPerServer ?? 4}</span>
+                        <span>Weekday: {selectedWeekdayCount}/{publication?.maxWeekdaysPerServer ?? 8}</span>
+                      </div>
+                    )}
+                  </div>
+                )
               )}
 
               {message && !hasSubmitted && (
@@ -882,21 +1245,23 @@ export const PublicSchedulePage: React.FC = () => {
               {/* Desktop Save Button (hidden on mobile, visible on lg+) */}
               <button
                 type="submit"
-                disabled={submitting || !selectedMemberId || hasSubmitted || isSuspended}
+                disabled={submitting || !selectedMemberId || hasSubmitted || (isSuspended && !isSpecialPub)}
                 className={`hidden lg:flex w-full py-4 font-extrabold text-sm rounded-2xl shadow-lg transition-all items-center justify-center gap-2 mt-4 ${
-                  hasSubmitted || isSuspended
+                  hasSubmitted || (isSuspended && !isSpecialPub)
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
-                    : 'bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white shadow-indigo-600/30 cursor-pointer disabled:opacity-50'
+                    : `${bannerTheme.buttonClass} cursor-pointer disabled:opacity-50`
                 }`}
               >
                 <span>
                   {submitting 
                     ? 'Saving...' 
-                    : isSuspended
+                    : isSuspended && !isSpecialPub
                       ? 'Account Suspended (Cannot Save)'
                       : isQuotaMaxed 
                         ? 'Submit & Finalize Schedule' 
-                        : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
+                        : isSpecialPub
+                          ? `Save Selections (${selectedSpecialCount} special slot(s))`
+                          : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
                 </span>
                 <span className="text-base">▹</span>
               </button>
@@ -913,62 +1278,88 @@ export const PublicSchedulePage: React.FC = () => {
       <div className="flex-1 p-3.5 sm:p-6 md:p-10 overflow-x-auto overflow-y-auto">
         {publicationSchedules.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-10 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs">
-            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4 text-2xl">
-              📅
+            <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
+                <line x1="16" x2="16" y1="2" y2="6" />
+                <line x1="8" x2="8" y1="2" y2="6" />
+                <line x1="3" x2="21" y1="10" y2="10" />
+              </svg>
             </div>
-            <h2 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">No Mass Schedules Yet</h2>
+            <h2 className="text-lg sm:text-xl font-bold text-slate-800 mb-2">No Schedules Yet</h2>
             <p className="text-xs sm:text-sm text-slate-500 max-w-md">
-              There are currently no generated schedules within this publication's date range ({publication?.startDate} to {publication?.endDate}). 
+              There are currently no matching schedules within this publication's date range ({publication?.startDate} to {publication?.endDate}). 
               <br/><br/>
-              <strong>Admin Instruction:</strong> Go to the Schedule Management page and use the "Templates" button to generate the schedules for this date range.
+              <strong>Admin Instruction:</strong> Create or generate schedules for this date range in the Schedule Management page.
             </p>
           </div>
         ) : (
           <>
             {/* SCHEDULE MONTH BANNER ABOVE SUNDAY MASSES */}
-            <div className="mb-4 sm:mb-6 bg-gradient-to-r from-indigo-900 via-indigo-800 to-indigo-900 text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg border border-indigo-700 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4">
+            <div className={`mb-4 sm:mb-6 ${bannerTheme.bannerGradient} text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4`}>
               <div className="flex items-center gap-3 sm:gap-4">
                 <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 shadow-xs">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-7 sm:h-7 text-indigo-200" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 sm:w-7 sm:h-7 ${bannerTheme.bannerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
                 <div>
-                  <span className="text-[10px] sm:text-[11px] font-extrabold text-indigo-300 uppercase tracking-widest block mb-0.5">
-                    SCHEDULE PERIOD
-                  </span>
+                  <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                    <span className={`text-[10px] sm:text-[11px] font-extrabold ${bannerTheme.bannerSubtext} uppercase tracking-widest`}>
+                      {isSpecialPub ? 'SPECIAL OCCASION SCHEDULE' : 'SCHEDULE PERIOD'}
+                    </span>
+                  </div>
                   <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white">
                     {publication?.name || 'Schedule Period'}
                   </h2>
-                  <p className="text-[11px] text-indigo-200 font-semibold sm:hidden mt-0.5">
+                  <p className={`text-[11px] ${bannerTheme.bannerSubtext} font-semibold sm:hidden mt-0.5`}>
                     {publication?.startDate} to {publication?.endDate}
                   </p>
                 </div>
               </div>
-              <div className="bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl text-xs font-bold text-indigo-200 border border-white/10 backdrop-blur-xs self-stretch sm:self-auto text-center">
-                Public Schedule
+              <div className={`bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl text-xs font-bold ${bannerTheme.bannerSubtext} border border-white/10 backdrop-blur-xs self-stretch sm:self-auto text-center`}>
+                {isSpecialPub ? 'Special Occasion' : 'Public Schedule'}
               </div>
             </div>
 
-            {renderTable(
-              sundayPatterns, 
-              maxRowsSunday, 
-              true, 
-              'Sunday Masses', 
-              `Recurring Sunday Schedules`, 
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            )}
-            {renderTable(
-              weekdayPatterns, 
-              maxRowsWeekday, 
-              false, 
-              'Weekday Masses', 
-              `Recurring Weekday Schedules`, 
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
+            {isSpecialPub ? (
+              renderTable(
+                specialPatterns,
+                maxRowsSpecial,
+                'special',
+                'Special Occasion Masses',
+                'Dedicated Fiesta, Triduum & Solemnity Events',
+                <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 sm:w-6 sm:h-6 ${bannerTheme.bannerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.48 3.499a.562.562 0 011.04 0l2.125 5.111a.563.563 0 00.475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 00-.182.557l1.285 5.385a.562.562 0 01-.84.61l-4.725-2.885a.563.563 0 00-.586 0L6.982 20.54a.562.562 0 01-.84-.61l1.285-5.386a.562.562 0 00-.182-.557l-4.204-3.602a.563.563 0 01.321-.988l5.518-.442a.563.563 0 00.475-.345L11.48 3.5z" />
+                </svg>
+              )
+            ) : (
+              <>
+                {renderTable(
+                  sundayPatterns, 
+                  maxRowsSunday, 
+                  'sunday', 
+                  'Sunday Masses', 
+                  `Recurring Sunday Schedules`, 
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                )}
+                {renderTable(
+                  weekdayPatterns, 
+                  maxRowsWeekday, 
+                  'weekday', 
+                  publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1
+                    ? `${publication.includedDaysOfWeek[0]} Masses`
+                    : 'Weekday Masses', 
+                  publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0
+                    ? `Recurring every ${publication.includedDaysOfWeek.join(', ')}`
+                    : `Recurring Weekday Schedules`, 
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 sm:w-6 sm:h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+              </>
             )}
 
             <div className="lg:hidden text-center text-[11px] font-bold text-slate-400 py-6">
@@ -992,15 +1383,15 @@ export const PublicSchedulePage: React.FC = () => {
                     setIsMemberPickerOpen(true)
                   }
                 }}
-                className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md shadow-indigo-600/20 active:scale-98 transition-all"
+                className={`w-full py-3 px-4 ${bannerTheme.buttonClass} text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 shadow-md active:scale-98 transition-all`}
               >
-                <span>👆 Tap to Select Your Name First</span>
+                <span>Tap to Select Your Name First</span>
               </button>
             ) : hasSubmitted ? (
               <div className="w-full text-center py-2 text-xs font-bold text-amber-800 bg-amber-50 rounded-xl border border-amber-200">
                 Schedule Already Saved
               </div>
-            ) : isSuspended ? (
+            ) : isSuspended && !isSpecialPub ? (
               <div className="w-full text-center py-2 text-xs font-extrabold text-rose-800 bg-rose-50 rounded-xl border border-rose-200">
                 Account Suspended (Cannot Submit)
               </div>
@@ -1012,7 +1403,11 @@ export const PublicSchedulePage: React.FC = () => {
                   </div>
                   <div className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                     <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                    <span>{selectedSundayCount} Sun, {selectedWeekdayCount} Wkday</span>
+                    <span>
+                      {isSpecialPub
+                        ? `${selectedSpecialCount}/${publication?.maxSpecialPerServer ?? 2} Special Slots`
+                        : `${selectedSundayCount} Sun, ${selectedWeekdayCount} Wkday`}
+                    </span>
                   </div>
                 </div>
 
@@ -1020,7 +1415,7 @@ export const PublicSchedulePage: React.FC = () => {
                   type="button"
                   onClick={handleOpenConfirmModal}
                   disabled={submitting || selectedScheduleIds.size === 0}
-                  className="py-3 px-5 bg-indigo-600 hover:bg-indigo-700 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-md shadow-indigo-600/20 transition-all shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  className={`py-3 px-5 ${bannerTheme.buttonClass} active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-md transition-all shrink-0 flex items-center gap-1.5 cursor-pointer`}
                 >
                   <span>{submitting ? 'Saving...' : isQuotaMaxed ? 'Finalize' : 'Save'}</span>
                   <span>▹</span>

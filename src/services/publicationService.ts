@@ -54,7 +54,10 @@ export const publicationService = {
     const today = new Date().toISOString().split('T')[0]
 
     if (published.length > 0) {
-      // Prioritize the published publication spanning today's date
+      // Prioritize regular cycle publication spanning today's date
+      const regularCurrent = published.find(p => p.publicationType !== 'special_event' && p.startDate <= today && today <= p.endDate)
+      if (regularCurrent) return regularCurrent
+
       const current = published.find(p => p.startDate <= today && today <= p.endDate)
       return current || published[0]
     }
@@ -74,16 +77,28 @@ export const publicationService = {
       startDate: input.startDate,
       endDate: input.endDate,
       status: input.status || 'draft',
+      publicationType: input.publicationType || 'regular',
       description: input.description?.trim() || '',
       submissionDeadline: input.submissionDeadline || '',
       maxSundaysPerServer: input.maxSundaysPerServer ?? 4,
       maxWeekdaysPerServer: input.maxWeekdaysPerServer ?? 8,
+      maxSpecialPerServer: input.maxSpecialPerServer ?? 2,
       maxServersPerSundaySlot: input.maxServersPerSundaySlot ?? 5,
       maxServersPerWeekdaySlot: input.maxServersPerWeekdaySlot ?? 5,
+      maxServersPerSpecialSlot: input.maxServersPerSpecialSlot ?? 6,
+      enableRankQuotas: input.enableRankQuotas ?? false,
+      rankSlotQuotas: input.rankSlotQuotas || {},
+      sundayRankQuotas: input.sundayRankQuotas || {},
+      weekdayRankQuotas: input.weekdayRankQuotas || {},
+      specialRankQuotas: input.specialRankQuotas || {},
       includeSundays: input.includeSundays ?? true,
       includeWeekdays: input.includeWeekdays ?? true,
       includeHolyHour: input.includeHolyHour ?? false,
       includeMeetings: input.includeMeetings ?? false,
+      includeSpecialEvents: input.includeSpecialEvents ?? (input.publicationType === 'special_event'),
+      includedDaysOfWeek: input.includedDaysOfWeek || [],
+      enableStreetLocation: input.enableStreetLocation ?? false,
+      liturgicalColor: input.liturgicalColor || '',
       customExcludedKeywords: input.customExcludedKeywords || [],
       allowedRanks: input.allowedRanks || ['Chevaliers', 'Paladins'],
       warningAbsenceThreshold: input.warningAbsenceThreshold ?? 3,
@@ -95,7 +110,7 @@ export const publicationService = {
     await auditService.logAction(
       'SCHEDULE_CREATE',
       'schedule',
-      `Created publication '${input.name}'`,
+      `Created publication '${input.name}' (${input.publicationType === 'special_event' ? 'Special Occasion' : 'Regular Cycle'})`,
       performedBy,
       { publicationId: docRef.id, input }
     )
@@ -116,16 +131,28 @@ export const publicationService = {
     if (input.startDate !== undefined) updateData.startDate = input.startDate
     if (input.endDate !== undefined) updateData.endDate = input.endDate
     if (input.status !== undefined) updateData.status = input.status
+    if (input.publicationType !== undefined) updateData.publicationType = input.publicationType
     if (input.description !== undefined) updateData.description = input.description.trim()
     if (input.submissionDeadline !== undefined) updateData.submissionDeadline = input.submissionDeadline
     if (input.maxSundaysPerServer !== undefined) updateData.maxSundaysPerServer = input.maxSundaysPerServer
     if (input.maxWeekdaysPerServer !== undefined) updateData.maxWeekdaysPerServer = input.maxWeekdaysPerServer
+    if (input.maxSpecialPerServer !== undefined) updateData.maxSpecialPerServer = input.maxSpecialPerServer
     if (input.maxServersPerSundaySlot !== undefined) updateData.maxServersPerSundaySlot = input.maxServersPerSundaySlot
     if (input.maxServersPerWeekdaySlot !== undefined) updateData.maxServersPerWeekdaySlot = input.maxServersPerWeekdaySlot
+    if (input.maxServersPerSpecialSlot !== undefined) updateData.maxServersPerSpecialSlot = input.maxServersPerSpecialSlot
+    if (input.enableRankQuotas !== undefined) updateData.enableRankQuotas = input.enableRankQuotas
+    if (input.rankSlotQuotas !== undefined) updateData.rankSlotQuotas = input.rankSlotQuotas
+    if (input.sundayRankQuotas !== undefined) updateData.sundayRankQuotas = input.sundayRankQuotas
+    if (input.weekdayRankQuotas !== undefined) updateData.weekdayRankQuotas = input.weekdayRankQuotas
+    if (input.specialRankQuotas !== undefined) updateData.specialRankQuotas = input.specialRankQuotas
     if (input.includeSundays !== undefined) updateData.includeSundays = input.includeSundays
     if (input.includeWeekdays !== undefined) updateData.includeWeekdays = input.includeWeekdays
     if (input.includeHolyHour !== undefined) updateData.includeHolyHour = input.includeHolyHour
     if (input.includeMeetings !== undefined) updateData.includeMeetings = input.includeMeetings
+    if (input.includeSpecialEvents !== undefined) updateData.includeSpecialEvents = input.includeSpecialEvents
+    if (input.includedDaysOfWeek !== undefined) updateData.includedDaysOfWeek = input.includedDaysOfWeek
+    if (input.enableStreetLocation !== undefined) updateData.enableStreetLocation = input.enableStreetLocation
+    if (input.liturgicalColor !== undefined) updateData.liturgicalColor = input.liturgicalColor
     if (input.customExcludedKeywords !== undefined) updateData.customExcludedKeywords = input.customExcludedKeywords
     if (input.allowedRanks !== undefined) updateData.allowedRanks = input.allowedRanks
     if (input.warningAbsenceThreshold !== undefined) updateData.warningAbsenceThreshold = input.warningAbsenceThreshold

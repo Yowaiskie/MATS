@@ -7,7 +7,7 @@ import { isScheduleIncludedInPublication, isMemberEligibleForPublication } from 
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { ActionMenu } from '@/components'
-import { PublicationFormModal } from './PublicationFormModal'
+import { PublicationFormModal, type CustomEventSlotInput } from './PublicationFormModal'
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
 
@@ -152,43 +152,133 @@ export const PublicationsTab: React.FC = () => {
     }
   }
 
-  const handleSave = async (input: SchedulePublicationInput, generateSchedules: boolean, selectedTemplateIds?: string[]) => {
+  const handleSave = async (
+    input: SchedulePublicationInput,
+    generateSchedules: boolean,
+    selectedTemplateIds?: string[],
+    customEventSlots?: CustomEventSlotInput[]
+  ) => {
     if (selectedPublication) {
       await publicationService.updatePublication(selectedPublication.id, input)
     } else {
       await publicationService.addPublication(input)
-      
-      if (generateSchedules && selectedTemplateIds) {
-        try {
-          const activeTemplates = (await recurringService.getTemplates())
-            .filter(t => t.active && selectedTemplateIds.includes(t.id))
-            
-          if (activeTemplates.length > 0) {
-            const report = await recurringService.generateSchedules(
-              input.startDate,
-              input.endDate,
-              activeTemplates
-            )
-            setAlertModal({ 
-              title: 'Publication Created', 
-              message: `Created successfully! Generated ${report.created} schedule(s) from templates. (Skipped: ${report.skipped}, Duplicates: ${report.duplicates})`, 
-              type: 'success' 
+    }
+    
+    // 1. If custom event / street mass slots are provided to generate, update, or remove
+    if (customEventSlots !== undefined && (input.publicationType === 'special_event' || input.enableStreetLocation || (input.includedDaysOfWeek && input.includedDaysOfWeek.length > 0) || customEventSlots.length > 0)) {
+      try {
+        const existingSchedules = await scheduleService.getSchedulesByDateRange(input.startDate, input.endDate)
+        const relevantSchedules = existingSchedules.filter(s => 
+          selectedPublication 
+            ? isScheduleIncludedInPublication(s, selectedPublication)
+            : (input.publicationType === 'special_event' && (s.category === 'special_event' || isScheduleIncludedInPublication(s, input)))
+        )
+
+        const retainedScheduleIds = new Set<string>()
+        let createdCount = 0
+        let updatedCount = 0
+
+        for (const slot of customEventSlots) {
+          // Check if schedule already exists for this slot
+          const existing = relevantSchedules.find(s => 
+            (slot.scheduleId && s.id === slot.scheduleId) ||
+            (s.date === slot.date && s.startTime === slot.startTime) ||
+            (s.date === slot.date && (input.publicationType === 'special_event' || s.category === 'special_event'))
+          )
+
+          if (existing) {
+            retainedScheduleIds.add(existing.id)
+            // Update existing schedule location and details
+            await scheduleService.updateSchedule(existing.id, {
+              title: slot.title || input.name || existing.title,
+              date: slot.date || existing.date,
+              startTime: slot.startTime || existing.startTime,
+              endTime: slot.endTime || existing.endTime,
+              location: slot.location !== undefined ? slot.location.trim() : (existing.location || ''),
+              liturgicalColor: slot.liturgicalColor || input.liturgicalColor || '',
+              category: input.publicationType === 'special_event' ? 'special_event' : existing.category
             })
+            updatedCount++
           } else {
-            setAlertModal({ title: 'Publication Created', message: 'Created successfully, but no active templates were found to generate schedules.', type: 'success' })
+            // Add new schedule only if it doesn't already exist
+            const newId = await scheduleService.addSchedule({
+              title: slot.title || input.name || 'Special Mass',
+              date: slot.date,
+              startTime: slot.startTime || '18:00',
+              endTime: slot.endTime || '19:00',
+              location: slot.location ? slot.location.trim() : '',
+              liturgicalColor: slot.liturgicalColor || input.liturgicalColor || '',
+              category: input.publicationType === 'special_event' ? 'special_event' : undefined,
+              status: 'upcoming',
+              assignedMembers: []
+            })
+            retainedScheduleIds.add(newId)
+            createdCount++
           }
-        } catch (err: any) {
-          console.error(err)
-          setAlertModal({ title: 'Warning', message: `Publication created, but failed to generate schedules: ${err.message}`, type: 'error' })
         }
-        await loadData()
-        return // Return early since alert modal is already set
+
+        // Clean up any removed schedules from Firestore for this special publication
+        let deletedCount = 0
+        if (selectedPublication && (input.publicationType === 'special_event' || selectedPublication.publicationType === 'special_event')) {
+          const toDelete = relevantSchedules.filter(s => !retainedScheduleIds.has(s.id))
+          for (const delSched of toDelete) {
+            await scheduleService.deleteSchedule(delSched.id, 'Publication Sync')
+            deletedCount++
+          }
+        }
+
+        let msg = 'Publication saved successfully.'
+        if (createdCount > 0 || updatedCount > 0 || deletedCount > 0) {
+          const parts: string[] = []
+          if (createdCount > 0) parts.push(`generated ${createdCount} new slot(s)`)
+          if (updatedCount > 0) parts.push(`updated ${updatedCount} slot(s)`)
+          if (deletedCount > 0) parts.push(`removed ${deletedCount} deleted slot(s)`)
+          msg = `Saved! ${parts.join(', ')}.`
+        }
+
+        setAlertModal({ 
+          title: selectedPublication ? 'Publication Updated' : 'Publication Created', 
+          message: msg, 
+          type: 'success' 
+        })
+      } catch (err: any) {
+        console.error(err)
+        setAlertModal({ title: 'Warning', message: `Publication saved, but some schedule slots failed to process: ${err.message}`, type: 'error' })
       }
+      await loadData()
+      return
     }
+
+    // 2. Regular template-based generation
+    if (!selectedPublication && generateSchedules && selectedTemplateIds) {
+      try {
+        const activeTemplates = (await recurringService.getTemplates())
+          .filter(t => t.active && selectedTemplateIds.includes(t.id))
+          
+        if (activeTemplates.length > 0) {
+          const report = await recurringService.generateSchedules(
+            input.startDate,
+            input.endDate,
+            activeTemplates
+          )
+          setAlertModal({ 
+            title: 'Publication Created', 
+            message: `Created successfully! Generated ${report.created} schedule(s) from templates. (Skipped: ${report.skipped}, Duplicates: ${report.duplicates})`, 
+            type: 'success' 
+          })
+        } else {
+          setAlertModal({ title: 'Publication Created', message: 'Created successfully, but no active templates were found to generate schedules.', type: 'success' })
+        }
+      } catch (err: any) {
+        console.error(err)
+        setAlertModal({ title: 'Warning', message: `Publication created, but failed to generate schedules: ${err.message}`, type: 'error' })
+      }
+      await loadData()
+      return
+    }
+
     await loadData()
-    if (!generateSchedules) {
-      setAlertModal({ title: 'Success', message: 'Publication saved successfully.', type: 'success' })
-    }
+    setAlertModal({ title: 'Success', message: 'Publication saved successfully.', type: 'success' })
   }
 
   const stats = {
@@ -255,14 +345,37 @@ export const PublicationsTab: React.FC = () => {
             <div key={pub.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-sm text-gray-900">{pub.name}</h3>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <h3 className="font-bold text-sm text-gray-900">{pub.name}</h3>
+                    {pub.publicationType === 'special_event' && (
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                        Special Occasion
+                      </span>
+                    )}
+                    {pub.includedDaysOfWeek && pub.includedDaysOfWeek.length > 0 && (
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Every {pub.includedDaysOfWeek.join(', ')}
+                      </span>
+                    )}
+                    {pub.enableStreetLocation && (
+                      <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-1">
+                        <svg className="w-2.5 h-2.5 text-amber-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        Street / Venue
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-gray-500 mt-0.5">
                     {pub.startDate} to {pub.endDate}
                   </p>
                   {pub.submissionDeadline && (
                     <p className="text-[11px] font-bold mt-1 text-purple-700 flex items-center gap-1">
-                      <span>⏰ Deadline:</span>
-                      <span>{new Date(pub.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <span>Deadline: {new Date(pub.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                       {new Date() > new Date(pub.submissionDeadline) && (
                         <span className="text-[9px] font-black bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded">Passed</span>
                       )}
@@ -486,9 +599,19 @@ export const PublicationsTab: React.FC = () => {
                 publications.map(pub => (
                   <tr key={pub.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
-                      <div className="font-bold text-gray-900">{pub.name}</div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-gray-900">{pub.name}</span>
+                        {pub.publicationType === 'special_event' && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                            Special Occasion
+                          </span>
+                        )}
+                      </div>
                       {pub.submissionDeadline ? (
                         <div className="text-[11px] font-bold text-purple-700 mt-0.5 flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
                           <span>Deadline: {new Date(pub.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
                           {new Date() > new Date(pub.submissionDeadline) && (
                             <span className="text-[9px] font-black bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded">Passed</span>

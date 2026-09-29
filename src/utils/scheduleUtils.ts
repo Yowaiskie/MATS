@@ -178,6 +178,12 @@ export const isSpecialEventOrService = (
     title.includes('special event') ||
     title.includes('special') ||
     title.includes('espesyal') ||
+    title.includes('misa sa nayon') ||
+    title.includes('misa sa kalye') ||
+    title.includes('street mass') ||
+    title.includes('sitio mass') ||
+    title.includes('purok mass') ||
+    title.includes('block rosary') ||
 
     // Marian & Solemn Feasts (e.g. Nativity of Mary, Immaculate Conception, Assumption)
     title.includes('nativity') ||
@@ -306,19 +312,50 @@ export const isScheduleIncludedInPublication = (
     if (isCustomExcluded) return false
   }
 
-  // 2. Holy Hour Check (Default: false)
+  // 2. Specific Days of Week check (e.g. Every Thursday only)
+  if (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0) {
+    if (schedule.date) {
+      const parts = schedule.date.split('-')
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        const currentDayName = dayNames[d.getDay()]
+        const isDayMatched = publication.includedDaysOfWeek.some(day => 
+          day.toLowerCase().trim() === currentDayName.toLowerCase().trim()
+        )
+        if (!isDayMatched) return false
+      }
+    }
+  }
+
+  const isSpecial = isSpecialEventOrService(schedule)
+
+  // 3. Dedicated Special Occasion / Event Publication Mode
+  if (publication?.publicationType === 'special_event') {
+    if (!isSpecial) {
+      // Exclude regular Sunday & Weekday masses from special occasion publication links
+      return false
+    }
+    // Check Holy Hour or Meeting flags if the special event matches them
+    if (isHolyHourSchedule(title) && publication?.includeHolyHour === false) return false
+    if (isMeetingSchedule(title) && publication?.includeMeetings === false) return false
+    return true
+  }
+
+  // 2. Regular Mass Cycle Publication Mode (Default)
+  if (isSpecial) {
+    // Exclude special event masses from regular mass publication links unless explicitly enabled
+    return publication?.includeSpecialEvents ?? false
+  }
+
+  // 3. Holy Hour Check (Default: false)
   if (isHolyHourSchedule(title)) {
     return publication?.includeHolyHour ?? false
   }
 
-  // 3. Meeting / Formation Check (Default: false)
+  // 4. Meeting / Formation Check (Default: false)
   if (isMeetingSchedule(title)) {
     return publication?.includeMeetings ?? false
-  }
-
-  // 4. Special Event / Special Mass Check (Default: false in regular publications)
-  if (isSpecialEventOrService(schedule)) {
-    return false
   }
 
   // 5. Sunday / Weekday Mass Check (Defaults: true)
@@ -416,5 +453,120 @@ export const formatScheduleDateWithDay = (
 
   return `${dayName}, ${m} ${day}, ${year}`
 }
+
+/**
+ * Gets the maximum allowed servers of a specific rank for a given schedule slot in a publication.
+ * Returns undefined if rank quotas are not enabled or not defined for this rank.
+ */
+export const getRankLimitForSlot = (
+  publication: Partial<SchedulePublication> | null | undefined,
+  rank: string | undefined,
+  isSunday: boolean = false,
+  isSpecial: boolean = false
+): number | undefined => {
+  if (!publication || !publication.enableRankQuotas || !rank) return undefined
+
+  const normalizedRank = rank.trim()
+
+  // 1. Special event specific quota
+  if (isSpecial && publication.specialRankQuotas) {
+    const matchedKey = Object.keys(publication.specialRankQuotas).find(
+      k => k.toLowerCase() === normalizedRank.toLowerCase()
+    )
+    if (matchedKey && publication.specialRankQuotas[matchedKey] !== undefined) {
+      return publication.specialRankQuotas[matchedKey]
+    }
+  }
+
+  // 2. Sunday specific quota
+  if (isSunday && publication.sundayRankQuotas) {
+    const matchedKey = Object.keys(publication.sundayRankQuotas).find(
+      k => k.toLowerCase() === normalizedRank.toLowerCase()
+    )
+    if (matchedKey && publication.sundayRankQuotas[matchedKey] !== undefined) {
+      return publication.sundayRankQuotas[matchedKey]
+    }
+  }
+
+  // 3. Weekday specific quota
+  if (!isSunday && !isSpecial && publication.weekdayRankQuotas) {
+    const matchedKey = Object.keys(publication.weekdayRankQuotas).find(
+      k => k.toLowerCase() === normalizedRank.toLowerCase()
+    )
+    if (matchedKey && publication.weekdayRankQuotas[matchedKey] !== undefined) {
+      return publication.weekdayRankQuotas[matchedKey]
+    }
+  }
+
+  // 4. Default rank slot quotas
+  if (publication.rankSlotQuotas) {
+    const matchedKey = Object.keys(publication.rankSlotQuotas).find(
+      k => k.toLowerCase() === normalizedRank.toLowerCase()
+    )
+    if (matchedKey && publication.rankSlotQuotas[matchedKey] !== undefined) {
+      return publication.rankSlotQuotas[matchedKey]
+    }
+  }
+
+  return undefined
+}
+
+export interface SlotRankBreakdownItem {
+  rank: string
+  current: number
+  limit?: number
+  isFull: boolean
+}
+
+/**
+ * Computes rank breakdown for assigned members in a slot against publication rank limits.
+ */
+export const getSlotRankBreakdown = (
+  assignedMemberIds: string[],
+  members: Member[],
+  publication?: Partial<SchedulePublication> | null,
+  isSunday: boolean = false,
+  isSpecial: boolean = false
+): {
+  items: SlotRankBreakdownItem[]
+  isRankFull: (rank: string) => boolean
+  counts: Record<string, number>
+} => {
+  const counts: Record<string, number> = {
+    Chevaliers: 0,
+    Paladins: 0,
+    Squires: 0
+  }
+
+  const memberMap = new Map(members.map(m => [m.id, m]))
+  assignedMemberIds.forEach(id => {
+    const mem = memberMap.get(id)
+    if (mem && mem.rank) {
+      const r = mem.rank.trim()
+      counts[r] = (counts[r] || 0) + 1
+    }
+  })
+
+  const ranksToCheck = publication?.allowedRanks && publication.allowedRanks.length > 0
+    ? publication.allowedRanks
+    : ['Chevaliers', 'Paladins']
+
+  const items: SlotRankBreakdownItem[] = ranksToCheck.map(r => {
+    const current = counts[r] || 0
+    const limit = getRankLimitForSlot(publication, r, isSunday, isSpecial)
+    const isFull = limit !== undefined && current >= limit
+    return { rank: r, current, limit, isFull }
+  })
+
+  const isRankFull = (rank: string): boolean => {
+    const limit = getRankLimitForSlot(publication, rank, isSunday, isSpecial)
+    if (limit === undefined) return false
+    const current = counts[rank] || 0
+    return current >= limit
+  }
+
+  return { items, isRankFull, counts }
+}
+
 
 

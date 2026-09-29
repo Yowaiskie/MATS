@@ -4,7 +4,7 @@ import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { scheduleService } from '@/services/scheduleService'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour, isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
+import { formatTime12Hour, isSundayOrAnticipatedMass, isScheduleIncludedInPublication, getSlotRankBreakdown } from '@/utils/scheduleUtils'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import { Button, useToast } from '@/components'
 
@@ -24,6 +24,7 @@ interface ScheduleSlotPattern {
   startTime: string
   formattedTime: string
   title: string
+  location?: string
   isSunday: boolean
   scheduleIds: string[]
   assignedMemberIds: string[]
@@ -100,7 +101,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       const dayOfWeek = new Date(y, m - 1, d).getDay()
       const dayName = DAY_NAMES[dayOfWeek]
       const isSun = isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
-      const patternId = `${dayOfWeek}-${s.startTime}-${s.title}`
+      const patternId = `${dayOfWeek}-${s.startTime}-${s.title}-${s.location || ''}`
 
       if (!patternMap.has(patternId)) {
         patternMap.set(patternId, {
@@ -110,6 +111,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
           startTime: s.startTime,
           formattedTime: formatTime12Hour(s.startTime),
           title: s.title,
+          location: s.location,
           isSunday: isSun,
           scheduleIds: [],
           assignedMemberIds: []
@@ -282,6 +284,15 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
             <div className="text-[11px] text-slate-500 font-semibold mt-0.5 truncate">
               {pattern.title}
             </div>
+            {pattern.location && (
+              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold truncate max-w-full">
+                <svg className="w-2.5 h-2.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="truncate">{pattern.location}</span>
+              </div>
+            )}
           </div>
 
           {/* Checkbox badge */}
@@ -300,13 +311,32 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         <div className="pt-2 border-t border-slate-100/90 flex flex-col gap-1.5 text-[10px]">
           <div className="flex items-center justify-between font-bold">
             <span className="text-slate-400">Assigned Servers:</span>
-            <span className={`px-1.5 py-0.2 rounded-md font-extrabold ${
-              totalCount >= maxCapacity
-                ? 'bg-amber-100 text-amber-900'
-                : 'bg-slate-100 text-slate-700'
-            }`}>
-              {totalCount} / {maxCapacity} {totalCount >= maxCapacity && '(Full)'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              {publication?.enableRankQuotas && (
+                <div className="flex items-center gap-1">
+                  {getSlotRankBreakdown(pattern.assignedMemberIds, allEligibleMembers, publication, pattern.isSunday, false).items.map(item => (
+                    <span
+                      key={item.rank}
+                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                        item.isFull
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                      title={`${item.rank}: ${item.current} / ${item.limit !== undefined ? item.limit : '∞'}`}
+                    >
+                      {item.rank.slice(0, 4)}: {item.current}/{item.limit !== undefined ? item.limit : '∞'}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <span className={`px-1.5 py-0.2 rounded-md font-extrabold ${
+                totalCount >= maxCapacity
+                  ? 'bg-amber-100 text-amber-900'
+                  : 'bg-slate-100 text-slate-700'
+              }`}>
+                {totalCount} / {maxCapacity} {totalCount >= maxCapacity && '(Full)'}
+              </span>
+            </div>
           </div>
 
           {/* Assigned names preview */}

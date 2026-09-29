@@ -23,6 +23,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   const [category, setCategory] = useState<ScheduleCategoryKey | ''>('')
   const [date, setDate] = useState('')
   const [startTime, setStartTime] = useState('')
+  const [location, setLocation] = useState('')
   const [isCancelled, setIsCancelled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
@@ -38,12 +39,14 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
       setCategory(schedule.category || '')
       setDate(schedule.date)
       setStartTime(schedule.startTime)
+      setLocation(schedule.location || '')
       setIsCancelled(schedule.status === 'cancelled')
     } else {
       setTitle('')
       setCategory('')
       setDate(defaultDate || '')
       setStartTime('')
+      setLocation('')
       setIsCancelled(false)
     }
     setErrors({})
@@ -98,6 +101,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
         date,
         startTime,
         endTime: calculatedEndTime,
+        location: location.trim() || undefined,
         status
       })
       onClose()
@@ -204,6 +208,22 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               disabled={loading}
             />
             {errors.startTime && <p className="mt-1 text-xs text-rose-600 font-bold">{errors.startTime}</p>}
+          </div>
+
+          {/* Street / Location / Venue */}
+          <div>
+            <label htmlFor="schedule-location" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
+              Street / Location / Venue (Optional)
+            </label>
+            <input
+              id="schedule-location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none"
+              placeholder="e.g. Mabini St., Block 3 Chapel, Purok 2"
+              disabled={loading}
+            />
           </div>
 
           {/* Cancellation Toggle */}

@@ -308,7 +308,8 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         publication.endDate, 
         ids, 
         resetScope,
-        'Coordinator'
+        'Coordinator',
+        publication
       )
       
       // 2. Remove from publication submissions if requested
@@ -632,7 +633,13 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                               <span>{item.member.order || 'Altar Server'}</span>
                               {item.hasSchedule && (
                                 <span className="text-slate-500 font-bold">
-                                  • {slotsCount} {slotsCount === 1 ? 'Slot' : 'Slots'} ({item.sundaysCount} Sun, {item.weekdaysCount} Wk)
+                                  • {slotsCount} {slotsCount === 1 ? 'Slot' : 'Slots'} {
+                                    publication.publicationType === 'special_event' 
+                                      ? '(Special Event)' 
+                                      : publication.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1 
+                                        ? `(${publication.includedDaysOfWeek[0]})` 
+                                        : `(${item.sundaysCount} Sun, ${item.weekdaysCount} Wk)`
+                                  }
                                 </span>
                               )}
                             </div>
@@ -692,36 +699,58 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                       {isExpanded && item.hasSchedule && (
                         <div className="bg-slate-50/90 border-t border-slate-200/60 p-2.5 sm:p-3.5 pl-8 sm:pl-10 pr-3 sm:pr-4 space-y-2 animate-fade-in">
                           <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] sm:text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                            <span>Mass Schedule Slots for {item.member.firstName}</span>
+                            <span>{publication.publicationType === 'special_event' ? 'Event Schedule Slots' : 'Mass Schedule Slots'} for {item.member.firstName}</span>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {item.sundaysCount > 0 && (
+                              {publication.publicationType === 'special_event' ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenResetSingle(item.member.id, 'sunday')}
-                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
-                                  title="Reset only Sunday & Anticipated mass slots for this member"
+                                  onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                  title="Reset all special occasion event slots for this member"
                                 >
-                                  Reset Sundays ({item.sundaysCount})
+                                  Reset Event Slots ({item.totalSchedules})
                                 </button>
-                              )}
-                              {item.weekdaysCount > 0 && (
+                              ) : publication.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1 ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenResetSingle(item.member.id, 'weekday')}
-                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
-                                  title="Reset only Weekday mass slots for this member"
+                                  onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                  title={`Reset ${publication.includedDaysOfWeek[0]} mass slots for this member`}
                                 >
-                                  Reset Weekdays ({item.weekdaysCount})
+                                  Reset {publication.includedDaysOfWeek[0]} Slots ({item.totalSchedules})
                                 </button>
+                              ) : (
+                                <>
+                                  {item.sundaysCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenResetSingle(item.member.id, 'sunday')}
+                                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                                      title="Reset only Sunday & Anticipated mass slots for this member"
+                                    >
+                                      Reset Sundays ({item.sundaysCount})
+                                    </button>
+                                  )}
+                                  {item.weekdaysCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenResetSingle(item.member.id, 'weekday')}
+                                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                      title="Reset only Weekday mass slots for this member"
+                                    >
+                                      Reset Weekdays ({item.weekdaysCount})
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                    className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                    title="Reset all schedule slots for this member"
+                                  >
+                                    Reset All
+                                  </button>
+                                </>
                               )}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenResetSingle(item.member.id, 'all')}
-                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
-                                title="Reset all schedule slots for this member"
-                              >
-                                Reset All
-                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -941,6 +970,11 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                   <li>Max {publication.maxWeekdaysPerServer ?? 8} Weekdays / server quota</li>
                 )}
                 <li>Slot capacities ({publication.maxServersPerSundaySlot ?? 5} Sunday, {publication.maxServersPerWeekdaySlot ?? 5} Weekday)</li>
+                {publication.enableRankQuotas && (
+                  <li>
+                    Rank allotment enforced: Max {publication.rankSlotQuotas?.Chevaliers ?? 2} Chevaliers, Max {publication.rankSlotQuotas?.Paladins ?? 3} Paladins per slot
+                  </li>
+                )}
                 <li>No same-day overlapping time conflicts</li>
               </ul>
             </div>
@@ -992,65 +1026,101 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                 Select Which Slots to Reset:
               </label>
               <div className="grid grid-cols-1 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResetScope('all')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    resetScope === 'all'
-                      ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-black">All Schedules (Sundays & Weekdays)</span>
-                    <span className="text-[10px] text-slate-400 block font-medium">Remove all mass assignments within this publication</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    resetScope === 'all' ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
-                  }`}>
-                    {resetScope === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                </button>
+                {publication.publicationType === 'special_event' ? (
+                  <button
+                    type="button"
+                    onClick={() => setResetScope('all')}
+                    className="p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <span className="block text-xs font-black">All Special Occasion Event Slots</span>
+                      <span className="text-[10px] text-slate-500 block font-medium">
+                        Remove all event assignments for selected members within this special publication
+                      </span>
+                    </div>
+                    <span className="w-4 h-4 rounded-full border-2 border-rose-600 bg-rose-600 flex items-center justify-center shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </span>
+                  </button>
+                ) : publication.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setResetScope('all')}
+                    className="p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <span className="block text-xs font-black">All {publication.includedDaysOfWeek[0]} Mass Slots</span>
+                      <span className="text-[10px] text-slate-500 block font-medium">
+                        Remove all {publication.includedDaysOfWeek[0]} mass assignments for selected members within this publication
+                      </span>
+                    </div>
+                    <span className="w-4 h-4 rounded-full border-2 border-rose-600 bg-rose-600 flex items-center justify-center shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setResetScope('all')}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                        resetScope === 'all'
+                          ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-black">All Schedules (Sundays & Weekdays)</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Remove all mass assignments within this publication</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        resetScope === 'all' ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
+                      }`}>
+                        {resetScope === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setResetScope('sunday')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    resetScope === 'sunday'
-                      ? 'bg-indigo-50 border-indigo-600 text-indigo-950 ring-2 ring-indigo-500/20 font-black shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-black">Sundays Only</span>
-                    <span className="text-[10px] text-slate-400 block font-medium">Remove Sunday & Anticipated mass slots (keep weekdays)</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    resetScope === 'sunday' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'
-                  }`}>
-                    {resetScope === 'sunday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetScope('sunday')}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                        resetScope === 'sunday'
+                          ? 'bg-indigo-50 border-indigo-600 text-indigo-950 ring-2 ring-indigo-500/20 font-black shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-black">Sundays Only</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Remove Sunday & Anticipated mass slots (keep weekdays)</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        resetScope === 'sunday' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'
+                      }`}>
+                        {resetScope === 'sunday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setResetScope('weekday')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    resetScope === 'weekday'
-                      ? 'bg-emerald-50 border-emerald-600 text-emerald-950 ring-2 ring-emerald-500/20 font-black shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-black">Weekdays Only</span>
-                    <span className="text-[10px] text-slate-400 block font-medium">Remove Monday–Saturday mass slots (keep Sundays)</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    resetScope === 'weekday' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
-                  }`}>
-                    {resetScope === 'weekday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetScope('weekday')}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                        resetScope === 'weekday'
+                          ? 'bg-emerald-50 border-emerald-600 text-emerald-950 ring-2 ring-emerald-500/20 font-black shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-black">Weekdays Only</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Remove Monday–Saturday mass slots (keep Sundays)</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        resetScope === 'weekday' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                      }`}>
+                        {resetScope === 'weekday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
