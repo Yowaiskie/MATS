@@ -8,6 +8,7 @@ import { ProtectedRoute, PublicRoute } from '@/features/authentication/component
 import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
+import { DashboardRedesignLabPage } from '@/features/dashboard/pages/DashboardRedesignLabPage'
 import { MembersPage } from '@/features/members/pages/MembersPage'
 import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
@@ -114,6 +115,7 @@ function App() {
               }
             >
               <Route path="/" element={<DashboardOverview />} />
+              <Route path="/dashboard-preview" element={<DashboardRedesignLabPage />} />
               
               <Route 
                 path="/members" 

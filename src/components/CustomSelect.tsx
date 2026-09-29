@@ -81,14 +81,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   }, [])
 
   useEffect(() => {
-    if (isOpen && (searchable || options.length > 8)) {
+    if (isOpen && searchable === true) {
       setTimeout(() => {
         searchInputRef.current?.focus()
       }, 50)
     } else {
       setSearchTerm('')
     }
-  }, [isOpen, searchable, options.length])
+  }, [isOpen, searchable])
 
   const selectedOption = useMemo(() => {
     return options.find((opt) => String(opt.value) === String(currentValue))
@@ -127,7 +127,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     }
   }
 
-  const showSearch = searchable || options.length > 8
+  const showSearch = searchable === true
 
   return (
     <div className={`space-y-1.5 ${containerClassName}`} ref={containerRef}>

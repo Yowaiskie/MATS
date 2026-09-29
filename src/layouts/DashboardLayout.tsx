@@ -281,7 +281,7 @@ export const DashboardLayout: React.FC = () => {
                   MATS Portal
                 </span>
                 <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
-                  v.2.1
+                  V2.2
                 </span>
               </div>
             )}
