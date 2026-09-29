@@ -26,6 +26,7 @@ export const TOKENS: TokenItem[] = [
   { key: '{{startTime}}', label: 'Start Time', category: 'datetime', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
   { key: '{{endTime}}', label: 'End Time', category: 'datetime', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
   { key: '{{assignedMembers}}', label: 'Assigned Members', category: 'members', borderColor: 'border-indigo-200', dotColor: 'bg-indigo-500', bgColor: 'bg-indigo-50', textColor: 'text-indigo-700' },
+  { key: '{{group}}', label: 'Order Group', category: 'members', borderColor: 'border-blue-200', dotColor: 'bg-blue-500', bgColor: 'bg-blue-50', textColor: 'text-blue-700' },
   { key: '{{squires}}', label: 'Squires', category: 'members', borderColor: 'border-purple-200', dotColor: 'bg-purple-500', bgColor: 'bg-purple-50', textColor: 'text-purple-700' },
   { key: '{{otherServers}}', label: 'Other Servers', category: 'members', borderColor: 'border-indigo-200', dotColor: 'bg-indigo-500', bgColor: 'bg-indigo-50', textColor: 'text-indigo-700' },
   { key: '{{presentCount}}', label: 'Present Count', category: 'stats', borderColor: 'border-emerald-200', dotColor: 'bg-emerald-500', bgColor: 'bg-emerald-50', textColor: 'text-emerald-700' },

@@ -2097,9 +2097,9 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                   options={[
                     { value: 'draft', label: 'Draft (Private / In Preparation)' },
                     { value: 'published', label: 'Published (Live & accepting responses)' },
-                    { value: 'temporary_closed', label: 'Temporary Closed (Pansamantalang Sarado)' },
-                    { value: 'closed', label: 'Closed (Totally Closed - Submissions locked)' },
-                    { value: 'archived', label: 'Archived (Totally Closed & Stored)' }
+                    { value: 'temporary_closed', label: 'Temporary Closed (Temporarily Closed)' },
+                    { value: 'closed', label: 'Closed (Submissions locked)' },
+                    { value: 'archived', label: 'Archived (Stored & Locked)' }
                   ]}
                   value={status}
                   onChange={e => setStatus(e.target.value as EventForm['status'])}

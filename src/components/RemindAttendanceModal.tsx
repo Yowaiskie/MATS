@@ -518,7 +518,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
                 Untaken Attendance Reminder & Notification Manager
               </h4>
               <p className="text-xs text-indigo-700/90 mt-0.5 leading-relaxed">
-                Pumili ng mga schedules, piliin kung aling specific na mga altar server accounts ang makatatanggap ng in-app notification alert, o kopyahin ang formatted GC message.
+                Select schedules, choose which specific altar server accounts will receive the in-app notification alert, or copy the formatted group chat message.
               </p>
             </div>
           </div>

@@ -7,6 +7,7 @@ import {
 import { db } from '@/firebase/config'
 import type { Schedule } from '@/types/schedule'
 import type { AttendanceSession } from '@/types/attendance'
+import type { Member } from '@/types/member'
 import { memberService } from './memberService'
 import { getScheduleStatus, calculateMonthsBetween } from '@/utils/scheduleUtils'
 import { publicationService } from './publicationService'
@@ -69,6 +70,7 @@ export const dashboardService = {
     todaySchedules: Schedule[]
     activities: ActivityLog[]
     monthBirthdays: BirthdayCelebrant[]
+    members: Member[]
   }> {
     let attendanceSessions: AttendanceSession[] = []
     try {
@@ -300,15 +302,41 @@ export const dashboardService = {
 
     // 4. Calculate Birthdays for the current month
     const currentMonth = currentMonthNum // 1-12
+    const currentYearNum = currentYear
+    const monthBirthdays = this.calculateBirthdaysForMonth(allMembers, currentMonth, currentYearNum, 'day')
+
+    return {
+      stats,
+      todaySchedules,
+      activities: activities.slice(0, 10), // show up to top 10 latest activities
+      monthBirthdays,
+      members: allMembers
+    }
+  },
+
+  /**
+   * Calculates birthday celebrants for any target month (1-12) and year.
+   */
+  calculateBirthdaysForMonth(
+    members: Member[],
+    targetMonth: number,
+    targetYear: number = new Date().getFullYear(),
+    sortMode: 'day' | 'name' | 'order' = 'day'
+  ): BirthdayCelebrant[] {
+    const today = new Date()
+    const currentYear = today.getFullYear()
+    const currentMonthNum = today.getMonth() + 1
     const currentDay = today.getDate()
+    const todayDateOnly = new Date(currentYear, currentMonthNum - 1, currentDay)
+
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ]
 
-    const monthBirthdays: BirthdayCelebrant[] = []
+    const list: BirthdayCelebrant[] = []
 
-    allMembers
+    members
       .filter(m => m.status === 'active' && m.dateOfBirth)
       .forEach(m => {
         const rawDob = (m.dateOfBirth || '').trim()
@@ -342,16 +370,21 @@ export const dashboardService = {
           }
         }
 
-        if (bMonth === currentMonth && bDay && !isNaN(bDay) && bDay >= 1 && bDay <= 31) {
-          const isToday = bDay === currentDay
-          const daysRemaining = bDay - currentDay
+        if (bMonth === targetMonth && bDay && !isNaN(bDay) && bDay >= 1 && bDay <= 31) {
+          const isCurrentMonth = targetMonth === currentMonthNum && targetYear === currentYear
+          const isToday = isCurrentMonth && bDay === currentDay
+
+          // Target birthday date in targetYear
+          const targetBirthdayDate = new Date(targetYear, targetMonth - 1, bDay)
+          const diffTime = targetBirthdayDate.getTime() - todayDateOnly.getTime()
+          const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
           const isUpcoming = daysRemaining > 0
-          const turningAge = bYear && bYear > 1900 && bYear <= currentYear ? currentYear - bYear : undefined
+          const turningAge = bYear && bYear > 1900 && bYear <= targetYear ? targetYear - bYear : undefined
 
           const suffix = m.suffix ? ` ${m.suffix}` : ''
           const fullName = `${m.firstName}${m.middleName ? ` ${m.middleName[0]}.` : ''} ${m.lastName}${suffix}`
 
-          monthBirthdays.push({
+          list.push({
             id: m.id,
             memberId: m.id,
             fullName,
@@ -370,21 +403,21 @@ export const dashboardService = {
         }
       })
 
-    // Sort birthdays: Today first, then upcoming (ascending by day), then passed (ascending by day)
-    monthBirthdays.sort((a, b) => {
-      if (a.isToday && !b.isToday) return -1
-      if (!a.isToday && b.isToday) return 1
-      if (a.isUpcoming && !b.isUpcoming) return -1
-      if (!a.isUpcoming && b.isUpcoming) return 1
-      return a.birthDay - b.birthDay
-    })
-
-    return {
-      stats,
-      todaySchedules,
-      activities: activities.slice(0, 10), // show up to top 10 latest activities
-      monthBirthdays
+    // Sort according to sortMode
+    if (sortMode === 'name') {
+      list.sort((a, b) => a.fullName.localeCompare(b.fullName))
+    } else if (sortMode === 'order') {
+      list.sort((a, b) => (a.order || '').localeCompare(b.order || '') || a.birthDay - b.birthDay)
+    } else {
+      // Default: Day sort (Today first if current month, then ascending by day)
+      list.sort((a, b) => {
+        if (a.isToday && !b.isToday) return -1
+        if (!a.isToday && b.isToday) return 1
+        return a.birthDay - b.birthDay
+      })
     }
+
+    return list
   },
 
   async getMyEventAssignments(identifier: string, uid?: string): Promise<any[]> {

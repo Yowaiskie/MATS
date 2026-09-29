@@ -7,6 +7,9 @@ import { getScheduleStatus, formatScheduleDateWithDay } from '@/utils/scheduleUt
 import { getFullName } from '@/utils/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { attendanceService } from '@/services/attendanceService'
+import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
+import { generateCommunityReport } from '@/utils/communityReport'
+import { useToast } from '@/context/ToastContext'
 
 interface ScheduleDetailsModalProps {
   isOpen: boolean
@@ -30,9 +33,57 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
   attendanceState = 'none',
 }) => {
   const { isAdmin, canAction } = useAuth()
+  const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageSchedules')
   const [loadingAttendance, setLoadingAttendance] = useState(false)
   const [records, setRecords] = useState<AttendanceRecord[]>([])
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyCommunityReport = async () => {
+    if (!schedule) return
+    try {
+      const template = await settingsService.getReportTemplate()
+      const effectiveTemplate = template?.trim() ? template : DEFAULT_REPORT_TEMPLATE
+
+      // Assigned altar servers
+      const assignedList = activeMembers.filter((m) =>
+        (schedule.assignedMembers || []).includes(m.id)
+      )
+
+      // Other servers (attended or marked in session but not in default schedule.assignedMembers)
+      const otherMemberIds = records.filter((r) => r.isOtherServer).map((r) => r.memberId)
+      const otherList = activeMembers.filter((m) =>
+        otherMemberIds.includes(m.id) && !(schedule.assignedMembers || []).includes(m.id)
+      )
+
+      // Build formState map from session attendance records
+      const formState: Record<string, { status: any; remarks: string }> = {}
+      records.forEach((r) => {
+        if (r.memberId) {
+          formState[r.memberId] = {
+            status: r.status,
+            remarks: r.remarks || '',
+          }
+        }
+      })
+
+      const reportText = generateCommunityReport(
+        effectiveTemplate,
+        schedule,
+        assignedList,
+        formState,
+        otherList
+      )
+
+      await navigator.clipboard.writeText(reportText)
+      setCopied(true)
+      toast.success('Report Copied', 'Community attendance report copied to clipboard.')
+      setTimeout(() => setCopied(false), 2500)
+    } catch (err) {
+      console.error('Failed to copy community report:', err)
+      toast.error('Copy Failed', 'Could not copy report to clipboard.')
+    }
+  }
 
   useEffect(() => {
     if (!isOpen || !schedule) return
@@ -260,7 +311,29 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
 
         {/* Footer Actions */}
         <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4 flex-wrap gap-2 bg-white">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={handleCopyCommunityReport}
+              className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 px-3.5 py-2 text-xs font-bold text-indigo-700 transition-colors cursor-pointer shadow-2xs"
+              title="Copy formatted community attendance report to clipboard"
+            >
+              {copied ? (
+                <>
+                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-emerald-700">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>Copy Report</span>
+                </>
+              )}
+            </button>
             {canManage && (
               <>
                 <button

@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { dashboardService, type ActivityLog, type BirthdayCelebrant } from '@/services/dashboardService'
 import type { Schedule } from '@/types/schedule'
+import type { Member } from '@/types/member'
 import { getScheduleStatus } from '@/utils/scheduleUtils'
 import { getOrderBadgeStyle } from '@/types/member'
 import { DashboardCharts } from './DashboardCharts'
 import { nativeWidgetService } from '@/services/nativeWidgetService'
+import { CustomSelect } from '@/components/CustomSelect'
 
 const statIcons: { [key: string]: React.ReactNode } = {
   'Active Members': (
@@ -147,10 +149,49 @@ export const DashboardOverview: React.FC = () => {
     todaySchedules: Schedule[]
     activities: ActivityLog[]
     monthBirthdays: BirthdayCelebrant[]
+    members?: Member[]
   } | null>(null)
   
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const currentMonthNumber = useMemo(() => new Date().getMonth() + 1, [])
+  const currentYearNumber = useMemo(() => new Date().getFullYear(), [])
+  const [selectedBirthdayMonth, setSelectedBirthdayMonth] = useState<number>(currentMonthNumber)
+
+  const monthOptions = useMemo(() => [
+    { value: 1, label: 1 === currentMonthNumber ? 'January (Current Month)' : 'January' },
+    { value: 2, label: 2 === currentMonthNumber ? 'February (Current Month)' : 'February' },
+    { value: 3, label: 3 === currentMonthNumber ? 'March (Current Month)' : 'March' },
+    { value: 4, label: 4 === currentMonthNumber ? 'April (Current Month)' : 'April' },
+    { value: 5, label: 5 === currentMonthNumber ? 'May (Current Month)' : 'May' },
+    { value: 6, label: 6 === currentMonthNumber ? 'June (Current Month)' : 'June' },
+    { value: 7, label: 7 === currentMonthNumber ? 'July (Current Month)' : 'July' },
+    { value: 8, label: 8 === currentMonthNumber ? 'August (Current Month)' : 'August' },
+    { value: 9, label: 9 === currentMonthNumber ? 'September (Current Month)' : 'September' },
+    { value: 10, label: 10 === currentMonthNumber ? 'October (Current Month)' : 'October' },
+    { value: 11, label: 11 === currentMonthNumber ? 'November (Current Month)' : 'November' },
+    { value: 12, label: 12 === currentMonthNumber ? 'December (Current Month)' : 'December' },
+  ], [currentMonthNumber])
+
+  const pureMonthNames = useMemo(() => [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ], [])
+
+  const selectedMonthLabel = pureMonthNames[selectedBirthdayMonth - 1] || 'Selected Month'
+
+  const displayedBirthdays = useMemo(() => {
+    if (!data?.members) {
+      return data?.monthBirthdays || []
+    }
+    return dashboardService.calculateBirthdaysForMonth(
+      data.members,
+      selectedBirthdayMonth,
+      currentYearNumber,
+      'day'
+    )
+  }, [data?.members, data?.monthBirthdays, selectedBirthdayMonth, currentYearNumber])
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -466,9 +507,9 @@ export const DashboardOverview: React.FC = () => {
 
         {/* Right Column: Birthdays & Quick Actions */}
         <div className="space-y-6">
-          {/* Birthday Celebrants This Month Card */}
+          {/* Birthday Celebrants Month-by-Month Advance Card */}
           <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-2xs space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-2">
               <div className="flex items-center gap-2.5">
                 <div className="h-9 w-9 rounded-xl bg-pink-50 border border-pink-100 flex items-center justify-center text-pink-600 shrink-0">
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -477,20 +518,53 @@ export const DashboardOverview: React.FC = () => {
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-slate-900 tracking-tight">
-                    {new Date().toLocaleString('en-US', { month: 'long' })} Birthdays
+                    Birthday Celebrants
                   </h3>
-                  <p className="text-xs text-slate-500 font-medium">Monthly server celebrants</p>
+                  <p className="text-xs text-slate-500 font-medium">{selectedMonthLabel} server birthdays</p>
                 </div>
               </div>
               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-pink-50 text-pink-700 border border-pink-200/60">
-                {data.monthBirthdays.length} {data.monthBirthdays.length === 1 ? 'Celebrant' : 'Celebrants'}
+                {displayedBirthdays.length} {displayedBirthdays.length === 1 ? 'Celebrant' : 'Celebrants'}
               </span>
+            </div>
+
+            {/* Month Filter with CustomSelect */}
+            <div className="pt-0.5 space-y-2">
+              <div>
+                <CustomSelect
+                  id="birthday-month-select"
+                  value={selectedBirthdayMonth}
+                  onChange={(e) => setSelectedBirthdayMonth(Number(e.target.value))}
+                  options={monthOptions}
+                  icon={
+                    <svg className="w-4 h-4 text-pink-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  }
+                  placeholder="Select Month"
+                />
+              </div>
+
+              {selectedBirthdayMonth !== currentMonthNumber && (
+                <div className="flex items-center justify-between pt-0.5">
+                  <span className="text-[10px] font-semibold text-slate-400">
+                    Viewing {selectedMonthLabel}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBirthdayMonth(currentMonthNumber)}
+                    className="text-[10px] font-bold text-pink-600 hover:text-pink-700 hover:underline cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <span>&larr; Back to current month</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* List of Celebrants */}
             <div className="space-y-2.5 pt-1 max-h-[380px] overflow-y-auto pr-0.5">
-              {data.monthBirthdays.length > 0 ? (
-                data.monthBirthdays.map((b) => {
+              {displayedBirthdays.length > 0 ? (
+                displayedBirthdays.map((b) => {
                   const isToday = b.isToday
                   const isTomorrow = b.daysRemaining === 1
                   const isUpcoming = b.daysRemaining > 1
@@ -546,7 +620,9 @@ export const DashboardOverview: React.FC = () => {
                         ) : isUpcoming ? (
                           <div className="flex flex-col items-end">
                             <span className="text-xs font-bold text-slate-800">{b.formattedDate}</span>
-                            <span className="text-[9.5px] font-semibold text-emerald-600">In {b.daysRemaining} days</span>
+                            <span className="text-[9.5px] font-semibold text-emerald-600">
+                              {b.daysRemaining > 30 ? `In ${Math.round(b.daysRemaining / 30)} mo (${b.daysRemaining}d)` : `In ${b.daysRemaining} days`}
+                            </span>
                           </div>
                         ) : (
                           <div className="flex flex-col items-end opacity-60">
@@ -570,7 +646,7 @@ export const DashboardOverview: React.FC = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <span>No member birthdays recorded for {new Date().toLocaleString('en-US', { month: 'long' })}.</span>
+                  <span>No member birthdays recorded for {selectedMonthLabel}.</span>
                 </div>
               )}
             </div>

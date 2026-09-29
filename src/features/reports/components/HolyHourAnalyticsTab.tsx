@@ -168,7 +168,7 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
                 </span>
               </div>
               <p className="text-[11px] text-slate-500">
-                Piliin ang mga schedule na nais isama sa leaderboard at ranking.
+                Select the schedules to include in the leaderboard and ranking calculation.
               </p>
             </div>
           </div>
@@ -254,7 +254,7 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
               </div>
               <div>
                 <span className="text-xs font-black block text-slate-900">Sunday & Anticipated</span>
-                <span className="text-[10px] text-slate-500 block">Linggo at Sabado 5PM+</span>
+                <span className="text-[10px] text-slate-500 block">Sunday & Saturday 5:00 PM+</span>
               </div>
             </div>
 
@@ -285,7 +285,7 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
               </div>
               <div>
                 <span className="text-xs font-black block text-slate-900">Weekday Masses</span>
-                <span className="text-[10px] text-slate-500 block">Lunes hanggang Sabado</span>
+                <span className="text-[10px] text-slate-500 block">Monday to Saturday</span>
               </div>
             </div>
 

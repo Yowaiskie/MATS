@@ -472,8 +472,8 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 value={selectedHeldBy}
                 onChange={(e) => setSelectedHeldBy(e.target.value)}
                 options={[
-                  { value: 'all', label: 'All Custodians (Lahat ng may hawak)' },
-                  { value: 'unassigned', label: 'Not Specified (Walang nakatalaga)' },
+                  { value: 'all', label: 'All Custodians' },
+                  { value: 'unassigned', label: 'Not Specified (Unassigned)' },
                   ...uniqueCustodians.map(c => ({ value: c, label: c }))
                 ]}
               />

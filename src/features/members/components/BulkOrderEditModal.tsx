@@ -87,7 +87,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                Select Order Groups (Pwedeng 2 o higit pa)
+                Select Order Groups (Can select 2 or more)
               </label>
               {(selectedOrders.length > 0 || customOrder.trim()) && (
                 <button

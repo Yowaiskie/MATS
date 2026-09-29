@@ -48,7 +48,7 @@ export const generateUntakenScheduleReminderText = ({
   }).join('\n\n')
 
   const noteText = customNote?.trim()
-    ? `Paalala / Note:\n${customNote.trim()}`
+    ? `Reminder / Note:\n${customNote.trim()}`
     : ''
 
   const today = new Date()

@@ -407,7 +407,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                Order / Group <span className="text-gray-400 font-normal lowercase">(pwedeng pumili ng 2 o higit pa, e.g. San Pedro + Officers)</span>
+                Order / Group <span className="text-gray-400 font-normal lowercase">(can select 2 or more, e.g. San Pedro + Officers)</span>
               </label>
               {(selectedOrders.length > 0 || customOrderInput.trim()) && (
                 <button

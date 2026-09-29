@@ -437,7 +437,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
       return
     }
     if (linkAmt > summary.remainingToLink) {
-      toast.error('Amount Exceeded', `Hindi pwedeng sumobra sa remaining unlinked amount na ₱${summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`)
+      toast.error('Amount Exceeded', `Amount cannot exceed the remaining unlinked balance of ₱${summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })}.`)
       return
     }
 
@@ -469,8 +469,8 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
       toast.success(
         'Link Successful',
         remaining > 0 
-          ? `₱${linkAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })} has been recorded into ${destLabel}. Meron pang natitirang ₱${remaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} na available para i-link.`
-          : `Buong ₱${linkAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })} ay matagumpay na naitala sa ${destLabel}.`
+          ? `₱${linkAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })} has been recorded into ${destLabel}. There is a remaining balance of ₱${remaining.toLocaleString('en-US', { minimumFractionDigits: 2 })} available to link.`
+          : `Full amount of ₱${linkAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })} successfully linked to ${destLabel}.`
       )
       await fetchData()
     } catch (err: any) {
@@ -1377,7 +1377,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                       </svg>
                       <span>
-                        Sumobra ang halaga! Available to link is <strong>₱{summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> (sobra ng ₱{(customLinkAmount - summary.remainingToLink).toLocaleString('en-US', { minimumFractionDigits: 2 })}).
+                        Amount exceeded! Available to link is <strong>₱{summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> (exceeded by ₱{(customLinkAmount - summary.remainingToLink).toLocaleString('en-US', { minimumFractionDigits: 2 })}).
                       </span>
                     </div>
                     <button
@@ -1396,7 +1396,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                     <svg className="w-4 h-4 shrink-0 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <span>Ang halaga ay dapat mas mataas sa ₱0.00.</span>
+                    <span>Amount must be greater than ₱0.00.</span>
                   </div>
                 )}
 

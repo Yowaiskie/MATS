@@ -294,17 +294,17 @@ export const PublicEventFormPage: React.FC = () => {
             <p className="text-xs font-medium text-slate-600 leading-relaxed">
               {isTempClosed ? (
                 <>
-                  Ang form na ito ay <strong>pansamantalang sarado (Temporary Closed)</strong> dahil kasalukuyan pa itong inihahanda at nasa <strong>Draft stage</strong> ng administrator.
+                  This form is <strong>temporarily closed</strong> because it is currently in preparation and in the <strong>Draft stage</strong> by the administrator.
                   <br /><br />
-                  Mangyaring maghintay hanggang sa opisyal itong i-publish.
+                  Please wait until it is officially published.
                 </>
               ) : isAuthRequired ? (
                 <>
-                  Ang form na ito ay eksklusibo lamang para sa mga rehistradong miyembro. Mangyaring mag-login muna sa iyong account upang mabuksan ang form.
+                  This form is exclusive to registered members. Please sign in to your account to access the form.
                 </>
               ) : (
                 <>
-                  Ang form na ito ay <strong>lubusan nang sarado (Totally Closed)</strong> o hindi na tumatanggap ng mga bagong tugon. Maaaring tapos na ang registration period o in-archive na ito.
+                  This form is <strong>permanently closed</strong> and no longer accepting responses. The registration period may have ended or been archived.
                 </>
               )}
             </p>
@@ -348,7 +348,7 @@ export const PublicEventFormPage: React.FC = () => {
           <div className="space-y-2">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">You've Already Responded</h2>
             <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
-              Nakasagot ka na sa form na ito (<strong>{form.title}</strong>). Ang form na ito ay may limitasyon na 1 response lamang bawat kalahok.
+              You have already responded to this form (<strong>{form.title}</strong>). This form is limited to 1 response per participant.
             </p>
           </div>
 
@@ -383,7 +383,7 @@ export const PublicEventFormPage: React.FC = () => {
               </button>
             ) : (
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 font-medium">
-                Ang mga sagot ay pinal na at hindi na maaaring baguhin. Kung may kailangang iwasto, mangyaring makipag-ugnayan sa administrator.
+                Responses are final and cannot be modified. If any correction is required, please contact the administrator.
               </div>
             )}
           </div>

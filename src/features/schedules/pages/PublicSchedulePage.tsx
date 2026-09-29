@@ -486,13 +486,13 @@ export const PublicSchedulePage: React.FC = () => {
             <p className="text-xs font-medium text-slate-600 leading-relaxed">
               {isDraft ? (
                 <>
-                  Ang link na ito ay <strong>pansamantalang sarado (Temporary Closed)</strong> dahil kasalukuyan pa itong inihahanda at nasa <strong>Draft stage</strong> ng Ministry Administrator. 
+                  This link is <strong>temporarily closed</strong> because it is currently in preparation and in the <strong>Draft stage</strong> by the Ministry Administrator. 
                   <br /><br />
-                  Mangyaring maghintay hanggang sa opisyal itong i-publish ng inyong coordinator.
+                  Please wait until it is officially published by your coordinator.
                 </>
               ) : (
                 <>
-                  Ang link na ito ay <strong>lubusan nang sarado (Totally Closed)</strong> o hindi na available. Maaring nag-expire na ang schedule period na ito o inalis na ng administrator.
+                  This link is <strong>permanently closed</strong> or no longer available. This schedule period may have expired or been removed by the administrator.
                 </>
               )}
             </p>

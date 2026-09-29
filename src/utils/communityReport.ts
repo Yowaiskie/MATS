@@ -1,7 +1,9 @@
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
+import { getMemberOrders } from '@/types/member'
 import type { AttendanceStatus } from '@/types/attendance'
 import { getFirstNameFirst } from '@/utils/member'
+import { orderRotationService } from '@/services/orderRotationService'
 
 interface RowState {
   id?: string
@@ -94,6 +96,74 @@ export const toTitleCase = (str: string): string => {
     .split(' ')
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ')
+}
+
+/**
+ * Resolves the Order Group associated with a schedule (e.g., "Order of San Pedro").
+ * Checks title keyword matches first, then checks assigned non-squire members' orders.
+ */
+export const resolveScheduleOrderGroup = (
+  schedule: Schedule,
+  assignedMembers: Member[] = []
+): string => {
+  const titleNorm = (schedule.title || '').trim()
+  const titleLower = titleNorm.toLowerCase()
+
+  // 1. Check title keyword matches for patron orders
+  if (titleLower.includes('pedro')) return 'Order of San Pedro'
+  if (titleLower.includes('juan')) return 'Order of San Juan'
+  if (titleLower.includes('tiago') || titleLower.includes('santiago')) return 'Order of San Tiago'
+  if (titleLower.includes('andres')) return 'Order of San Andres'
+
+  // 2. Frequency count of orders among assigned members
+  const nonSquires = assignedMembers.filter(m => !(m.rank || '').toLowerCase().includes('squire'))
+  const targetMembers = nonSquires.length > 0 ? nonSquires : assignedMembers
+
+  const orderCounts: Record<string, number> = {}
+  for (const m of targetMembers) {
+    if (m.order) {
+      const orders = getMemberOrders(m.order)
+      orders.forEach(o => {
+        const norm = orderRotationService.normalizeOrderName(o)
+        if (norm) {
+          orderCounts[norm] = (orderCounts[norm] || 0) + 1
+        }
+      })
+    }
+  }
+
+  // Prioritize the 4 main rotation patron orders over auxiliary tags (Officers, Squires)
+  const patronOrders = [
+    'Order of San Pedro',
+    'Order of San Juan',
+    'Order of San Tiago',
+    'Order of San Andres'
+  ]
+
+  let bestPatronOrder = ''
+  let maxPatronCount = 0
+
+  for (const order of patronOrders) {
+    const count = orderCounts[order] || 0
+    if (count > maxPatronCount) {
+      maxPatronCount = count
+      bestPatronOrder = order
+    }
+  }
+
+  if (bestPatronOrder) {
+    return bestPatronOrder
+  }
+
+  // Fallback if title explicitly mentions Officer or Squire
+  if (titleLower.includes('officer')) return 'Officers'
+  if (titleLower.includes('squire')) return 'Squires'
+
+  // Fallback if only auxiliary orders are assigned
+  if (orderCounts['Officers']) return 'Officers'
+  if (orderCounts['Squires']) return 'Squires'
+
+  return ''
 }
 
 /**
@@ -229,6 +299,19 @@ export const generateCommunityReport = (
         .join('\n')
     : ''
 
+  const titleLower = (schedule.title || '').toLowerCase()
+  const categoryStr = (schedule.category || '') as string
+  const isBaptismSchedule = categoryStr === 'binyag'
+    || titleLower.includes('binyag')
+    || titleLower.includes('baptism')
+
+  const resolvedGroup = resolveScheduleOrderGroup(schedule, assignedMembers)
+
+  let formattedAssignedList = assignedList
+  if (isBaptismSchedule && resolvedGroup && !template.includes('{{group}}') && !template.includes('{{orderGroup}}')) {
+    formattedAssignedList = `Group: ${resolvedGroup}\n${assignedList}`
+  }
+
   // Replace placeholders dynamically with formatted values
   let result = template
 
@@ -252,7 +335,7 @@ export const generateCommunityReport = (
     } else {
       // Template doesn't have {{squires}}, append "Squires:" section right below assigned members
       if (result.includes('{{assignedMembers}}')) {
-        result = result.replace(/\{\{assignedMembers\}\}/g, `${assignedList}\n\nSquires:\n${squiresList}`)
+        result = result.replace(/\{\{assignedMembers\}\}/g, `${formattedAssignedList}\n\nSquires:\n${squiresList}`)
       } else {
         result = result + `\n\nSquires:\n${squiresList}`
       }
@@ -261,13 +344,24 @@ export const generateCommunityReport = (
     result = result.replace(/\n*Squires:\s*\{\{squires\}\}/gi, '')
     result = result.replace(/\{\{squires\}\}/g, '')
   }
+
+  // Handle {{group}} / {{orderGroup}} placeholders
+  if (resolvedGroup) {
+    result = result.replace(/\{\{group\}\}/g, resolvedGroup)
+    result = result.replace(/\{\{orderGroup\}\}/g, resolvedGroup)
+  } else {
+    result = result.replace(/\n*Group:\s*\{\{group\}\}/gi, '')
+    result = result.replace(/\n*Order Group:\s*\{\{orderGroup\}\}/gi, '')
+    result = result.replace(/\{\{group\}\}/g, '')
+    result = result.replace(/\{\{orderGroup\}\}/g, '')
+  }
   
   result = result.replace(/\{\{scheduleDate\}\}/g, formatReadableDate(schedule.date || ''))
   result = result.replace(/\{\{scheduleTitle\}\}/g, toTitleCase(schedule.title || ''))
   result = result.replace(/\{\{dayOfWeek\}\}/g, getDayOfWeek(schedule.date || ''))
   result = result.replace(/\{\{startTime\}\}/g, formatReadableTime(schedule.startTime || ''))
   result = result.replace(/\{\{endTime\}\}/g, formatReadableTime(schedule.endTime || ''))
-  result = result.replace(/\{\{assignedMembers\}\}/g, assignedList)
+  result = result.replace(/\{\{assignedMembers\}\}/g, formattedAssignedList)
   result = result.replace(/\{\{presentCount\}\}/g, String(presentCount))
   result = result.replace(/\{\{lateCount\}\}/g, String(lateCount))
   result = result.replace(/\{\{absentCount\}\}/g, String(absentCount))

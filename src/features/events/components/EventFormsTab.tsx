@@ -406,8 +406,8 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
           formStatusPending?.target === 'published'
             ? (formStatusPending.form.status === 'draft' ? 'Publish Form' : 'Reopen Form')
             : formStatusPending?.target === 'temporary_closed'
-            ? 'Pansamantalang Isara ang Form'
-            : 'Lubusang Isara ang Form (Totally Closed)'
+            ? 'Temporarily Close Form'
+            : 'Close Form Permanently'
         }
         message={
           formStatusPending?.target === 'published'
@@ -415,15 +415,15 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
               ? `Publish "${formStatusPending?.form.title}"? It will become accessible to respondents via its public link.`
               : `Reopen "${formStatusPending?.form.title}"? It will accept new submissions again.`
             : formStatusPending?.target === 'temporary_closed'
-            ? `Pansamantalang isasara ang "${formStatusPending?.form.title}". Magpapakita ito ng Temporary Closed badge at notice sa mga magbubukas ng link.`
-            : `Lubusang isasara ang "${formStatusPending?.form.title}". Hindi na makakapag-submit ang sinuman sa form na ito.`
+            ? `Temporarily close "${formStatusPending?.form.title}"? A Temporary Closed notice will be displayed to anyone opening the link.`
+            : `Permanently close "${formStatusPending?.form.title}"? No further submissions will be accepted for this form.`
         }
         confirmLabel={
           formStatusPending?.target === 'published'
             ? (formStatusPending.form.status === 'draft' ? 'Publish' : 'Reopen')
             : formStatusPending?.target === 'temporary_closed'
             ? 'Temp Close'
-            : 'Totally Close'
+            : 'Close Form'
         }
         variant={formStatusPending?.target === 'closed' ? 'danger' : undefined}
         loading={actionLoading}
