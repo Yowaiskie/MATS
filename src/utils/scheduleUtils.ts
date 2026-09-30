@@ -568,5 +568,15 @@ export const getSlotRankBreakdown = (
   return { items, isRankFull, counts }
 }
 
+/**
+ * Checks if a publication's submission deadline has passed.
+ */
+export const isPublicationDeadlinePassed = (publication?: Partial<SchedulePublication> | null): boolean => {
+  if (!publication?.submissionDeadline) return false
+  const deadline = new Date(publication.submissionDeadline)
+  if (isNaN(deadline.getTime())) return false
+  return new Date() > deadline
+}
+
 
 

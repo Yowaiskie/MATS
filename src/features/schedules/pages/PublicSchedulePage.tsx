@@ -8,7 +8,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { SchedulePublication } from '@/types/publication'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication, getRankLimitForSlot, getSlotRankBreakdown } from '@/utils/scheduleUtils'
+import { formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication, getRankLimitForSlot, getSlotRankBreakdown, isPublicationDeadlinePassed } from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface SchedulePattern {
@@ -171,16 +171,25 @@ export const PublicSchedulePage: React.FC = () => {
   // Custom dialog modals
   const [limitModal, setLimitModal] = useState<{ title: string; message: string } | null>(null)
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false)
+  const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
+
+  // Dynamic ticker to ensure deadline comparisons update reactively in real time
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now())
+    }, 10000)
+    return () => clearInterval(timer)
+  }, [])
 
   const loadData = async () => {
     if (!publicationId) return
     setLoading(true)
     try {
-      // 1. Fetch publication
+      // 1. Fetch publication (staleTime 0 to immediately reflect changes)
       const pub = await queryClient.fetchQuery({
         queryKey: ['publication', publicationId],
         queryFn: () => publicationService.getPublication(publicationId),
-        staleTime: 1000 * 60 * 2 // 2 minutes cache
+        staleTime: 0
       })
 
       if (!pub) {
@@ -196,12 +205,12 @@ export const PublicSchedulePage: React.FC = () => {
         queryClient.fetchQuery({
           queryKey: ['members'],
           queryFn: () => memberService.getMembers(),
-          staleTime: 1000 * 60 * 5
+          staleTime: 1000 * 60 * 2
         }),
         queryClient.fetchQuery({
           queryKey: ['public-schedules', pub.id, pub.startDate, pub.endDate],
           queryFn: () => scheduleService.getSchedulesByDateRange(pub.startDate, pub.endDate),
-          staleTime: 1000 * 60 * 1
+          staleTime: 0
         })
       ])
 
@@ -390,6 +399,13 @@ export const PublicSchedulePage: React.FC = () => {
 
   const isFinalized = publication?.status === 'archived'
 
+  const isDeadlinePassed = useMemo(() => {
+    if (currentTime <= 0) return false
+    return isPublicationDeadlinePassed(publication)
+  }, [publication, currentTime])
+
+  const isClosed = isFinalized || isDeadlinePassed
+
   const availableMembers = useMemo(() => {
     if (!publication) return members
     // Member remains available unless they have submitted their schedule
@@ -463,7 +479,16 @@ export const PublicSchedulePage: React.FC = () => {
   }, [publication, isSpecialPub, selectedSpecialCount, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
 
   const handleCellClick = (patternId: string, category: 'sunday' | 'weekday' | 'special') => {
-    if (isFinalized) return
+    if (isFinalized) {
+      setLimitModal({ title: 'Scheduling Closed', message: 'This schedule period has been finalized by the administrator.' })
+      return
+    }
+    if (isDeadlinePassed) {
+      const deadMsg = `The submission deadline (${new Date(publication!.submissionDeadline!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}) has passed. Scheduling is now closed.`
+      setMessage({ type: 'error', text: deadMsg })
+      setLimitModal({ title: 'Deadline Passed', message: deadMsg })
+      return
+    }
     if (hasSubmitted) return
 
     if (!selectedMemberId) {
@@ -620,6 +645,19 @@ export const PublicSchedulePage: React.FC = () => {
 
   const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault()
+    if (isFinalized) {
+      setMessage({ type: 'error', text: 'This schedule period has been finalized.' })
+      setLimitModal({ title: 'Scheduling Closed', message: 'This schedule period has been finalized by the administrator.' })
+      return
+    }
+
+    if (isDeadlinePassed) {
+      const deadMsg = `The submission deadline (${new Date(publication!.submissionDeadline!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}) has passed. Submissions are no longer accepted.`
+      setMessage({ type: 'error', text: deadMsg })
+      setLimitModal({ title: 'Deadline Passed', message: deadMsg })
+      return
+    }
+
     if (!selectedMemberId) {
       setMessage({ type: 'error', text: 'Please select your name first from the selection panel.' })
       setLimitModal({ title: 'Select Name First', message: 'Please select your name from the selection panel before saving.' })
@@ -646,6 +684,12 @@ export const PublicSchedulePage: React.FC = () => {
   const handleConfirmedSave = async () => {
     setConfirmSubmitOpen(false)
     if (!selectedMemberId) return
+
+    if (isFinalized || isDeadlinePassed) {
+      setMessage({ type: 'error', text: 'Submissions are closed for this publication.' })
+      setLimitModal({ title: 'Scheduling Closed', message: 'Submissions are no longer accepted for this publication.' })
+      return
+    }
 
     setSubmitting(true)
     setMessage(null)
@@ -849,7 +893,7 @@ export const PublicSchedulePage: React.FC = () => {
             </div>
           </div>
 
-          {selectedMemberId && !hasSubmitted && (
+          {selectedMemberId && !hasSubmitted && !isClosed && (
             <div className={`inline-flex items-center gap-2 self-start sm:self-auto ${category === 'special' ? 'bg-purple-50 border-purple-200/80 text-purple-900' : 'bg-indigo-50 border-indigo-200/80 text-indigo-900'} border px-3 py-1.5 rounded-xl text-xs font-bold`}>
               <span>Your Limit:</span>
               <span className={`px-2 py-0.5 rounded-md font-extrabold ${currentCount >= maxPerServer ? 'bg-amber-100 text-amber-900' : 'bg-white text-indigo-700 shadow-xs'}`}>
@@ -983,9 +1027,9 @@ export const PublicSchedulePage: React.FC = () => {
                             </div>
                           ) : (
                             <div
-                              onClick={() => handleCellClick(pattern.id, category)}
+                              onClick={() => !isClosed && handleCellClick(pattern.id, category)}
                               className={`w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
-                                !isFinalized && !hasSubmitted
+                                !isClosed && !hasSubmitted
                                   ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 active:bg-indigo-100/50'
                                   : 'cursor-not-allowed opacity-50'
                               }`}
@@ -1020,11 +1064,14 @@ export const PublicSchedulePage: React.FC = () => {
               <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Schedule Selection</h1>
               <p className="text-xs font-bold text-indigo-600 truncate">{publication?.name}</p>
               {publication?.submissionDeadline && (
-                <p className="text-[11px] font-bold text-purple-700 mt-0.5 flex items-center gap-1">
+                <p className={`text-[11px] font-bold mt-0.5 flex items-center gap-1 ${isDeadlinePassed ? 'text-rose-700' : 'text-purple-700'}`}>
                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                  <span>Deadline: {new Date(publication.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
+                  <span>
+                    {isDeadlinePassed ? 'Deadline Passed: ' : 'Deadline: '}
+                    {new Date(publication.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                  </span>
                 </p>
               )}
             </div>
@@ -1038,14 +1085,20 @@ export const PublicSchedulePage: React.FC = () => {
                 {publication?.startDate} to {publication?.endDate}
               </p>
               {publication?.submissionDeadline && (
-                <div className="p-2.5 rounded-xl bg-purple-50 border border-purple-200 text-purple-900 text-xs font-bold mt-2 flex items-center gap-2">
-                  <span className="text-purple-600 shrink-0">
+                <div className={`p-2.5 rounded-xl border text-xs font-bold mt-2 flex items-center gap-2 ${
+                  isDeadlinePassed 
+                    ? 'bg-rose-50 border-rose-200 text-rose-900' 
+                    : 'bg-purple-50 border-purple-200 text-purple-900'
+                }`}>
+                  <span className={`${isDeadlinePassed ? 'text-rose-600' : 'text-purple-600'} shrink-0`}>
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                   </span>
                   <div>
-                    <span className="block text-[10px] text-purple-500 uppercase font-black">Submission Deadline</span>
+                    <span className={`block text-[10px] ${isDeadlinePassed ? 'text-rose-600' : 'text-purple-500'} uppercase font-black`}>
+                      {isDeadlinePassed ? 'Submission Closed (Deadline Passed)' : 'Submission Deadline'}
+                    </span>
                     <span>{new Date(publication.submissionDeadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                   </div>
                 </div>
@@ -1067,6 +1120,19 @@ export const PublicSchedulePage: React.FC = () => {
               <h3 className="text-amber-950 font-black mb-1 sm:mb-2 text-base sm:text-lg tracking-tight">Scheduling Closed</h3>
               <p className="text-amber-800 text-xs sm:text-sm leading-relaxed">
                 This schedule period has been finalized by the administrator. No further selections can be made.
+              </p>
+            </div>
+          ) : isDeadlinePassed ? (
+            <div className="bg-rose-50 border border-rose-200/80 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 text-rose-700 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 6 12 12 16 14" />
+                </svg>
+              </div>
+              <h3 className="text-rose-950 font-black mb-1 sm:mb-2 text-base sm:text-lg tracking-tight">Deadline Passed (Closed)</h3>
+              <p className="text-rose-800 text-xs sm:text-sm leading-relaxed">
+                The submission deadline for this schedule (<strong>{new Date(publication!.submissionDeadline!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</strong>) has expired. Submissions are now closed.
               </p>
             </div>
           ) : (
@@ -1245,9 +1311,9 @@ export const PublicSchedulePage: React.FC = () => {
               {/* Desktop Save Button (hidden on mobile, visible on lg+) */}
               <button
                 type="submit"
-                disabled={submitting || !selectedMemberId || hasSubmitted || (isSuspended && !isSpecialPub)}
+                disabled={submitting || !selectedMemberId || hasSubmitted || isClosed || (isSuspended && !isSpecialPub)}
                 className={`hidden lg:flex w-full py-4 font-extrabold text-sm rounded-2xl shadow-lg transition-all items-center justify-center gap-2 mt-4 ${
-                  hasSubmitted || (isSuspended && !isSpecialPub)
+                  hasSubmitted || isClosed || (isSuspended && !isSpecialPub)
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
                     : `${bannerTheme.buttonClass} cursor-pointer disabled:opacity-50`
                 }`}
@@ -1255,13 +1321,15 @@ export const PublicSchedulePage: React.FC = () => {
                 <span>
                   {submitting 
                     ? 'Saving...' 
-                    : isSuspended && !isSpecialPub
-                      ? 'Account Suspended (Cannot Save)'
-                      : isQuotaMaxed 
-                        ? 'Submit & Finalize Schedule' 
-                        : isSpecialPub
-                          ? `Save Selections (${selectedSpecialCount} special slot(s))`
-                          : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
+                    : isClosed
+                      ? 'Scheduling Closed'
+                      : isSuspended && !isSpecialPub
+                        ? 'Account Suspended (Cannot Save)'
+                        : isQuotaMaxed 
+                          ? 'Submit & Finalize Schedule' 
+                          : isSpecialPub
+                            ? `Save Selections (${selectedSpecialCount} special slot(s))`
+                            : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
                 </span>
                 <span className="text-base">▹</span>
               </button>
@@ -1370,7 +1438,7 @@ export const PublicSchedulePage: React.FC = () => {
       </div>
 
       {/* MOBILE FLOATING BOTTOM ACTION BAR (< lg) */}
-      {!isFinalized && (
+      {!isClosed && (
         <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-3 sm:p-4 animate-in slide-in-from-bottom duration-200">
           <div className="max-w-md mx-auto flex items-center justify-between gap-3">
             {!selectedMemberId ? (

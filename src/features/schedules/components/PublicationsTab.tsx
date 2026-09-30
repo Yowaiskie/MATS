@@ -3,7 +3,7 @@ import { publicationService } from '@/services/publicationService'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
+import { isScheduleIncludedInPublication, isMemberEligibleForPublication, isPublicationDeadlinePassed } from '@/utils/scheduleUtils'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { ActionMenu } from '@/components'
@@ -28,8 +28,8 @@ export const PublicationsTab: React.FC = () => {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
   const [confirmStatusAction, setConfirmStatusAction] = useState<{
     pub: SchedulePublication;
-    targetStatus: 'published' | 'archived';
-    isLocked: boolean;
+    targetStatus: 'draft' | 'published' | 'archived';
+    isLocked?: boolean;
     title: string;
     message: string;
     confirmLabel: string;
@@ -131,23 +131,69 @@ export const PublicationsTab: React.FC = () => {
     }
   }
 
+  const handleStatusChange = async (pub: SchedulePublication, newStatus: 'draft' | 'published' | 'archived') => {
+    if (pub.status === newStatus) return
+
+    if (newStatus === 'archived') {
+      setConfirmStatusAction({
+        pub,
+        targetStatus: 'archived',
+        isLocked: true,
+        title: 'Finalize & Archive Publication',
+        message: `Finalizing and archiving "${pub.name}" will lock all underlying schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from making further selections. Are you sure you want to proceed?`,
+        confirmLabel: 'Yes, Finalize & Lock'
+      })
+      return
+    }
+
+    if (pub.status === 'archived' && newStatus === 'published') {
+      setConfirmStatusAction({
+        pub,
+        targetStatus: 'published',
+        isLocked: false,
+        title: 'Unarchive & Re-Open Publication',
+        message: `Unarchiving "${pub.name}" will unlock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and reopen the public link for member sign-ups. Are you sure you want to proceed?`,
+        confirmLabel: 'Yes, Unlock & Publish'
+      })
+      return
+    }
+
+    try {
+      await publicationService.updatePublication(pub.id, { status: newStatus })
+      await loadData()
+      setAlertModal({ 
+        title: 'Status Updated', 
+        message: `Publication status changed to ${newStatus.toUpperCase()}.`,
+        type: 'success'
+      })
+    } catch (err: any) {
+      console.error(err)
+      setAlertModal({ title: 'Error', message: 'Failed to update publication status.', type: 'error' })
+    }
+  }
+
   const handleStatusActionConfirmed = async () => {
     if (!confirmStatusAction) return
     const { pub, targetStatus, isLocked } = confirmStatusAction
     setConfirmStatusAction(null)
     setLoading(true)
     try {
-      const lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, isLocked)
+      let lockedCount = 0
+      if (isLocked !== undefined) {
+        lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, isLocked)
+      }
       await publicationService.updatePublication(pub.id, { status: targetStatus })
       await loadData()
       setAlertModal({ 
-        title: targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Unfinalized', 
-        message: `Successfully ${isLocked ? 'locked' : 'unlocked'} ${lockedCount} schedule(s) for the month and set publication to ${targetStatus}.`,
+        title: targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Updated', 
+        message: isLocked !== undefined
+          ? `Successfully ${isLocked ? 'locked' : 'unlocked'} ${lockedCount} schedule(s) for the month and set publication to ${targetStatus}.`
+          : `Publication status set to ${targetStatus}.`,
         type: 'success'
       })
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Error', message: err.message || 'Failed to finalize publication.', type: 'error' })
+      setAlertModal({ title: 'Error', message: err.message || 'Failed to update publication.', type: 'error' })
       setLoading(false)
     }
   }
@@ -321,7 +367,14 @@ export const PublicationsTab: React.FC = () => {
           <p className="text-xl sm:text-2xl font-black text-gray-900">{stats.total}</p>
         </div>
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm">
-          <p className="text-[10px] uppercase font-bold text-green-500">Published</p>
+          <div className="flex items-center justify-between gap-1">
+            <p className="text-[10px] uppercase font-bold text-emerald-600">Published</p>
+            {publications.some(p => p.status === 'published' && isPublicationDeadlinePassed(p)) && (
+              <span className="text-[8px] font-black uppercase text-rose-700 bg-rose-50 border border-rose-200 px-1 py-0.2 rounded">
+                Deadline Passed
+              </span>
+            )}
+          </div>
           <p className="text-xl sm:text-2xl font-black text-gray-900">{stats.active}</p>
         </div>
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm">
@@ -376,30 +429,74 @@ export const PublicationsTab: React.FC = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <span>Deadline: {new Date(pub.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}</span>
-                      {new Date() > new Date(pub.submissionDeadline) && (
+                      {isPublicationDeadlinePassed(pub) && (
                         <span className="text-[9px] font-black bg-rose-100 text-rose-800 px-1.5 py-0.2 rounded">Passed</span>
                       )}
                     </p>
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-1">
-                  <span className={`inline-flex px-2 py-0.5 rounded-md text-[10px] font-black uppercase shrink-0 ${
-                    pub.status === 'published' ? 'bg-green-100 text-green-700' :
-                    pub.status === 'archived' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'
-                  }`}>
-                    {pub.status}
-                  </span>
+                  <div className="relative inline-flex items-center">
+                    <select
+                      value={pub.status}
+                      onChange={(e) => handleStatusChange(pub, e.target.value as 'draft' | 'published' | 'archived')}
+                      className={`appearance-none font-black text-[10px] uppercase tracking-wider pl-2.5 pr-6 py-1 rounded-lg border cursor-pointer transition-all shadow-2xs focus:outline-none focus:ring-2 ${
+                        pub.status === 'published'
+                          ? isPublicationDeadlinePassed(pub)
+                            ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100 hover:border-rose-400 focus:ring-rose-400'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 focus:ring-emerald-400'
+                          : pub.status === 'archived'
+                          ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 hover:border-slate-400 focus:ring-slate-400'
+                          : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:border-amber-400 focus:ring-amber-400'
+                      }`}
+                      title="Quick change publication status"
+                    >
+                      <option value="draft" className="bg-white text-amber-800 font-bold">DRAFT</option>
+                      <option value="published" className="bg-white text-emerald-800 font-bold">PUBLISHED</option>
+                      <option value="archived" className="bg-white text-slate-800 font-bold">ARCHIVED</option>
+                    </select>
+                    <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-current opacity-70">
+                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  </div>
+
+                  {pub.status === 'published' && (
+                    isPublicationDeadlinePassed(pub) ? (
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                        Closed (Deadline Passed)
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        Open for Sign-ups
+                      </span>
+                    )
+                  )}
+                  {pub.status === 'draft' && (
+                    <span className="text-[9px] font-bold text-amber-700">
+                      Draft (Hidden)
+                    </span>
+                  )}
+                  {pub.status === 'archived' && (
+                    <span className="text-[9px] font-bold text-slate-500">
+                      Finalized (Locked)
+                    </span>
+                  )}
+
                   {(() => {
                     const stats = pubStatsById[pub.id]
                     if (stats && stats.total > 0) {
                       return (
-                        <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                        <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full mt-0.5">
                           {stats.scheduled} / {stats.total} Scheduled
                         </span>
                       )
                     }
                     return (
-                      <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-extrabold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full mt-0.5">
                         {pub.submittedMembers?.length || 0} Scheduled
                       </span>
                     )
@@ -649,12 +746,57 @@ export const PublicationsTab: React.FC = () => {
                       })()}
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`inline-flex px-2.5 py-1 rounded-md text-[10px] font-black uppercase ${
-                        pub.status === 'published' ? 'bg-green-100 text-green-700' :
-                        pub.status === 'archived' ? 'bg-gray-100 text-gray-600' : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {pub.status}
-                      </span>
+                      <div className="flex flex-col items-start gap-1">
+                        <div className="relative inline-flex items-center">
+                          <select
+                            value={pub.status}
+                            onChange={(e) => handleStatusChange(pub, e.target.value as 'draft' | 'published' | 'archived')}
+                            className={`appearance-none font-black text-[10px] uppercase tracking-wider pl-2.5 pr-6 py-1 rounded-lg border cursor-pointer transition-all shadow-2xs focus:outline-none focus:ring-2 ${
+                              pub.status === 'published'
+                                ? isPublicationDeadlinePassed(pub)
+                                  ? 'bg-rose-50 text-rose-700 border-rose-300 hover:bg-rose-100 hover:border-rose-400 focus:ring-rose-400'
+                                  : 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100 hover:border-emerald-400 focus:ring-emerald-400'
+                                : pub.status === 'archived'
+                                ? 'bg-slate-100 text-slate-700 border-slate-300 hover:bg-slate-200 hover:border-slate-400 focus:ring-slate-400'
+                                : 'bg-amber-50 text-amber-700 border-amber-300 hover:bg-amber-100 hover:border-amber-400 focus:ring-amber-400'
+                            }`}
+                            title="Quick change publication status"
+                          >
+                            <option value="draft" className="bg-white text-amber-800 font-bold">DRAFT</option>
+                            <option value="published" className="bg-white text-emerald-800 font-bold">PUBLISHED</option>
+                            <option value="archived" className="bg-white text-slate-800 font-bold">ARCHIVED</option>
+                          </select>
+                          <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center pr-1.5 text-current opacity-70">
+                            <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+
+                        {pub.status === 'published' && (
+                          isPublicationDeadlinePassed(pub) ? (
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-rose-100 text-rose-800 border border-rose-200 shadow-2xs">
+                              <span className="w-1.5 h-1.5 rounded-full bg-rose-600" />
+                              Closed (Deadline Passed)
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-emerald-700">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                              Open for Sign-ups
+                            </span>
+                          )
+                        )}
+                        {pub.status === 'draft' && (
+                          <span className="text-[9px] font-bold text-amber-700">
+                            Draft (Hidden)
+                          </span>
+                        )}
+                        {pub.status === 'archived' && (
+                          <span className="text-[9px] font-bold text-slate-500">
+                            Finalized (Locked)
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex justify-end items-center gap-2">
