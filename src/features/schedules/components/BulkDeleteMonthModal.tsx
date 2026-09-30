@@ -185,11 +185,12 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
           <Button
             type="button"
             variant="secondary"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={handleClose}
             disabled={loading}
           >
@@ -199,6 +200,7 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
             type="button"
             variant="danger"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={handleDelete}
             disabled={!selectedMonth || loading}
           >

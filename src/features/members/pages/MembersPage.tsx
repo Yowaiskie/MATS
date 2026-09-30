@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { memberService } from '@/services/memberService'
 import { Card } from '@/components/Card'
-import { AlertModal, ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
+import { ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
 import { authService } from '@/services/authService'
 import { Loading } from '@/components/Loading'
 import { MemberTable } from '../components/MemberTable'
@@ -21,7 +21,6 @@ export const MembersPage: React.FC = () => {
   const canManage = isAdmin || canAction('canManageMembers')
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   // List settings
   const [showArchived, setShowArchived] = useState(false)
@@ -38,7 +37,6 @@ export const MembersPage: React.FC = () => {
   // Dialog state
   const [confirmArchive, setConfirmArchive] = useState<{ id: string; name: string } | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant: 'error' | 'success' } | null>(null)
 
   // Bulk selection
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -78,13 +76,12 @@ export const MembersPage: React.FC = () => {
 
   const loadMembers = async (showSpinner = true) => {
     if (showSpinner) setLoading(true)
-    setError(null)
     try {
       const data = await memberService.getMembers(showArchived ? 'archived_only' : false)
       setMembers(data)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load member records.')
+      toast.error('Load Error', 'Failed to load member records.')
     } finally {
       if (showSpinner) setLoading(false)
     }
@@ -555,18 +552,6 @@ export const MembersPage: React.FC = () => {
         onClose={() => setBulkOrderEditOpen(false)}
         onConfirm={handleBulkOrderEditConfirmed}
         selectedCount={selectedIds.size}
-      />
-
-      {/* Alert Dialog */}
-      <AlertModal
-        isOpen={!!alertModal || !!error}
-        onClose={() => {
-          setAlertModal(null)
-          setError(null)
-        }}
-        variant={alertModal?.variant ?? 'error'}
-        title={alertModal?.title ?? 'Error'}
-        message={alertModal?.message ?? error ?? ''}
       />
     </div>
   )

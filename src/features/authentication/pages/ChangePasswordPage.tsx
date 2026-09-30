@@ -1,11 +1,12 @@
 import React, { useState } from 'react'
 import { Card } from '@/components/Card'
-import { AlertModal } from '@/components/Dialog'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { authService } from '@/services/authService'
+import { useToast } from '@/context/ToastContext'
 
 export const ChangePasswordPage: React.FC = () => {
   const { profile } = useAuth()
+  const { toast } = useToast()
 
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
@@ -16,47 +17,43 @@ export const ChangePasswordPage: React.FC = () => {
   const [showConfirm, setShowConfirm] = useState(false)
 
   const [loading, setLoading] = useState(false)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSuccessMsg(null)
-    setErrorMsg(null)
 
     if (!currentPassword) {
-      setErrorMsg('Please enter your current password.')
+      toast.error('Validation Error', 'Please enter your current password.')
       return
     }
 
     if (newPassword.length < 6) {
-      setErrorMsg('New password must be at least 6 characters long.')
+      toast.error('Validation Error', 'New password must be at least 6 characters long.')
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setErrorMsg('New password and confirmation do not match.')
+      toast.error('Validation Error', 'New password and confirmation do not match.')
       return
     }
 
     if (currentPassword === newPassword) {
-      setErrorMsg('New password must be different from current password.')
+      toast.error('Validation Error', 'New password must be different from current password.')
       return
     }
 
     setLoading(true)
     try {
       await authService.changePassword(currentPassword, newPassword)
-      setSuccessMsg('Your password has been changed successfully!')
+      toast.success('Password Changed', 'Your password has been changed successfully!')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (err: any) {
       console.error(err)
       if (err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
-        setErrorMsg('Current password is incorrect. Please try again.')
+        toast.error('Password Update Failed', 'Current password is incorrect. Please try again.')
       } else {
-        setErrorMsg(err.message || 'Failed to change password. Please verify your credentials.')
+        toast.error('Password Update Failed', err.message || 'Failed to change password. Please verify your credentials.')
       }
     } finally {
       setLoading(false)
@@ -220,23 +217,6 @@ export const ChangePasswordPage: React.FC = () => {
           </div>
         </form>
       </Card>
-
-      {/* Alert Dialogs */}
-      <AlertModal
-        isOpen={!!errorMsg}
-        onClose={() => setErrorMsg(null)}
-        variant="error"
-        title="Password Update Failed"
-        message={errorMsg ?? ''}
-      />
-
-      <AlertModal
-        isOpen={!!successMsg}
-        onClose={() => setSuccessMsg(null)}
-        variant="success"
-        title="Password Changed"
-        message={successMsg ?? ''}
-      />
     </div>
   )
 }

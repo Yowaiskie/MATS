@@ -568,7 +568,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
           <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-slate-700">
             <input
               type="checkbox"
@@ -579,11 +579,12 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
             <span>Mark as Submitted / Finalized in Publication</span>
           </label>
 
-          <div className="flex items-center justify-end gap-2.5">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
             >
               Cancel
@@ -592,6 +593,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
               type="button"
               variant="primary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={handleSave}
               loading={isSaving}
               disabled={loading || !selectedMemberId}

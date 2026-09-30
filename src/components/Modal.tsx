@@ -100,8 +100,10 @@ export const Modal: React.FC<ModalProps> = ({
 
           {/* Optional Standard Footer */}
           {footer && (
-            <div className="flex items-center justify-end gap-2.5 px-5 py-3.5 sm:px-6 border-t border-slate-100 bg-slate-50/50 shrink-0">
-              {footer}
+            <div className="px-5 py-3.5 sm:px-6 border-t border-slate-100 bg-slate-50/50 shrink-0">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 [&>button]:w-full [&>button]:sm:w-auto [&>div]:w-full [&>div]:sm:w-auto [&>a]:w-full [&>a]:sm:w-auto">
+                {footer}
+              </div>
             </div>
           )}
         </div>

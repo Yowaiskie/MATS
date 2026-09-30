@@ -253,13 +253,14 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           </form>
         </div>
         
-        <div className="p-4 border-t border-slate-100 flex justify-between gap-2 bg-white sticky bottom-0">
+        <div className="p-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 bg-white sticky bottom-0">
           <div>
             {existingTask && (isHeadOrCreator || canAction('canDeleteTasks')) && (
               <Button
                 type="button"
                 variant="danger"
                 size="dense"
+                className="w-full sm:w-auto"
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={submitting}
               >
@@ -267,11 +268,12 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
               disabled={submitting}
             >
@@ -283,6 +285,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
                 form="taskForm"
                 variant="primary"
                 size="dense"
+                className="w-full sm:w-auto"
                 loading={submitting}
               >
                 Save Task

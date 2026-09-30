@@ -388,8 +388,8 @@ export const AutoAssignRotationModal: React.FC<AutoAssignRotationModalProps> = (
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-100 mt-4 bg-white">
-          <span className="text-xs font-bold text-slate-600">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pt-4 border-t border-slate-100 mt-4 bg-white">
+          <span className="text-xs font-bold text-slate-600 text-center sm:text-left">
             {willUpdateCount > 0 ? (
               <span>Will assign <strong className="text-indigo-600">{willUpdateCount}</strong> schedule(s)</span>
             ) : (
@@ -397,12 +397,12 @@ export const AutoAssignRotationModal: React.FC<AutoAssignRotationModalProps> = (
             )}
           </span>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
               disabled={applying}
-              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-colors cursor-pointer shadow-2xs"
+              className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2 text-xs font-bold text-slate-700 transition-colors cursor-pointer shadow-2xs"
             >
               Cancel
             </button>
@@ -411,7 +411,7 @@ export const AutoAssignRotationModal: React.FC<AutoAssignRotationModalProps> = (
               type="button"
               onClick={handleApply}
               disabled={applying || willUpdateCount === 0}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4.5 py-2 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-600/20"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 px-4.5 py-2 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-600/20"
             >
               {applying ? (
                 <>

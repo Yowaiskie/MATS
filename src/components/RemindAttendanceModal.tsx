@@ -1157,7 +1157,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
         )}
 
         {/* Modal Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 pt-3 border-t border-slate-100">
           <div className="text-[11px] text-slate-500 font-medium">
             {totalUniqueRecipientsCount > 0 ? (
               <span className="inline-flex items-center gap-1.5 text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/80">
@@ -1169,7 +1169,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 [&>button]:w-full [&>button]:sm:w-auto">
             <Button
               type="button"
               variant="secondary"

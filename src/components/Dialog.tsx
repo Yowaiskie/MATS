@@ -105,10 +105,11 @@ export const AlertModal: React.FC<AlertModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3">
           <Button
             variant={btnVariant}
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onClose}
             autoFocus
           >
@@ -209,10 +210,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="mt-6 flex items-center justify-end gap-2.5">
+        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3">
           <Button
             variant="secondary"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={loading}
           >
@@ -221,6 +223,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <Button
             variant={btnVariant}
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onConfirm}
             loading={loading}
             loadingText="Processing..."
@@ -321,11 +324,12 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
             />
           </div>
           {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
-          <div className="mt-6 flex items-center justify-end gap-2.5 pt-2">
+          <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-2">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
               disabled={loading}
             >
@@ -335,6 +339,7 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
               type="submit"
               variant="danger"
               size="dense"
+              className="w-full sm:w-auto"
               disabled={!password}
               loading={loading}
               loadingText="Verifying..."

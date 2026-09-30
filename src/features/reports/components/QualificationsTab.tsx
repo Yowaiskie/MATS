@@ -16,9 +16,12 @@ import {
 import { qualificationService } from '@/services/qualificationService'
 import { settingsService } from '@/services/settingsService'
 import { getFullName } from '@/utils/member'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
-import { ActionMenu, FilterDropdown, DatePicker } from '@/components'
+import { ConfirmModal } from '@/components/Dialog'
+import { ActionMenu, FilterDropdown, DatePicker, Pagination } from '@/components'
 import { QualificationsExportModal } from './QualificationsExportModal'
+import { useToast } from '@/context/ToastContext'
+
+const PAGE_SIZE = 15
 
 interface QualificationsTabProps {
   members: Member[]
@@ -40,6 +43,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   onDateChange,
   canExport = true
 }) => {
+  const { toast } = useToast()
   // Preset state
   const [presets, setPresets] = useState<QualificationPreset[]>(DEFAULT_QUALIFICATION_PRESETS)
   const [selectedPresetId, setSelectedPresetId] = useState<string>('preset-annual-renewal')
@@ -56,6 +60,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'qualified' | 'deficient'>('all')
   const [selectedOrder, setSelectedOrder] = useState<string>('all')
   const [selectedMemberModal, setSelectedMemberModal] = useState<MemberQualificationResult | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Modals state
   const [showExportModal, setShowExportModal] = useState(false)
@@ -67,9 +72,6 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   const [presetNameInput, setPresetNameInput] = useState('')
   const [presetDescInput, setPresetDescInput] = useState('')
   const [isSavingPreset, setIsSavingPreset] = useState(false)
-
-  // Alerts
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'info' | 'error' | 'success' } | null>(null)
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -169,17 +171,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       )
       await settingsService.saveQualificationPresets(updatedPresets)
       setPresets(updatedPresets)
-      setAlertModal({
-        title: 'Preset Updated',
-        message: `Qualification rules for "${activePreset.name}" have been updated successfully.`,
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Updated',
+        `Qualification rules for "${activePreset.name}" have been updated successfully.`
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Update Failed',
-        message: err.message || 'Failed to update preset rules.',
-        variant: 'error'
-      })
+      toast.error(
+        'Update Failed',
+        err.message || 'Failed to update preset rules.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -196,11 +196,10 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   // Save edited preset info (name & description)
   const handleSaveEditPresetInfo = async () => {
     if (!presetNameInput.trim()) {
-      setAlertModal({
-        title: 'Preset Name Required',
-        message: 'Please enter a name for the criteria preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Preset Name Required',
+        'Please enter a name for the criteria preset.'
+      )
       return
     }
 
@@ -219,17 +218,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       await settingsService.saveQualificationPresets(updatedPresets)
       setPresets(updatedPresets)
       setShowEditPresetModal(false)
-      setAlertModal({
-        title: 'Preset Updated',
-        message: 'Preset details have been saved successfully.',
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Updated',
+        'Preset details have been saved successfully.'
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Save Failed',
-        message: err.message || 'Failed to save preset details.',
-        variant: 'error'
-      })
+      toast.error(
+        'Save Failed',
+        err.message || 'Failed to save preset details.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -239,11 +236,10 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   const handleDeletePreset = async () => {
     if (!activePreset) return
     if (presets.length <= 1) {
-      setAlertModal({
-        title: 'Cannot Delete',
-        message: 'You must have at least one criteria preset available.',
-        variant: 'error'
-      })
+      toast.error(
+        'Cannot Delete',
+        'You must have at least one criteria preset available.'
+      )
       return
     }
 
@@ -256,17 +252,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       setSelectedPresetId(fallback.id)
       setActiveRules(fallback.rules)
       setShowDeleteConfirmModal(false)
-      setAlertModal({
-        title: 'Preset Deleted',
-        message: `Preset "${activePreset.name}" has been removed.`,
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Deleted',
+        `Preset "${activePreset.name}" has been removed.`
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Delete Failed',
-        message: err.message || 'Failed to delete preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Delete Failed',
+        err.message || 'Failed to delete preset.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -275,11 +269,10 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   // Save active rules as a new preset
   const handleSaveNewCustomPreset = async () => {
     if (!presetNameInput.trim()) {
-      setAlertModal({
-        title: 'Preset Name Required',
-        message: 'Please enter a name for this criteria preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Preset Name Required',
+        'Please enter a name for this criteria preset.'
+      )
       return
     }
 
@@ -300,17 +293,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       setShowSavePresetModal(false)
       setPresetNameInput('')
       setPresetDescInput('')
-      setAlertModal({
-        title: 'Preset Saved',
-        message: `Criteria preset "${newPreset.name}" has been created successfully.`,
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Saved',
+        `Criteria preset "${newPreset.name}" has been created successfully.`
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Save Failed',
-        message: err.message || 'Failed to save preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Save Failed',
+        err.message || 'Failed to save preset.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -340,6 +331,25 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       return matchesSearch && matchesStatus
     })
   }, [evaluationResults, searchQuery, statusFilter])
+
+  // Reset pagination when filters, order, dates, or criteria rules change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, selectedOrder, startDate, endDate, activeRules])
+
+  // Paginated evaluation results for matrix table
+  const paginatedResults = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredResults.slice(start, start + PAGE_SIZE)
+  }, [filteredResults, currentPage])
+
+  // Keep currentPage within valid bounds
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredResults.length / PAGE_SIZE))
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [filteredResults.length, currentPage])
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -881,7 +891,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredResults.map((row, idx) => {
+                paginatedResults.map((row, idx) => {
                   const ogf = row.categoryStats['formation']
                   const mtg = row.categoryStats['meeting']
                   const sun = row.categoryStats['mass_sunday']
@@ -893,7 +903,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                       className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                     >
                       <td className="py-3 px-4 text-slate-400 text-[11px] font-bold">
-                        {idx + 1}
+                        {(currentPage - 1) * PAGE_SIZE + idx + 1}
                       </td>
 
                       <td className="py-3 px-4 font-black text-slate-900">
@@ -1008,6 +1018,12 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredResults.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* ── 5. MEMBER DETAIL BREAKDOWN MODAL ────────────────────────── */}
@@ -1225,17 +1241,6 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
           dateRange={{ start: startDate, end: endDate }}
           presetName={activePreset?.name}
           activeRules={activeRules}
-        />
-      )}
-
-      {/* ── 10. ALERT MODAL ───────────────────────────────────────────── */}
-      {alertModal && (
-        <AlertModal
-          isOpen={!!alertModal}
-          title={alertModal.title}
-          message={alertModal.message}
-          variant={alertModal.variant || 'info'}
-          onClose={() => setAlertModal(null)}
         />
       )}
     </div>

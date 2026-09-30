@@ -186,7 +186,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
         }
         maxWidth="2xl"
         footer={
-          <div className="w-full flex items-center justify-between flex-wrap gap-2.5">
+          <div className="w-full flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
             {/* Left Action: Archive if permitted */}
             {canDelete && !request.isArchived ? (
               <Button 
@@ -197,7 +197,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 disabled={actionLoading !== null}
                 loadingText="Archiving..."
                 onClick={handleArchive}
-                className="text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
+                className="w-full sm:w-auto text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
                 icon={
                   <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
@@ -209,7 +209,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
             ) : <div />}
 
             {/* Right Actions */}
-            <div className="flex items-center gap-2.5 flex-wrap">
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 sm:gap-2 w-full sm:w-auto [&>button]:w-full [&>button]:sm:w-auto">
               <Button 
                 type="button"
                 variant="secondary"

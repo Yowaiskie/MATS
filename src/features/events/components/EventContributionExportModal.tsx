@@ -139,11 +139,12 @@ export const EventContributionExportModal: React.FC<EventContributionExportModal
         />
 
         {/* Action Buttons */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+        <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white">
           <Button
             type="button"
             variant="outline"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={isGenerating}
           >
@@ -153,6 +154,7 @@ export const EventContributionExportModal: React.FC<EventContributionExportModal
             type="button"
             variant="primary"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={handleDownload}
             loading={isGenerating}
             disabled={isGenerating || contributions.length === 0}

@@ -272,7 +272,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
         />
 
         {/* Modal Action Buttons */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+        <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white [&>button]:w-full [&>button]:sm:w-auto">
           <button
             type="button"
             onClick={onClose}
@@ -285,7 +285,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
             type="button"
             onClick={handleDownload}
             disabled={isGenerating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition cursor-pointer"
           >
             {isGenerating ? (
               <>

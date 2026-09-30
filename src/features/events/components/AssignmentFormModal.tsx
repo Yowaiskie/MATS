@@ -361,10 +361,11 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex justify-end gap-2.5 bg-white sticky bottom-0">
+        <div className="p-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 bg-white sticky bottom-0">
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={loading}
           >
@@ -374,6 +375,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
             type="submit"
             form="assignmentForm"
             variant="primary"
+            className="w-full sm:w-auto"
             loading={loading}
           >
             {editItem ? 'Save Changes' : `Assign ${selectedMemberIds.length > 0 ? selectedMemberIds.length : ''} Members`}

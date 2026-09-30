@@ -8,7 +8,7 @@ import type { UserProfile, UserRole, ModuleKey, UserPermissions, PermissionPrese
 import type { OrderGroup, Member } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
-import { ConfirmModal, AlertModal } from '@/components/Dialog'
+import { ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
@@ -95,7 +95,6 @@ export const UsersPage: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'coordinator' | 'order_leader' | 'user'>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -287,7 +286,6 @@ export const UsersPage: React.FC = () => {
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true)
-    setError(null)
     try {
       const [usersData, presetsData, membersData] = await Promise.all([
         userService.getUsers(),
@@ -299,7 +297,7 @@ export const UsersPage: React.FC = () => {
       setMembers(membersData)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load user accounts list and permission presets.')
+      toast.error('Load Failed', 'Failed to load user accounts list and permission presets.')
     } finally {
       if (showSpinner) setLoading(false)
     }
@@ -558,7 +556,7 @@ export const UsersPage: React.FC = () => {
   const handleSavePreset = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!presetFormName.trim()) {
-      setError('Preset name is required.')
+      toast.error('Validation Error', 'Preset name is required.')
       return
     }
 
@@ -657,7 +655,7 @@ export const UsersPage: React.FC = () => {
       handleOpenAddPreset()
     } catch (err: any) {
       console.error(err)
-      setError('Failed to save permission preset.')
+      toast.error('Preset Error', 'Failed to save permission preset.')
     } finally {
       setSaving(false)
     }
@@ -674,7 +672,7 @@ export const UsersPage: React.FC = () => {
       toast.success('Preset Removed', `Preset '${p.name}' was removed.`)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to delete permission preset.')
+      toast.error('Preset Error', 'Failed to delete permission preset.')
     } finally {
       setSaving(false)
     }
@@ -692,7 +690,6 @@ export const UsersPage: React.FC = () => {
     if (presets.length > 0) {
       applyPreset(presets[0])
     }
-    setError(null)
     setIsModalOpen(true)
   }
 
@@ -797,7 +794,6 @@ export const UsersPage: React.FC = () => {
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
-    setError(null)
     setIsModalOpen(true)
   }
 
@@ -814,28 +810,28 @@ export const UsersPage: React.FC = () => {
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) {
-      setError('Email address is required.')
+      toast.error('Validation Error', 'Email address is required.')
       return
     }
 
     if (!editingUser && (!password || password.length < 6)) {
-      setError('Password is required and must be at least 6 characters.')
+      toast.error('Validation Error', 'Password is required and must be at least 6 characters.')
       return
     }
 
     if (password || confirmPassword) {
       if (password !== confirmPassword) {
-        setError('New Password and Confirm New Password do not match. Please verify.')
+        toast.error('Validation Error', 'New Password and Confirm New Password do not match. Please verify.')
         return
       }
       if (password.length < 6) {
-        setError('Password must be at least 6 characters long.')
+        toast.error('Validation Error', 'Password must be at least 6 characters long.')
         return
       }
     }
 
     if (role === 'order_leader' && !assignedOrder) {
-      setError('Please select an Assigned Order for the Order Leader account.')
+      toast.error('Validation Error', 'Please select an Assigned Order for the Order Leader account.')
       return
     }
 
@@ -917,20 +913,19 @@ export const UsersPage: React.FC = () => {
     }
 
     setSaving(true)
-    setError(null)
     try {
       if (editingUser) {
         const isEditingCoordinator = editingUser.email.toLowerCase() === 'coordinator@mas.com'
         const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
 
         if (editingUser.uid === currentAdmin?.uid && role !== 'admin' && role !== 'coordinator') {
-          setError('You cannot revoke your own admin access.')
+          toast.error('Permission Denied', 'You cannot revoke your own admin access.')
           setSaving(false)
           return
         }
 
         if (isEditingCoordinator && !isCurrentCoordinator) {
-          setError('The Coordinator account can only be modified by the Coordinator themselves.')
+          toast.error('Permission Denied', 'The Coordinator account can only be modified by the Coordinator themselves.')
           setSaving(false)
           return
         }
@@ -989,7 +984,7 @@ export const UsersPage: React.FC = () => {
       } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters long.'
       }
-      setError(msg)
+      toast.error('User Save Failed', msg)
     } finally {
       setSaving(false)
     }
@@ -999,7 +994,7 @@ export const UsersPage: React.FC = () => {
     if (!deleteTarget) return
     // Prevent self-deletion
     if (deleteTarget.uid === currentAdmin?.uid) {
-      setError('You cannot delete your own account.')
+      toast.error('Action Denied', 'You cannot delete your own account.')
       setDeleteTarget(null)
       return
     }
@@ -1007,13 +1002,12 @@ export const UsersPage: React.FC = () => {
     const isTargetCoordinator = deleteTarget.email.toLowerCase() === 'coordinator@mas.com'
     const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
     if (isTargetCoordinator && !isCurrentCoordinator) {
-      setError('The Coordinator account is protected and cannot be deleted by other admins.')
+      toast.error('Action Denied', 'The Coordinator account is protected and cannot be deleted by other admins.')
       setDeleteTarget(null)
       return
     }
 
     setSaving(true)
-    setError(null)
     try {
       await userService.deleteUserProfile(
         deleteTarget.uid,
@@ -1025,7 +1019,7 @@ export const UsersPage: React.FC = () => {
       await loadData(false)
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to delete user profile.')
+      toast.error('Delete Failed', err.message || 'Failed to delete user profile.')
     } finally {
       setSaving(false)
     }
@@ -2727,15 +2721,6 @@ export const UsersPage: React.FC = () => {
         message={`Are you sure you want to remove '${deleteTarget?.email}' from system user profiles?`}
         confirmLabel="Remove Profile"
         loading={saving}
-      />
-
-      {/* Alert Dialog for Errors */}
-      <AlertModal
-        isOpen={!!error}
-        onClose={() => setError(null)}
-        variant="error"
-        title="User Management Error"
-        message={error || ''}
       />
     </div>
   )

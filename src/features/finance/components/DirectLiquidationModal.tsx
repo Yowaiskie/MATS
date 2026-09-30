@@ -478,7 +478,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
         </div>
 
         {/* Modal Actions */}
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 [&>button]:w-full [&>button]:sm:w-auto">
           <Button
             type="button"
             variant="secondary"

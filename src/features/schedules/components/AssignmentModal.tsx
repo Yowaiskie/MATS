@@ -365,7 +365,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
         </div>
 
         {/* Compact Integrated Footer */}
-        <div className="flex items-center justify-between gap-2 pt-2.5 sm:pt-3 border-t border-slate-100 mt-2 bg-white shrink-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pt-2.5 sm:pt-3 border-t border-slate-100 mt-2 bg-white shrink-0">
           <label className="flex items-center space-x-1.5 cursor-pointer bg-indigo-50/50 hover:bg-indigo-50 px-2 py-1.5 rounded-lg border border-indigo-100/80 transition-colors min-w-0">
             <input
               type="checkbox"
@@ -378,11 +378,11 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             </span>
           </label>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
+              className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-3 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-700 transition-all disabled:opacity-50 cursor-pointer shadow-2xs"
               disabled={loading}
             >
               Cancel
@@ -390,7 +390,7 @@ export const AssignmentModal: React.FC<AssignmentModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               disabled={loading}
             >
               <svg className="w-3.5 h-3.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>

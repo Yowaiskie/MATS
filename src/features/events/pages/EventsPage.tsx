@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { eventService } from '@/services/eventService'
 import type { Event } from '@/types/event'
-import { Card, Pagination, Loading, Button, StatusBadge, EmptyState } from '@/components'
+import { Card, Pagination, Loading, Button, StatusBadge, EmptyState, ActionMenu } from '@/components'
 import { EventFormModal } from '../components/EventFormModal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { dashboardService } from '@/services/dashboardService'
@@ -54,7 +54,7 @@ export const EventsPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">Ministry Events</h1>
           <p className="text-sm text-gray-500 mt-1">Manage event workspaces, assignments, and tasks.</p>
@@ -63,6 +63,7 @@ export const EventsPage: React.FC = () => {
           <Button 
             variant="primary"
             size="md"
+            className="w-full sm:w-auto"
             onClick={() => setIsModalOpen(true)}
           >
             + Create Event
@@ -78,7 +79,8 @@ export const EventsPage: React.FC = () => {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse whitespace-nowrap text-xs">
                 <thead>
                   <tr className="bg-slate-50/80 border-b border-slate-200/80 text-[11px] font-black uppercase text-slate-400 tracking-wider">
@@ -123,6 +125,53 @@ export const EventsPage: React.FC = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {paginatedEvents.map(event => (
+                <div key={event.id} className="p-4 space-y-3 bg-white hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <Link to={`/events/${event.id}`} className="font-extrabold text-sm text-indigo-600 hover:underline line-clamp-1">
+                        {event.title}
+                      </Link>
+                      <div className="flex items-center gap-1.5 mt-1 text-xs font-semibold text-slate-500">
+                        <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span>{event.startDate}</span>
+                      </div>
+                    </div>
+                    <StatusBadge status={event.stage} size="sm" />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 text-xs">
+                    <div className="text-slate-600 font-medium">
+                      <span className="text-slate-400 font-normal">Head: </span>
+                      <span className="font-semibold text-slate-700">{event.headName || 'Unassigned'}</span>
+                    </div>
+
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      tooltip="Event Options"
+                      size="sm"
+                      items={[
+                        {
+                          label: 'Open Workspace',
+                          variant: 'primary',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+                            </svg>
+                          ),
+                          href: `/events/${event.id}`
+                        }
+                      ]}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
 
             <Pagination

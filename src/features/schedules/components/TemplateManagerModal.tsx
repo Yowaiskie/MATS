@@ -765,18 +765,18 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               </div>
 
               {/* Form Buttons */}
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100 bg-white">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100 bg-white">
                 <button
                   type="button"
                   onClick={() => setMode('list')}
-                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm animate-none"
+                  className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm animate-none"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:w-auto rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   {loading ? 'Saving...' : 'Save Template'}
                 </button>
@@ -987,11 +987,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               </div>
 
               {/* Action buttons */}
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100 bg-white">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100 bg-white">
                 <button
                   type="button"
                   onClick={() => setMode('list')}
-                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
                 >
                   Back
                 </button>
@@ -999,7 +999,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   type="button"
                   onClick={handleRunGenerator}
                   disabled={loading || selectedTemplateIds.length === 0 || !genStartDate || !genEndDate}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:w-auto rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   {loading ? 'Generating...' : 'Generate Schedules'}
                 </button>
@@ -1067,11 +1067,11 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               )}
 
               {/* Action */}
-              <div className="flex justify-end pt-3 border-t border-gray-100">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
                   onClick={() => setMode('list')}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 px-5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:w-auto rounded-lg bg-blue-600 hover:bg-blue-500 px-5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   Done
                 </button>

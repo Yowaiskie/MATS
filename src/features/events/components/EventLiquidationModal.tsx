@@ -1168,10 +1168,11 @@ export const EventLiquidationModal: React.FC<Props> = ({
         )}
 
         {/* Modal Footer Actions */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3">
+        <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3">
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={onClose}
           >
             Cancel
@@ -1180,6 +1181,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
           <Button
             type="button"
             variant="success"
+            className="w-full sm:w-auto"
             onClick={handleGeneratePdf}
             loading={isGenerating}
             loadingText="Generating PDF..."

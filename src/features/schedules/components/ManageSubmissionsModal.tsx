@@ -800,7 +800,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 sm:gap-3 shrink-0">
+        <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3 shrink-0">
           <div className="text-[11px] sm:text-xs font-bold text-slate-500 text-center sm:text-left">
             {selectedIds.size > 0 ? (
               <span className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 flex-wrap">
@@ -815,11 +815,11 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 sm:flex-none px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer text-center"
+              className="w-full sm:w-auto px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer text-center"
             >
               Close
             </button>
@@ -828,7 +828,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
               type="button"
               onClick={handleOpenResetBulk}
               disabled={isSubmitting || selectedMembersWithSchedule.length === 0}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer text-center"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer text-center"
               title={selectedMembersWithSchedule.length === 0 ? 'Only members who have existing schedules can be reset.' : 'Reset schedule for selected members'}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

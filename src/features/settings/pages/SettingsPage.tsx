@@ -7,7 +7,7 @@ import {
 } from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
 import { generateUntakenScheduleReminderText } from '@/utils/untakenScheduleReport'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { ConfirmModal } from '@/components/Dialog'
 import { Button, useToast } from '@/components'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
@@ -152,11 +152,9 @@ export const SettingsPage: React.FC = () => {
   const [copiedReminder, setCopiedReminder] = useState(false)
 
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const loadTemplates = async () => {
     setLoading(true)
-    setError(null)
     try {
       const [reportTpl, reminderTpl] = await Promise.all([
         settingsService.getReportTemplate(),
@@ -168,7 +166,7 @@ export const SettingsPage: React.FC = () => {
       setOriginalReminderTemplate(reminderTpl)
     } catch (err) {
       console.error(err)
-      setError('Failed to load system templates.')
+      toast.error('Failed to load system templates.')
     } finally {
       setLoading(false)
     }
@@ -181,14 +179,13 @@ export const SettingsPage: React.FC = () => {
   // Save Report Template
   const handleSaveReportTemplate = async () => {
     setSaving(true)
-    setError(null)
     try {
       await settingsService.saveReportTemplate(template, profile?.email || 'Admin')
       setOriginalTemplate(template)
       toast.success('Report template settings successfully saved!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to save report template.')
+      toast.error(err.message || 'Failed to save report template.')
     } finally {
       setSaving(false)
     }
@@ -197,14 +194,13 @@ export const SettingsPage: React.FC = () => {
   // Save Reminder Template
   const handleSaveReminderTemplate = async () => {
     setSavingReminder(true)
-    setError(null)
     try {
       await settingsService.saveReminderTemplate(reminderTemplate, profile?.email || 'Admin')
       setOriginalReminderTemplate(reminderTemplate)
       toast.success('Reminder template settings successfully saved!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to save reminder template.')
+      toast.error(err.message || 'Failed to save reminder template.')
     } finally {
       setSavingReminder(false)
     }
@@ -286,28 +282,28 @@ export const SettingsPage: React.FC = () => {
           {activeTab === 'policy' && (
             <PolicySettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
           {activeTab === 'order_rotation' && (
             <OrderRotationSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
           {activeTab === 'signatures' && (
             <SignatureSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
           {activeTab === 'maintenance' && (
             <MaintenanceSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
@@ -440,14 +436,6 @@ export const SettingsPage: React.FC = () => {
         title="Restore Default Reminder Template"
         message="Are you sure you want to restore the default pending attendance reminder template? Any unsaved edits will be discarded."
         confirmLabel="Restore Default"
-      />
-
-      <AlertModal
-        isOpen={!!error}
-        onClose={() => setError(null)}
-        variant="error"
-        title="Error"
-        message={error ?? ''}
       />
     </div>
   )

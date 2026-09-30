@@ -18,8 +18,11 @@ import {
   EmptyState, 
   PasswordConfirmModal, 
   useToast,
-  ActionMenu 
+  ActionMenu,
+  Pagination
 } from '@/components'
+
+const PAGE_SIZE = 10
 
 export const InventoryPage: React.FC = () => {
   const { user, profile, canAction } = useAuth()
@@ -34,6 +37,7 @@ export const InventoryPage: React.FC = () => {
   const [selectedCondition, setSelectedCondition] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid')
+  const [currentPage, setCurrentPage] = useState(1)
   
   // Modals
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -113,6 +117,25 @@ export const InventoryPage: React.FC = () => {
       return true
     })
   }, [items, selectedCategory, selectedCondition, searchQuery])
+
+  // Reset pagination on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedCategory, selectedCondition, showArchived])
+
+  // Paginated items for current page
+  const paginatedItems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredItems.slice(start, start + PAGE_SIZE)
+  }, [filteredItems, currentPage])
+
+  // Keep currentPage within valid bounds
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE))
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [filteredItems.length, currentPage])
 
   // Metrics KPI
   const metrics = useMemo(() => {
@@ -423,138 +446,148 @@ export const InventoryPage: React.FC = () => {
         />
       ) : viewMode === 'grid' ? (
         /* Grid Cards View */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {filteredItems.map((item) => (
-            <Card
-              key={item.id}
-              className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
-                item.isArchived
-                  ? 'bg-amber-50/40 border-amber-200'
-                  : 'bg-white border-slate-200/80 hover:shadow-md'
-              }`}
-            >
-              <div className="space-y-3">
-                {/* Top Tags */}
-                <div className="flex items-start justify-between gap-2">
-                  <span className="px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-slate-100 text-slate-700">
-                    {item.category}
-                  </span>
-                  {getStatusBadge(item.status, item.quantity)}
-                </div>
-
-                {/* Name */}
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 leading-snug">
-                    {item.name}
-                  </h3>
-                  <div className="flex items-center gap-1.5 mt-1 text-slate-500 text-xs font-semibold">
-                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <span className="truncate">{item.storageLocation || 'Unassigned Location'}</span>
-                  </div>
-                </div>
-
-                {/* Condition Badge & Notes */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${getConditionBadge(item.condition)}`}>
-                      {item.condition}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {paginatedItems.map((item) => (
+              <Card
+                key={item.id}
+                className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between ${
+                  item.isArchived
+                    ? 'bg-amber-50/40 border-amber-200'
+                    : 'bg-white border-slate-200/80 hover:shadow-md'
+                }`}
+              >
+                <div className="space-y-3">
+                  {/* Top Tags */}
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="px-2.5 py-1 text-[10px] font-extrabold uppercase rounded-lg bg-slate-100 text-slate-700">
+                      {item.category}
                     </span>
-                    {item.donorOrSource && (
-                      <span className="text-[10px] font-medium text-slate-500 truncate" title={item.donorOrSource}>
-                        From: {item.donorOrSource}
+                    {getStatusBadge(item.status, item.quantity)}
+                  </div>
+
+                  {/* Name */}
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 leading-snug">
+                      {item.name}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-1 text-slate-500 text-xs font-semibold">
+                      <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span className="truncate">{item.storageLocation || 'Unassigned Location'}</span>
+                    </div>
+                  </div>
+
+                  {/* Condition Badge & Notes */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-0.5 text-[11px] font-bold rounded-md border ${getConditionBadge(item.condition)}`}>
+                        {item.condition}
                       </span>
+                      {item.donorOrSource && (
+                        <span className="text-[10px] font-medium text-slate-500 truncate" title={item.donorOrSource}>
+                          From: {item.donorOrSource}
+                        </span>
+                      )}
+                    </div>
+                    {item.notes && (
+                      <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 line-clamp-2">
+                        {item.notes}
+                      </p>
                     )}
                   </div>
-                  {item.notes && (
-                    <p className="text-xs text-slate-600 bg-slate-50 p-2 rounded-xl border border-slate-100 line-clamp-2">
-                      {item.notes}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Bottom Quantity Control & Actions */}
-              <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                {/* Quantity Pill with +/- */}
-                <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
-                  {isAuthorized && (
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAdjust(item, -1)}
-                      title="Minus 1"
-                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-white text-slate-700 hover:bg-slate-200 font-black text-xs shadow-2xs cursor-pointer active:scale-90"
-                    >
-                      -
-                    </button>
-                  )}
-                  <span className="px-2 text-xs font-black text-slate-900 whitespace-nowrap">
-                    {item.quantity} {item.unit}
-                  </span>
-                  {isAuthorized && (
-                    <button
-                      type="button"
-                      onClick={() => handleQuickAdjust(item, 1)}
-                      title="Add 1"
-                      className="w-6 h-6 flex items-center justify-center rounded-lg bg-white text-slate-700 hover:bg-slate-200 font-black text-xs shadow-2xs cursor-pointer active:scale-90"
-                    >
-                      +
-                    </button>
-                  )}
                 </div>
 
-                {/* Actions Button */}
-                {isAuthorized && (
-                  <ActionMenu
-                    triggerVariant="meatball"
-                    tooltip="Item Options"
-                    items={[
-                      {
-                        label: 'Edit Item',
-                        variant: 'primary',
-                        icon: (
-                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                        ),
-                        onClick: () => {
-                          setEditingItem(item)
-                          setIsModalOpen(true)
+                {/* Bottom Quantity Control & Actions */}
+                <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  {/* Quantity Pill with +/- */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                    {isAuthorized && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAdjust(item, -1)}
+                        title="Minus 1"
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white text-slate-700 hover:bg-slate-200 font-black text-xs shadow-2xs cursor-pointer active:scale-90"
+                      >
+                        -
+                      </button>
+                    )}
+                    <span className="px-2 text-xs font-black text-slate-900 whitespace-nowrap">
+                      {item.quantity} {item.unit}
+                    </span>
+                    {isAuthorized && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAdjust(item, 1)}
+                        title="Add 1"
+                        className="w-6 h-6 flex items-center justify-center rounded-lg bg-white text-slate-700 hover:bg-slate-200 font-black text-xs shadow-2xs cursor-pointer active:scale-90"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Actions Button */}
+                  {isAuthorized && (
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      tooltip="Item Options"
+                      items={[
+                        {
+                          label: 'Edit Item',
+                          variant: 'primary',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          ),
+                          onClick: () => {
+                            setEditingItem(item)
+                            setIsModalOpen(true)
+                          }
+                        },
+                        {
+                          label: item.isArchived ? 'Restore Item' : 'Archive Item',
+                          variant: item.isArchived ? 'success' : 'warning',
+                          icon: (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                          ),
+                          onClick: () => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })
+                        },
+                        {
+                          label: 'Delete Permanently',
+                          variant: 'danger',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          ),
+                          onClick: () => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })
                         }
-                      },
-                      {
-                        label: item.isArchived ? 'Restore Item' : 'Archive Item',
-                        variant: item.isArchived ? 'success' : 'warning',
-                        icon: (
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                          </svg>
-                        ),
-                        onClick: () => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })
-                      },
-                      {
-                        label: 'Delete Permanently',
-                        variant: 'danger',
-                        icon: (
-                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        ),
-                        onClick: () => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })
-                      }
-                    ]}
-                  />
-                )}
-              </div>
-            </Card>
-          ))}
+                      ]}
+                    />
+                  )}
+                </div>
+              </Card>
+            ))}
+          </div>
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredItems.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs"
+          />
         </div>
       ) : (
         /* Detailed Table View */
         <Card className="overflow-hidden border border-slate-200/80 shadow-2xs rounded-2xl">
-          <div className="overflow-x-auto">
+          {/* Desktop Table View */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase border-b border-slate-200">
                 <tr>
@@ -568,7 +601,7 @@ export const InventoryPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredItems.map((item) => (
+                {paginatedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="px-4 py-3 font-bold text-slate-900">
                       <div>{item.name}</div>
@@ -658,6 +691,126 @@ export const InventoryPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {paginatedItems.map((item) => (
+              <div key={item.id} className="p-4 space-y-3 bg-white hover:bg-slate-50/50 transition-colors">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                      {item.name}
+                    </h3>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700">
+                        {item.category}
+                      </span>
+                      <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${getConditionBadge(item.condition)}`}>
+                        {item.condition}
+                      </span>
+                    </div>
+                  </div>
+                  {getStatusBadge(item.status, item.quantity)}
+                </div>
+
+                {item.storageLocation && (
+                  <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <span className="truncate">{item.storageLocation}</span>
+                  </div>
+                )}
+
+                {item.notes && (
+                  <p className="text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100 line-clamp-2">
+                    {item.notes}
+                  </p>
+                )}
+
+                <div className="flex items-center justify-between pt-2 border-t border-slate-100 gap-2">
+                  {/* Touch quantity adjustment */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200/80">
+                    {isAuthorized && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAdjust(item, -1)}
+                        title="Minus 1"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white text-slate-700 hover:bg-slate-200 font-black text-xs shadow-2xs cursor-pointer active:scale-90 touch-manipulation"
+                      >
+                        -
+                      </button>
+                    )}
+                    <span className="px-2 text-xs font-black text-slate-900 whitespace-nowrap">
+                      {item.quantity} {item.unit}
+                    </span>
+                    {isAuthorized && (
+                      <button
+                        type="button"
+                        onClick={() => handleQuickAdjust(item, 1)}
+                        title="Add 1"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg bg-white text-slate-700 hover:bg-slate-200 font-black text-xs shadow-2xs cursor-pointer active:scale-90 touch-manipulation"
+                      >
+                        +
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Touch actions */}
+                  {isAuthorized && (
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      tooltip="Item Options"
+                      size="sm"
+                      items={[
+                        {
+                          label: 'Edit Item',
+                          variant: 'primary',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          ),
+                          onClick: () => {
+                            setEditingItem(item)
+                            setIsModalOpen(true)
+                          }
+                        },
+                        {
+                          label: item.isArchived ? 'Restore Item' : 'Archive Item',
+                          variant: item.isArchived ? 'success' : 'warning',
+                          icon: (
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                            </svg>
+                          ),
+                          onClick: () => setArchiveConfirm({ isOpen: true, id: item.id, name: item.name, isArchived: item.isArchived })
+                        },
+                        {
+                          label: 'Delete Permanently',
+                          variant: 'danger',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          ),
+                          onClick: () => setDeleteConfirm({ isOpen: true, id: item.id, name: item.name })
+                        }
+                      ]}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <Pagination
+            currentPage={currentPage}
+            totalItems={filteredItems.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+          />
         </Card>
       )}
 

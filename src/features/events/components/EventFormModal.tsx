@@ -276,10 +276,11 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
           </form>
         </div>
         
-        <div className="pt-4 border-t border-slate-100 flex justify-end gap-2 bg-white">
+        <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 bg-white">
           <Button
             variant="secondary"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={submitting}
           >
@@ -291,6 +292,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             size="sm"
             type="submit"
             form="eventForm"
+            className="w-full sm:w-auto"
             loading={submitting}
             disabled={submitting}
           >

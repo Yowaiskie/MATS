@@ -151,7 +151,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
             This action will update the order of all <strong className="font-mono font-black">{selectedCount}</strong> selected member(s) to <strong className="font-extrabold text-indigo-700">{computedOrderPreview || 'Unassigned (No Order)'}</strong>.
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 [&>button]:w-full [&>button]:sm:w-auto">
             <button
               type="button"
               onClick={onClose}
@@ -162,7 +162,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               disabled={loading}
             >
               {loading ? 'Updating...' : `Apply to ${selectedCount} Members`}

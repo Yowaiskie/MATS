@@ -156,11 +156,11 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
-            <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+            <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 self-start sm:self-auto">
               {selectedIds.length} Selected
             </span>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 sm:gap-2 w-full sm:w-auto [&>button]:w-full [&>button]:sm:w-auto">
               <Button
                 type="button"
                 variant="secondary"

@@ -159,7 +159,7 @@ export const MemberReportExportModal: React.FC<MemberReportExportModalProps> = (
         />
 
         {/* Action Buttons */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+        <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white [&>button]:w-full [&>button]:sm:w-auto">
           <Button
             type="button"
             variant="outline"

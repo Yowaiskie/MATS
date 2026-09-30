@@ -906,11 +906,12 @@ export const EventContributionModal: React.FC<Props> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
             <Button
               type="button"
               variant="outline"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
             >
               Cancel
@@ -919,6 +920,7 @@ export const EventContributionModal: React.FC<Props> = ({
               type="submit"
               variant="primary"
               size="dense"
+              className="w-full sm:w-auto"
               loading={submitting}
             >
               {contributionToEdit ? (entryMode === 'group' && groupEntries.filter(e => e.name.trim()).length > 1 ? `Update & Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Update Contribution') : (entryMode === 'group' ? `Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Save Contribution')}

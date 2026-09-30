@@ -1331,16 +1331,17 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 shrink-0">
           <div className="text-xs text-slate-500 font-medium hidden sm:block">
             Formatted for Long Bond Paper (8.5&quot; × 13&quot; Landscape).
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={handlePrint}
               disabled={isExporting || loading}
               icon={
@@ -1369,7 +1370,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                   <line x1="12" x2="12" y1="15" y2="3" />
                 </svg>
               }
-              className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
+              className="w-full sm:w-auto !bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
             >
               Download PDF (Long 8.5×13 Landscape)
             </Button>

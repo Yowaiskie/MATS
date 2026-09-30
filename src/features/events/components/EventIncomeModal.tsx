@@ -355,10 +355,11 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
           />
         </div>
 
-        <div className="mt-8 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
+        <div className="mt-8 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={submitting}
           >
@@ -367,6 +368,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
           <Button
             type="submit"
             variant="primary"
+            className="w-full sm:w-auto"
             loading={submitting}
             loadingText={editItem ? 'Updating...' : 'Saving...'}
           >

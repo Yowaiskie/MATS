@@ -1582,11 +1582,12 @@ export const PublicationFormModal: React.FC<Props> = ({
           </form>
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-end gap-3 sticky bottom-0">
+        <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0">
           <Button
             type="button"
             variant="secondary"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onClose}
           >
             Cancel
@@ -1598,7 +1599,7 @@ export const PublicationFormModal: React.FC<Props> = ({
             size="dense"
             loading={isSubmitting}
             loadingText="Saving..."
-            className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
+            className="w-full sm:w-auto !bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
           >
             Save Publication
           </Button>

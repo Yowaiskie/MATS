@@ -198,18 +198,18 @@ export const EventFinanceReportModal: React.FC<Props> = ({
             defaultPresetName="General"
           />
 
-          <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white print:hidden">
+          <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white print:hidden">
             <button
               onClick={onClose}
               disabled={isGenerating}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
+              className="w-full sm:w-auto px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               Close
             </button>
             <button
               onClick={handleDownloadPdf}
               disabled={isGenerating}
-              className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition flex items-center gap-2 cursor-pointer"
+              className="w-full sm:w-auto px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-black shadow-md shadow-indigo-500/20 active:scale-95 transition flex items-center justify-center gap-2 cursor-pointer"
             >
               {isGenerating ? (
                 <span>Generating PDF...</span>

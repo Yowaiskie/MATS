@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { publicationService } from '@/services/publicationService'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { isScheduleIncludedInPublication, isMemberEligibleForPublication, isPublicationDeadlinePassed } from '@/utils/scheduleUtils'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
-import { ActionMenu } from '@/components'
+import { ConfirmModal } from '@/components/Dialog'
+import { ActionMenu, Pagination } from '@/components'
 import { PublicationFormModal, type CustomEventSlotInput } from './PublicationFormModal'
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
+import { useToast } from '@/context/ToastContext'
+
+const PAGE_SIZE = 8
 
 export interface PublicationMemberStats {
   scheduled: number
@@ -17,10 +20,11 @@ export interface PublicationMemberStats {
 }
 
 export const PublicationsTab: React.FC = () => {
+  const { toast } = useToast()
   const [publications, setPublications] = useState<SchedulePublication[]>([])
   const [pubStatsById, setPubStatsById] = useState<Record<string, PublicationMemberStats>>({})
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   const [formOpen, setFormOpen] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<SchedulePublication | null>(null)
@@ -35,7 +39,6 @@ export const PublicationsTab: React.FC = () => {
     confirmLabel: string;
   } | null>(null)
   const [manageSubmissionsPub, setManageSubmissionsPub] = useState<SchedulePublication | null>(null)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; type?: 'success' | 'error' } | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -83,7 +86,7 @@ export const PublicationsTab: React.FC = () => {
       setPubStatsById(statsMap)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load publications.')
+      toast.error('Error', 'Failed to load publications.')
     } finally {
       setLoading(false)
     }
@@ -96,7 +99,7 @@ export const PublicationsTab: React.FC = () => {
   const handleCopyLink = (pubId: string) => {
     const url = `${window.location.origin}/public/schedule/${pubId}`
     navigator.clipboard.writeText(url)
-    setAlertModal({ title: 'Link Copied', message: 'Public link copied to clipboard!', type: 'success' })
+    toast.success('Link Copied', 'Public link copied to clipboard!')
   }
 
   const handleDelete = (id: string) => {
@@ -110,10 +113,10 @@ export const PublicationsTab: React.FC = () => {
     try {
       await publicationService.deletePublication(id)
       await loadData()
-      setAlertModal({ title: 'Deleted', message: 'Publication has been deleted.', type: 'success' })
+      toast.success('Deleted', 'Publication has been deleted.')
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Delete Failed', message: err.message || 'Failed to delete publication.', type: 'error' })
+      toast.error('Delete Failed', err.message || 'Failed to delete publication.')
     }
   }
 
@@ -121,13 +124,9 @@ export const PublicationsTab: React.FC = () => {
     try {
       await publicationService.updatePublication(pub.id, { status: 'published' })
       await loadData()
-      setAlertModal({ 
-        title: 'Published', 
-        message: 'Publication is now open for scheduling.',
-        type: 'success'
-      })
+      toast.success('Published', 'Publication is now open for scheduling.')
     } catch (err: any) {
-      setAlertModal({ title: 'Error', message: 'Failed to update status.', type: 'error' })
+      toast.error('Error', 'Failed to update status.')
     }
   }
 
@@ -161,14 +160,10 @@ export const PublicationsTab: React.FC = () => {
     try {
       await publicationService.updatePublication(pub.id, { status: newStatus })
       await loadData()
-      setAlertModal({ 
-        title: 'Status Updated', 
-        message: `Publication status changed to ${newStatus.toUpperCase()}.`,
-        type: 'success'
-      })
+      toast.success('Status Updated', `Publication status changed to ${newStatus.toUpperCase()}.`)
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Error', message: 'Failed to update publication status.', type: 'error' })
+      toast.error('Error', 'Failed to update publication status.')
     }
   }
 
@@ -184,16 +179,15 @@ export const PublicationsTab: React.FC = () => {
       }
       await publicationService.updatePublication(pub.id, { status: targetStatus })
       await loadData()
-      setAlertModal({ 
-        title: targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Updated', 
-        message: isLocked !== undefined
+      toast.success(
+        targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Updated',
+        isLocked !== undefined
           ? `Successfully ${isLocked ? 'locked' : 'unlocked'} ${lockedCount} schedule(s) for the month and set publication to ${targetStatus}.`
-          : `Publication status set to ${targetStatus}.`,
-        type: 'success'
-      })
+          : `Publication status set to ${targetStatus}.`
+      )
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Error', message: err.message || 'Failed to update publication.', type: 'error' })
+      toast.error('Error', err.message || 'Failed to update publication.')
       setLoading(false)
     }
   }
@@ -282,14 +276,13 @@ export const PublicationsTab: React.FC = () => {
           msg = `Saved! ${parts.join(', ')}.`
         }
 
-        setAlertModal({ 
-          title: selectedPublication ? 'Publication Updated' : 'Publication Created', 
-          message: msg, 
-          type: 'success' 
-        })
+        toast.success(
+          selectedPublication ? 'Publication Updated' : 'Publication Created', 
+          msg
+        )
       } catch (err: any) {
         console.error(err)
-        setAlertModal({ title: 'Warning', message: `Publication saved, but some schedule slots failed to process: ${err.message}`, type: 'error' })
+        toast.error('Warning', `Publication saved, but some schedule slots failed to process: ${err.message}`)
       }
       await loadData()
       return
@@ -307,25 +300,36 @@ export const PublicationsTab: React.FC = () => {
             input.endDate,
             activeTemplates
           )
-          setAlertModal({ 
-            title: 'Publication Created', 
-            message: `Created successfully! Generated ${report.created} schedule(s) from templates. (Skipped: ${report.skipped}, Duplicates: ${report.duplicates})`, 
-            type: 'success' 
-          })
+          toast.success(
+            'Publication Created', 
+            `Created successfully! Generated ${report.created} schedule(s) from templates. (Skipped: ${report.skipped}, Duplicates: ${report.duplicates})`
+          )
         } else {
-          setAlertModal({ title: 'Publication Created', message: 'Created successfully, but no active templates were found to generate schedules.', type: 'success' })
+          toast.success('Publication Created', 'Created successfully, but no active templates were found to generate schedules.')
         }
       } catch (err: any) {
         console.error(err)
-        setAlertModal({ title: 'Warning', message: `Publication created, but failed to generate schedules: ${err.message}`, type: 'error' })
+        toast.error('Warning', `Publication created, but failed to generate schedules: ${err.message}`)
       }
       await loadData()
       return
     }
 
     await loadData()
-    setAlertModal({ title: 'Success', message: 'Publication saved successfully.', type: 'success' })
+    toast.success('Success', 'Publication saved successfully.')
   }
+
+  const totalPages = Math.ceil(publications.length / PAGE_SIZE)
+  const paginatedPublications = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return publications.slice(start, start + PAGE_SIZE)
+  }, [publications, currentPage])
+
+  useEffect(() => {
+    if (currentPage > 1 && currentPage > Math.ceil(publications.length / PAGE_SIZE)) {
+      setCurrentPage(Math.max(1, Math.ceil(publications.length / PAGE_SIZE)))
+    }
+  }, [publications.length, currentPage])
 
   const stats = {
     total: publications.length,
@@ -394,7 +398,8 @@ export const PublicationsTab: React.FC = () => {
             No publications found.
           </div>
         ) : (
-          publications.map(pub => (
+          <>
+            {paginatedPublications.map(pub => (
             <div key={pub.id} className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm space-y-3">
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -668,7 +673,16 @@ export const PublicationsTab: React.FC = () => {
                 />
               </div>
             </div>
-          ))
+          ))}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
+            totalItems={publications.length}
+            pageSize={PAGE_SIZE}
+            onPageChange={setCurrentPage}
+            className="bg-white rounded-xl border border-gray-200"
+          />
+        </>
         )}
       </div>
 
@@ -693,7 +707,7 @@ export const PublicationsTab: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                publications.map(pub => (
+                paginatedPublications.map(pub => (
                   <tr key={pub.id} className="hover:bg-gray-50/50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -946,6 +960,13 @@ export const PublicationsTab: React.FC = () => {
             </tbody>
           </table>
         </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={publications.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       <PublicationFormModal
@@ -988,17 +1009,6 @@ export const PublicationsTab: React.FC = () => {
         isOpen={!!exportPdfPub}
         onClose={() => setExportPdfPub(null)}
         publication={exportPdfPub}
-      />
-
-      <AlertModal
-        isOpen={!!alertModal || !!error}
-        onClose={() => {
-          setAlertModal(null)
-          setError(null)
-        }}
-        variant={alertModal?.type === 'success' ? 'success' : 'error'}
-        title={alertModal?.title ?? 'Error'}
-        message={alertModal?.message ?? error ?? ''}
       />
     </div>
   )

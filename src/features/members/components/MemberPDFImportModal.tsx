@@ -531,11 +531,11 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
           <span className="text-[10px] font-bold text-slate-400">
             {totalCount > 0 && `${totalCount} record${totalCount !== 1 ? 's' : ''} detected · ${validCount} valid`}
           </span>
-          <div className="flex items-center space-x-3">
+          <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 sm:gap-3 w-full sm:w-auto [&>button]:w-full [&>button]:sm:w-auto">
             <button
               type="button"
               onClick={handleClose}
@@ -548,7 +548,7 @@ export const MemberPDFImportModal: React.FC<MemberPDFImportModalProps> = ({
               type="button"
               onClick={handleImportSubmit}
               disabled={importing || parsing || validCount === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
             >
               {importing ? 'Importing…' : `Import PDF (${validCount} Valid)`}
             </button>

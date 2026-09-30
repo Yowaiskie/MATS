@@ -128,7 +128,7 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex justify-end space-x-2.5 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0 [&>button]:w-full [&>button]:sm:w-auto">
             <Button
               type="button"
               variant="secondary"

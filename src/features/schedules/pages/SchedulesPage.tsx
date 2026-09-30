@@ -14,12 +14,11 @@ import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
 import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
 import { RemindAttendanceModal } from '@/components/RemindAttendanceModal'
 import { AutoAssignRotationModal } from '../components/AutoAssignRotationModal'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
-import { Loading } from '@/components/Loading'
-import { FilterDropdown, DatePicker } from '@/components'
-import type { Schedule, ScheduleInput } from '@/types/schedule'
+import { FilterDropdown, DatePicker, ActionMenu, Loading } from '@/components'
 import type { Member } from '@/types/member'
+import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
 import { attendanceService } from '@/services/attendanceService'
 import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
@@ -141,7 +140,6 @@ export const SchedulesPage: React.FC = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>(initialFilters.activeTab || 'schedules')
 
@@ -197,14 +195,12 @@ export const SchedulesPage: React.FC = () => {
 
   // Dialog state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
   // Remind Attendance Messenger Modal state
   const [remindAttendanceOpen, setRemindAttendanceOpen] = useState(false)
 
   const loadData = async (showSpinner = true, targetMonthDate?: Date) => {
     if (showSpinner) setLoading(true)
-    setError(null)
     try {
       let scheduleData: Schedule[] = []
       if (dateFilterMode === 'range' && startDateFilter && endDateFilter) {
@@ -234,7 +230,7 @@ export const SchedulesPage: React.FC = () => {
       nativeWidgetService.syncUpcomingMassesWidget(scheduleData, memberData, profile).catch(() => {})
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load schedule or member records.')
+      toast.error('Load Error', 'Failed to load schedule or member records.')
     } finally {
       if (showSpinner) setLoading(false)
     }
@@ -411,14 +407,14 @@ export const SchedulesPage: React.FC = () => {
           await scheduleService.assignMembers(s.id, assignedIds, actor)
         }
         
-        setAlertModal({
-          title: 'Bulk Assignment Successful',
-          message: `Successfully applied assignments to ${matchingSchedules.length} "${sourceSchedule.title}" schedules in this month.`,
-          variant: 'success'
-        })
+        toast.success(
+          'Bulk Assignment Successful',
+          `Successfully applied assignments to ${matchingSchedules.length} "${sourceSchedule.title}" schedules in this month.`
+        )
       }
     } else {
       await scheduleService.assignMembers(scheduleId, assignedIds, actor)
+      toast.success('Assignments Saved', 'Member assignments updated successfully.')
     }
     
     await loadData(false)
@@ -457,14 +453,16 @@ export const SchedulesPage: React.FC = () => {
       await loadData(false)
 
       if (skippedIds.length > 0) {
-        setAlertModal({
-          title: 'Partial Deletion',
-          message: `${deletedCount} schedule(s) deleted. ${skippedIds.length} schedule(s) could not be deleted because they have attendance records.`,
-        })
+        toast.warning(
+          'Partial Deletion',
+          `${deletedCount} schedule(s) deleted. ${skippedIds.length} schedule(s) could not be deleted because they have attendance records.`
+        )
+      } else {
+        toast.success('Bulk Delete Complete', `${deletedCount} schedule(s) deleted.`)
       }
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected schedules.' })
+      toast.error('Bulk Delete Failed', err.message || 'Failed to delete selected schedules.')
     } finally {
       setBulkDeleting(false)
     }
@@ -669,68 +667,129 @@ export const SchedulesPage: React.FC = () => {
 
               {canManage && (
                 <>
-                  <button
-                    onClick={() => setRemindAttendanceOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-800 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Generate and copy reminder for untaken attendance"
-                  >
-                    <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <span>Remind Untaken</span>
-                  </button>
+                  {/* Mobile Action Menu Dropdown (< 640px) */}
+                  <div className="sm:hidden">
+                    <ActionMenu
+                      triggerVariant="button"
+                      triggerLabel="Actions"
+                      size="sm"
+                      align="right"
+                      items={[
+                        {
+                          label: 'Remind Untaken',
+                          icon: (
+                            <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                          ),
+                          onClick: () => setRemindAttendanceOpen(true)
+                        },
+                        {
+                          label: 'Auto-Assign Rotation',
+                          icon: (
+                            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          ),
+                          onClick: () => setAutoAssignOpen(true)
+                        },
+                        {
+                          label: 'Templates',
+                          icon: (
+                            <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                            </svg>
+                          ),
+                          onClick: () => setTemplatesOpen(true)
+                        },
+                        {
+                          label: 'Export PDF',
+                          icon: (
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          ),
+                          onClick: () => setExportPdfOpen(true)
+                        },
+                        {
+                          label: 'Bulk Delete Month',
+                          variant: 'danger',
+                          icon: (
+                            <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          ),
+                          onClick: () => setBulkDeleteMonthOpen(true)
+                        }
+                      ]}
+                    />
+                  </div>
 
-                  <button
-                    onClick={() => setAutoAssignOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Auto-assign rotating Order Groups (San Pedro → San Juan → Santiago → San Andres) for Holy Hour and Binyag schedules"
-                  >
-                    <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                    <span>Auto-Assign Rotation</span>
-                  </button>
+                  {/* Desktop Secondary Action Buttons (>= 640px) */}
+                  <div className="hidden sm:flex items-center gap-2.5 flex-wrap">
+                    <button
+                      onClick={() => setRemindAttendanceOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-800 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Generate and copy reminder for untaken attendance"
+                    >
+                      <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      <span>Remind Untaken</span>
+                    </button>
 
-                  <button
-                    onClick={() => setTemplatesOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                  >
+                    <button
+                      onClick={() => setAutoAssignOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Auto-assign rotating Order Groups (San Pedro → San Juan → Santiago → San Andres) for Holy Hour and Binyag schedules"
+                    >
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Auto-Assign Rotation</span>
+                    </button>
 
-                    <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                    </svg>
-                    <span>Templates</span>
-                  </button>
+                    <button
+                      onClick={() => setTemplatesOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    >
+                      <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                      </svg>
+                      <span>Templates</span>
+                    </button>
 
-                  <button
-                    onClick={() => setExportPdfOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Export Month Schedule as PDF (Long Landscape)"
-                  >
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>Export PDF</span>
-                  </button>
+                    <button
+                      onClick={() => setExportPdfOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Export Month Schedule as PDF (Long Landscape)"
+                    >
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Export PDF</span>
+                    </button>
 
-                  <button
-                    onClick={() => setBulkDeleteMonthOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Delete all schedules for a specific month"
-                  >
-                    <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    <span>Bulk Delete Month</span>
-                  </button>
+                    <button
+                      onClick={() => setBulkDeleteMonthOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Delete all schedules for a specific month"
+                    >
+                      <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Bulk Delete Month</span>
+                    </button>
+                  </div>
 
+                  {/* Prominent Create Schedule Button */}
                   <button
                     onClick={() => {
                       setSelectedSchedule(null)
                       setSelectedDate('')
                       setFormOpen(true)
                     }}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all w-full sm:w-auto cursor-pointer shadow-md shadow-blue-600/20"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all flex-1 sm:flex-initial cursor-pointer shadow-md shadow-blue-600/20"
                   >
                     <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -1197,18 +1256,6 @@ export const SchedulesPage: React.FC = () => {
         message={`Are you sure you want to permanently delete ${selectedIds.size} selected schedule${selectedIds.size > 1 ? 's' : ''}? Schedules with attendance records will be skipped. This action cannot be undone.`}
         confirmLabel={`Delete ${selectedIds.size} Schedule${selectedIds.size > 1 ? 's' : ''}`}
         loading={bulkDeleting}
-      />
-
-      {/* Alert Dialog */}
-      <AlertModal
-        isOpen={!!alertModal || !!error}
-        onClose={() => {
-          setAlertModal(null)
-          setError(null)
-        }}
-        variant={alertModal?.variant ?? (error ? 'error' : 'error')}
-        title={alertModal?.title ?? 'Error'}
-        message={alertModal?.message ?? error ?? ''}
       />
 
       {/* Remind Attendance Messenger Modal */}

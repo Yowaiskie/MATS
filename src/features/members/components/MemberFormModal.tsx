@@ -803,7 +803,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100 sticky bottom-0 bg-white">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-2 pt-4 border-t border-slate-100 sticky bottom-0 bg-white [&>button]:w-full [&>button]:sm:w-auto">
             <button
               type="button"
               onClick={onClose}

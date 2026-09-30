@@ -3,8 +3,10 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { Loading } from '@/components/Loading'
 import { PasswordConfirmModal } from '@/components/Dialog'
-import { CustomSelect, BulkProgressBar, ActionMenu, type ActionMenuGroup } from '@/components'
+import { CustomSelect, BulkProgressBar, ActionMenu, type ActionMenuGroup, Pagination } from '@/components'
 import { authService } from '@/services/authService'
+
+const FINANCE_PAGE_SIZE = 12
 
 // Import types
 import type { 
@@ -264,6 +266,76 @@ export const FinancePage: React.FC = () => {
 
   // Calculate current month identifier
   const currentMonthStr = useMemo(() => new Date().toISOString().slice(0, 7), [])
+
+  // Pagination states
+  const [incomePage, setIncomePage] = useState(1)
+  const [expensePage, setExpensePage] = useState(1)
+  const [requestPage, setRequestPage] = useState(1)
+  const [ledgerPage, setLedgerPage] = useState(1)
+
+  // Reset pagination when switching tabs, toggling archives, or changing fund source filter
+  useEffect(() => {
+    setIncomePage(1)
+    setExpensePage(1)
+    setRequestPage(1)
+    setLedgerPage(1)
+  }, [activeTab, showArchived])
+
+  useEffect(() => {
+    setRequestPage(1)
+  }, [fundSourceFilter])
+
+  // Filtered requests based on fund source
+  const filteredRequests = useMemo(() => {
+    return requests.filter(r => {
+      if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
+      if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
+      if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
+      return true
+    })
+  }, [requests, fundSourceFilter])
+
+  // Paginated data slices
+  const paginatedIncomes = useMemo(() => {
+    const start = (incomePage - 1) * FINANCE_PAGE_SIZE
+    return incomes.slice(start, start + FINANCE_PAGE_SIZE)
+  }, [incomes, incomePage])
+
+  const paginatedExpenses = useMemo(() => {
+    const start = (expensePage - 1) * FINANCE_PAGE_SIZE
+    return expenses.slice(start, start + FINANCE_PAGE_SIZE)
+  }, [expenses, expensePage])
+
+  const paginatedRequests = useMemo(() => {
+    const start = (requestPage - 1) * FINANCE_PAGE_SIZE
+    return filteredRequests.slice(start, start + FINANCE_PAGE_SIZE)
+  }, [filteredRequests, requestPage])
+
+  const paginatedLedger = useMemo(() => {
+    const start = (ledgerPage - 1) * FINANCE_PAGE_SIZE
+    return ledgerEntries.slice(start, start + FINANCE_PAGE_SIZE)
+  }, [ledgerEntries, ledgerPage])
+
+  // Keep pagination within valid bounds
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(incomes.length / FINANCE_PAGE_SIZE))
+    if (incomePage > maxPage) setIncomePage(maxPage)
+  }, [incomes.length, incomePage])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(expenses.length / FINANCE_PAGE_SIZE))
+    if (expensePage > maxPage) setExpensePage(maxPage)
+  }, [expenses.length, expensePage])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredRequests.length / FINANCE_PAGE_SIZE))
+    if (requestPage > maxPage) setRequestPage(maxPage)
+  }, [filteredRequests.length, requestPage])
+
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(ledgerEntries.length / FINANCE_PAGE_SIZE))
+    if (ledgerPage > maxPage) setLedgerPage(maxPage)
+  }, [ledgerEntries.length, ledgerPage])
 
   // Calculate dashboard summary
   const summary = useMemo(() => {
@@ -2272,109 +2344,117 @@ export const FinancePage: React.FC = () => {
                 </div>
               )}
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
-                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
-                      <th className="p-3 w-10 text-center">
-                        <input
-                          type="checkbox"
-                          checked={incomes.length > 0 && selectedIds.size === incomes.length}
-                          onChange={() => handleSelectAll(incomes.map(i => i.id))}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                        />
-                      </th>
-                      <th className="p-3">Reference No</th>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Source</th>
-                      <th className="p-3">Category</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {incomes.map((inc) => (
-                      <tr key={inc.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${inc.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(inc.id) ? 'bg-blue-50/40' : ''}`}>
-                        <td className="p-3 text-center">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+                        <th className="p-3 w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={selectedIds.has(inc.id)}
-                            onChange={() => handleToggleSelect(inc.id)}
+                            checked={incomes.length > 0 && selectedIds.size === incomes.length}
+                            onChange={() => handleSelectAll(incomes.map(i => i.id))}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
                           />
-                        </td>
-                        <td className="p-3 font-mono font-bold text-gray-950">
-                          {inc.referenceNumber}
-                          {inc.isArchived && (
-                            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              Archived
+                        </th>
+                        <th className="p-3">Reference No</th>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Source</th>
+                        <th className="p-3">Category</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedIncomes.map((inc) => (
+                        <tr key={inc.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${inc.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(inc.id) ? 'bg-blue-50/40' : ''}`}>
+                          <td className="p-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(inc.id)}
+                              onChange={() => handleToggleSelect(inc.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-3 font-mono font-bold text-gray-950">
+                            {inc.referenceNumber}
+                            {inc.isArchived && (
+                              <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                Archived
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3">{inc.date}</td>
+                          <td className="p-3">{inc.source}</td>
+                          <td className="p-3">
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-bold bg-${categoryMap[inc.categoryId]?.color || 'blue'}-50 text-${categoryMap[inc.categoryId]?.color || 'blue'}-700 border border-${categoryMap[inc.categoryId]?.color || 'blue'}-200`}>
+                              {categoryMap[inc.categoryId]?.name || 'General'}
                             </span>
-                          )}
-                        </td>
-                        <td className="p-3">{inc.date}</td>
-                        <td className="p-3">{inc.source}</td>
-                        <td className="p-3">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold bg-${categoryMap[inc.categoryId]?.color || 'blue'}-50 text-${categoryMap[inc.categoryId]?.color || 'blue'}-700 border border-${categoryMap[inc.categoryId]?.color || 'blue'}-200`}>
-                            {categoryMap[inc.categoryId]?.name || 'General'}
-                          </span>
-                        </td>
-                        <td className="p-3 font-black text-emerald-600">₱{inc.amount.toLocaleString()}</td>
-                        <td className="p-3 whitespace-nowrap">
-                          {inc.isArchived ? (
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => handleRestoreIncome(inc.id)}
-                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span>Restore</span>
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })}
-                                className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                <span>Delete</span>
-                              </button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => handleOpenEditIncome(inc)}
-                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => handleArchiveIncome(inc.id)}
-                                className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                </svg>
-                                <span>Archive</span>
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {incomes.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
-                          No income records found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          </td>
+                          <td className="p-3 font-black text-emerald-600">₱{inc.amount.toLocaleString()}</td>
+                          <td className="p-3 whitespace-nowrap">
+                            {inc.isArchived ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleRestoreIncome(inc.id)}
+                                  className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                  <span>Restore</span>
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })}
+                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleOpenEditIncome(inc)}
+                                  className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  onClick={() => handleArchiveIncome(inc.id)}
+                                  className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                  </svg>
+                                  <span>Archive</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {incomes.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                            No income records found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  currentPage={incomePage}
+                  totalItems={incomes.length}
+                  pageSize={FINANCE_PAGE_SIZE}
+                  onPageChange={setIncomePage}
+                />
               </div>
             </div>
           )}
@@ -2454,114 +2534,122 @@ export const FinancePage: React.FC = () => {
                 </div>
               )}
 
-              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden overflow-x-auto">
-                <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
-                      <th className="p-3 w-10 text-center">
-                        <input
-                          type="checkbox"
-                          checked={expenses.length > 0 && selectedIds.size === expenses.length}
-                          onChange={() => handleSelectAll(expenses.map(e => e.id))}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                        />
-                      </th>
-                      <th className="p-3">Reference No</th>
-                      <th className="p-3">Date</th>
-                      <th className="p-3">Description</th>
-                      <th className="p-3">Spent By</th>
-                      <th className="p-3">Amount</th>
-                      <th className="p-3">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {expenses.map((exp) => (
-                      <tr key={exp.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${exp.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(exp.id) ? 'bg-blue-50/40' : ''}`}>
-                        <td className="p-3 text-center">
+              <div className="bg-white rounded-xl border border-gray-200 shadow-2xs overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-max [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+                        <th className="p-3 w-10 text-center">
                           <input
                             type="checkbox"
-                            checked={selectedIds.has(exp.id)}
-                            onChange={() => handleToggleSelect(exp.id)}
+                            checked={expenses.length > 0 && selectedIds.size === expenses.length}
+                            onChange={() => handleSelectAll(expenses.map(e => e.id))}
                             className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
                           />
-                        </td>
-                        <td className="p-3 font-mono font-bold text-gray-950">
-                          {exp.referenceNumber}
-                          {exp.isArchived && (
-                            <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
-                              Archived
-                            </span>
-                          )}
-                        </td>
-                        <td className="p-3">{exp.date}</td>
-                        <td className="p-3">
-                          <div className="flex items-center gap-1.5">
-                            {exp.sourceType === 'event_expense' && (
-                              <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
-                                Event: {exp.sourceEventName || 'Event'}
+                        </th>
+                        <th className="p-3">Reference No</th>
+                        <th className="p-3">Date</th>
+                        <th className="p-3">Description</th>
+                        <th className="p-3">Spent By</th>
+                        <th className="p-3">Amount</th>
+                        <th className="p-3">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {paginatedExpenses.map((exp) => (
+                        <tr key={exp.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${exp.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(exp.id) ? 'bg-blue-50/40' : ''}`}>
+                          <td className="p-3 text-center">
+                            <input
+                              type="checkbox"
+                              checked={selectedIds.has(exp.id)}
+                              onChange={() => handleToggleSelect(exp.id)}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                            />
+                          </td>
+                          <td className="p-3 font-mono font-bold text-gray-950">
+                            {exp.referenceNumber}
+                            {exp.isArchived && (
+                              <span className="ml-2 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                                Archived
                               </span>
                             )}
-                            <span className="font-medium text-gray-800">{exp.description}</span>
-                          </div>
-                        </td>
-                        <td className="p-3">{exp.spentByName}</td>
-                        <td className="p-3 font-black text-red-600">₱{exp.amount.toLocaleString()}</td>
-                        <td className="p-3 whitespace-nowrap">
-                          {exp.isArchived ? (
+                          </td>
+                          <td className="p-3">{exp.date}</td>
+                          <td className="p-3">
                             <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => handleRestoreExpense(exp.id)}
-                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span>Restore</span>
-                              </button>
-                              <button
-                                onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })}
-                                className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                <span>Delete</span>
-                              </button>
+                              {exp.sourceType === 'event_expense' && (
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                                  Event: {exp.sourceEventName || 'Event'}
+                                </span>
+                              )}
+                              <span className="font-medium text-gray-800">{exp.description}</span>
                             </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <button
-                                onClick={() => handleOpenEditExpense(exp)}
-                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span>Edit</span>
-                              </button>
-                              <button
-                                onClick={() => handleArchiveExpense(exp.id)}
-                                className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                </svg>
-                                <span>Archive</span>
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {expenses.length === 0 && (
-                      <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
-                          No expense records found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          </td>
+                          <td className="p-3">{exp.spentByName}</td>
+                          <td className="p-3 font-black text-red-600">₱{exp.amount.toLocaleString()}</td>
+                          <td className="p-3 whitespace-nowrap">
+                            {exp.isArchived ? (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleRestoreExpense(exp.id)}
+                                  className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                  <span>Restore</span>
+                                </button>
+                                <button
+                                  onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })}
+                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  onClick={() => handleOpenEditExpense(exp)}
+                                  className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  <span>Edit</span>
+                                </button>
+                                <button
+                                  onClick={() => handleArchiveExpense(exp.id)}
+                                  className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                  </svg>
+                                  <span>Archive</span>
+                                </button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                      {expenses.length === 0 && (
+                        <tr>
+                          <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                            No expense records found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                <Pagination
+                  currentPage={expensePage}
+                  totalItems={expenses.length}
+                  pageSize={FINANCE_PAGE_SIZE}
+                  onPageChange={setExpensePage}
+                />
               </div>
             </div>
           )}
@@ -2878,36 +2966,28 @@ export const FinancePage: React.FC = () => {
 
               {/* Mobile Card List View (< md) */}
               <div className="md:hidden space-y-3">
-                {(() => {
-                  const filtered = requests.filter(r => {
-                    if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
-                    if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
-                    if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
-                    return true
-                  })
+                {requests.length > 0 ? (
+                  <>
+                    <div className="flex items-center justify-between px-1 text-xs text-gray-500">
+                      <label className="flex items-center gap-2 cursor-pointer font-medium">
+                        <input
+                          type="checkbox"
+                          checked={filteredRequests.length > 0 && filteredRequests.every(r => selectedIds.has(r.id))}
+                          onChange={() => handleSelectAll(filteredRequests.map(r => r.id))}
+                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                        />
+                        <span>Select All ({filteredRequests.length})</span>
+                      </label>
+                      <span className="text-[11px] font-bold text-gray-400">{filteredRequests.length} of {requests.length} Requests</span>
+                    </div>
 
-                  if (requests.length > 0) {
-                    return (
+                    {filteredRequests.length === 0 ? (
+                      <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
+                        No requests found matching the "{fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.
+                      </div>
+                    ) : (
                       <>
-                        <div className="flex items-center justify-between px-1 text-xs text-gray-500">
-                          <label className="flex items-center gap-2 cursor-pointer font-medium">
-                            <input
-                              type="checkbox"
-                              checked={filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))}
-                              onChange={() => handleSelectAll(filtered.map(r => r.id))}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                            />
-                            <span>Select All ({filtered.length})</span>
-                          </label>
-                          <span className="text-[11px] font-bold text-gray-400">{filtered.length} of {requests.length} Requests</span>
-                        </div>
-
-                        {filtered.length === 0 ? (
-                          <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
-                            No requests found matching the "{fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.
-                          </div>
-                        ) : (
-                          filtered.map((req) => (
+                        {paginatedRequests.map((req) => (
                             <div
                               key={req.id}
                               className={`bg-white rounded-2xl border p-4 shadow-2xs space-y-3 transition-all ${
@@ -3207,78 +3287,59 @@ export const FinancePage: React.FC = () => {
                         )}
                       </div>
                     </div>
-                  ))
-                )}
-              </>
-            )
-          }
-          return (
+                  ))}
+                  {filteredRequests.length > 0 && (
+                    <Pagination
+                      currentPage={requestPage}
+                      totalItems={filteredRequests.length}
+                      pageSize={FINANCE_PAGE_SIZE}
+                      onPageChange={setRequestPage}
+                      className="bg-white rounded-xl border border-gray-200 shadow-2xs"
+                    />
+                  )}
+                </>
+              )}
+            </>
+          ) : (
             <div className="p-8 text-center text-gray-400 font-medium italic bg-white rounded-2xl border border-gray-200">
               No fund requests found.
             </div>
-          )
-        })()}
-      </div>
+          )}
+        </div>
 
       {/* Desktop Table View (>= md) */}
-      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-2xs overflow-x-auto min-h-[380px] pb-28">
-        <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[850px] [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
-              <th className="p-3 w-10 text-center">
-                <input
-                  type="checkbox"
-                  checked={(() => {
-                    const filtered = requests.filter(r => {
-                      if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
-                      if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
-                      if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
-                      return true
-                    })
-                    return filtered.length > 0 && filtered.every(r => selectedIds.has(r.id))
-                  })()}
-                  onChange={() => {
-                    const filtered = requests.filter(r => {
-                      if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
-                      if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
-                      if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
-                      return true
-                    })
-                    handleSelectAll(filtered.map(r => r.id))
-                  }}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
-                />
-              </th>
-              <th className="p-3">Reference No</th>
-              <th className="p-3">Title & Log</th>
-              <th className="p-3">Requester</th>
-              <th className="p-3">Amount</th>
-              <th className="p-3">Status</th>
-              <th className="p-3">Action Workflow</th>
-            </tr>
-          </thead>
-          <tbody>
-            {(() => {
-              const filtered = requests.filter(r => {
-                if (fundSourceFilter === 'main_funds') return r.fundSource === 'main_funds' || (!r.fundSource)
-                if (fundSourceFilter === 'parish') return r.fundSource === 'parish'
-                if (fundSourceFilter === 'outside') return r.fundSource === 'outside'
-                return true
-              })
-
-              if (filtered.length === 0) {
-                return (
-                  <tr>
-                    <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
-                      {requests.length === 0 
-                        ? 'No fund requests found.'
-                        : `No fund requests found matching the "${fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.`}
-                    </td>
-                  </tr>
-                )
-              }
-
-              return filtered.map((req) => (
+      <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-2xs min-h-[380px] pb-28">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-separate border-spacing-0 min-w-[850px] [&_th]:border-b [&_th]:border-gray-200 [&_td]:border-b [&_td]:border-gray-100">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200 text-gray-500 font-bold uppercase tracking-wider">
+                <th className="p-3 w-10 text-center">
+                  <input
+                    type="checkbox"
+                    checked={filteredRequests.length > 0 && filteredRequests.every(r => selectedIds.has(r.id))}
+                    onChange={() => handleSelectAll(filteredRequests.map(r => r.id))}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4 cursor-pointer"
+                  />
+                </th>
+                <th className="p-3">Reference No</th>
+                <th className="p-3">Title & Log</th>
+                <th className="p-3">Requester</th>
+                <th className="p-3">Amount</th>
+                <th className="p-3">Status</th>
+                <th className="p-3">Action Workflow</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredRequests.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="p-8 text-center text-gray-400 font-medium italic">
+                    {requests.length === 0 
+                      ? 'No fund requests found.'
+                      : `No fund requests found matching the "${fundSourceFilter === 'parish' ? 'Parish' : fundSourceFilter === 'outside' ? 'Outside' : 'Main Funds'}" filter.`}
+                  </td>
+                </tr>
+              ) : (
+                paginatedRequests.map((req) => (
                 <tr key={req.id} className={`border-b border-gray-100 hover:bg-gray-50/50 group ${req.isArchived ? 'opacity-60 bg-gray-50' : ''} ${selectedIds.has(req.id) ? 'bg-blue-50/40' : ''}`}>
                   <td className="p-3 text-center">
                     <input
@@ -3520,12 +3581,19 @@ export const FinancePage: React.FC = () => {
                           </td>
                         </tr>
                       ))
-                    })()}
+                    )}
                   </tbody>
                 </table>
               </div>
+              <Pagination
+                currentPage={requestPage}
+                totalItems={filteredRequests.length}
+                pageSize={FINANCE_PAGE_SIZE}
+                onPageChange={setRequestPage}
+              />
             </div>
-          )}
+          </div>
+        )}
 
           {/* Ledger Tab */}
           {activeTab === 'ledger' && (
@@ -3544,7 +3612,7 @@ export const FinancePage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {ledgerEntries.map((e) => (
+                    {paginatedLedger.map((e) => (
                       <tr key={e.id} className="border-b border-gray-100 hover:bg-gray-50/50">
                         <td className="p-3">{e.date}</td>
                         <td className="p-3 font-mono font-bold">{e.referenceNumber || '-'}</td>
@@ -3554,8 +3622,21 @@ export const FinancePage: React.FC = () => {
                         <td className="p-3 font-black text-gray-900">₱{e.runningBalance.toLocaleString()}</td>
                       </tr>
                     ))}
+                    {ledgerEntries.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-gray-400 font-medium italic">
+                          No ledger entries found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
+                <Pagination
+                  currentPage={ledgerPage}
+                  totalItems={ledgerEntries.length}
+                  pageSize={FINANCE_PAGE_SIZE}
+                  onPageChange={setLedgerPage}
+                />
               </div>
             </div>
           )}

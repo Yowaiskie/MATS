@@ -242,11 +242,12 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end space-x-2 pt-4 border-t border-slate-100 bg-white">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100 bg-white">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
               disabled={loading}
             >
@@ -258,7 +259,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               size="dense"
               loading={loading}
               loadingText="Saving..."
-              className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
+              className="w-full sm:w-auto !bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
             >
               Save Schedule
             </Button>
