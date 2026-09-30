@@ -512,7 +512,8 @@ export const AuditPage: React.FC = () => {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50">
@@ -574,16 +575,21 @@ export const AuditPage: React.FC = () => {
                       {/* Action Details Toggle */}
                       <td className="px-6 py-4 whitespace-nowrap text-right text-xs">
                         {log.details ? (
-                          <Button
-                            size="xs"
-                            variant="secondary"
+                          <button
+                            type="button"
                             onClick={() => {
                               setSelectedLog(log)
                               setShowRawJson(false)
                             }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200/80 transition shadow-2xs cursor-pointer"
+                            title="View Activity Details"
                           >
-                            View Details
-                          </Button>
+                            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span>View Details</span>
+                          </button>
                         ) : (
                           <span className="text-[10px] text-gray-400 italic">None</span>
                         )}
@@ -593,6 +599,64 @@ export const AuditPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Card List View */}
+            <div className="block md:hidden divide-y divide-gray-100 bg-white">
+              {filteredLogs.slice((currentPage - 1) * 10, currentPage * 10).map((log) => (
+                <div key={log.id} className="p-4 hover:bg-gray-50/50 transition-colors space-y-3">
+                  {/* Badges & Timestamp */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <StatusBadge
+                        status={log.action.replace(/_/g, ' ')}
+                        size="sm"
+                        className={actionColors[log.action] || ''}
+                      />
+                      <StatusBadge
+                        status={log.category}
+                        size="sm"
+                      />
+                    </div>
+                    <span className="text-[11px] text-gray-400 font-medium shrink-0">
+                      {formatTimestamp(log.timestamp)}
+                    </span>
+                  </div>
+
+                  {/* Description Snippet */}
+                  <div className="text-xs text-gray-700 font-medium leading-relaxed">
+                    {formatAuditDescription(log)}
+                  </div>
+
+                  {/* Performed By & View Details Action */}
+                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-50 text-xs">
+                    <div className="flex items-center gap-1 text-gray-600 truncate min-w-0">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">By:</span>
+                      <span className="font-semibold text-gray-800 truncate text-[11px]">{log.performedBy}</span>
+                    </div>
+
+                    {log.details ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedLog(log)
+                          setShowRawJson(false)
+                        }}
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 hover:text-slate-900 border border-slate-200/80 transition shadow-2xs cursor-pointer shrink-0"
+                      >
+                        <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        <span>View Details</span>
+                      </button>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic">None</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
             <Pagination
               currentPage={currentPage}
               totalItems={filteredLogs.length}

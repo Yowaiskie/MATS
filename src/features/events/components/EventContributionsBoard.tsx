@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Card, Loading, StatusBadge, EmptyState, CustomSelect, Button, Modal, useToast } from '@/components'
+import { Card, Loading, StatusBadge, EmptyState, CustomSelect, Button, Modal, useToast, ActionMenu, type ActionMenuItem } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventContributionService } from '@/services/eventContributionService'
 import { eventFinanceService } from '@/services/eventFinanceService'
@@ -584,6 +584,167 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
     })
   }
 
+  const getContributionMenuItems = (c: EventContribution): ActionMenuItem[] => {
+    const summary = getContributionLinkSummary(c)
+    const items: ActionMenuItem[] = []
+
+    if (c.isArchived) {
+      items.push({
+        id: 'restore',
+        label: 'Restore',
+        variant: 'success',
+        onClick: () => handleRestoreContribution(c),
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        )
+      })
+      if (canDelete) {
+        items.push({
+          id: 'delete',
+          label: 'Delete Permanently',
+          variant: 'danger',
+          onClick: () => {
+            setDeleteTarget(c)
+            setShowDeleteConfirm(true)
+          },
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          )
+        })
+      }
+      return items
+    }
+
+    if (c.status === 'recorded' && summary.remainingToLink > 0 && canLinkFinance) {
+      items.push({
+        id: 'link-income',
+        label: summary.totalLinked > 0 ? `Link Balance (₱${summary.remainingToLink.toLocaleString()})` : 'Record as Income',
+        variant: 'success',
+        onClick: () => {
+          setLinkTarget(c)
+          setCustomLinkAmount(summary.remainingToLink)
+          setLinkDestination('current_event')
+          setSelectedFinanceCategory('')
+          setTargetEventId('')
+          setShowLinkModal(true)
+        },
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+          </svg>
+        )
+      })
+    }
+
+    if (c.status === 'recorded' && canEdit) {
+      items.push({
+        id: 'edit',
+        label: 'Edit Details',
+        variant: 'primary',
+        onClick: () => {
+          setEditingContribution(c)
+          setIsRecordModalOpen(true)
+        },
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        )
+      })
+    }
+
+    if (summary.totalLinked > 0 && canLinkFinance) {
+      if (summary.allocations.length === 1) {
+        items.push({
+          id: 'unlink',
+          label: 'Unlink from Finance',
+          variant: 'warning',
+          onClick: () => {
+            setUnlinkTarget(c)
+            setShowUnlinkConfirm(true)
+          },
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          )
+        })
+      } else {
+        items.push({
+          id: 'manage-links',
+          label: `Manage Links (${summary.allocations.length})`,
+          variant: 'warning',
+          onClick: () => {
+            setManageAllocTarget(c)
+            setShowManageAllocModal(true)
+          },
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+            </svg>
+          )
+        })
+      }
+    }
+
+    if (c.status === 'recorded' && summary.totalLinked === 0 && canVoid) {
+      items.push({
+        id: 'void',
+        label: 'Void Contribution',
+        variant: 'warning',
+        onClick: () => {
+          setVoidTarget(c)
+          setShowVoidConfirm(true)
+        },
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+          </svg>
+        )
+      })
+    }
+
+    if (summary.totalLinked === 0) {
+      items.push({
+        id: 'archive',
+        label: 'Archive Record',
+        variant: 'warning',
+        onClick: () => {
+          setArchiveTarget(c)
+          setShowArchiveConfirm(true)
+        },
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+          </svg>
+        )
+      })
+    }
+
+    if (canDelete && summary.totalLinked === 0) {
+      items.push({
+        id: 'delete',
+        label: 'Delete Permanently',
+        variant: 'danger',
+        onClick: () => {
+          setDeleteTarget(c)
+          setShowDeleteConfirm(true)
+        },
+        icon: (
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        )
+      })
+    }
+
+    return items
+  }
+
   if (loading) {
     return (
       <div className="py-24 bg-white rounded-2xl border border-gray-200 shadow-xs">
@@ -934,7 +1095,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
       {/* Main Contribution Table */}
       <Card className="overflow-hidden border border-gray-200 shadow-xs rounded-2xl">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto hidden md:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
@@ -1104,143 +1265,12 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                         />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1.5">
-                          {c.isArchived ? (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => handleRestoreContribution(c)}
-                                className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
-                              >
-                                Restore
-                              </button>
-                              {canDelete && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setDeleteTarget(c)
-                                    setShowDeleteConfirm(true)
-                                  }}
-                                  className="p-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center"
-                                  title="Delete permanently"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <>
-                              {c.status === 'recorded' && summary.remainingToLink > 0 && canLinkFinance && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setLinkTarget(c)
-                                    setCustomLinkAmount(summary.remainingToLink)
-                                    setLinkDestination('current_event')
-                                    setSelectedFinanceCategory('')
-                                    setTargetEventId('')
-                                    setShowLinkModal(true)
-                                  }}
-                                  className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
-                                >
-                                  {summary.totalLinked > 0 ? `Link Balance (₱${summary.remainingToLink.toLocaleString()})` : 'Record as Income'}
-                                </button>
-                              )}
-                              {c.status === 'recorded' && canEdit && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setEditingContribution(c)
-                                    setIsRecordModalOpen(true)
-                                  }}
-                                  className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
-                                  title="Edit contribution details"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                  <span>Edit</span>
-                                </button>
-                              )}
-                              {summary.totalLinked > 0 && canLinkFinance && (
-                                <>
-                                  {summary.allocations.length === 1 ? (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setUnlinkTarget(c)
-                                        setShowUnlinkConfirm(true)
-                                      }}
-                                      className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
-                                      title="Unlink from Finance ledger"
-                                    >
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                                      </svg>
-                                      <span>Unlink</span>
-                                    </button>
-                                  ) : (
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        setManageAllocTarget(c)
-                                        setShowManageAllocModal(true)
-                                      }}
-                                      className="px-2.5 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
-                                      title="Manage linked allocations"
-                                    >
-                                      <span>Links ({summary.allocations.length})</span>
-                                    </button>
-                                  )}
-                                </>
-                              )}
-                              {c.status === 'recorded' && summary.totalLinked === 0 && canVoid && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setVoidTarget(c)
-                                    setShowVoidConfirm(true)
-                                  }}
-                                  className="px-3 py-1.5 bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200 font-bold rounded-xl text-xs transition cursor-pointer"
-                                >
-                                  Void
-                                </button>
-                              )}
-                              {summary.totalLinked === 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setArchiveTarget(c)
-                                    setShowArchiveConfirm(true)
-                                  }}
-                                  className="px-2.5 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center gap-1"
-                                  title="Archive contribution record"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                  </svg>
-                                </button>
-                              )}
-                              {canDelete && summary.totalLinked === 0 && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setDeleteTarget(c)
-                                    setShowDeleteConfirm(true)
-                                  }}
-                                  className="p-1.5 bg-red-50 text-red-700 border border-red-200 hover:bg-red-100 font-bold rounded-xl text-xs transition cursor-pointer flex items-center justify-center"
-                                  title="Delete permanently"
-                                >
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                </button>
-                              )}
-                            </>
-                          )}
-                        </div>
+                        <ActionMenu
+                          triggerVariant="meatball"
+                          size="sm"
+                          align="right"
+                          items={getContributionMenuItems(c)}
+                        />
                       </td>
                     </tr>
                   )
@@ -1248,6 +1278,143 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-gray-200 bg-white">
+          {filteredContributions.length === 0 ? (
+            <div className="px-6 py-12">
+              <EmptyState
+                title={contributions.length === 0 ? 'No contributions yet' : 'No matching contributions'}
+                description={contributions.length === 0 ? 'Start tracking collections by recording the first contribution.' : 'Try adjusting your search query or filter options.'}
+              />
+            </div>
+          ) : (
+            filteredContributions.map(c => {
+              const summary = getContributionLinkSummary(c)
+              const isEligibleForLink = c.status === 'recorded' && summary.remainingToLink > 0
+              const isSelected = selectedIds.includes(c.id)
+
+              const paymentMethodBadges: Record<string, { label: string; style: string }> = {
+                cash: { label: 'Cash', style: 'bg-slate-100 text-slate-700 border-slate-200' },
+                gcash: { label: 'GCash', style: 'bg-blue-50 text-blue-700 border-blue-200' },
+                bank_transfer: { label: 'Bank Transfer', style: 'bg-purple-50 text-purple-700 border-purple-200' },
+                other: { label: 'Other', style: 'bg-gray-100 text-gray-700 border-gray-200' }
+              }
+              const badgeInfo = paymentMethodBadges[c.paymentMethod] || { label: c.paymentMethod, style: 'bg-gray-100 text-gray-700 border-gray-200' }
+
+              return (
+                <div key={c.id} className={`p-4 space-y-3 transition-colors ${isSelected ? 'bg-emerald-50/60' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      {canLinkFinance && (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={!isEligibleForLink}
+                          onChange={() => handleToggleSelect(c.id)}
+                          className="mt-0.5 rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4 cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold text-gray-900 truncate">{c.contributorName}</div>
+                        <div className="text-[11px] text-gray-500 mt-0.5">{formatContributedDate(c.contributedAt)}</div>
+                        {c.notes && <div className="text-[11px] text-gray-400 truncate max-w-[200px] mt-0.5">{c.notes}</div>}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-black text-gray-900">
+                        ₱{c.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      {summary.status === 'partial' && (
+                        <div className="text-[10px] text-amber-600 font-semibold">
+                          ₱{summary.remainingToLink.toLocaleString('en-US', { minimumFractionDigits: 2 })} unlinked
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
+                      {c.purposeName}
+                    </span>
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${badgeInfo.style}`}>
+                      {badgeInfo.label}
+                    </span>
+                    <StatusBadge
+                      status={c.isArchived ? 'archived' : c.status}
+                      size="sm"
+                    />
+                    {c.referenceNumber && (
+                      <span className="text-[10px] text-gray-500 font-mono bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                        Ref: {c.referenceNumber}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-2 text-xs pt-1">
+                    <div className="text-[11px] text-gray-500">
+                      Held by: <span className="font-semibold text-gray-700">{c.collectedByName || '—'}</span>
+                    </div>
+                    <div>
+                      {summary.status === 'full' ? (
+                        summary.allocations.length > 1 ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setManageAllocTarget(c)
+                              setShowManageAllocModal(true)
+                            }}
+                            className="inline-flex items-center gap-1 px-2.5 py-0.5 font-bold rounded-full text-[10px] uppercase border bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 transition cursor-pointer"
+                          >
+                            <span>Multi-Link ({summary.allocations.length})</span>
+                          </button>
+                        ) : (
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 font-bold rounded-full text-[10px] uppercase border ${
+                            summary.allocations[0]?.destination === 'main_funds'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : summary.allocations[0]?.destination === 'other_event'
+                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                : 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                          }`}>
+                            {summary.allocations[0]?.destination === 'main_funds'
+                              ? 'Main Funds'
+                              : summary.allocations[0]?.destination === 'other_event'
+                                ? 'Other Event'
+                                : 'Linked'}
+                          </span>
+                        )
+                      ) : summary.status === 'partial' ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setManageAllocTarget(c)
+                            setShowManageAllocModal(true)
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-0.5 font-bold rounded-full text-[10px] uppercase border bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 transition cursor-pointer"
+                        >
+                          <span>Partial (₱{summary.totalLinked.toLocaleString()})</span>
+                        </button>
+                      ) : (
+                        <span className="inline-flex px-2 py-0.5 bg-gray-100 text-gray-500 border border-gray-200 font-bold rounded-full text-[10px] uppercase">
+                          Not Linked
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      size="sm"
+                      align="right"
+                      items={getContributionMenuItems(c)}
+                    />
+                  </div>
+                </div>
+              )
+            })
+          )}
         </div>
       </Card>
 

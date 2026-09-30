@@ -1025,8 +1025,69 @@ export const UsersPage: React.FC = () => {
     }
   }
 
+  const handleResetPassword = async (userToReset: UserProfile) => {
+    try {
+      await userService.sendPasswordReset(userToReset.email, currentAdmin?.email || 'Administrator')
+      toast.success('Password Reset Sent', `Password reset instructions sent to ${userToReset.email}`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Reset Failed', err.message || 'Failed to send password reset email.')
+    }
+  }
+
   const [selectedMemberId, setSelectedMemberId] = useState<string>('')
   const [selectedMemberName, setSelectedMemberName] = useState<string>('')
+
+  const getUserActions = (u: UserProfile): ActionMenuItem[] => {
+    const isCurrent = u.uid === currentAdmin?.uid
+    const isCoordinatorAccount = u.email.toLowerCase() === 'coordinator@mas.com'
+    const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
+    const canModifyCoordinator = !isCoordinatorAccount || isCurrentCoordinator
+
+    const userActions: ActionMenuItem[] = []
+
+    if (canModifyCoordinator) {
+      userActions.push({
+        id: 'edit',
+        label: 'Edit Profile & Role',
+        variant: 'primary',
+        onClick: () => handleOpenEditModal(u),
+        icon: (
+          <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        ),
+      })
+
+      userActions.push({
+        id: 'reset_password',
+        label: 'Send Password Reset',
+        variant: 'warning',
+        onClick: () => handleResetPassword(u),
+        icon: (
+          <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        ),
+      })
+    }
+
+    if (!isCurrent && canModifyCoordinator) {
+      userActions.push({
+        id: 'remove',
+        label: 'Delete User Account',
+        variant: 'danger',
+        onClick: () => setDeleteTarget(u),
+        icon: (
+          <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        ),
+      })
+    }
+
+    return userActions
+  }
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -1150,7 +1211,8 @@ export const UsersPage: React.FC = () => {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
@@ -1294,40 +1356,7 @@ export const UsersPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap text-xs">
                           {(() => {
-                            const isCoordinatorAccount = u.email.toLowerCase() === 'coordinator@mas.com'
-                            const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
-                            const canModifyCoordinator = !isCoordinatorAccount || isCurrentCoordinator
-
-                            const userActions: ActionMenuItem[] = []
-
-                            if (canModifyCoordinator) {
-                              userActions.push({
-                                id: 'edit',
-                                label: 'Edit Permissions',
-                                variant: 'primary',
-                                onClick: () => handleOpenEditModal(u),
-                                icon: (
-                                  <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                ),
-                              })
-                            }
-
-                            if (!isCurrent && canModifyCoordinator) {
-                              userActions.push({
-                                id: 'remove',
-                                label: 'Remove User',
-                                variant: 'danger',
-                                onClick: () => setDeleteTarget(u),
-                                icon: (
-                                  <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                ),
-                              })
-                            }
-
+                            const userActions = getUserActions(u)
                             if (userActions.length === 0) {
                               return <span className="text-gray-400 italic text-[11px]">—</span>
                             }
@@ -1336,8 +1365,8 @@ export const UsersPage: React.FC = () => {
                               <div className="flex justify-end">
                                 <ActionMenu
                                   items={userActions}
-                                  triggerVariant="kebab"
-                                  size="xs"
+                                  triggerVariant="meatball"
+                                  size="sm"
                                   align="right"
                                   direction="auto"
                                   ariaLabel={`Actions for ${u.displayName || u.email}`}
@@ -1352,6 +1381,162 @@ export const UsersPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Card List View (< md) */}
+            <div className="block md:hidden divide-y divide-gray-100 bg-white">
+              {filteredUsers.slice((currentPage - 1) * 10, currentPage * 10).map((u) => {
+                const isCurrent = u.uid === currentAdmin?.uid
+                const presetName = u.permissions?.presetName
+                const mods = u.permissions?.allowedModules || []
+                const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : undefined
+                const presetIcon = matchedPreset ? PRESET_ICONS[matchedPreset.icon] : null
+
+                return (
+                  <div key={u.uid} className="p-4 space-y-3 hover:bg-gray-50/50 transition-colors">
+                    {/* Header Row: Email & Role Badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-gray-900 break-all">{u.email}</span>
+                          {isCurrent && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                              You
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Linked Member Name */}
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <span className="font-semibold text-slate-700 text-xs">
+                            {u.displayName || u.memberName || '--'}
+                          </span>
+                          {u.memberId && (
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                              Linked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Role Badge */}
+                      <div className="shrink-0">
+                        {(() => {
+                          if (u.role === 'admin') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                                Administrator
+                              </span>
+                            )
+                          }
+                          if (u.role === 'coordinator') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                Coordinator
+                              </span>
+                            )
+                          }
+                          if (u.role === 'order_leader') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                Order Leader{u.assignedOrder ? ` (${u.assignedOrder})` : ''}
+                              </span>
+                            )
+                          }
+                          if (presetName) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                {presetName}
+                              </span>
+                            )
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                              User Account
+                            </span>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Assigned Preset / Module Access Pill */}
+                    <div className="flex items-center gap-2 text-xs flex-wrap">
+                      <span className="text-[10px] uppercase font-bold text-gray-400">Access:</span>
+                      {(() => {
+                        if (u.role === 'admin') {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                              Full System Access
+                            </span>
+                          )
+                        }
+
+                        if (u.role === 'coordinator') {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                              Parish Coordinator
+                            </span>
+                          )
+                        }
+
+                        if (presetName) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                              {presetIcon && <span className="text-blue-600 shrink-0">{presetIcon}</span>}
+                              <span>{presetName}</span>
+                            </span>
+                          )
+                        }
+
+                        if (mods.length >= ALL_MODULES.length) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                              Full Module Access
+                            </span>
+                          )
+                        }
+
+                        if (mods.length > 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                              Custom Access ({mods.length} Modules)
+                            </span>
+                          )
+                        }
+
+                        return <span className="text-gray-400 italic text-[11px]">Default Access</span>
+                      })()}
+                    </div>
+
+                    {/* Meatball Action Menu */}
+                    <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+                      {(() => {
+                        const userActions = getUserActions(u)
+                        if (userActions.length === 0) {
+                          return <span className="text-gray-400 italic text-[11px]">—</span>
+                        }
+
+                        return (
+                          <ActionMenu
+                            items={userActions}
+                            triggerVariant="meatball"
+                            size="sm"
+                            align="right"
+                            direction="auto"
+                            ariaLabel={`Actions for ${u.displayName || u.email}`}
+                          />
+                        )
+                      })()}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
             <Pagination
               currentPage={currentPage}
               totalItems={filteredUsers.length}

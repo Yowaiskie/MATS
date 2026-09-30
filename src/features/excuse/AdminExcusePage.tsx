@@ -13,6 +13,7 @@ import { Loading } from '@/components/Loading'
 import { Button } from '@/components/Button'
 import { QuickFilterPills } from '@/components/QuickFilterPills'
 import { StatusBadge } from '@/components/StatusBadge'
+import { ActionMenu, type ActionMenuItem } from '@/components'
 import { EmptyState } from '@/components/EmptyState'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -123,6 +124,59 @@ export const AdminExcusePage: React.FC = () => {
       return `${member.lastName}, ${member.firstName}`
     }
     return req.memberName || `Server #${req.memberId.substring(0, 8)}`
+  }
+
+  const getArchivedActions = (req: ExcuseRequest): ActionMenuItem[] => {
+    const actions: ActionMenuItem[] = [
+      {
+        id: 'view',
+        label: 'View Details',
+        variant: 'default',
+        onClick: () => setSelectedRequest(req),
+        icon: (
+          <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        ),
+      },
+    ]
+
+    if (canDelete) {
+      actions.push({
+        id: 'restore',
+        label: 'Restore Request',
+        variant: 'success',
+        onClick: () => setRestoreConfirm({ 
+          id: req.id!, 
+          name: getMemberDisplayName(req) 
+        }),
+        icon: (
+          <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        ),
+      })
+    }
+
+    if (isAdmin) {
+      actions.push({
+        id: 'hard_delete',
+        label: 'Hard Delete',
+        variant: 'danger',
+        onClick: () => setDeleteConfirm({ 
+          id: req.id!, 
+          name: getMemberDisplayName(req) 
+        }),
+        icon: (
+          <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        ),
+      })
+    }
+
+    return actions
   }
 
   return (
@@ -309,120 +363,62 @@ export const AdminExcusePage: React.FC = () => {
 
                         {/* Actions */}
                         <td className="px-5 py-4 align-top text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* Review/View Button for active items */}
-                            {!req.isArchived && (
-                              req.status === 'pending' && canReview ? (
-                                <Button 
-                                  variant="primary"
-                                  size="xs"
+                          {req.isArchived ? (
+                            <div className="flex justify-end">
+                              <ActionMenu
+                                items={getArchivedActions(req)}
+                                triggerVariant="meatball"
+                                size="sm"
+                                align="right"
+                                direction="auto"
+                                ariaLabel={`Actions for ${getMemberDisplayName(req)}`}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {req.status === 'pending' && canReview ? (
+                                <button
+                                  type="button"
                                   onClick={() => setSelectedRequest(req)}
-                                  icon={
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                  }
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-blue-50/80 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200/80 cursor-pointer"
                                 >
-                                  Review
-                                </Button>
+                                  <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  <span>Review</span>
+                                </button>
                               ) : (
-                                <Button 
-                                  variant="secondary"
-                                  size="xs"
+                                <button
+                                  type="button"
                                   onClick={() => setSelectedRequest(req)}
-                                  title={req.status === 'approved' ? 'View approved excuse details' : 'View excuse details'}
-                                  icon={
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                  }
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-800 border-slate-200/80 cursor-pointer"
                                 >
-                                  View
-                                </Button>
-                              )
-                            )}
-
-                            {/* Archive Button (Soft Delete) for active items */}
-                            {!req.isArchived && canDelete && (
-                              <Button 
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setArchiveConfirm({ 
-                                  id: req.id!, 
-                                  name: getMemberDisplayName(req) 
-                                })}
-                                title="Archive (Soft Delete) this excuse request"
-                                className="text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
-                                icon={
-                                  <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                  <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                   </svg>
-                                }
-                              >
-                                Archive
-                              </Button>
-                            )}
+                                  <span>View</span>
+                                </button>
+                              )}
 
-                            {/* View Button for archived items */}
-                            {req.isArchived && (
-                              <Button 
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setSelectedRequest(req)}
-                                title="View details of this archived excuse request"
-                                icon={
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => setArchiveConfirm({ 
+                                    id: req.id!, 
+                                    name: getMemberDisplayName(req) 
+                                  })}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-amber-50/80 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border-amber-200/80 cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                   </svg>
-                                }
-                              >
-                                View
-                              </Button>
-                            )}
-
-                            {/* Restore Button for archived items */}
-                            {req.isArchived && canDelete && (
-                              <Button 
-                                variant="primary"
-                                size="xs"
-                                onClick={() => setRestoreConfirm({ 
-                                  id: req.id!, 
-                                  name: getMemberDisplayName(req) 
-                                })}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                icon={
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                  </svg>
-                                }
-                              >
-                                Restore
-                              </Button>
-                            )}
-
-                            {/* Permanent Hard Delete Button for Admins only in Archived tab */}
-                            {req.isArchived && isAdmin && (
-                              <Button 
-                                variant="danger"
-                                size="xs"
-                                onClick={() => setDeleteConfirm({ 
-                                  id: req.id!, 
-                                  name: getMemberDisplayName(req) 
-                                })}
-                                title="Permanently delete from database"
-                                icon={
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                }
-                              >
-                                Hard Delete
-                              </Button>
-                            )}
-                          </div>
+                                  <span>Archive</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
@@ -490,87 +486,61 @@ export const AdminExcusePage: React.FC = () => {
 
                     {/* Mobile Action Buttons */}
                     <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 flex-wrap">
-                      {!req.isArchived && (
-                        req.status === 'pending' && canReview ? (
-                          <Button 
-                            variant="primary"
-                            size="dense"
-                            onClick={() => setSelectedRequest(req)}
-                            icon={
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      {req.isArchived ? (
+                        <div className="flex justify-end w-full">
+                          <ActionMenu
+                            items={getArchivedActions(req)}
+                            triggerVariant="meatball"
+                            size="sm"
+                            align="right"
+                            direction="auto"
+                            ariaLabel={`Actions for ${getMemberDisplayName(req)}`}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          {req.status === 'pending' && canReview ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRequest(req)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-blue-50/80 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200/80 cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               </svg>
-                            }
-                          >
-                            Review
-                          </Button>
-                        ) : (
-                          <Button 
-                            variant="secondary"
-                            size="dense"
-                            onClick={() => setSelectedRequest(req)}
-                            icon={
-                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              <span>Review</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRequest(req)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-800 border-slate-200/80 cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                               </svg>
-                            }
-                          >
-                            View
-                          </Button>
-                        )
-                      )}
+                              <span>View</span>
+                            </button>
+                          )}
 
-                      {!req.isArchived && canDelete && (
-                        <Button 
-                          variant="secondary"
-                          size="dense"
-                          onClick={() => setArchiveConfirm({ 
-                            id: req.id!, 
-                            name: getMemberDisplayName(req) 
-                          })}
-                          className="text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
-                        >
-                          Archive
-                        </Button>
-                      )}
-
-                      {req.isArchived && (
-                        <Button 
-                          variant="secondary"
-                          size="dense"
-                          onClick={() => setSelectedRequest(req)}
-                        >
-                          View
-                        </Button>
-                      )}
-
-                      {req.isArchived && canDelete && (
-                        <Button 
-                          variant="primary"
-                          size="dense"
-                          onClick={() => setRestoreConfirm({ 
-                            id: req.id!, 
-                            name: getMemberDisplayName(req) 
-                          })}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                        >
-                          Restore
-                        </Button>
-                      )}
-
-                      {req.isArchived && isAdmin && (
-                        <Button 
-                          variant="danger"
-                          size="dense"
-                          onClick={() => setDeleteConfirm({ 
-                            id: req.id!, 
-                            name: getMemberDisplayName(req) 
-                          })}
-                        >
-                          Hard Delete
-                        </Button>
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => setArchiveConfirm({ 
+                                id: req.id!, 
+                                name: getMemberDisplayName(req) 
+                              })}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-amber-50/80 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border-amber-200/80 cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                              </svg>
+                              <span>Archive</span>
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>

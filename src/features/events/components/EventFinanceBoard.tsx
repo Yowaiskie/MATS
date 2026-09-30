@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { Card, Loading, StatusBadge, EmptyState, CustomSelect } from '@/components'
+import { Card, Loading, StatusBadge, EmptyState, CustomSelect, ActionMenu, type ActionMenuItem } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { eventFinanceService } from '@/services/eventFinanceService'
 import type { EventIncome, EventExpense, EventFundTransfer } from '@/types/eventFinance'
@@ -199,6 +199,142 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
       console.error(err)
       throw new Error(err.message || 'Verification failed. Password may be incorrect.')
     }
+  }
+
+  const handleRestoreIncome = async (inc: EventIncome) => {
+    if (!user || !profile) return
+    try {
+      await eventFinanceService.restoreEventIncome(inc.id, eventId, user.uid, profile.displayName || user.email || '')
+      fetchData()
+    } catch (err: any) {
+      console.error('Failed to restore income:', err)
+    }
+  }
+
+  const handleRestoreExpense = async (exp: EventExpense) => {
+    if (!user || !profile) return
+    try {
+      await eventFinanceService.restoreEventExpense(exp.id, eventId, user.uid, profile.displayName || user.email || '')
+      fetchData()
+    } catch (err: any) {
+      console.error('Failed to restore expense:', err)
+    }
+  }
+
+  const getIncomeMenuItems = (inc: EventIncome): ActionMenuItem[] => {
+    const items: ActionMenuItem[] = []
+    if (inc.isArchived) {
+      if (isHeadOrCreator || canAction('canVoidEventFinance')) {
+        items.push({
+          id: 'restore',
+          label: 'Restore',
+          variant: 'success',
+          onClick: () => handleRestoreIncome(inc),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )
+        })
+        items.push({
+          id: 'delete',
+          label: 'Delete Permanently',
+          variant: 'danger',
+          onClick: () => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' }),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          )
+        })
+      }
+    } else {
+      if (isHeadOrCreator || canAction('canEditEventFinance')) {
+        items.push({
+          id: 'edit',
+          label: 'Edit Details',
+          variant: 'primary',
+          onClick: () => handleOpenIncomeModal(inc),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          )
+        })
+      }
+      if (isHeadOrCreator || canAction('canVoidEventFinance')) {
+        items.push({
+          id: 'archive',
+          label: 'Archive',
+          variant: 'warning',
+          onClick: () => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' }),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          )
+        })
+      }
+    }
+    return items
+  }
+
+  const getExpenseMenuItems = (exp: EventExpense): ActionMenuItem[] => {
+    const items: ActionMenuItem[] = []
+    if (exp.isArchived) {
+      if (isHeadOrCreator || canAction('canVoidEventFinance')) {
+        items.push({
+          id: 'restore',
+          label: 'Restore',
+          variant: 'success',
+          onClick: () => handleRestoreExpense(exp),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          )
+        })
+        items.push({
+          id: 'delete',
+          label: 'Delete Permanently',
+          variant: 'danger',
+          onClick: () => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' }),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+          )
+        })
+      }
+    } else {
+      if (isHeadOrCreator || canAction('canEditEventFinance')) {
+        items.push({
+          id: 'edit',
+          label: 'Edit Details',
+          variant: 'primary',
+          onClick: () => handleOpenExpenseModal(exp),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+          )
+        })
+      }
+      if (isHeadOrCreator || canAction('canVoidEventFinance')) {
+        items.push({
+          id: 'archive',
+          label: 'Archive',
+          variant: 'warning',
+          onClick: () => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' }),
+          icon: (
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+          )
+        })
+      }
+    }
+    return items
   }
 
   if (loading) {
@@ -596,7 +732,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
       {/* Tables */}
       <Card className="overflow-hidden border border-gray-200">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto hidden md:block">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               {activeTab === 'income' && (
@@ -681,41 +817,12 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-xs font-bold">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {(isHeadOrCreator || canAction('canEditEventFinance')) && !inc.isArchived && (
-                        <button 
-                          onClick={() => handleOpenIncomeModal(inc)} 
-                          className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          <span>Edit</span>
-                        </button>
-                      )}
-                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && !inc.isArchived && (
-                        <button 
-                          onClick={() => setArchiveConfirm({ isOpen: true, id: inc.id, type: 'income' })} 
-                          className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                          </svg>
-                          <span>Archive</span>
-                        </button>
-                      )}
-                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && inc.isArchived && (
-                        <button 
-                          onClick={() => setDeleteConfirm({ isOpen: true, id: inc.id, type: 'income' })} 
-                          className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          <span>Delete</span>
-                        </button>
-                      )}
-                    </div>
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      size="sm"
+                      align="right"
+                      items={getIncomeMenuItems(inc)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -788,41 +895,12 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-right text-xs font-bold">
-                    <div className="flex items-center justify-end gap-1.5">
-                      {(isHeadOrCreator || canAction('canEditEventFinance')) && !exp.isArchived && (
-                        <button 
-                          onClick={() => handleOpenExpenseModal(exp)} 
-                          className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          <span>Edit</span>
-                        </button>
-                      )}
-                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && !exp.isArchived && (
-                        <button 
-                          onClick={() => setArchiveConfirm({ isOpen: true, id: exp.id, type: 'expense' })} 
-                          className="inline-flex items-center gap-1 text-xs text-amber-700 hover:text-amber-800 font-bold px-2.5 py-1 bg-amber-50/80 hover:bg-amber-100 border border-amber-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                          </svg>
-                          <span>Archive</span>
-                        </button>
-                      )}
-                      {(isHeadOrCreator || canAction('canVoidEventFinance')) && exp.isArchived && (
-                        <button 
-                          onClick={() => setDeleteConfirm({ isOpen: true, id: exp.id, type: 'expense' })} 
-                          className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                        >
-                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          <span>Delete</span>
-                        </button>
-                      )}
-                    </div>
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      size="sm"
+                      align="right"
+                      items={getExpenseMenuItems(exp)}
+                    />
                   </td>
                 </tr>
               ))}
@@ -870,6 +948,198 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-gray-200 bg-white">
+          {activeTab === 'income' && (
+            filteredIncomes.length === 0 ? (
+              <div className="px-6 py-12">
+                <EmptyState
+                  title={activeIncomes.length === 0 ? 'No income records' : 'No matching income records'}
+                  description={activeIncomes.length === 0 ? 'There are no income records found for this event.' : 'Try adjusting your search query or filter options.'}
+                />
+              </div>
+            ) : (
+              filteredIncomes.map(inc => (
+                <div key={inc.id} className={`p-4 space-y-3 ${inc.isArchived ? 'opacity-60 bg-gray-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-gray-900 text-xs">{inc.receivedFrom}</span>
+                        {(inc.sourceType === 'main_fund_release' || inc.sourceFundRequestId) && (
+                          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200 shrink-0">
+                            Ministry Grant
+                          </span>
+                        )}
+                        {inc.isArchived && (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                            Archived
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{inc.date}</div>
+                      {inc.description && (
+                        <div className="text-[11px] text-gray-600 mt-1">{inc.description}</div>
+                      )}
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-green-600">
+                        ₱{inc.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5 font-medium">
+                        {inc.paymentMethod || 'Cash'}
+                      </div>
+                      {inc.paymentMethod === 'Cheque' && (
+                        <div className="mt-1">
+                          <StatusBadge status={inc.encashmentStatus || 'pending'} size="sm" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs text-gray-600 pt-1">
+                    <div className="text-[11px]">
+                      Held By: <span className="font-semibold text-gray-800">{inc.heldBy || 'Not specified'}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      size="sm"
+                      align="right"
+                      items={getIncomeMenuItems(inc)}
+                    />
+                  </div>
+                </div>
+              ))
+            )
+          )}
+
+          {activeTab === 'expenses' && (
+            filteredExpenses.length === 0 ? (
+              <div className="px-6 py-12">
+                <EmptyState
+                  title={activeExpenses.length === 0 ? 'No expense records' : 'No matching expense records'}
+                  description={activeExpenses.length === 0 ? 'There are no expense records found for this event.' : 'Try adjusting your search query or filter options.'}
+                />
+              </div>
+            ) : (
+              filteredExpenses.map(exp => (
+                <div key={exp.id} className={`p-4 space-y-3 ${exp.isArchived ? 'opacity-60 bg-gray-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-bold text-gray-900 text-xs truncate">{exp.spentOn}</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{exp.date}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-red-600">
+                        ₱{exp.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="text-[10px] text-gray-500 mt-0.5 font-medium">
+                        {exp.paymentMethod || 'Cash'}
+                      </div>
+                      {exp.paymentMethod === 'Cheque' && (
+                        <div className="mt-1">
+                          <StatusBadge status={exp.encashmentStatus || 'pending'} size="sm" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    {exp.receipts && exp.receipts.length > 1 ? (
+                      <div className="flex flex-wrap gap-1 items-center">
+                        {exp.receipts.map((r, rIdx) => (
+                          <span
+                            key={r.id || rIdx}
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-mono text-slate-700"
+                          >
+                            {r.label && <span className="font-sans font-bold text-slate-900">{r.label}:</span>}
+                            <span>{r.orNumber || 'NO O.R'}</span>
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200 uppercase text-[10px] font-mono text-slate-700">
+                        {exp.orNumber || 'NO O.R'}
+                      </span>
+                    )}
+                    {exp.fundSource === 'main_funds' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        Main Funds
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                        Event Funds
+                      </span>
+                    )}
+                    {exp.allocation && (
+                      <span className="inline-flex px-2 py-0.5 rounded-full text-[10px] font-bold uppercase bg-indigo-100 text-indigo-800 border border-indigo-200">
+                        {exp.allocation}
+                      </span>
+                    )}
+                    {exp.isArchived && (
+                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-100 text-amber-800 border border-amber-200">
+                        Archived
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-gray-600">
+                    Spent By: <span className="font-semibold text-gray-800">{exp.spentByName}</span>
+                  </div>
+
+                  <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      size="sm"
+                      align="right"
+                      items={getExpenseMenuItems(exp)}
+                    />
+                  </div>
+                </div>
+              ))
+            )
+          )}
+
+          {activeTab === 'transfers' && (
+            transfers.length === 0 ? (
+              <div className="px-6 py-12">
+                <EmptyState
+                  title="No fund transfers"
+                  description="No funds have been transferred to the main treasury yet."
+                />
+              </div>
+            ) : (
+              transfers.map(trans => (
+                <div key={trans.id} className={`p-4 space-y-3 ${trans.status === 'reversed' ? 'opacity-50 bg-gray-50' : ''}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-bold text-gray-900 text-xs">Destination: Main Funds</div>
+                      <div className="text-[11px] text-gray-500 mt-0.5">{trans.date}</div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-sm font-bold text-blue-600">
+                        ₱{trans.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </div>
+                      <div className="mt-1">
+                        <StatusBadge status={trans.status === 'reversed' ? 'reversed' : 'completed'} size="sm" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {trans.remarks && (
+                    <div className="text-xs text-gray-600 bg-gray-50 p-2 rounded-lg border border-gray-100">
+                      <div className="text-[10px] uppercase font-bold text-gray-400">Remarks</div>
+                      <div>{trans.remarks}</div>
+                    </div>
+                  )}
+                </div>
+              ))
+            )
+          )}
         </div>
       </Card>
 

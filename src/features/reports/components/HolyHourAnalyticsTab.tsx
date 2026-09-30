@@ -606,7 +606,8 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
 
       {/* Frequent Servers Table */}
       <Card className="p-0 overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase tracking-wider text-[10px]">
               <tr>
@@ -685,11 +686,11 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
                             <button
                               type="button"
                               onClick={() => handleOpenHistory(server)}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 rounded-lg text-xs font-bold transition cursor-pointer"
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 transition shadow-2xs cursor-pointer"
+                              title="View Service Dates"
                             >
                               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                               </svg>
                               <span>Dates ({server.serviceHistory.length})</span>
                             </button>
@@ -709,6 +710,100 @@ export const HolyHourAnalyticsTab: React.FC<Props> = ({ data, loading }) => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {filteredServers.length > 0 ? (
+            filteredServers
+              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+              .map((server, idx) => {
+                const rankNum = (currentPage - 1) * pageSize + idx + 1
+                return (
+                  <div key={server.memberId} className="p-4 hover:bg-slate-50/80 transition-colors space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-2.5 min-w-0">
+                        <span
+                          className={`inline-flex items-center justify-center w-7 h-7 rounded-xl text-xs font-black shrink-0 ${
+                            rankNum === 1
+                              ? 'bg-amber-400 text-amber-950 ring-2 ring-amber-300'
+                              : rankNum === 2
+                              ? 'bg-slate-300 text-slate-800'
+                              : rankNum === 3
+                              ? 'bg-amber-700 text-white'
+                              : 'bg-slate-100 text-slate-500'
+                          }`}
+                        >
+                          #{rankNum}
+                        </span>
+                        <div className="min-w-0">
+                          <div className="font-bold text-sm text-slate-900 truncate">{server.name}</div>
+                          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                            <span className="text-slate-600 text-[11px] font-medium">{server.rank}</span>
+                            {server.order && (
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${getOrderBadgeStyle(server.order)}`}>
+                                {server.order}
+                              </span>
+                            )}
+                            {server.status !== 'active' && (
+                              <span className="text-[10px] text-slate-400 capitalize">({server.status})</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Rate */}
+                      <div className="text-right shrink-0">
+                        <div className="text-base font-black text-slate-900">{server.rate}%</div>
+                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Rate</div>
+                      </div>
+                    </div>
+
+                    {/* Total Served badge, attendance counts pill, and Dates history button */}
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 flex-wrap">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-xl text-xs font-black ${
+                          server.totalServed > 0
+                            ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                            : 'bg-slate-100 text-slate-400'
+                        }`}>
+                          <span>{server.totalServed}</span>
+                          <span className="text-[10px] font-bold opacity-75">serves</span>
+                        </span>
+                        <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-50 border border-slate-200/60 text-[11px] font-medium text-slate-600">
+                          <span className="text-emerald-700 font-bold">P:{server.present}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-amber-700 font-bold">L:{server.late}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-rose-700 font-bold">A:{server.absent}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-slate-500 font-bold">E:{server.excused}</span>
+                        </div>
+                      </div>
+
+                      {server.serviceHistory.length > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => handleOpenHistory(server)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 hover:text-blue-800 border border-blue-200 transition shadow-2xs cursor-pointer shrink-0"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>Dates ({server.serviceHistory.length})</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-300 font-medium">—</span>
+                      )}
+                    </div>
+                  </div>
+                )
+              })
+          ) : (
+            <div className="px-6 py-12 text-center text-xs text-slate-400 font-medium">
+              No server attendance records found for {reportSummary.categoryLabel}.
+            </div>
+          )}
         </div>
 
         <Pagination

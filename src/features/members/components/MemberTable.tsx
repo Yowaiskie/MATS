@@ -3,7 +3,8 @@ import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getOrderBadgeStyle, MEMBER_RANKS, getMemberOrders } from '@/types/member'
 import { getFullName } from '@/utils/member'
 import { Pagination } from '@/components/Pagination'
-import { BulkProgressBar } from '@/components'
+import { BulkProgressBar, ActionMenu } from '@/components'
+import type { ActionMenuItem } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 
 interface MemberTableProps {
@@ -676,11 +677,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
       {/* Table Container */}
       <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 uppercase tracking-wider text-[11px] select-none font-black">
               <tr>
                 {/* Select-all checkbox header */}
-                <th className="p-4 w-10">
+                <th className="p-2.5 sm:p-4 w-8 sm:w-10 shrink-0">
                   <button
                     onClick={handleHeaderCheckbox}
                     className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
@@ -706,27 +707,27 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                   </button>
                 </th>
 
-                <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('name')}>
+                <th className="p-2.5 sm:p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('name')}>
                   <span className="flex items-center space-x-1">
                     <span>Full Name</span>
                     <SortIcon field="name" />
                   </span>
                 </th>
-                <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('rank')}>
+                <th className="p-2.5 sm:p-4 hidden md:table-cell cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('rank')}>
                   <span className="flex items-center space-x-1">
                     <span>Rank</span>
                     <SortIcon field="rank" />
                   </span>
                 </th>
-                <th className="p-4 text-gray-400">Order / Group</th>
-                <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('status')}>
+                <th className="p-2.5 sm:p-4 text-gray-400">Order / Group</th>
+                <th className="p-2.5 sm:p-4 hidden md:table-cell cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('status')}>
                   <span className="flex items-center space-x-1">
                     <span>Status</span>
                     <SortIcon field="status" />
                   </span>
                 </th>
-                <th className="p-4 hidden sm:table-cell text-gray-400">Phone Number</th>
-                <th className="p-4 text-right text-gray-400">Actions</th>
+                <th className="p-2.5 sm:p-4 hidden md:table-cell text-gray-400">Phone Number</th>
+                <th className="p-2.5 sm:p-4 text-right text-gray-400">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
@@ -739,7 +740,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                       className={`transition-colors ${isSelected ? 'bg-blue-50/60' : 'hover:bg-gray-50/40'}`}
                     >
                       {/* Row checkbox */}
-                      <td className="p-4 w-10">
+                      <td className="p-2.5 sm:p-4 w-8 sm:w-10 shrink-0">
                         <button
                           onClick={() => onToggleSelect(member.id)}
                           className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
@@ -757,19 +758,37 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                         </button>
                       </td>
 
-                      <td className="p-4 font-bold text-gray-900 whitespace-nowrap">
-                        {getFullName(member)}
+                      <td className="p-2.5 sm:p-4 font-bold text-gray-900 min-w-0">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="truncate max-w-[130px] sm:max-w-none text-xs text-gray-900">{getFullName(member)}</span>
+                          <div className="flex items-center gap-1 md:hidden flex-wrap">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 leading-tight shrink-0">
+                              {member.rank}
+                            </span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-bold capitalize border leading-tight shrink-0 ${
+                              member.status === 'active'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : member.status === 'inactive'
+                                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                : member.status === 'suspended'
+                                ? 'bg-rose-50 border-rose-200 text-rose-700'
+                                : 'bg-gray-50 border border-gray-200 text-gray-600'
+                            }`}>
+                              {member.status}
+                            </span>
+                          </div>
+                        </div>
                       </td>
-                      <td className="p-4 text-gray-600 whitespace-nowrap">
+                      <td className="p-2.5 sm:p-4 hidden md:table-cell text-gray-600 whitespace-nowrap">
                         {member.rank}
                       </td>
-                      <td className="p-4 whitespace-nowrap">
+                      <td className="p-2.5 sm:p-4 whitespace-nowrap">
                         {getMemberOrders(member.order).length > 0 ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
                             {getMemberOrders(member.order).map((ord) => (
                               <span
                                 key={ord}
-                                className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
+                                className={`inline-block px-1.5 sm:px-2 py-0.5 rounded-md text-[9.5px] sm:text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
                               >
                                 {ord}
                               </span>
@@ -779,7 +798,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                           <span className="text-[10px] text-gray-400 italic">--</span>
                         )}
                       </td>
-                      <td className="p-4 whitespace-nowrap">
+                      <td className="p-2.5 sm:p-4 hidden md:table-cell whitespace-nowrap">
                         <div className="flex flex-col items-start gap-0.5">
                           <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold capitalize border ${
                             member.status === 'active'
@@ -804,68 +823,86 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                           )}
                         </div>
                       </td>
-                      <td className="p-4 text-gray-500 hidden sm:table-cell">
+                      <td className="p-2.5 sm:p-4 text-gray-500 hidden md:table-cell whitespace-nowrap">
                         {member.phoneNumber || '--'}
                       </td>
-                      <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
-                        {canManage ? (
-                          member.status !== 'archived' ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => onEdit(member)}
-                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span>Edit</span>
-                              </button>
-                              {canDelete && (
-                                <button
-                                  onClick={() => onArchive(member.id)}
-                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <td className="p-2.5 sm:p-4 text-right whitespace-nowrap">
+                        {(() => {
+                          const items: ActionMenuItem[] = []
+                          if (member.status !== 'archived') {
+                            if (canManage) {
+                              items.push({
+                                label: 'Edit Member',
+                                variant: 'primary',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                ),
+                                onClick: () => onEdit(member)
+                              })
+                            }
+                            if (canDelete) {
+                              items.push({
+                                label: 'Archive Member',
+                                variant: 'warning',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                  </svg>
+                                ),
+                                onClick: () => onArchive(member.id)
+                              })
+                            }
+                          } else {
+                            if (canManage) {
+                              items.push({
+                                label: 'Restore Member',
+                                variant: 'success',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                  </svg>
+                                ),
+                                onClick: () => onRestore(member.id)
+                              })
+                            }
+                            if (canDelete) {
+                              items.push({
+                                label: 'Delete Permanently',
+                                variant: 'danger',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                   </svg>
-                                  <span>Delete</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => onRestore(member.id)}
-                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span>Restore</span>
-                              </button>
-                              {canDelete && (
-                                <button
-                                  onClick={() => onDelete(member.id)}
-                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  <span>Delete</span>
-                                </button>
-                              )}
+                                ),
+                                onClick: () => onDelete(member.id)
+                              })
+                            }
+                          }
+
+                          if (items.length === 0) {
+                            return <span className="text-[11px] text-gray-400 font-medium italic">Read-only</span>
+                          }
+
+                          return (
+                            <div className="flex items-center justify-end">
+                              <ActionMenu
+                                triggerVariant="meatball"
+                                size="sm"
+                                align="right"
+                                items={items}
+                              />
                             </div>
                           )
-                        ) : (
-                          <span className="text-[11px] text-gray-400 font-medium italic">Read-only</span>
-                        )}
+                        })()}
                       </td>
                     </tr>
                   )
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-sm text-gray-400 italic">
+                  <td colSpan={7} className="p-12 text-center text-sm text-gray-400 italic">
                     No members found matching the current criteria.
                   </td>
                 </tr>

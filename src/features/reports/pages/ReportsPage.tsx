@@ -461,37 +461,139 @@ export const ReportsPage: React.FC = () => {
 
             {activeTab === 'member' && (
               <>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="px-3 py-3">Server Name</th>
-                      <th className="px-2 py-3">Rank</th>
-                      <th className="px-2 py-3 text-center">Assigned</th>
-                      <th className="px-2 py-3 text-center">Present</th>
-                      <th className="px-2 py-3 text-center">Late</th>
-                      <th className="px-2 py-3 text-center">Absent</th>
-                      <th className="px-2 py-3 text-center">Excused</th>
-                      <th className="px-2 py-3 text-right">Rate</th>
-                      <th className="px-2 py-3 text-center">Evaluation Status</th>
-                      <th className="px-3 py-3 text-center">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {getFilteredMemberRows().length > 0 ? (
-                      getFilteredMemberRows().slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
-                        <tr key={row.memberId} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-3 py-3 text-gray-900 font-semibold">{row.name}</td>
-                          <td className="px-2 py-3 text-gray-600">{row.rank}</td>
-                          <td className="px-2 py-3 text-center text-gray-700 font-semibold">{row.totalAssigned}</td>
-                          <td className="px-2 py-3 text-center text-green-600 font-semibold">{row.present}</td>
-                          <td className="px-2 py-3 text-center text-yellow-600 font-semibold">{row.late}</td>
-                          <td className="px-2 py-3 text-center text-red-600 font-semibold">{row.absent}</td>
-                          <td className="px-2 py-3 text-center text-gray-500">{row.excused}</td>
-                          <td className="px-2 py-3 text-right text-gray-900 font-bold">{row.rate}%</td>
-                          {/* Warning / Suspension Badge */}
-                          <td className="px-2 py-3 text-center">
-                            <div className="flex flex-col items-center gap-0.5">
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-3 py-3">Server Name</th>
+                        <th className="px-2 py-3">Rank</th>
+                        <th className="px-2 py-3 text-center">Assigned</th>
+                        <th className="px-2 py-3 text-center">Present</th>
+                        <th className="px-2 py-3 text-center">Late</th>
+                        <th className="px-2 py-3 text-center">Absent</th>
+                        <th className="px-2 py-3 text-center">Excused</th>
+                        <th className="px-2 py-3 text-right">Rate</th>
+                        <th className="px-2 py-3 text-center">Evaluation Status</th>
+                        <th className="px-3 py-3 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {getFilteredMemberRows().length > 0 ? (
+                        getFilteredMemberRows().slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
+                          <tr key={row.memberId} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-3 py-3 text-gray-900 font-semibold">{row.name}</td>
+                            <td className="px-2 py-3 text-gray-600">{row.rank}</td>
+                            <td className="px-2 py-3 text-center text-gray-700 font-semibold">{row.totalAssigned}</td>
+                            <td className="px-2 py-3 text-center text-green-600 font-semibold">{row.present}</td>
+                            <td className="px-2 py-3 text-center text-yellow-600 font-semibold">{row.late}</td>
+                            <td className="px-2 py-3 text-center text-red-600 font-semibold">{row.absent}</td>
+                            <td className="px-2 py-3 text-center text-gray-500">{row.excused}</td>
+                            <td className="px-2 py-3 text-right text-gray-900 font-bold">{row.rate}%</td>
+                            {/* Warning / Suspension Badge */}
+                            <td className="px-2 py-3 text-center">
+                              <div className="flex flex-col items-center gap-0.5">
+                                <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                  row.warningStatus === 'suspended'
+                                    ? 'bg-red-50 border-red-200 text-red-700'
+                                    : row.warningStatus === 'warning'
+                                    ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                    : row.warningStatus === 'inactive'
+                                    ? 'bg-slate-100 border-slate-300 text-slate-700'
+                                    : 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                }`}>
+                                  {row.warningStatus === 'suspended' && (
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                  )}
+                                  {row.warningStatus === 'warning' && (
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                  )}
+                                  {row.warningStatus === 'inactive' && (
+                                    <svg className="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                    </svg>
+                                  )}
+                                  {row.warningStatus === 'active' && (
+                                    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                  {row.warningStatus === 'suspended'
+                                    ? 'Suspended'
+                                    : row.warningStatus === 'warning'
+                                    ? 'Warning'
+                                    : row.warningStatus === 'inactive'
+                                    ? 'Inactive'
+                                    : 'Active'}
+                                </span>
+                                {/* Per-category breakdown */}
+                                {(row.sundayAbsences > 0 || row.weekdayAbsences > 0 || row.meetingAbsences > 0) && (
+                                  <span className="text-[9px] text-gray-400 font-medium">
+                                    {[
+                                      row.sundayAbsences > 0 && `S:${row.sundayAbsences}`,
+                                      row.weekdayAbsences > 0 && `W:${row.weekdayAbsences}`,
+                                      row.meetingAbsences > 0 && `M:${row.meetingAbsences}`
+                                    ].filter(Boolean).join(' · ')}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            {/* Breakdown Action Button */}
+                            <td className="px-3 py-3 text-center">
+                              {row.missedSchedules.length > 0 ? (
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewBreakdown(row)}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition shadow-2xs cursor-pointer"
+                                  title="View Absence Breakdown"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  </svg>
+                                  <span>Breakdown</span>
+                                </button>
+                              ) : (
+                                <span className="text-[11px] text-slate-400 font-medium">—</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={10} className="p-8">
+                            <EmptyState
+                              title="No member records found"
+                              description="No member attendance metrics match the active filters."
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card List View */}
+                <div className="block md:hidden divide-y divide-gray-100 bg-white">
+                  {getFilteredMemberRows().length > 0 ? (
+                    getFilteredMemberRows().slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
+                      <div key={row.memberId} className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="text-sm font-bold text-gray-900 truncate">{row.name}</h4>
+                              {row.rank && (
+                                <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                  {row.rank}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 flex items-center gap-2 flex-wrap">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                 row.warningStatus === 'suspended'
                                   ? 'bg-red-50 border-red-200 text-red-700'
                                   : row.warningStatus === 'warning'
@@ -512,7 +614,7 @@ export const ReportsPage: React.FC = () => {
                                 )}
                                 {row.warningStatus === 'inactive' && (
                                   <svg className="h-3 w-3 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
                                   </svg>
                                 )}
                                 {row.warningStatus === 'active' && (
@@ -528,9 +630,9 @@ export const ReportsPage: React.FC = () => {
                                   ? 'Inactive'
                                   : 'Active'}
                               </span>
-                              {/* Per-category breakdown */}
+
                               {(row.sundayAbsences > 0 || row.weekdayAbsences > 0 || row.meetingAbsences > 0) && (
-                                <span className="text-[9px] text-gray-400 font-medium">
+                                <span className="text-[10px] text-gray-400 font-medium">
                                   {[
                                     row.sundayAbsences > 0 && `S:${row.sundayAbsences}`,
                                     row.weekdayAbsences > 0 && `W:${row.weekdayAbsences}`,
@@ -539,40 +641,54 @@ export const ReportsPage: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                          </td>
-                          {/* Breakdown Action Button */}
-                          <td className="px-3 py-3 text-center">
-                            {row.missedSchedules.length > 0 ? (
-                              <button
-                                type="button"
-                                onClick={() => handleViewBreakdown(row)}
-                                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 rounded-xl transition-all cursor-pointer shadow-2xs border border-indigo-100"
-                                title="View Absence Breakdown"
-                              >
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                                <span>Breakdown</span>
-                              </button>
-                            ) : (
-                              <span className="text-[11px] text-slate-400 font-medium">—</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={10} className="p-8">
-                          <EmptyState
-                            title="No member records found"
-                            description="No member attendance metrics match the active filters."
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                          </div>
+
+                          <div className="text-right shrink-0">
+                            <div className="text-base font-black text-gray-900">{row.rate}%</div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rate</div>
+                          </div>
+                        </div>
+
+                        {/* Summary Pill + Action Button */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100 flex-wrap">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] font-medium text-slate-600">
+                            <span className="text-green-700 font-bold">P: {row.present}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-yellow-700 font-bold">L: {row.late}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-red-700 font-bold">A: {row.absent}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-gray-500 font-bold">E: {row.excused}</span>
+                          </div>
+
+                          {row.missedSchedules.length > 0 ? (
+                            <button
+                              type="button"
+                              onClick={() => handleViewBreakdown(row)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition shadow-2xs cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                              <span>Breakdown</span>
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-400 font-medium">No Absences</span>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8">
+                      <EmptyState
+                        title="No member records found"
+                        description="No member attendance metrics match the active filters."
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <Pagination
                   currentPage={currentPage}
                   totalItems={getFilteredMemberRows().length}
@@ -584,29 +700,84 @@ export const ReportsPage: React.FC = () => {
 
             {activeTab === 'schedule' && (
               <>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="px-6 py-3">Service Event Title</th>
-                      <th className="px-6 py-3">Date</th>
-                      <th className="px-6 py-3">Time Span</th>
-                      <th className="px-6 py-3">Status</th>
-                      <th className="px-6 py-3 text-center">Assigned</th>
-                      <th className="px-6 py-3 text-center">Present</th>
-                      <th className="px-6 py-3 text-center">Late</th>
-                      <th className="px-6 py-3 text-center">Absent</th>
-                      <th className="px-6 py-3 text-center">Excused</th>
-                      <th className="px-6 py-3 text-right">Attendance Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {getFilteredScheduleRows().length > 0 ? (
-                      getFilteredScheduleRows().slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
-                        <tr key={row.scheduleId} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap">{row.title}</td>
-                          <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{row.date}</td>
-                          <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{row.timeSpan}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-6 py-3">Service Event Title</th>
+                        <th className="px-6 py-3">Date</th>
+                        <th className="px-6 py-3">Time Span</th>
+                        <th className="px-6 py-3">Status</th>
+                        <th className="px-6 py-3 text-center">Assigned</th>
+                        <th className="px-6 py-3 text-center">Present</th>
+                        <th className="px-6 py-3 text-center">Late</th>
+                        <th className="px-6 py-3 text-center">Absent</th>
+                        <th className="px-6 py-3 text-center">Excused</th>
+                        <th className="px-6 py-3 text-right">Attendance Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {getFilteredScheduleRows().length > 0 ? (
+                        getFilteredScheduleRows().slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
+                          <tr key={row.scheduleId} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap">{row.title}</td>
+                            <td className="px-6 py-4 text-gray-600 whitespace-nowrap">{row.date}</td>
+                            <td className="px-6 py-4 text-gray-500 whitespace-nowrap">{row.timeSpan}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
+                                row.status === 'cancelled'
+                                  ? 'bg-red-50 border border-red-200 text-red-700'
+                                  : 'bg-green-50 border border-green-200 text-green-700'
+                              }`}>
+                                {row.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 text-center text-gray-700 font-semibold">{row.totalAssigned}</td>
+                            <td className="px-6 py-4 text-center text-green-600 font-semibold">{row.present}</td>
+                            <td className="px-6 py-4 text-center text-yellow-600 font-semibold">{row.late}</td>
+                            <td className="px-6 py-4 text-center text-red-600 font-semibold">{row.absent}</td>
+                            <td className="px-6 py-4 text-center text-gray-500">{row.excused}</td>
+                            <td className="px-6 py-4 text-right text-gray-900 font-bold">{row.rate}%</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={10} className="p-8">
+                            <EmptyState
+                              title="No schedule service records found"
+                              description="No schedules found for the selected date range."
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card List View */}
+                <div className="block md:hidden divide-y divide-gray-100 bg-white">
+                  {getFilteredScheduleRows().length > 0 ? (
+                    getFilteredScheduleRows().slice((currentPage - 1) * 10, currentPage * 10).map((row) => (
+                      <div key={row.scheduleId} className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-bold text-gray-900 leading-snug">{row.title}</h4>
+                            <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-gray-500">
+                              <span>{row.date}</span>
+                              <span className="text-gray-300">·</span>
+                              <span>{row.timeSpan}</span>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <div className="text-base font-black text-gray-900">{row.rate}%</div>
+                            <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Rate</div>
+                          </div>
+                        </div>
+
+                        {/* Status Type Pill + Assigned & Attendance Stats */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100 flex-wrap">
+                          <div className="flex items-center gap-2">
                             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold capitalize ${
                               row.status === 'cancelled'
                                 ? 'bg-red-50 border border-red-200 text-red-700'
@@ -614,27 +785,33 @@ export const ReportsPage: React.FC = () => {
                             }`}>
                               {row.status}
                             </span>
-                          </td>
-                          <td className="px-6 py-4 text-center text-gray-700 font-semibold">{row.totalAssigned}</td>
-                          <td className="px-6 py-4 text-center text-green-600 font-semibold">{row.present}</td>
-                          <td className="px-6 py-4 text-center text-yellow-600 font-semibold">{row.late}</td>
-                          <td className="px-6 py-4 text-center text-red-600 font-semibold">{row.absent}</td>
-                          <td className="px-6 py-4 text-center text-gray-500">{row.excused}</td>
-                          <td className="px-6 py-4 text-right text-gray-900 font-bold">{row.rate}%</td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan={10} className="p-8">
-                          <EmptyState
-                            title="No schedule service records found"
-                            description="No schedules found for the selected date range."
-                          />
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
+                            <span className="text-xs font-semibold text-gray-600">
+                              {row.totalAssigned} assigned
+                            </span>
+                          </div>
+
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] font-medium text-slate-600">
+                            <span className="text-green-700 font-bold">P: {row.present}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-yellow-700 font-bold">L: {row.late}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-red-700 font-bold">A: {row.absent}</span>
+                            <span className="text-slate-300">·</span>
+                            <span className="text-gray-500 font-bold">E: {row.excused}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="p-8">
+                      <EmptyState
+                        title="No schedule service records found"
+                        description="No schedules found for the selected date range."
+                      />
+                    </div>
+                  )}
+                </div>
+
                 <Pagination
                   currentPage={currentPage}
                   totalItems={getFilteredScheduleRows().length}
@@ -646,36 +823,78 @@ export const ReportsPage: React.FC = () => {
 
             {activeTab === 'monthly' && (
               <>
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
-                    <tr>
-                      <th className="px-6 py-3">Calendar Month</th>
-                      <th className="px-6 py-3 text-center">Total Services</th>
-                      <th className="px-6 py-3 text-center">Assigned Positions</th>
-                      <th className="px-6 py-3 text-center">Present</th>
-                      <th className="px-6 py-3 text-center">Late</th>
-                      <th className="px-6 py-3 text-center">Absent</th>
-                      <th className="px-6 py-3 text-center">Excused</th>
-                      <th className="px-6 py-3 text-right">Avg Attendance Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {getMonthlyRows().slice((currentPage - 1) * 10, currentPage * 10).map((row, idx) => (
-                      <tr key={idx} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap">{row.month}</td>
-                        <td className="px-6 py-4 text-center text-gray-700 font-semibold">{row.totalServices}</td>
-                        <td className="px-6 py-4 text-center text-gray-600">{row.totalAssigned}</td>
-                        <td className="px-6 py-4 text-center text-green-600 font-semibold">{row.present}</td>
-                        <td className="px-6 py-4 text-center text-yellow-600 font-semibold">{row.late}</td>
-                        <td className="px-6 py-4 text-center text-red-600 font-semibold">{row.absent}</td>
-                        <td className="px-6 py-4 text-center text-gray-500">{row.excused}</td>
-                        <td className="px-6 py-4 text-right text-gray-900 font-bold">
-                          {row.totalAssigned > 0 ? `${row.rate}%` : '0%'}
-                        </td>
+                {/* Desktop Table View */}
+                <div className="hidden md:block">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead className="bg-gray-50 border-b border-gray-200 text-gray-500 uppercase tracking-wider text-[10px]">
+                      <tr>
+                        <th className="px-6 py-3">Calendar Month</th>
+                        <th className="px-6 py-3 text-center">Total Services</th>
+                        <th className="px-6 py-3 text-center">Assigned Positions</th>
+                        <th className="px-6 py-3 text-center">Present</th>
+                        <th className="px-6 py-3 text-center">Late</th>
+                        <th className="px-6 py-3 text-center">Absent</th>
+                        <th className="px-6 py-3 text-center">Excused</th>
+                        <th className="px-6 py-3 text-right">Avg Attendance Rate</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {getMonthlyRows().slice((currentPage - 1) * 10, currentPage * 10).map((row, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 text-gray-900 font-semibold whitespace-nowrap">{row.month}</td>
+                          <td className="px-6 py-4 text-center text-gray-700 font-semibold">{row.totalServices}</td>
+                          <td className="px-6 py-4 text-center text-gray-600">{row.totalAssigned}</td>
+                          <td className="px-6 py-4 text-center text-green-600 font-semibold">{row.present}</td>
+                          <td className="px-6 py-4 text-center text-yellow-600 font-semibold">{row.late}</td>
+                          <td className="px-6 py-4 text-center text-red-600 font-semibold">{row.absent}</td>
+                          <td className="px-6 py-4 text-center text-gray-500">{row.excused}</td>
+                          <td className="px-6 py-4 text-right text-gray-900 font-bold">
+                            {row.totalAssigned > 0 ? `${row.rate}%` : '0%'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card List View */}
+                <div className="block md:hidden divide-y divide-gray-100 bg-white">
+                  {getMonthlyRows().slice((currentPage - 1) * 10, currentPage * 10).map((row, idx) => (
+                    <div key={idx} className="p-4 space-y-3 hover:bg-slate-50/60 transition-colors">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <h4 className="text-sm font-bold text-gray-900">{row.month}</h4>
+                          <div className="mt-1 flex items-center gap-2 flex-wrap text-xs text-gray-500">
+                            <span className="font-semibold text-gray-700">{row.totalServices} services</span>
+                            <span className="text-gray-300">·</span>
+                            <span>{row.totalAssigned} positions assigned</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="text-base font-black text-gray-900">
+                            {row.totalAssigned > 0 ? `${row.rate}%` : '0%'}
+                          </div>
+                          <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Avg Rate</div>
+                        </div>
+                      </div>
+
+                      {/* Attendance Counts Pill */}
+                      <div className="flex items-center justify-between gap-2 pt-1 border-t border-gray-100">
+                        <span className="text-xs text-gray-400 font-medium">Attendance Marks:</span>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-50 border border-slate-200/80 text-[11px] font-medium text-slate-600">
+                          <span className="text-green-700 font-bold">P: {row.present}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-yellow-700 font-bold">L: {row.late}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-red-700 font-bold">A: {row.absent}</span>
+                          <span className="text-slate-300">·</span>
+                          <span className="text-gray-500 font-bold">E: {row.excused}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <Pagination
                   currentPage={currentPage}
                   totalItems={getMonthlyRows().length}
@@ -689,7 +908,7 @@ export const ReportsPage: React.FC = () => {
       </Card>
       )}
 
-      {/* Absence Breakdown Modal */}
+            {/* Absence Breakdown Modal */}
       <AbsenceBreakdownModal
         isOpen={showBreakdownModal}
         onClose={() => {

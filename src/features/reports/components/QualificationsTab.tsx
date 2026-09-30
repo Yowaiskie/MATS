@@ -868,7 +868,8 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
 
       {/* ── 4. EVALUATION ROSTER TABLE ─────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70 text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -1006,9 +1007,14 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                             e.stopPropagation()
                             setSelectedMemberModal(row)
                           }}
-                          className="px-2.5 py-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition shadow-2xs cursor-pointer"
+                          title="View Category Details"
                         >
-                          Breakdown →
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span>Details</span>
                         </button>
                       </td>
                     </tr>
@@ -1018,6 +1024,145 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {filteredResults.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 italic font-medium px-4">
+              No altar servers matched the selected criteria filters.
+            </div>
+          ) : (
+            paginatedResults.map((row, idx) => {
+              const ogf = row.categoryStats['formation']
+              const mtg = row.categoryStats['meeting']
+              const sun = row.categoryStats['mass_sunday']
+              const rankNum = (currentPage - 1) * PAGE_SIZE + idx + 1
+
+              return (
+                <div
+                  key={row.member.id}
+                  onClick={() => setSelectedMemberModal(row)}
+                  className="p-4 hover:bg-slate-50/80 transition-colors cursor-pointer space-y-3"
+                >
+                  {/* Top Row: # Rank number, Name, Rank & Order badge, Status Badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="text-slate-400 text-xs font-bold shrink-0 mt-0.5">
+                        #{rankNum}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-black text-slate-900 truncate">
+                            {getFullName(row.member)}
+                          </span>
+                          {row.member.status === 'suspended' && (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                              SUSPENDED
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="text-[10px] font-bold text-slate-600">
+                            {row.member.rank || 'Altar Server'}
+                          </span>
+                          {row.member.order && (
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(row.member.order)}`}>
+                              {row.member.order}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Overall Qualification Status Badge */}
+                    <div className="shrink-0 text-right">
+                      {row.isQualified ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          QUALIFIED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-xl text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                          DEFICIENT ({row.passedRulesCount}/{row.totalRulesCount})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mini Progress Pills: OGF, Meetings, Sundays */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Formation (OGF) */}
+                    <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 text-center">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">OGF</div>
+                      {ogf && ogf.totalHeld > 0 ? (
+                        <>
+                          <div className={`text-xs font-black ${ogf.meetsRule ? 'text-purple-700' : 'text-rose-600'}`}>
+                            {ogf.rate.toFixed(0)}%
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-bold">{ogf.present}/{ogf.totalHeld}</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-300 font-bold">-</div>
+                      )}
+                    </div>
+
+                    {/* Meetings */}
+                    <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 text-center">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Meetings</div>
+                      {mtg && mtg.totalHeld > 0 ? (
+                        <>
+                          <div className={`text-xs font-black ${mtg.meetsRule ? 'text-blue-700' : 'text-rose-600'}`}>
+                            {mtg.rate.toFixed(0)}%
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-bold">{mtg.present}/{mtg.totalHeld}</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-300 font-bold">-</div>
+                      )}
+                    </div>
+
+                    {/* Sunday Masses */}
+                    <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 text-center">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Sundays</div>
+                      {sun && sun.totalHeld > 0 ? (
+                        <>
+                          <div className={`text-xs font-black ${sun.meetsRule ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {sun.rate.toFixed(0)}%
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-bold">{sun.present} att.</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-300 font-bold">-</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer: Overall rate and Details action */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-slate-500">Overall Rate:</span>
+                      <span className="font-black text-slate-900">{row.overallRate.toFixed(1)}%</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedMemberModal(row)
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition shadow-2xs cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>Details</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
         <Pagination
           currentPage={currentPage}
           totalItems={filteredResults.length}
