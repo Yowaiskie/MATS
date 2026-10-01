@@ -6,7 +6,6 @@ import { auth } from '@/firebase/config'
 import { authService } from './authService'
 import { scheduleService } from './scheduleService'
 import { memberService } from './memberService'
-import { isUserMatchedWithServer } from './notificationService'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 
@@ -15,6 +14,7 @@ interface WidgetBridgePluginType {
 }
 
 const WidgetBridge = registerPlugin<WidgetBridgePluginType>('WidgetBridge')
+let latestSyncRequest = 0
 
 export interface FormattedWidgetMassItem {
   badge: string
@@ -42,8 +42,37 @@ export const nativeWidgetService = {
     providedMembers?: Member[],
     providedProfile?: UserProfile | null
   ): Promise<void> {
+    const requestId = ++latestSyncRequest
+    const currentUser = auth.currentUser
+    const currentUid = currentUser?.uid ?? null
+    const isCurrentSync = () =>
+      requestId === latestSyncRequest && (auth.currentUser?.uid ?? null) === currentUid
+
     try {
       const now = new Date()
+      // Clear personal duty without requiring network access during logout.
+      if (providedProfile === null) {
+        let items: FormattedWidgetMassItem[] = []
+        try {
+          const cached = JSON.parse(localStorage.getItem('mats_native_widget_cache') || '{}')
+          if (Array.isArray(cached.items)) {
+            items = cached.items.map((item: FormattedWidgetMassItem) => ({ ...item, isUserAssigned: false }))
+          }
+        } catch {}
+        const widgetJson = JSON.stringify({
+          lastUpdated: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          userDuty: { isAssigned: false, dutyText: 'No assigned schedule today or tomorrow', time: '', title: '', isToday: false },
+          items
+        })
+        if (!isCurrentSync()) return
+        try {
+          localStorage.setItem('mats_native_widget_cache', widgetJson)
+        } catch {}
+        if (Capacitor.isNativePlatform()) {
+          await WidgetBridge.updateWidgetData({ widgetJson })
+        }
+        return
+      }
       const formatYMD = (d: Date) =>
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -86,205 +115,36 @@ export const nativeWidgetService = {
       const memberMap = new Map<string, Member>()
       members.forEach((m) => memberMap.set(m.id, m))
 
-      // 3. Resolve current user profile
-      let profile = providedProfile
-      if (profile === undefined || profile === null) {
+      // 3. Resolve only the authenticated account's profile. Explicit null clears identity.
+      let profile: UserProfile | null = providedProfile ?? null
+      if (providedProfile === undefined && currentUser) {
         try {
           const rawProfile = localStorage.getItem('mats_current_profile')
-          if (rawProfile) {
-            profile = JSON.parse(rawProfile) as UserProfile
+          const cachedProfile = rawProfile ? JSON.parse(rawProfile) as UserProfile : null
+          if (cachedProfile?.uid === currentUid) {
+            profile = cachedProfile
           }
         } catch {
           profile = null
         }
-      }
 
-      // If still missing and currentUser is logged in, fetch from authService
-      if (!profile && auth.currentUser) {
-        try {
-          profile = await authService.getUserProfile(auth.currentUser.uid, auth.currentUser.email)
-          if (profile) {
-            try {
-              localStorage.setItem('mats_current_profile', JSON.stringify(profile))
-            } catch {}
-          }
-        } catch {
-          // Fallback minimal profile from auth.currentUser
-          if (auth.currentUser) {
-            profile = {
-              uid: auth.currentUser.uid,
-              email: auth.currentUser.email || '',
-              displayName: auth.currentUser.displayName || '',
-              role: 'user'
-            }
+        if (!profile) {
+          try {
+            profile = await authService.getUserProfile(currentUser.uid, currentUser.email)
+          } catch {
+            profile = null
           }
         }
       }
 
-      // 4. Resolve all candidate identifiers for current user
-      const candidateEmails = new Set<string>()
-      const candidateNames = new Set<string>()
-      const candidateAlphaNames = new Set<string>()
-      const matchedMemberIds = new Set<string>()
-
-      const addCandidateName = (str?: string) => {
-        if (!str) return
-        const clean = str.toLowerCase().trim()
-        if (!clean) return
-        candidateNames.add(clean)
-        const alphaOnly = clean.replace(/[^a-z0-9]/g, '')
-        if (alphaOnly.length >= 2) {
-          candidateAlphaNames.add(alphaOnly)
-        }
-        // Split by whitespace
-        clean.split(/\s+/).forEach((w) => {
-          if (w.length >= 2) {
-            candidateNames.add(w)
-            candidateAlphaNames.add(w.replace(/[^a-z0-9]/g, ''))
-          }
-        })
+      if (!currentUid || profile?.uid !== currentUid) {
+        profile = null
       }
 
-      if (profile?.memberId) {
-        matchedMemberIds.add(String(profile.memberId).trim())
-        matchedMemberIds.add(String(profile.memberId).toLowerCase().trim())
-      }
-      if (profile?.uid) {
-        matchedMemberIds.add(String(profile.uid).trim())
-        matchedMemberIds.add(String(profile.uid).toLowerCase().trim())
-      }
-      if (auth.currentUser?.uid) {
-        matchedMemberIds.add(String(auth.currentUser.uid).trim())
-        matchedMemberIds.add(String(auth.currentUser.uid).toLowerCase().trim())
-      }
-
-      if (profile?.email) {
-        candidateEmails.add(profile.email.toLowerCase().trim())
-      }
-      if (auth.currentUser?.email) {
-        candidateEmails.add(auth.currentUser.email.toLowerCase().trim())
-      }
-
-      addCandidateName(profile?.memberName)
-      addCandidateName(profile?.displayName)
-      addCandidateName(auth.currentUser?.displayName || '')
-
-      // Check email prefixes (e.g., 'kyle' from 'kyle@mas.com')
-      candidateEmails.forEach((em) => {
-        const prefix = em.split('@')[0]
-        if (prefix && prefix.length >= 2) {
-          addCandidateName(prefix)
-        }
-      })
-
-      // Match against members records
-      members.forEach((m) => {
-        if (m.email && candidateEmails.has(m.email.toLowerCase().trim())) {
-          matchedMemberIds.add(m.id)
-        }
-        const fullName = getFullName(m).toLowerCase().trim()
-        const first = (m.firstName || '').toLowerCase().trim()
-        const last = (m.lastName || '').toLowerCase().trim()
-        const nick = (m.nickname || '').toLowerCase().trim()
-        const mFullAlpha = fullName.replace(/[^a-z0-9]/g, '')
-        const mNickAlpha = nick.replace(/[^a-z0-9]/g, '')
-        const mFirstAlpha = first.replace(/[^a-z0-9]/g, '')
-
-        candidateNames.forEach((name) => {
-          if (!name) return
-          if (
-            fullName === name ||
-            nick === name ||
-            first === name ||
-            last === name ||
-            `${first} ${last}` === name ||
-            `${last} ${first}` === name ||
-            (fullName && name.length >= 3 && fullName.includes(name)) ||
-            (nick && name.length >= 3 && nick.includes(name))
-          ) {
-            matchedMemberIds.add(m.id)
-          }
-        })
-
-        candidateAlphaNames.forEach((alpha) => {
-          if (!alpha) return
-          if (
-            mFullAlpha === alpha ||
-            mNickAlpha === alpha ||
-            mFirstAlpha === alpha ||
-            (mFullAlpha.length >= 4 && (mFullAlpha.includes(alpha) || alpha.includes(mFullAlpha)))
-          ) {
-            matchedMemberIds.add(m.id)
-          }
-        })
-      })
-
-      // Helper to determine if a schedule belongs to the current user
-      const isScheduleAssignedToUser = (sch: Schedule): boolean => {
-        const assignedList = sch.assignedMembers || []
-        if (assignedList.length === 0) return false
-
-        // 1. Direct candidate ID match
-        if (assignedList.some((id) => matchedMemberIds.has(id) || matchedMemberIds.has(String(id).toLowerCase().trim()))) {
-          return true
-        }
-
-        // 2. Comprehensive notificationService matching
-        if (profile) {
-          const isMatched = assignedList.some((mId) => {
-            const memberObj = memberMap.get(mId)
-            return isUserMatchedWithServer(profile!, memberObj, mId)
-          })
-          if (isMatched) return true
-
-          // 3. Order group matching: If user is an Order Leader / Order Member
-          if (profile.assignedOrder) {
-            const cleanOrder = profile.assignedOrder.toLowerCase().trim()
-            const hasOrderMembers = assignedList.some((mId) => {
-              const memberObj = memberMap.get(mId)
-              return memberObj?.order && memberObj.order.toLowerCase().trim() === cleanOrder
-            })
-            if (hasOrderMembers) return true
-          }
-        }
-
-        // 4. Candidate name match against assigned member objects and raw string IDs
-        const hasNameMatch = assignedList.some((mId) => {
-          const cleanMid = String(mId).toLowerCase().trim()
-          const cleanMidAlpha = cleanMid.replace(/[^a-z0-9]/g, '')
-
-          if (candidateNames.has(cleanMid) || candidateAlphaNames.has(cleanMidAlpha)) {
-            return true
-          }
-
-          const memberObj = memberMap.get(mId)
-          if (!memberObj) return false
-          const mFull = getFullName(memberObj).toLowerCase().trim()
-          const mNick = (memberObj.nickname || '').toLowerCase().trim()
-          const mFirst = (memberObj.firstName || '').toLowerCase().trim()
-          const mFullAlpha = mFull.replace(/[^a-z0-9]/g, '')
-          const mNickAlpha = mNick.replace(/[^a-z0-9]/g, '')
-          const mFirstAlpha = mFirst.replace(/[^a-z0-9]/g, '')
-
-          for (const cand of Array.from(candidateNames)) {
-            if (!cand || cand.length < 2) continue
-            if (mFull === cand || mNick === cand || mFirst === cand || mFull.includes(cand)) {
-              return true
-            }
-          }
-
-          for (const candAlpha of Array.from(candidateAlphaNames)) {
-            if (!candAlpha || candAlpha.length < 3) continue
-            if (mFullAlpha === candAlpha || mNickAlpha === candAlpha || mFirstAlpha === candAlpha || mFullAlpha.includes(candAlpha)) {
-              return true
-            }
-          }
-
-          return false
-        })
-
-        return hasNameMatch
-      }
+      // 4. Personal duty requires the exact linked member document ID.
+      const memberId = profile?.memberId
+      const isScheduleAssignedToUser = (sch: Schedule): boolean =>
+        Boolean(memberId && sch.assignedMembers?.includes(memberId))
 
       // 5. Filter schedules for today and tomorrow
       const matching = (schedules || []).filter((s) => {
@@ -396,6 +256,9 @@ export const nativeWidgetService = {
         userDuty,
         items
       }
+
+      // Discard results from an old account or a superseded sync.
+      if (!isCurrentSync()) return
 
       // Always save to localStorage for offline cache
       try {
