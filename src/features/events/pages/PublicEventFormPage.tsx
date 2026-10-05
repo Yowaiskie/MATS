@@ -244,15 +244,19 @@ export const PublicEventFormPage: React.FC = () => {
     const isAuthRequired = pageLoadError === 'auth_required'
 
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
-        {/* Background glow accents */}
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans">
+        {/* Sacred Ambient Mesh Glow Halos */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
 
-        <div className="bg-white max-w-lg w-full rounded-3xl shadow-xl p-8 sm:p-10 border border-slate-200/80 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white/95 backdrop-blur-2xl max-w-lg w-full rounded-3xl shadow-2xl p-8 sm:p-10 border border-white/80 ring-1 ring-slate-900/5 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
           {/* Logo Header */}
-          <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-indigo-100 shadow-md flex items-center justify-center bg-white mx-auto mb-6 p-1">
-            <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover rounded-2xl" />
+          <div className="relative inline-block mx-auto mb-6">
+            <div className="absolute inset-0 rounded-3xl bg-indigo-500/25 blur-md" />
+            <div className="relative w-20 h-20 rounded-3xl overflow-hidden border border-indigo-100 shadow-md flex items-center justify-center bg-white p-1">
+              <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover rounded-2xl" />
+            </div>
           </div>
 
           {/* Status Badge */}
@@ -615,8 +619,13 @@ export const PublicEventFormPage: React.FC = () => {
   // Submission Confirmation Screen
   if (submittedTrackingNumber) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white max-w-md w-full rounded-3xl shadow-xl p-8 border border-slate-200 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans">
+        {/* Sacred Ambient Mesh Glow Halos */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 bg-white/95 backdrop-blur-2xl max-w-md w-full rounded-3xl shadow-2xl p-8 border border-white/80 ring-1 ring-slate-900/5 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
           {/* Sleek Modern Success Checkmark */}
           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xs border border-emerald-100">
             <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -777,11 +786,16 @@ export const PublicEventFormPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center py-4 px-3 sm:py-8 sm:px-4 font-sans">
-      <div className="max-w-2xl w-full space-y-4 sm:space-y-6">
+    <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center py-6 px-3 sm:py-10 sm:px-4 overflow-x-hidden font-sans">
+      {/* Sacred Ambient Mesh Glow Halos */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[650px] h-[350px] sm:h-[650px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 max-w-2xl w-full space-y-4 sm:space-y-6 my-4">
         
         {/* Form Header Card */}
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-lg sm:shadow-xl p-5 sm:p-8 border border-slate-200 relative overflow-hidden space-y-4">
+        <div className="bg-white/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 border border-white/80 ring-1 ring-slate-900/5 relative overflow-hidden space-y-4">
           <div className="h-2.5 sm:h-3 bg-blue-600 absolute top-0 left-0 right-0" />
           
           <div className="flex items-start justify-between gap-3 pt-1">
@@ -1966,6 +1980,10 @@ export const PublicEventFormPage: React.FC = () => {
             </button>
           </div>
         </form>
+      </div>
+
+      <div className="relative z-10 text-center mb-6 text-slate-400 text-xs font-medium">
+        <span>Archdiocese of Lipa · Ministry of Altar Servers</span>
       </div>
 
       <AlertModal

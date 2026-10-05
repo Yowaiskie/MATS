@@ -7,7 +7,7 @@ import { authService } from './authService'
 import { scheduleService } from './scheduleService'
 import { memberService } from './memberService'
 import { formatTime12Hour } from '@/utils/scheduleUtils'
-import { getFullName } from '@/utils/member'
+import { getFullName, getFirstNameFirst, normalizeName } from '@/utils/member'
 
 interface WidgetBridgePluginType {
   updateWidgetData(options: { widgetJson: string }): Promise<{ success: boolean }>
@@ -102,7 +102,7 @@ export const nativeWidgetService = {
         schedules = await scheduleService.getSchedules()
       }
 
-      // 2. Fetch members map if not provided
+      // 2. Fetch members map if not provided (always include archived for accurate historical lookups)
       let members = providedMembers
       if (!members || members.length === 0) {
         try {
@@ -141,12 +141,39 @@ export const nativeWidgetService = {
         profile = null
       }
 
-      // 4. Personal duty requires the exact linked member document ID.
-      const memberId = profile?.memberId
-      const isScheduleAssignedToUser = (sch: Schedule): boolean =>
-        Boolean(memberId && sch.assignedMembers?.includes(memberId))
+      // 4. Resolve exact linked member ID with robust multi-tier fallback (email & name match)
+      let resolvedMemberId = profile?.memberId || ''
+      if (!resolvedMemberId && (profile || currentUser) && members.length > 0) {
+        const userEmail = (profile?.email || currentUser?.email || '').trim().toLowerCase()
+        const userDisplay = (profile?.displayName || profile?.memberName || currentUser?.displayName || '').trim()
 
-      // 5. Filter schedules for today and tomorrow
+        if (userEmail) {
+          const byEmail = members.find(m => m.email && m.email.trim().toLowerCase() === userEmail)
+          if (byEmail) resolvedMemberId = byEmail.id
+        }
+
+        if (!resolvedMemberId && userDisplay) {
+          const normUserDisplay = normalizeName(userDisplay)
+          const byName = members.find(m => {
+            const fn = (m.firstName || '').trim()
+            const ln = (m.lastName || '').trim()
+            return (
+              normUserDisplay === normalizeName(`${fn} ${ln}`) ||
+              normUserDisplay === normalizeName(`${ln} ${fn}`) ||
+              normUserDisplay === normalizeName(getFullName(m, false)) ||
+              normUserDisplay === normalizeName(getFirstNameFirst(m, false))
+            )
+          })
+          if (byName) resolvedMemberId = byName.id
+        }
+      }
+
+      const isScheduleAssignedToUser = (sch: Schedule): boolean => {
+        if (!resolvedMemberId) return false
+        return Boolean(sch.assignedMembers && sch.assignedMembers.includes(resolvedMemberId))
+      }
+
+      // 5. Filter schedules for today and tomorrow for the main widget list
       const matching = (schedules || []).filter((s) => {
         const sDate = normalizeDateStr(s.date)
         return (sDate === todayStr || sDate === tomorrowStr) && s.status !== 'cancelled'
@@ -170,7 +197,7 @@ export const nativeWidgetService = {
 
         const isUserAssigned = isScheduleAssignedToUser(sch)
 
-        // Resolve assigned servers
+        // Resolve assigned servers cleanly without raw hash leaks
         let serverText = 'No servers assigned'
         if (sch.assignedMembers && sch.assignedMembers.length > 0) {
           const assignedNames: string[] = []
@@ -183,8 +210,12 @@ export const nativeWidgetService = {
               if (m.order) {
                 orderSet.add(m.order)
               }
-            } else if (typeof id === 'string' && id.length > 0) {
-              assignedNames.push(id)
+            } else if (typeof id === 'string' && id.trim().length > 0) {
+              if (id.includes(' ') && id.length < 30) {
+                assignedNames.push(id)
+              } else {
+                assignedNames.push('Altar Server')
+              }
             }
           })
 
@@ -206,11 +237,11 @@ export const nativeWidgetService = {
         }
       })
 
-      // 8. Compute user personal upcoming schedule
+      // 8. Compute user personal upcoming schedule (searches all upcoming duties starting from today)
       let userDuty: WidgetUserDuty | null = null
       const userAssignedSchedules = (schedules || []).filter((s) => {
         const sDate = normalizeDateStr(s.date)
-        return (sDate === todayStr || sDate === tomorrowStr) &&
+        return sDate >= todayStr &&
                s.status !== 'cancelled' &&
                isScheduleAssignedToUser(s)
       })
@@ -225,12 +256,26 @@ export const nativeWidgetService = {
 
       if (userAssignedSchedules.length > 0) {
         const firstDuty = userAssignedSchedules[0]
-        const sDate = (firstDuty.date || '').trim().slice(0, 10)
+        const sDate = normalizeDateStr(firstDuty.date)
         const isToday = sDate === todayStr
+        const isTomorrow = sDate === tomorrowStr
         const formattedTime = formatTime12Hour(firstDuty.startTime)
-        const dutyText = isToday
-          ? `Your Schedule: Today at ${formattedTime}`
-          : `Your Schedule: Tomorrow at ${formattedTime}`
+
+        let dutyText = ''
+        if (isToday) {
+          dutyText = `Your Schedule: Today at ${formattedTime}`
+        } else if (isTomorrow) {
+          dutyText = `Your Schedule: Tomorrow at ${formattedTime}`
+        } else {
+          try {
+            const [y, m, d] = sDate.split('-').map(Number)
+            const dutyDateObj = new Date(y, m - 1, d)
+            const dayLabel = dutyDateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+            dutyText = `Next Duty: ${dayLabel} at ${formattedTime}`
+          } catch {
+            dutyText = `Next Duty: ${sDate} at ${formattedTime}`
+          }
+        }
 
         userDuty = {
           isAssigned: true,
@@ -242,7 +287,7 @@ export const nativeWidgetService = {
       } else {
         userDuty = {
           isAssigned: false,
-          dutyText: 'No assigned schedule today or tomorrow',
+          dutyText: 'No upcoming scheduled duties',
           time: '',
           title: '',
           isToday: false

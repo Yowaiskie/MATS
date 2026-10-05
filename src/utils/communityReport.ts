@@ -221,7 +221,12 @@ export const generateCommunityReport = (
       }
 
       const member = memberMap.get(memberId)
-      const displayName = member ? getFirstNameFirst(member) : memberId
+      let displayName = 'Altar Server'
+      if (member) {
+        displayName = getFirstNameFirst(member)
+      } else if (memberId && memberId.includes(' ') && memberId.length < 30) {
+        displayName = memberId
+      }
       statusBuckets[normalized].push(displayName)
     })
 

@@ -5,8 +5,80 @@ import { excuseService } from '@/services/excuseService'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import type { ExcuseRequest } from '@/types/excuse'
-import { formatTime12Hour } from '@/utils/scheduleUtils'
-import { Button, StatusBadge, EmptyState, useToast } from '@/components'
+import { 
+  formatTime12Hour, 
+  formatScheduleDateWithDay,
+  isSundayOrAnticipatedMass,
+  isHolyHourSchedule,
+  isMeetingSchedule
+} from '@/utils/scheduleUtils'
+import { Button, StatusBadge, EmptyState, useToast, CustomSelect, type CustomSelectOption } from '@/components'
+
+const MONTH_OPTIONS: CustomSelectOption[] = [
+  { value: '01', label: 'January' },
+  { value: '02', label: 'February' },
+  { value: '03', label: 'March' },
+  { value: '04', label: 'April' },
+  { value: '05', label: 'May' },
+  { value: '06', label: 'June' },
+  { value: '07', label: 'July' },
+  { value: '08', label: 'August' },
+  { value: '09', label: 'September' },
+  { value: '10', label: 'October' },
+  { value: '11', label: 'November' },
+  { value: '12', label: 'December' }
+]
+
+const REASON_PRESETS = [
+  'Illness / Medical Reason',
+  'Family Emergency / Gathering',
+  'School / Academic Conflict',
+  'Personal / Out of Town',
+  'Transportation Issue'
+]
+
+interface CategorizedScheduleGroups {
+  sundays: Schedule[]
+  weekdays: Schedule[]
+  holyHours: Schedule[]
+  baptisms: Schedule[]
+  meetings: Schedule[]
+  total: number
+}
+
+function categorizeScheduleList(list: Schedule[]): CategorizedScheduleGroups {
+  const sundays: Schedule[] = []
+  const weekdays: Schedule[] = []
+  const holyHours: Schedule[] = []
+  const baptisms: Schedule[] = []
+  const meetings: Schedule[] = []
+
+  list.forEach(s => {
+    const titleLower = (s.title || '').toLowerCase()
+    const isBaptism = (s.category as string) === 'binyag' || titleLower.includes('binyag') || titleLower.includes('baptism')
+
+    if (isHolyHourSchedule(s.title)) {
+      holyHours.push(s)
+    } else if (isMeetingSchedule(s.title)) {
+      meetings.push(s)
+    } else if (isBaptism) {
+      baptisms.push(s)
+    } else if (isSundayOrAnticipatedMass(s.title, s.date, s.startTime)) {
+      sundays.push(s)
+    } else {
+      weekdays.push(s)
+    }
+  })
+
+  return {
+    sundays,
+    weekdays,
+    holyHours,
+    baptisms,
+    meetings,
+    total: list.length
+  }
+}
 
 export const PublicExcusePage: React.FC = () => {
   const { toast } = useToast()
@@ -21,12 +93,17 @@ export const PublicExcusePage: React.FC = () => {
   const [selectedMemberId, setSelectedMemberId] = useState('')
   const [isSubmitPickerOpen, setIsSubmitPickerOpen] = useState(false)
   const [submitSearchQuery, setSubmitSearchQuery] = useState('')
-  const [dateOfBirth, setDateOfBirth] = useState('')
+  
+  // Kid-Friendly 3-part DOB (MM / DD / YYYY)
+  const [birthMonth, setBirthMonth] = useState('')
+  const [birthDay, setBirthDay] = useState('')
+  const [birthYear, setBirthYear] = useState('')
   const [verificationError, setVerificationError] = useState('')
   
   // Submit Step 2: Excuse Request State
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
+  const [showAdvanceSchedules, setShowAdvanceSchedules] = useState(false)
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -88,6 +165,35 @@ export const PublicExcusePage: React.FC = () => {
     })
   }, [sortedMembers, trackSearchQuery])
 
+  // Categorize schedules into This Week vs Advance
+  const { thisWeekGroup, advanceGroup } = useMemo(() => {
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+
+    // End of current liturgical week (upcoming Sunday)
+    const dayOfWeek = today.getDay() // 0 = Sunday
+    const daysUntilEndOfWeek = dayOfWeek === 0 ? 0 : (7 - dayOfWeek)
+    const endOfWeekDate = new Date(today)
+    endOfWeekDate.setDate(today.getDate() + daysUntilEndOfWeek)
+    const endOfWeekStr = `${endOfWeekDate.getFullYear()}-${String(endOfWeekDate.getMonth() + 1).padStart(2, '0')}-${String(endOfWeekDate.getDate()).padStart(2, '0')}`
+
+    const thisWeekList: Schedule[] = []
+    const advanceList: Schedule[] = []
+
+    schedules.forEach(s => {
+      if (s.date >= todayStr && s.date <= endOfWeekStr) {
+        thisWeekList.push(s)
+      } else if (s.date > endOfWeekStr) {
+        advanceList.push(s)
+      }
+    })
+
+    return {
+      thisWeekGroup: categorizeScheduleList(thisWeekList),
+      advanceGroup: categorizeScheduleList(advanceList)
+    }
+  }, [schedules])
+
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault()
     setVerificationError('')
@@ -104,7 +210,31 @@ export const PublicExcusePage: React.FC = () => {
       return
     }
 
-    if (member.dateOfBirth !== dateOfBirth) {
+    const cleanDay = birthDay.trim()
+    const cleanYear = birthYear.trim()
+
+    if (!birthMonth || !cleanDay || !cleanYear) {
+      setVerificationError('Please enter your complete Date of Birth (Month, Day, and Year).')
+      return
+    }
+
+    const dayNum = parseInt(cleanDay, 10)
+    if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) {
+      setVerificationError('Please enter a valid Day between 1 and 31.')
+      return
+    }
+
+    const yearNum = parseInt(cleanYear, 10)
+    const currentYear = new Date().getFullYear()
+    if (isNaN(yearNum) || yearNum < 1920 || yearNum > currentYear) {
+      setVerificationError('Please enter a valid 4-digit Year (e.g. 2010).')
+      return
+    }
+
+    const paddedDay = String(dayNum).padStart(2, '0')
+    const formattedDob = `${cleanYear}-${birthMonth}-${paddedDay}`
+
+    if (member.dateOfBirth !== formattedDob) {
       setVerificationError('Date of Birth does not match our records. Please verify and try again.')
       return
     }
@@ -133,18 +263,33 @@ export const PublicExcusePage: React.FC = () => {
         const isNotApproved = !approvedScheduleIds.has(s.id)
         const isNotCancelled = s.status !== 'cancelled'
         return isAssigned && isFuture && isNotApproved && isNotCancelled
-      }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      }).sort((a, b) => {
+        const d = (a.date || '').localeCompare(b.date || '')
+        if (d !== 0) return d
+        return (a.startTime || '').localeCompare(b.startTime || '')
+      })
 
       setSchedules(upcoming)
       setSelectedScheduleIds(new Set())
+      setShowAdvanceSchedules(false)
       setReason('')
       setStep(2)
-    } catch (err) {
+    } catch {
       setVerificationError('Failed to load your assigned schedules.')
       toast.error('Schedule Load Error', 'Could not load your assigned schedules. Please try again.')
     } finally {
       setLoading(false)
     }
+  }
+
+  const selectAllSchedules = () => {
+    const allIds = new Set<string>()
+    schedules.forEach(s => allIds.add(s.id))
+    setSelectedScheduleIds(allIds)
+  }
+
+  const clearAllSchedules = () => {
+    setSelectedScheduleIds(new Set())
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -172,7 +317,7 @@ export const PublicExcusePage: React.FC = () => {
       })
       toast.success('Excuse Request Submitted', 'Your excuse request has been successfully submitted.')
       setStep(3)
-    } catch (err) {
+    } catch {
       toast.error('Submission Failed', 'Failed to submit excuse request. Please try again.')
     } finally {
       setLoading(false)
@@ -206,11 +351,126 @@ export const PublicExcusePage: React.FC = () => {
     }
   }
 
+  const renderScheduleCard = (s: Schedule) => {
+    const isSelected = selectedScheduleIds.has(s.id)
+    const formattedDate = formatScheduleDateWithDay(s.date, { shortDay: true })
+    const formattedTime = s.startTime ? (
+      s.endTime 
+        ? `${formatTime12Hour(s.startTime)} - ${formatTime12Hour(s.endTime)}` 
+        : formatTime12Hour(s.startTime)
+    ) : ''
+
+    return (
+      <label 
+        key={s.id} 
+        className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer transition-all ${
+          isSelected 
+            ? 'border-indigo-500 bg-indigo-50/70 ring-1 ring-indigo-500 shadow-2xs' 
+            : 'border-slate-200 hover:bg-slate-50 bg-white'
+        }`}
+      >
+        <input 
+          type="checkbox" 
+          checked={isSelected}
+          onChange={() => toggleSchedule(s.id)}
+          className="mt-1 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center justify-between gap-1 flex-wrap">
+            <span className="text-xs font-black text-slate-900 truncate">{s.title || 'Church Service'}</span>
+            {formattedTime && (
+              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
+                {formattedTime}
+              </span>
+            )}
+          </div>
+          <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
+            {formattedDate}
+          </div>
+        </div>
+      </label>
+    )
+  }
+
+  const renderCategorizedGroup = (group: CategorizedScheduleGroups) => {
+    if (group.total === 0) return null
+
+    return (
+      <div className="space-y-3.5">
+        {/* Sunday & Anticipated Masses */}
+        {group.sundays.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black uppercase text-indigo-700 tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-indigo-600" />
+              <span>Sunday & Anticipated Masses ({group.sundays.length})</span>
+            </div>
+            <div className="space-y-1.5">
+              {group.sundays.map(renderScheduleCard)}
+            </div>
+          </div>
+        )}
+
+        {/* Weekday Masses */}
+        {group.weekdays.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black uppercase text-emerald-700 tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-600" />
+              <span>Weekday Masses ({group.weekdays.length})</span>
+            </div>
+            <div className="space-y-1.5">
+              {group.weekdays.map(renderScheduleCard)}
+            </div>
+          </div>
+        )}
+
+        {/* Holy Hour & Adoration */}
+        {group.holyHours.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black uppercase text-amber-700 tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-600" />
+              <span>Holy Hour & Adoration ({group.holyHours.length})</span>
+            </div>
+            <div className="space-y-1.5">
+              {group.holyHours.map(renderScheduleCard)}
+            </div>
+          </div>
+        )}
+
+        {/* Baptisms / Binyag */}
+        {group.baptisms.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black uppercase text-cyan-700 tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-cyan-600" />
+              <span>Baptisms / Binyag ({group.baptisms.length})</span>
+            </div>
+            <div className="space-y-1.5">
+              {group.baptisms.map(renderScheduleCard)}
+            </div>
+          </div>
+        )}
+
+        {/* Meetings, Formations & Practices */}
+        {group.meetings.length > 0 && (
+          <div className="space-y-1.5">
+            <div className="text-[11px] font-black uppercase text-purple-700 tracking-wider flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-600" />
+              <span>Meetings, Formation & Practices ({group.meetings.length})</span>
+            </div>
+            <div className="space-y-1.5">
+              {group.meetings.map(renderScheduleCard)}
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderScheduleInfo = (scheduleId: string) => {
     const sched = allSchedulesMap.get(scheduleId)
     if (!sched) {
       return <span className="text-xs text-slate-500 italic">Schedule #{scheduleId.substring(0, 8)}</span>
     }
+    const formattedDate = formatScheduleDateWithDay(sched.date, { shortDay: true })
     const formattedTime = sched.startTime ? (
       sched.endTime 
         ? `${formatTime12Hour(sched.startTime)} - ${formatTime12Hour(sched.endTime)}`
@@ -221,7 +481,7 @@ export const PublicExcusePage: React.FC = () => {
       <div className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs space-y-0.5">
         <div className="font-bold text-slate-900">{sched.title || 'Church Service'}</div>
         <div className="text-[11px] text-slate-500 flex items-center gap-1.5 flex-wrap">
-          <span className="font-semibold text-indigo-600">{sched.date}</span>
+          <span className="font-semibold text-indigo-600">{formattedDate}</span>
           {formattedTime && <span>• {formattedTime}</span>}
         </div>
       </div>
@@ -232,10 +492,18 @@ export const PublicExcusePage: React.FC = () => {
   const selectedTrackMember = members.find(m => m.id === trackMemberId)
 
   return (
-    <div className="min-h-screen bg-slate-100/70 flex flex-col items-center justify-center p-4 font-sans text-slate-800">
-      <div className="bg-white max-w-lg w-full rounded-3xl shadow-xl p-6 sm:p-8 border border-slate-200/80">
+    <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans text-slate-800">
+      {/* Sacred Ambient Mesh Glow Halos */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[600px] h-[350px] sm:h-[600px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 bg-white/95 backdrop-blur-2xl max-w-2xl w-full rounded-3xl shadow-2xl p-6 sm:p-8 border border-white/80 ring-1 ring-slate-900/5 my-6 sm:my-8">
         <div className="flex justify-center mb-5">
-          <img src="/favicon/favicon.png" alt="Logo" className="w-16 h-16 rounded-full border border-slate-200 shadow-sm object-cover" />
+          <div className="relative inline-block">
+            <div className="absolute inset-0 rounded-2xl bg-indigo-500/25 blur-md" />
+            <img src="/favicon/favicon.png" alt="Logo" className="relative w-16 h-16 rounded-2xl border border-indigo-100 shadow-md object-cover" />
+          </div>
         </div>
         <h1 className="text-2xl font-black text-center text-slate-900 mb-1 tracking-tight">Excuse Management</h1>
         <p className="text-xs font-semibold text-center text-slate-500 mb-6">Ministry of Altar Servers • Self-Service Portal</p>
@@ -403,18 +671,66 @@ export const PublicExcusePage: React.FC = () => {
               </div>
             </div>
 
-            <div>
-              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1.5">
-                2. Date of Birth (Security Verification)
+            {/* Kid-Friendly 3-part Date of Birth Picker (MM / DD / YYYY) */}
+            <div className="space-y-1.5">
+              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
+                2. Date of Birth (Security Verification) • MM / DD / YYYY
               </label>
-              <input 
-                type="date" 
-                value={dateOfBirth} 
-                onChange={e => setDateOfBirth(e.target.value)}
-                className="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm bg-slate-50 font-semibold text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                required
-              />
-              <p className="text-[11px] text-slate-500 mt-1">Used to verify that you are the server submitting this excuse.</p>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 items-start">
+                {/* Month Dropdown with Full Month Names */}
+                <CustomSelect
+                  label="Month"
+                  placeholder="Select Month..."
+                  value={birthMonth}
+                  options={MONTH_OPTIONS}
+                  onChange={e => {
+                    setBirthMonth(e.target.value)
+                    setVerificationError('')
+                  }}
+                />
+
+                {/* Day Direct Numeric Input */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                    Day <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={2}
+                    value={birthDay}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 2)
+                      setBirthDay(val)
+                      setVerificationError('')
+                    }}
+                    placeholder="e.g. 15"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-2xs transition"
+                  />
+                </div>
+
+                {/* Year Direct Numeric Input */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700">
+                    Year <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={birthYear}
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 4)
+                      setBirthYear(val)
+                      setVerificationError('')
+                    }}
+                    placeholder="e.g. 2010"
+                    className="w-full h-10 px-3.5 rounded-xl border border-slate-300 bg-white text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 shadow-2xs transition"
+                  />
+                </div>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-1">Select your birth month, then type your day and 4-digit year to verify your identity.</p>
             </div>
 
             {verificationError && (
@@ -430,7 +746,7 @@ export const PublicExcusePage: React.FC = () => {
               fullWidth
               loading={loading}
               loadingText="Verifying & Loading Schedules..."
-              disabled={!selectedMemberId || !dateOfBirth}
+              disabled={!selectedMemberId || !birthMonth || !birthDay || !birthYear}
               className="mt-2"
             >
               Verify & Proceed
@@ -449,7 +765,7 @@ export const PublicExcusePage: React.FC = () => {
                 </span>
                 {selectedSubmitMember?.order && (
                   <span className="text-[10px] text-indigo-700 font-semibold block">
-                    {selectedSubmitMember.order}
+                    {selectedSubmitMember.order} • {selectedSubmitMember.rank}
                   </span>
                 )}
               </div>
@@ -462,10 +778,32 @@ export const PublicExcusePage: React.FC = () => {
               </button>
             </div>
 
-            <div>
-              <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-2">
-                Select Upcoming Schedules to Excuse *
-              </label>
+            {/* Categorized Upcoming Schedules */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
+                  Upcoming Duties ({selectedScheduleIds.size} selected) *
+                </label>
+                {schedules.length > 0 && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={selectAllSchedules}
+                      className="font-extrabold text-indigo-600 hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300">•</span>
+                    <button
+                      type="button"
+                      onClick={clearAllSchedules}
+                      className="font-extrabold text-slate-500 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
 
               {schedules.length === 0 ? (
                 <EmptyState
@@ -474,47 +812,123 @@ export const PublicExcusePage: React.FC = () => {
                   className="py-6"
                 />
               ) : (
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {schedules.map(s => {
-                    const isSelected = selectedScheduleIds.has(s.id)
-                    const formattedTime = s.startTime ? (
-                      s.endTime 
-                        ? `${formatTime12Hour(s.startTime)} - ${formatTime12Hour(s.endTime)}` 
-                        : formatTime12Hour(s.startTime)
-                    ) : ''
+                <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
+                  {/* Section 1: This Week's Schedules */}
+                  {thisWeekGroup.total > 0 ? (
+                    <div className="space-y-2">
+                      <div className="p-2 bg-indigo-50/70 border border-indigo-200/80 rounded-xl text-xs font-extrabold text-indigo-950 flex items-center justify-between">
+                        <span>This Week's Duties</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 bg-indigo-200/70 text-indigo-900 rounded-md">
+                          {thisWeekGroup.total}
+                        </span>
+                      </div>
+                      {renderCategorizedGroup(thisWeekGroup)}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium">
+                      No assignments scheduled for this week.
+                    </div>
+                  )}
 
-                    return (
-                      <label 
-                        key={s.id} 
-                        className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer transition-all ${
-                          isSelected 
-                            ? 'border-indigo-500 bg-indigo-50/60 ring-1 ring-indigo-500' 
-                            : 'border-slate-200 hover:bg-slate-50 bg-white'
+                  {/* Section 2: Advance Schedules (Future Weeks) */}
+                  {advanceGroup.total > 0 && (
+                    <div className="pt-3 border-t border-slate-200 space-y-2.5">
+                      <div
+                        onClick={() => setShowAdvanceSchedules(prev => !prev)}
+                        className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer select-none ${
+                          showAdvanceSchedules
+                            ? 'bg-gradient-to-br from-indigo-50 via-blue-50 to-indigo-100/60 border-indigo-500 shadow-xs'
+                            : 'bg-gradient-to-r from-indigo-50/80 via-white to-blue-50/70 border-indigo-200/90 hover:border-indigo-400 hover:shadow-2xs'
                         }`}
                       >
-                        <input 
-                          type="checkbox" 
-                          checked={isSelected}
-                          onChange={() => toggleSchedule(s.id)}
-                          className="mt-1 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                        />
-                        <div className="flex-1">
-                          <div className="text-xs font-extrabold text-slate-900">{s.title || 'Church Service'}</div>
-                          <div className="text-[11px] font-semibold text-indigo-600 mt-0.5">
-                            {s.date} {formattedTime && `• ${formattedTime}`}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                              showAdvanceSchedules ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-indigo-100 text-indigo-700'
+                            }`}>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-indigo-950">
+                                  Advance Schedules
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-indigo-600 text-white rounded-full shadow-2xs">
+                                  {advanceGroup.total} Available
+                                </span>
+                              </div>
+                              <p className="text-[11px] font-medium text-slate-600 truncate mt-0.5">
+                                {showAdvanceSchedules 
+                                  ? 'Showing future week & month assignments' 
+                                  : 'Need to excuse for upcoming weeks? Click to show'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <span className={`px-2.5 py-1 rounded-xl text-[11px] font-extrabold transition-all ${
+                              showAdvanceSchedules
+                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                : 'bg-white text-indigo-700 border border-indigo-300 shadow-2xs hover:bg-indigo-50'
+                            }`}>
+                              {showAdvanceSchedules ? 'Hide' : 'Show'}
+                            </span>
+                            <svg
+                              className={`w-4 h-4 text-indigo-600 transition-transform duration-200 ${showAdvanceSchedules ? 'rotate-180' : ''}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
                           </div>
                         </div>
-                      </label>
-                    )
-                  })}
+                      </div>
+
+                      {showAdvanceSchedules && (
+                        <div className="pt-2 pl-2 border-l-2 border-indigo-300 space-y-3">
+                          <div className="text-[11px] font-black text-indigo-900 uppercase tracking-wider pl-1">
+                            Future & Advance Schedules ({advanceGroup.total})
+                          </div>
+                          {renderCategorizedGroup(advanceGroup)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
 
-            <div>
-              <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider mb-1.5">
+            {/* Reason with Presets */}
+            <div className="space-y-2">
+              <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider">
                 Reason for Absence *
               </label>
+
+              {/* Quick Preset Pills */}
+              <div className="flex flex-wrap gap-1.5">
+                {REASON_PRESETS.map((p) => {
+                  const isActive = reason === p
+                  return (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setReason(p)}
+                      className={`px-2.5 py-1 text-[11px] font-bold rounded-lg border transition-all cursor-pointer ${
+                        isActive
+                          ? 'bg-indigo-600 text-white border-indigo-700 shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {p}
+                    </button>
+                  )
+                })}
+              </div>
+
               <textarea 
                 value={reason} 
                 onChange={e => setReason(e.target.value)}
@@ -767,6 +1181,16 @@ export const PublicExcusePage: React.FC = () => {
                         <p className="text-xs text-slate-700 bg-white p-2.5 rounded-xl border border-slate-200/80">{excuse.reason}</p>
                       </div>
 
+                      {/* Officer filing note if filed by officer */}
+                      {excuse.submittedByOfficer && (
+                        <div className="bg-purple-50 border border-purple-200 p-2.5 rounded-xl text-xs text-purple-900 space-y-0.5">
+                          <span className="font-bold text-[10px] uppercase tracking-wider block text-purple-950">
+                            Filed by Officer: {excuse.submittedByName || 'Ministry Officer'}
+                          </span>
+                          {excuse.officerNotes && <p>{excuse.officerNotes}</p>}
+                        </div>
+                      )}
+
                       {/* Feedback / Remarks */}
                       {isRejected && excuse.rejectionReason && (
                         <div className="bg-rose-50 border border-rose-200 p-2.5 rounded-xl text-xs text-rose-800 space-y-0.5">
@@ -794,6 +1218,9 @@ export const PublicExcusePage: React.FC = () => {
             )}
           </div>
         )}
+      </div>
+      <div className="relative z-10 text-center mb-6 text-slate-400 text-xs font-medium">
+        <span>Archdiocese of Lipa · Ministry of Altar Servers</span>
       </div>
     </div>
   )

@@ -6,6 +6,7 @@ import type { ExcuseRequest } from '@/types/excuse'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { ReviewExcuseModal } from './ReviewExcuseModal'
+import { FileMemberExcuseModal } from './FileMemberExcuseModal'
 import { CollapsibleScheduleList } from './CollapsibleScheduleList'
 import { ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
@@ -32,6 +33,7 @@ export const AdminExcusePage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedRequest, setSelectedRequest] = useState<ExcuseRequest | null>(null)
+  const [fileExcuseModalOpen, setFileExcuseModalOpen] = useState(false)
   
   // Archiving & Deleting states
   const [archiveConfirm, setArchiveConfirm] = useState<{ id: string; name: string } | null>(null)
@@ -44,7 +46,11 @@ export const AdminExcusePage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Permissions
+  // Order Leader scoping & Permissions
+  const isOrderLeader = profile?.role === 'order_leader' || (Boolean(profile?.assignedOrder) && !isAdmin)
+  const assignedOrder = isOrderLeader ? profile?.assignedOrder : undefined
+
+  const canApprove = isAdmin || canAction('canApproveExcuses')
   const canReview = isAdmin || canAction('canReviewExcuses') || canAction('canApproveExcuses')
   const canDelete = isAdmin || canAction('canDeleteExcuses')
 
@@ -94,6 +100,13 @@ export const AdminExcusePage: React.FC = () => {
 
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
+      // Order Leader Scope filter
+      if (assignedOrder) {
+        const member = membersMap.get(req.memberId)
+        const memberOrder = member?.order || req.memberOrder
+        if (memberOrder !== assignedOrder) return false
+      }
+
       // Archive vs Active filter
       if (showArchived) {
         if (!req.isArchived) return false
@@ -114,7 +127,7 @@ export const AdminExcusePage: React.FC = () => {
 
       return true
     })
-  }, [requests, showArchived, statusFilter, searchQuery, membersMap])
+  }, [requests, assignedOrder, showArchived, statusFilter, searchQuery, membersMap])
 
   const paginatedRequests = filteredRequests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
@@ -185,9 +198,21 @@ export const AdminExcusePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Excuse Requests Review</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Review, approve, reject, or archive altar server excuse submissions.</p>
+          <p className="text-sm font-medium text-slate-500 mt-1">Review, approve, reject, or file altar server excuse submissions.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button 
+            variant="primary"
+            size="dense"
+            onClick={() => setFileExcuseModalOpen(true)}
+            icon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            }
+          >
+            + File Member Excuse
+          </Button>
           <Button 
             variant="secondary"
             size="dense"
@@ -206,6 +231,21 @@ export const AdminExcusePage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Order Leader Scope Banner */}
+      {assignedOrder && (
+        <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+            <span className="font-black text-indigo-950">
+              Order Leader Scope: <span className="underline">{assignedOrder}</span>
+            </span>
+          </div>
+          <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg">
+            Filtered to Your Order
+          </span>
+        </div>
+      )}
 
       {/* Modern Swipeable Segmented Navigation Bar */}
       <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-2">
@@ -331,6 +371,11 @@ export const AdminExcusePage: React.FC = () => {
                                 {member.rank}
                               </span>
                             )}
+                            {req.submittedByOfficer && (
+                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[10px] font-bold border border-purple-200" title={`Officer: ${req.submittedByName || 'Officer'}`}>
+                                Filed by {req.submittedByName || 'Officer'}
+                              </span>
+                            )}
                             {req.isArchived && (
                               <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded text-[10px] font-bold border border-amber-200">
                                 Archived
@@ -449,6 +494,11 @@ export const AdminExcusePage: React.FC = () => {
                           {member?.rank && (
                             <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
                               {member.rank}
+                            </span>
+                          )}
+                          {req.submittedByOfficer && (
+                            <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[10px] font-bold border border-purple-200" title={`Officer: ${req.submittedByName || 'Officer'}`}>
+                              Filed by {req.submittedByName || 'Officer'}
                             </span>
                           )}
                           {req.isArchived && (
@@ -654,6 +704,17 @@ export const AdminExcusePage: React.FC = () => {
         title="Permanently Delete Excuse Request"
         message={`Are you sure you want to permanently delete the excuse request for ${deleteConfirm?.name}? This action cannot be undone. Please enter your password to confirm.`}
         confirmLabel="Delete Permanently"
+      />
+
+      {/* File Member Excuse Modal */}
+      <FileMemberExcuseModal
+        isOpen={fileExcuseModalOpen}
+        onClose={() => setFileExcuseModalOpen(false)}
+        members={Array.from(membersMap.values())}
+        schedules={Array.from(schedulesMap.values())}
+        onSuccess={loadData}
+        defaultOrderScope={assignedOrder}
+        canDirectlyApprove={canApprove}
       />
     </div>
   )

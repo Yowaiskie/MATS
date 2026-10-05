@@ -37,7 +37,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
   // Password-protected override states
   const [overrideTargetStatus, setOverrideTargetStatus] = useState<ExcuseStatus | null>(null)
 
-  const canReview = isAdmin || canAction('canReviewExcuses') || canAction('canApproveExcuses')
+  const canApprove = isAdmin || canAction('canApproveExcuses')
   const canDelete = isAdmin || canAction('canDeleteExcuses')
 
   useEffect(() => {
@@ -184,7 +184,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         }
-        maxWidth="2xl"
+        maxWidth="3xl"
         footer={
           <div className="w-full flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
             {/* Left Action: Archive if permitted */}
@@ -217,11 +217,11 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 onClick={onClose}
                 disabled={actionLoading !== null}
               >
-                {request.isArchived || (!isPending && !canReview) ? 'Close' : 'Cancel'}
+                {request.isArchived || (!isPending && !canApprove) ? 'Close' : 'Cancel'}
               </Button>
 
-              {/* Pending Actions for Reviewers */}
-              {!request.isArchived && isPending && canReview && (
+              {/* Pending Actions for Approvers */}
+              {!request.isArchived && isPending && canApprove && (
                 <>
                   <Button 
                     type="button"
@@ -249,7 +249,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
               )}
 
               {/* Authorized Overrides for already Rejected Requests */}
-              {!request.isArchived && isRejected && canReview && (
+              {!request.isArchived && isRejected && canApprove && (
                 <Button
                   type="button"
                   variant="success"
@@ -267,7 +267,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
               )}
 
               {/* Authorized Overrides for already Approved Requests */}
-              {!request.isArchived && isApproved && canReview && (
+              {!request.isArchived && isApproved && canApprove && (
                 <Button
                   type="button"
                   variant="danger"
@@ -301,6 +301,19 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
             </div>
           )}
 
+          {/* Read-Only Notice Banner for Non-Approvers */}
+          {!request.isArchived && isPending && !canApprove && (
+            <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-2xl text-amber-900 text-xs font-semibold flex items-center gap-2.5">
+              <svg className="w-5 h-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <span className="font-black block">Read-Only Permission Level</span>
+                <span className="text-[11px] text-amber-800 font-medium">You have view access for excuse submissions. Only Coordinators and Administrators can approve or reject excuse requests.</span>
+              </div>
+            </div>
+          )}
+
           {/* Approved Banner */}
           {!request.isArchived && isApproved && (
             <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 text-xs font-semibold flex items-center gap-2.5">
@@ -311,7 +324,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 <span className="font-black block">Approved Excuse Request</span>
                 <span className="text-[11px] text-emerald-800 font-medium">
                   This excuse request has been approved and attendance has been synchronized as Excused.
-                  {canReview && ' Authorized administrators may override this decision using password confirmation.'}
+                  {canApprove && ' Authorized administrators may override this decision using password confirmation.'}
                 </span>
               </div>
             </div>
@@ -327,9 +340,31 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 <span className="font-black block">Rejected Excuse Request</span>
                 <span className="text-[11px] text-rose-800 font-medium">
                   This excuse request was previously rejected.
-                  {canReview && ' Authorized administrators may override this decision using password confirmation.'}
+                  {canApprove && ' Authorized administrators may override this decision using password confirmation.'}
                 </span>
               </div>
+            </div>
+          )}
+
+          {/* Officer Submission Banner if filed by officer */}
+          {request.submittedByOfficer && (
+            <div className="p-3.5 bg-purple-50/80 border border-purple-200 rounded-2xl text-xs space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="font-black text-purple-950 flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-purple-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  Filed by Officer: {request.submittedByName || 'Ministry Officer'}
+                </span>
+                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-purple-100 text-purple-800 rounded-md">
+                  Officer Filing
+                </span>
+              </div>
+              {request.officerNotes && (
+                <p className="text-[11px] text-purple-900 font-medium pt-1">
+                  <strong>Officer Communication Notes:</strong> {request.officerNotes}
+                </p>
+              )}
             </div>
           )}
 
@@ -404,7 +439,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
             <label className="block text-xs font-extrabold text-slate-700 uppercase tracking-wider mb-1.5">
               Admin / Coordinator Remarks {isPending ? '(Visible to Server upon Tracking)' : ''}
             </label>
-            {isPending ? (
+            {isPending && canApprove ? (
               <textarea 
                 value={remarks} 
                 onChange={e => setRemarks(e.target.value)} 
@@ -412,7 +447,7 @@ export const ReviewExcuseModal: React.FC<ReviewExcuseModalProps> = ({
                 rows={3} 
                 placeholder="e.g. Excused due to official school activity; or specify reason if rejected..."
               />
-            ) : canReview ? (
+            ) : !isPending && canApprove ? (
               <div className="space-y-2">
                 <textarea 
                   value={remarks} 

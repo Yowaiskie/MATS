@@ -6,9 +6,11 @@ import {
   updatePassword,
   sendPasswordResetEmail
 } from 'firebase/auth'
-import { doc, getDoc, collection, query, where, getDocs, setDoc, serverTimestamp } from 'firebase/firestore'
+import { doc, getDoc, collection, query, where, getDocs, setDoc, deleteDoc, serverTimestamp } from 'firebase/firestore'
 import { auth, db } from '@/firebase/config'
 import type { UserProfile } from '@/types/auth'
+import type { Member } from '@/types/member'
+import { getFullName, normalizeName } from '@/utils/member'
 import { auditService } from '@/services/auditService'
 
 export const authService = {
@@ -117,6 +119,57 @@ export const authService = {
   },
 
   /**
+   * Helper to auto-link member identity to a user profile if missing.
+   */
+  async autoLinkMemberToProfile(profile: UserProfile, uid: string): Promise<UserProfile> {
+    if (profile.memberId && profile.memberId.trim().length > 0) {
+      return profile
+    }
+
+    try {
+      const membersRef = collection(db, 'members')
+      const snap = await getDocs(membersRef)
+      const allMembers = snap.docs.map(d => ({ id: d.id, ...d.data() })) as Member[]
+
+      const userEmail = (profile.email || '').toLowerCase().trim()
+      const userDisplay = (profile.displayName || profile.memberName || '').trim()
+
+      let matched = allMembers.find(m => m.email && m.email.toLowerCase().trim() === userEmail)
+      if (!matched && userDisplay) {
+        const normDisplay = normalizeName(userDisplay)
+        matched = allMembers.find(m => {
+          const fn = (m.firstName || '').trim()
+          const ln = (m.lastName || '').trim()
+          const fullName1 = normalizeName(`${fn} ${ln}`)
+          const fullName2 = normalizeName(`${ln} ${fn}`)
+          return normDisplay === fullName1 || normDisplay === fullName2
+        })
+      }
+
+      if (matched) {
+        const fullMemberName = getFullName(matched)
+        const updatePayload: Record<string, any> = {
+          memberId: matched.id,
+          memberName: fullMemberName,
+          updatedAt: serverTimestamp()
+        }
+        if (!profile.assignedOrder && matched.order) {
+          updatePayload.assignedOrder = matched.order
+          profile.assignedOrder = matched.order as any
+        }
+        profile.memberId = matched.id
+        profile.memberName = fullMemberName
+
+        await setDoc(doc(db, 'users', uid), updatePayload, { merge: true })
+      }
+    } catch (err) {
+      console.warn('Real-time auto-link profile error:', err)
+    }
+
+    return profile
+  },
+
+  /**
    * Fetches the user profile from the Firestore users collection.
    * Returns null if the profile does not exist.
    */
@@ -125,7 +178,8 @@ export const authService = {
       const userDocRef = doc(db, 'users', uid)
       const userDoc = await getDoc(userDocRef)
       if (userDoc.exists()) {
-        return userDoc.data() as UserProfile
+        const profileData = userDoc.data() as UserProfile
+        return await this.autoLinkMemberToProfile(profileData, uid)
       }
 
       // Fallback: search by email if no doc found at auth UID
@@ -134,19 +188,24 @@ export const authService = {
         const q = query(usersRef, where('email', '==', email.toLowerCase().trim()))
         const snap = await getDocs(q)
         if (!snap.empty) {
-          const profileData = snap.docs[0].data() as UserProfile
+          const oldDoc = snap.docs[0]
+          const profileData = oldDoc.data() as UserProfile
           // Auto-fix: re-save profile under the correct Auth UID
-          // This fixes the Firestore rules isSuperAdmin() lookup mismatch
           try {
             await setDoc(doc(db, 'users', uid), {
               ...profileData,
               uid,
               updatedAt: serverTimestamp()
             }, { merge: true })
+
+            // Clean up the legacy/duplicate document if its ID is different from UID
+            if (oldDoc.id !== uid) {
+              await deleteDoc(doc(db, 'users', oldDoc.id)).catch(delErr => console.warn('Could not delete legacy user doc:', delErr))
+            }
           } catch (fixErr) {
             console.warn('Could not auto-fix UID mismatch:', fixErr)
           }
-          return { ...profileData, uid }
+          return await this.autoLinkMemberToProfile({ ...profileData, uid }, uid)
         }
       }
     } catch (err) {

@@ -283,6 +283,7 @@ export const UsersPage: React.FC = () => {
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
+  const [autoLinking, setAutoLinking] = useState(false)
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true)
@@ -290,7 +291,7 @@ export const UsersPage: React.FC = () => {
       const [usersData, presetsData, membersData] = await Promise.all([
         userService.getUsers(),
         settingsService.getPermissionPresets(),
-        memberService.getMembers()
+        memberService.getMembers(true)
       ])
       setUsers(usersData)
       setPresets(presetsData)
@@ -300,6 +301,29 @@ export const UsersPage: React.FC = () => {
       toast.error('Load Failed', 'Failed to load user accounts list and permission presets.')
     } finally {
       if (showSpinner) setLoading(false)
+    }
+  }
+
+  const handleAutoLinkMembers = async () => {
+    setAutoLinking(true)
+    try {
+      const result = await userService.autoLinkAllUnlinkedUsers(currentAdmin?.email || 'Admin')
+      if (result.matchedCount > 0) {
+        toast.success(
+          'Auto-Linking Complete',
+          `Successfully linked ${result.matchedCount} user account${result.matchedCount === 1 ? '' : 's'} to member profiles.`
+        )
+        await loadData(false)
+      } else if (result.totalUnlinked === 0) {
+        toast.info('All Accounts Linked', 'All user accounts in the system are already linked to member profiles.')
+      } else {
+        toast.info('No Matches Found', `Found ${result.totalUnlinked} unlinked accounts, but no matching member profiles by email or name were found.`)
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Auto-Link Failed', err.message || 'Failed to auto-link member profiles.')
+    } finally {
+      setAutoLinking(false)
     }
   }
 
@@ -1134,18 +1158,36 @@ export const UsersPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">User Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage user accounts and configure custom module permissions.</p>
         </div>
-        <Button
-          onClick={handleOpenAddModal}
-          variant="primary"
-          size="default"
-          icon={
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-          }
-        >
-          Register New User
-        </Button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {isAdmin && (
+            <Button
+              onClick={handleAutoLinkMembers}
+              variant="secondary"
+              size="default"
+              loading={autoLinking}
+              disabled={autoLinking}
+              icon={
+                <svg className="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              }
+            >
+              Auto-Link Members
+            </Button>
+          )}
+          <Button
+            onClick={handleOpenAddModal}
+            variant="primary"
+            size="default"
+            icon={
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            }
+          >
+            Register New User
+          </Button>
+        </div>
       </div>
 
 

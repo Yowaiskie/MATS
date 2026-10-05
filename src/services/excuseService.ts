@@ -18,6 +18,19 @@ import type { ExcuseRequest, ExcuseStatus } from '@/types/excuse'
 
 const EXCUSES_COLLECTION = 'excuseRequests'
 
+/**
+ * Strips all undefined properties from an object before writing to Firestore.
+ */
+function cleanPayload<T extends Record<string, any>>(data: T): Record<string, any> {
+  const result: Record<string, any> = {}
+  Object.keys(data).forEach(key => {
+    if (data[key] !== undefined) {
+      result[key] = data[key]
+    }
+  })
+  return result
+}
+
 export const excuseService = {
   /**
    * Submit a new excuse request. Generates a collision-free tracking number.
@@ -33,19 +46,21 @@ export const excuseService = {
       const generatedTrackingNumber = `EX-${yearMonth}-${randomSuffix}`
 
       const excuseRef = doc(collection(db, EXCUSES_COLLECTION))
-      await setDoc(excuseRef, {
+      const rawPayload = {
         ...data,
         trackingNumber: generatedTrackingNumber,
         status: 'pending' as ExcuseStatus,
         submittedAt: serverTimestamp(),
         isArchived: false
-      })
+      }
+
+      await setDoc(excuseRef, cleanPayload(rawPayload))
 
       // Create the public status mapping document (accessible via get)
       const statusRef = doc(db, 'excuseStatus', generatedTrackingNumber)
       await setDoc(statusRef, {
         status: 'pending' as ExcuseStatus,
-        reason: data.reason,
+        reason: data.reason || '',
         rejectionReason: '',
         adminRemarks: '',
         submittedAt: serverTimestamp()
@@ -77,6 +92,118 @@ export const excuseService = {
     } catch (error: any) {
       console.error('Error submitting excuse request:', error)
       throw new Error(error.message || 'Failed to submit excuse request.')
+    }
+  },
+
+  /**
+   * Directly file an excuse request on behalf of a member by an Officer/Admin.
+   * If directlyApprove is true, marks as approved and syncs attendance immediately.
+   */
+  async fileOfficerExcuseRequest(params: {
+    memberId: string
+    memberName: string
+    memberOrder?: string
+    memberRank?: string
+    schedules: string[]
+    reason: string
+    officerNotes?: string
+    directlyApprove: boolean
+    officerUid: string
+    officerName: string
+  }): Promise<{ trackingNumber: string; approved: boolean }> {
+    try {
+      const date = new Date()
+      const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000)
+      const generatedTrackingNumber = `EX-${yearMonth}-${randomSuffix}`
+
+      const excuseRef = doc(collection(db, EXCUSES_COLLECTION))
+      const isApproved = params.directlyApprove === true
+      const effectiveStatus: ExcuseStatus = isApproved ? 'approved' : 'pending'
+
+      const excusePayload: Record<string, any> = {
+        trackingNumber: generatedTrackingNumber,
+        memberId: params.memberId,
+        memberName: params.memberName,
+        schedules: params.schedules || [],
+        reason: params.reason,
+        submittedByOfficer: true,
+        submittedByUid: params.officerUid,
+        submittedByName: params.officerName,
+        status: effectiveStatus,
+        submittedAt: serverTimestamp(),
+        isArchived: false,
+        ...(params.memberOrder ? { memberOrder: params.memberOrder } : {}),
+        ...(params.memberRank ? { memberRank: params.memberRank } : {}),
+        ...(params.officerNotes ? { officerNotes: params.officerNotes, additionalNotes: params.officerNotes } : {}),
+        ...(isApproved ? {
+          adminRemarks: params.officerNotes?.trim() || `Filed & approved by Officer (${params.officerName})`,
+          reviewedAt: serverTimestamp(),
+          reviewedByUid: params.officerUid,
+          reviewedByName: params.officerName
+        } : {})
+      }
+
+      await setDoc(excuseRef, cleanPayload(excusePayload))
+
+      // Create the public tracking status doc
+      const statusRef = doc(db, 'excuseStatus', generatedTrackingNumber)
+      await setDoc(statusRef, {
+        status: effectiveStatus,
+        reason: params.reason || '',
+        rejectionReason: '',
+        adminRemarks: isApproved ? (params.officerNotes?.trim() || `Approved by ${params.officerName}`) : '',
+        submittedAt: serverTimestamp()
+      })
+
+      if (isApproved) {
+        // Automatically sync and mark attendance records for all approved schedules
+        if (params.schedules && params.schedules.length > 0 && params.memberId) {
+          await attendanceService.markExcuseForSchedules(
+            params.schedules,
+            params.memberId,
+            params.reason,
+            params.officerNotes || `Filed & approved by Officer (${params.officerName})`,
+            params.officerName
+          )
+        }
+
+        auditService.logAction(
+          'EXCUSE_APPROVED',
+          'excuse',
+          `Officer ${params.officerName} filed & directly approved excuse ${generatedTrackingNumber} for ${params.memberName}`,
+          params.officerName,
+          { trackingNumber: generatedTrackingNumber, memberId: params.memberId, excuseId: excuseRef.id }
+        ).catch(() => {})
+      } else {
+        auditService.logAction(
+          'EXCUSE_SUBMITTED',
+          'excuse',
+          `Officer ${params.officerName} filed excuse ${generatedTrackingNumber} for ${params.memberName} (Pending Review)`,
+          params.officerName,
+          { trackingNumber: generatedTrackingNumber, memberId: params.memberId, excuseId: excuseRef.id }
+        ).catch(() => {})
+
+        notificationService.sendExcuseRequestNotification({
+          excuseId: excuseRef.id,
+          trackingNumber: generatedTrackingNumber,
+          memberName: params.memberName,
+          reason: params.reason,
+          scheduleCount: params.schedules.length,
+          memberId: params.memberId,
+          performedBy: params.officerName
+        }).catch((notifErr) => {
+          console.warn('Failed to dispatch excuse notification:', notifErr)
+        })
+      }
+
+      return {
+        trackingNumber: generatedTrackingNumber,
+        approved: isApproved
+      }
+    } catch (error: any) {
+      console.error('Error filing officer excuse request:', error)
+      throw new Error(error.message || 'Failed to file excuse request.')
     }
   },
 

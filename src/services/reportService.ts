@@ -627,12 +627,34 @@ export const reportService = {
       let stat = memberStatsMap.get(record.memberId)
       if (!stat) {
         const m = members.find(mem => mem.id === record.memberId)
+        let serverName = ''
+        let serverStatus = 'active'
+        let serverRank = 'N/A'
+        let serverOrder: string | undefined = undefined
+
+        if (m) {
+          serverName = getFullName(m) + (m.status === 'archived' ? ' (Archived)' : '')
+          serverStatus = m.status || 'active'
+          serverRank = m.rank || 'N/A'
+          serverOrder = m.order || undefined
+        } else {
+          if (record.isOtherServer) {
+            serverName = record.memberId && record.memberId.includes(' ') && record.memberId.length < 30
+              ? `Guest: ${record.memberId}`
+              : 'Guest Server'
+          } else if (record.memberId && record.memberId.includes(' ') && record.memberId.length < 30) {
+            serverName = record.memberId
+          } else {
+            serverName = 'Altar Server (Past Record)'
+          }
+        }
+
         stat = {
           memberId: record.memberId,
-          name: m ? getFullName(m) : 'Unknown Member',
-          rank: m?.rank || 'N/A',
-          status: m?.status || 'active',
-          order: m?.order || undefined,
+          name: serverName,
+          rank: serverRank,
+          status: serverStatus as any,
+          order: serverOrder as any,
           totalAssigned: 0,
           present: 0,
           late: 0,

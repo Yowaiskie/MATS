@@ -7,16 +7,29 @@ import { getMemberOrders } from '@/types/member'
  * @param includeNickname Whether to include nickname in parentheses (defaults to true)
  */
 export const getFullName = (
-  member: Member | MemberInput | { firstName: string; lastName: string; middleName?: string; suffix?: string; nickname?: string },
+  member?: Partial<Member> | Partial<MemberInput> | Record<string, any> | null,
   includeNickname: boolean = true
 ): string => {
-  const { firstName, lastName, middleName, suffix, nickname } = member
+  if (!member) return ''
+  const firstName = (member.firstName || '').trim()
+  const lastName = (member.lastName || '').trim()
+  const middleName = (member.middleName || '').trim()
+  const suffix = (member.suffix || '').trim()
+  const nickname = (member.nickname || '').trim()
+
+  if (!firstName && !lastName) {
+    const obj = member as Record<string, any>
+    return obj.displayName?.trim() || obj.memberName?.trim() || obj.name?.trim() || ''
+  }
   
-  const mid = middleName?.trim() ? ` ${middleName.trim()}` : ''
-  const suf = suffix?.trim() ? ` ${suffix.trim()}` : ''
-  const nick = (includeNickname && nickname?.trim()) ? ` (${nickname.trim()})` : ''
+  const mid = middleName ? ` ${middleName}` : ''
+  const suf = suffix ? ` ${suffix}` : ''
+  const nick = (includeNickname && nickname) ? ` (${nickname})` : ''
   
-  return `${lastName.trim()}${suf}, ${firstName.trim()}${mid}${nick}`
+  if (lastName && firstName) {
+    return `${lastName}${suf}, ${firstName}${mid}${nick}`
+  }
+  return `${lastName || firstName}${suf}${mid}${nick}`
 }
 
 /**
@@ -25,16 +38,29 @@ export const getFullName = (
  * @param includeNickname Whether to include nickname in parentheses (defaults to false)
  */
 export const getFirstNameFirst = (
-  member: Member | MemberInput | { firstName: string; lastName: string; middleName?: string; suffix?: string; nickname?: string },
+  member?: Partial<Member> | Partial<MemberInput> | Record<string, any> | null,
   includeNickname: boolean = false
 ): string => {
-  const { firstName, lastName, middleName, suffix, nickname } = member
+  if (!member) return ''
+  const firstName = (member.firstName || '').trim()
+  const lastName = (member.lastName || '').trim()
+  const middleName = (member.middleName || '').trim()
+  const suffix = (member.suffix || '').trim()
+  const nickname = (member.nickname || '').trim()
+
+  if (!firstName && !lastName) {
+    const obj = member as Record<string, any>
+    return obj.displayName?.trim() || obj.memberName?.trim() || obj.name?.trim() || ''
+  }
   
-  const mid = middleName?.trim() ? ` ${middleName.trim()}` : ''
-  const suf = suffix?.trim() ? ` ${suffix.trim()}` : ''
-  const nick = (includeNickname && nickname?.trim()) ? ` (${nickname.trim()})` : ''
+  const mid = middleName ? ` ${middleName}` : ''
+  const suf = suffix ? ` ${suffix}` : ''
+  const nick = (includeNickname && nickname) ? ` (${nickname})` : ''
   
-  return `${firstName.trim()}${mid} ${lastName.trim()}${suf}${nick}`
+  if (firstName && lastName) {
+    return `${firstName}${mid} ${lastName}${suf}${nick}`
+  }
+  return `${firstName || lastName}${mid}${suf}${nick}`
 }
 
 /**
