@@ -133,7 +133,7 @@ export const publicationService = {
     if (input.status !== undefined) updateData.status = input.status
     if (input.publicationType !== undefined) updateData.publicationType = input.publicationType
     if (input.description !== undefined) updateData.description = input.description.trim()
-    if (input.submissionDeadline !== undefined) updateData.submissionDeadline = input.submissionDeadline
+    if (input.submissionDeadline !== undefined) updateData.submissionDeadline = input.submissionDeadline || ''
     if (input.maxSundaysPerServer !== undefined) updateData.maxSundaysPerServer = input.maxSundaysPerServer
     if (input.maxWeekdaysPerServer !== undefined) updateData.maxWeekdaysPerServer = input.maxWeekdaysPerServer
     if (input.maxSpecialPerServer !== undefined) updateData.maxSpecialPerServer = input.maxSpecialPerServer

@@ -13,6 +13,7 @@ import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
 interface SchedulePattern {
   id: string
+  date?: string
   dayOfWeek: number
   dayName: string
   startTime: string
@@ -201,6 +202,13 @@ export const PublicSchedulePage: React.FC = () => {
       setPublication(pub)
 
       // 2. Fetch all members and schedules for date range in parallel
+      // Broaden date range query to cover full month so no scheduled days are missed
+      const [sY, sM] = pub.startDate.split('-').map(Number)
+      const [eY, eM] = pub.endDate.split('-').map(Number)
+      const qStart = `${sY}-${String(sM).padStart(2, '0')}-01`
+      const lastDay = new Date(eY, eM, 0).getDate()
+      const qEnd = `${eY}-${String(eM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
       const [membersData, schedsData] = await Promise.all([
         queryClient.fetchQuery({
           queryKey: ['members'],
@@ -208,8 +216,8 @@ export const PublicSchedulePage: React.FC = () => {
           staleTime: 1000 * 60 * 2
         }),
         queryClient.fetchQuery({
-          queryKey: ['public-schedules', pub.id, pub.startDate, pub.endDate],
-          queryFn: () => scheduleService.getSchedulesByDateRange(pub.startDate, pub.endDate),
+          queryKey: ['public-schedules', pub.id, qStart, qEnd],
+          queryFn: () => scheduleService.getSchedulesByDateRange(qStart, qEnd),
           staleTime: 0
         })
       ])
@@ -235,8 +243,6 @@ export const PublicSchedulePage: React.FC = () => {
   const publicationSchedules = useMemo(() => {
     if (!publication) return []
     return schedules.filter(s => 
-      s.date >= publication.startDate && 
-      s.date <= publication.endDate && 
       isScheduleIncludedInPublication(s, publication)
     )
   }, [schedules, publication])
@@ -256,12 +262,12 @@ export const PublicSchedulePage: React.FC = () => {
     setSelectedScheduleIds(initial)
   }, [selectedMemberId, publicationSchedules])
 
-  const isSpecialPub = publication?.publicationType === 'special_event'
+  const isSpecialPub = publication?.publicationType === 'special_event' || !!publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
 
   // Group into patterns
   const { sundayPatterns, weekdayPatterns, specialPatterns } = useMemo(() => {
     if (isSpecialPub) {
-      // For special events, group by schedule date, startTime, title, and location, ordered chronologically
+      // For special events or dated street mass publications, group by each unique schedule slot chronologically
       const sortedSchedules = [...publicationSchedules].sort((a, b) => {
         if (a.date !== b.date) return a.date.localeCompare(b.date)
         return a.startTime.localeCompare(b.startTime)
@@ -269,33 +275,41 @@ export const PublicSchedulePage: React.FC = () => {
 
       const patternMap = new Map<string, SchedulePattern>()
       sortedSchedules.forEach(s => {
-        const d = new Date(s.date + 'T00:00:00')
-        const dayOfWeek = d.getDay()
-        const dayName = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }).toUpperCase()
-        const patternId = `${s.date}-${s.startTime}-${s.title || 'Special Mass'}-${s.location || ''}`
+        const [y, m, d] = s.date.split('-').map(Number)
+        const dObj = new Date(y, m - 1, d, 12, 0, 0)
+        const dayOfWeek = dObj.getDay()
+        const dayName = isNaN(dObj.getTime())
+          ? s.date
+          : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }).toUpperCase()
+        const patternKey = `${s.date}-${s.startTime}`
 
-        if (!patternMap.has(patternId)) {
-          patternMap.set(patternId, {
-            id: patternId,
+        if (!patternMap.has(patternKey)) {
+          patternMap.set(patternKey, {
+            id: s.id,
+            date: s.date,
             dayOfWeek,
             dayName,
             startTime: s.startTime,
             title: s.title,
             location: s.location,
             liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
-            scheduleIds: [],
-            assignedMembers: []
+            scheduleIds: [s.id],
+            assignedMembers: s.assignedMembers ? [...s.assignedMembers] : []
+          })
+        } else {
+          const existing = patternMap.get(patternKey)!
+          if (!existing.scheduleIds.includes(s.id)) {
+            existing.scheduleIds.push(s.id)
+          }
+          if (s.location && !existing.location) {
+            existing.location = s.location
+          }
+          s.assignedMembers?.forEach(memId => {
+            if (!existing.assignedMembers.includes(memId)) {
+              existing.assignedMembers.push(memId)
+            }
           })
         }
-
-        const pattern = patternMap.get(patternId)!
-        pattern.scheduleIds.push(s.id)
-
-        s.assignedMembers?.forEach(memId => {
-          if (!pattern.assignedMembers.includes(memId)) {
-            pattern.assignedMembers.push(memId)
-          }
-        })
       })
 
       return {
@@ -448,13 +462,16 @@ export const PublicSchedulePage: React.FC = () => {
 
   const { isQuotaMaxed, confirmModalMessage } = useMemo(() => {
     if (isSpecialPub) {
-      const maxSpecial = publication?.maxSpecialPerServer ?? 2
-      const maxed = selectedSpecialCount >= maxSpecial
+      const isActualSpecialEvent = publication?.publicationType === 'special_event'
+      const maxSlots = isActualSpecialEvent
+        ? (publication?.maxSpecialPerServer ?? 2)
+        : (publication?.maxWeekdaysPerServer ?? 8)
+      const maxed = selectedSpecialCount >= maxSlots
       let msg = ''
       if (maxed) {
-        msg = `You have selected ${selectedSpecialCount} Special Occasion slot(s), reaching your maximum quota. Once saved, your submission will be finalized.`
+        msg = `You have selected ${selectedSpecialCount} schedule slot(s), reaching your maximum quota. Once saved, your submission will be finalized.`
       } else {
-        msg = `You have currently selected ${selectedSpecialCount}/${maxSpecial} Special Occasion slot(s). Since you haven't reached the full quota yet, your chosen slots will be saved and locked, and you can still select more slots later.`
+        msg = `You have currently selected ${selectedSpecialCount}/${maxSlots} schedule slot(s). Since you haven't reached the full quota yet, your chosen slots will be saved and locked, and you can still select more slots later.`
       }
       return { isQuotaMaxed: maxed, confirmModalMessage: msg }
     }
@@ -477,6 +494,18 @@ export const PublicSchedulePage: React.FC = () => {
 
     return { isQuotaMaxed: maxed, confirmModalMessage: msg }
   }, [publication, isSpecialPub, selectedSpecialCount, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
+
+  const isSlotPast = (pattern: SchedulePattern): boolean => {
+    if (!pattern.date) return false
+    const parts = pattern.date.split('-').map(Number)
+    if (parts.length < 3) return false
+    const [y, m, d] = parts
+    const timeParts = (pattern.startTime || '00:00').split(':').map(Number)
+    const hh = timeParts[0] || 0
+    const mm = timeParts[1] || 0
+    const slotTime = new Date(y, m - 1, d, hh, mm, 0).getTime()
+    return slotTime <= currentTime
+  }
 
   const handleCellClick = (patternId: string, category: 'sunday' | 'weekday' | 'special') => {
     if (isFinalized) {
@@ -513,6 +542,14 @@ export const PublicSchedulePage: React.FC = () => {
 
     const pattern = patterns.find(p => p.id === patternId)
     if (!pattern) return
+
+    // Check if slot has already concluded/passed
+    if (isSlotPast(pattern)) {
+      const pastMsg = 'Tapos na ang schedule na ito at sarado na sa pagpili.'
+      setMessage({ type: 'error', text: pastMsg })
+      setLimitModal({ title: 'Schedule Ended', message: pastMsg })
+      return
+    }
 
     // Check if member is ALREADY saved in DB for this pattern/schedule slot
     const isAlreadySavedInDb = pattern.assignedMembers.includes(selectedMemberId)
@@ -581,19 +618,24 @@ export const PublicSchedulePage: React.FC = () => {
       }
 
       if (category === 'special') {
-        const maxServersForSlot = publication.maxServersPerSpecialSlot ?? 6
+        const isActualSpecialEvent = publication?.publicationType === 'special_event'
+        const maxServersForSlot = isActualSpecialEvent
+          ? (publication?.maxServersPerSpecialSlot ?? 6)
+          : (publication?.maxServersPerWeekdaySlot ?? 5)
         if (pattern.assignedMembers.length >= maxServersForSlot) {
-          const capacityMsg = `Slot Full: This Special Occasion Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
+          const capacityMsg = `Slot Full: This Mass time slot already reached the maximum capacity of ${maxServersForSlot} server(s).`
           setMessage({ type: 'error', text: capacityMsg })
           setLimitModal({ title: 'Slot Full', message: capacityMsg })
           return
         }
 
-        const max = publication.maxSpecialPerServer ?? 2
+        const max = isActualSpecialEvent
+          ? (publication?.maxSpecialPerServer ?? 2)
+          : (publication?.maxWeekdaysPerServer ?? 8)
         if (selectedSpecialCount >= max) {
-          const limitMsg = `Personal Limit Reached: You can only select up to ${max} Special Occasion schedule(s) for yourself.`
+          const limitMsg = `Personal Limit Reached: You can only select up to ${max} schedule slot(s) for yourself.`
           setMessage({ type: 'error', text: limitMsg })
-          setLimitModal({ title: 'Special Event Limit Reached', message: limitMsg })
+          setLimitModal({ title: 'Slot Limit Reached', message: limitMsg })
           return
         }
       } else if (category === 'sunday') {
@@ -919,12 +961,18 @@ export const PublicSchedulePage: React.FC = () => {
                   </th>
                   {patterns.map(p => {
                     const theme = getLiturgicalTheme(p.liturgicalColor || publication?.liturgicalColor, category === 'special')
+                    const isPast = isSlotPast(p)
                     return (
                       <th key={p.id} className="px-3 sm:px-6 py-3.5 sm:py-5 text-center min-w-[130px] sm:min-w-[170px]">
                         <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{p.dayName}</div>
-                        <div className={`font-extrabold text-xs ${theme.timeClass} mt-0.5`}>
+                        <div className={`font-extrabold text-xs ${isPast ? 'text-slate-500' : theme.timeClass} mt-0.5`}>
                           {formatTime12Hour(p.startTime)}
                         </div>
+                        {isPast && (
+                          <div className="inline-flex items-center justify-center gap-1 px-2 py-0.5 mt-1 rounded-md bg-slate-200/90 text-slate-700 border border-slate-300 text-[10px] font-black uppercase tracking-wider shadow-2xs">
+                            Ended
+                          </div>
+                        )}
                         {p.location && (
                           <div className={`inline-flex items-center justify-center gap-1 px-2.5 py-0.5 mt-1 rounded-md border text-[10px] font-extrabold max-w-[150px] mx-auto truncate shadow-2xs ${theme.locationBadgeClass}`}>
                             <svg className={`w-2.5 h-2.5 shrink-0 ${theme.locationIconClass}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -968,6 +1016,7 @@ export const PublicSchedulePage: React.FC = () => {
                     </td>
                     {patterns.map(pattern => {
                       const theme = getLiturgicalTheme(pattern.liturgicalColor || publication?.liturgicalColor, category === 'special')
+                      const isPast = isSlotPast(pattern)
                       const isSelectedByCurrentMember = pattern.scheduleIds.some(id => selectedScheduleIds.has(id))
                       const savedMemberIds = pattern.assignedMembers
                       
@@ -1015,15 +1064,21 @@ export const PublicSchedulePage: React.FC = () => {
                         <td key={pattern.id} className="px-2 sm:px-3 py-2.5 sm:py-3 text-center align-middle">
                           {displayMemberName ? (
                             <div
-                              onClick={() => !isOtherUserCell && handleCellClick(pattern.id, category)}
+                              onClick={() => !isOtherUserCell && !isPast && handleCellClick(pattern.id, category)}
                               className={`inline-flex items-center justify-center px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[120px] sm:min-w-[140px] max-w-[145px] sm:max-w-[160px] text-center ${
-                                isMyCell
-                                  ? theme.cellSelectedClass
-                                  : 'bg-slate-50 border-slate-200 text-slate-800 cursor-not-allowed opacity-85 shadow-xs'
+                                isPast
+                                  ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed opacity-90 shadow-2xs'
+                                  : isMyCell
+                                    ? theme.cellSelectedClass
+                                    : 'bg-slate-50 border-slate-200 text-slate-800 cursor-not-allowed opacity-85 shadow-xs'
                               }`}
                             >
-                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 shrink-0 ${isMyCell ? 'bg-white' : theme.cellDotClass}`} />
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 sm:mr-2 shrink-0 ${isPast ? 'bg-slate-400' : isMyCell ? 'bg-white' : theme.cellDotClass}`} />
                               <span className="truncate">{displayMemberName}</span>
+                            </div>
+                          ) : isPast ? (
+                            <div className="w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-100/70 flex items-center justify-center text-[10px] font-extrabold text-slate-400 select-none cursor-not-allowed">
+                              Closed
                             </div>
                           ) : (
                             <div

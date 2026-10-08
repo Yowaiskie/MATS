@@ -123,10 +123,47 @@ export const PublicationsTab: React.FC = () => {
   const handlePublish = async (pub: SchedulePublication) => {
     try {
       await publicationService.updatePublication(pub.id, { status: 'published' })
+      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
       await loadData()
       toast.success('Published', 'Publication is now open for scheduling.')
     } catch (err: any) {
+      console.error(err)
       toast.error('Error', 'Failed to update status.')
+    }
+  }
+
+  const handleExtendDeadline = async (pub: SchedulePublication, days = 3) => {
+    try {
+      const targetDate = new Date()
+      targetDate.setDate(targetDate.getDate() + days)
+      targetDate.setHours(23, 59, 0, 0)
+      const newDeadlineIso = new Date(targetDate.getTime() - targetDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+      
+      await publicationService.updatePublication(pub.id, {
+        submissionDeadline: newDeadlineIso,
+        status: 'published'
+      })
+      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+      await loadData()
+      toast.success('Deadline Extended', `Publication deadline extended by ${days} days and reopened for scheduling.`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Error', 'Failed to extend deadline.')
+    }
+  }
+
+  const handleClearDeadline = async (pub: SchedulePublication) => {
+    try {
+      await publicationService.updatePublication(pub.id, {
+        submissionDeadline: '',
+        status: 'published'
+      })
+      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+      await loadData()
+      toast.success('Deadline Removed', 'Deadline cleared and publication kept open for scheduling.')
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Error', 'Failed to remove deadline.')
     }
   }
 
@@ -159,6 +196,9 @@ export const PublicationsTab: React.FC = () => {
 
     try {
       await publicationService.updatePublication(pub.id, { status: newStatus })
+      if (newStatus === 'published') {
+        await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+      }
       await loadData()
       toast.success('Status Updated', `Publication status changed to ${newStatus.toUpperCase()}.`)
     } catch (err: any) {
@@ -203,27 +243,37 @@ export const PublicationsTab: React.FC = () => {
     } else {
       await publicationService.addPublication(input)
     }
+
+    if (input.status === 'published') {
+      try {
+        await scheduleService.bulkLockSchedules(input.startDate, input.endDate, false)
+      } catch (err) {
+        console.warn('Failed to unlock schedules on publication save:', err)
+      }
+    }
     
     // 1. If custom event / street mass slots are provided to generate, update, or remove
     if (customEventSlots !== undefined && (input.publicationType === 'special_event' || input.enableStreetLocation || (input.includedDaysOfWeek && input.includedDaysOfWeek.length > 0) || customEventSlots.length > 0)) {
       try {
-        const existingSchedules = await scheduleService.getSchedulesByDateRange(input.startDate, input.endDate)
-        const relevantSchedules = existingSchedules.filter(s => 
-          selectedPublication 
-            ? isScheduleIncludedInPublication(s, selectedPublication)
-            : (input.publicationType === 'special_event' && (s.category === 'special_event' || isScheduleIncludedInPublication(s, input)))
-        )
+        // Query broad month boundary start/end to fetch all schedules across the month
+        const [sY, sM] = input.startDate.split('-').map(Number)
+        const [eY, eM] = input.endDate.split('-').map(Number)
+        const qStart = `${sY}-${String(sM).padStart(2, '0')}-01`
+        const lastDay = new Date(eY, eM, 0).getDate()
+        const qEnd = `${eY}-${String(eM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
 
+        const existingSchedules = await scheduleService.getSchedulesByDateRange(qStart, qEnd)
         const retainedScheduleIds = new Set<string>()
         let createdCount = 0
         let updatedCount = 0
 
         for (const slot of customEventSlots) {
-          // Check if schedule already exists for this slot
-          const existing = relevantSchedules.find(s => 
+          // Check if schedule already exists for this slot by exact scheduleId or matching date & time
+          const existing = existingSchedules.find(s => 
             (slot.scheduleId && s.id === slot.scheduleId) ||
             (s.date === slot.date && s.startTime === slot.startTime) ||
-            (s.date === slot.date && (input.publicationType === 'special_event' || s.category === 'special_event'))
+            (s.date === slot.date && (input.publicationType === 'special_event' || s.category === 'special_event')) ||
+            (s.date === slot.date && isScheduleIncludedInPublication(s, input))
           )
 
           if (existing) {
@@ -257,10 +307,14 @@ export const PublicationsTab: React.FC = () => {
           }
         }
 
-        // Clean up any removed schedules from Firestore for this special publication
+        // Clean up any removed schedules from Firestore for this publication ONLY if they have NO assigned servers
         let deletedCount = 0
         if (selectedPublication && (input.publicationType === 'special_event' || selectedPublication.publicationType === 'special_event')) {
-          const toDelete = relevantSchedules.filter(s => !retainedScheduleIds.has(s.id))
+          const toDelete = existingSchedules.filter(s => 
+            !retainedScheduleIds.has(s.id) && 
+            isScheduleIncludedInPublication(s, selectedPublication) &&
+            (!s.assignedMembers || s.assignedMembers.length === 0)
+          )
           for (const delSched of toDelete) {
             await scheduleService.deleteSchedule(delSched.id, 'Publication Sync')
             deletedCount++
@@ -589,6 +643,26 @@ export const PublicationsTab: React.FC = () => {
                           ),
                           onClick: () => handlePublish(pub)
                         }] : []),
+                        ...(pub.status === 'published' && isPublicationDeadlinePassed(pub) ? [{
+                          label: 'Extend Deadline (+3 Days)',
+                          variant: 'success' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ),
+                          onClick: () => handleExtendDeadline(pub, 3)
+                        }] : []),
+                        ...(pub.status === 'published' && pub.submissionDeadline ? [{
+                          label: 'Remove Deadline (Keep Open)',
+                          variant: 'primary' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          ),
+                          onClick: () => handleClearDeadline(pub)
+                        }] : []),
                         ...(pub.status === 'published' ? [{
                           label: 'Finalize & Lock Schedules',
                           variant: 'warning' as const,
@@ -869,6 +943,26 @@ export const PublicationsTab: React.FC = () => {
                                     </svg>
                                   ),
                                   onClick: () => handlePublish(pub)
+                                }] : []),
+                                ...(pub.status === 'published' && isPublicationDeadlinePassed(pub) ? [{
+                                  label: 'Extend Deadline (+3 Days)',
+                                  variant: 'success' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => handleExtendDeadline(pub, 3)
+                                }] : []),
+                                ...(pub.status === 'published' && pub.submissionDeadline ? [{
+                                  label: 'Remove Deadline (Keep Open)',
+                                  variant: 'primary' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  ),
+                                  onClick: () => handleClearDeadline(pub)
                                 }] : []),
                                 ...(pub.status === 'published' ? [{
                                   label: 'Finalize & Lock Schedules',

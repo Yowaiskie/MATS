@@ -315,9 +315,9 @@ export const isScheduleIncludedInPublication = (
   // 2. Specific Days of Week check (e.g. Every Thursday only)
   if (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0) {
     if (schedule.date) {
-      const parts = schedule.date.split('-')
+      const parts = schedule.date.split('-').map(Number)
       if (parts.length === 3) {
-        const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+        const d = new Date(parts[0], parts[1] - 1, parts[2], 12, 0, 0)
         const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
         const currentDayName = dayNames[d.getDay()]
         const isDayMatched = publication.includedDaysOfWeek.some(day => 
@@ -328,37 +328,27 @@ export const isScheduleIncludedInPublication = (
     }
   }
 
-  const isSpecial = isSpecialEventOrService(schedule)
+  // If publication explicitly enables street locations or has includedDaysOfWeek, and schedule matches day filters, include it
+  if (publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)) {
+    return true
+  }
 
   // 3. Dedicated Special Occasion / Event Publication Mode
   if (publication?.publicationType === 'special_event') {
-    if (!isSpecial) {
-      // Exclude regular Sunday & Weekday masses from special occasion publication links
-      return false
-    }
-    // Check Holy Hour or Meeting flags if the special event matches them
     if (isHolyHourSchedule(title) && publication?.includeHolyHour === false) return false
     if (isMeetingSchedule(title) && publication?.includeMeetings === false) return false
     return true
   }
 
-  // 2. Regular Mass Cycle Publication Mode (Default)
-  if (isSpecial) {
-    // Exclude special event masses from regular mass publication links unless explicitly enabled
-    return publication?.includeSpecialEvents ?? false
-  }
-
-  // 3. Holy Hour Check (Default: false)
+  // 4. Regular Mass Cycle Publication Mode (Default)
   if (isHolyHourSchedule(title)) {
     return publication?.includeHolyHour ?? false
   }
 
-  // 4. Meeting / Formation Check (Default: false)
   if (isMeetingSchedule(title)) {
     return publication?.includeMeetings ?? false
   }
 
-  // 5. Sunday / Weekday Mass Check (Defaults: true)
   const isSunday = isSundayOrAnticipatedMass(title, schedule.date, schedule.startTime)
   if (isSunday) {
     return publication?.includeSundays ?? true
@@ -572,10 +562,11 @@ export const getSlotRankBreakdown = (
  * Checks if a publication's submission deadline has passed.
  */
 export const isPublicationDeadlinePassed = (publication?: Partial<SchedulePublication> | null): boolean => {
-  if (!publication?.submissionDeadline) return false
-  const deadline = new Date(publication.submissionDeadline)
+  if (!publication?.submissionDeadline || !publication.submissionDeadline.trim()) return false
+  const deadlineStr = publication.submissionDeadline.trim()
+  const deadline = new Date(deadlineStr)
   if (isNaN(deadline.getTime())) return false
-  return new Date() > deadline
+  return new Date().getTime() > deadline.getTime()
 }
 
 
