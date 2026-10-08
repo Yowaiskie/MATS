@@ -15,9 +15,20 @@ import { auditService } from '@/services/auditService'
 
 export const authService = {
   /**
-   * Signs in a user using email and password.
+   * Helper to normalize an identifier (email or username) into a full email address.
+   * If username is passed without '@', automatically appends '@mas.com'.
    */
-  async login(email: string, password: string): Promise<void> {
+  normalizeEmail(identifier: string): string {
+    const clean = (identifier || '').trim().toLowerCase()
+    if (!clean) return clean
+    return clean.includes('@') ? clean : `${clean}@mas.com`
+  },
+
+  /**
+   * Signs in a user using email/username and password.
+   */
+  async login(identifier: string, password: string): Promise<void> {
+    const email = this.normalizeEmail(identifier)
     await signInWithEmailAndPassword(auth, email, password)
   },
 

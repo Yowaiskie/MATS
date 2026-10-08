@@ -28,19 +28,20 @@ export const LoginPage: React.FC = () => {
     setLocalError(null)
     clearError()
 
-    if (!email || !password) {
-      setLocalError('Please enter both email and password.')
+    if (!email.trim() || !password) {
+      setLocalError('Please enter both username/email and password.')
       setShowErrorModal(true)
       return
     }
 
     setLoading(true)
     try {
-      await login(email, password)
+      await login(email.trim(), password)
 
       // Strict Maintenance Mode Check during login
       if (isMaintenanceActive) {
-        const normalizedEmail = email.toLowerCase().trim()
+        const clean = email.toLowerCase().trim()
+        const normalizedEmail = clean.includes('@') ? clean : `${clean}@mas.com`
         const isAllowed = isUserAllowed(null, normalizedEmail, null)
         if (!isAllowed) {
           await logout()
@@ -135,21 +136,21 @@ export const LoginPage: React.FC = () => {
 
         {/* Form */}
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
-          {/* Email Address */}
+          {/* Email / Username Address */}
           <div className="space-y-1.5">
             <label htmlFor="email-address" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
-              Officer Email
+              Officer Username or Email
             </label>
             <div className="relative">
               <input
                 id="email-address"
                 name="email"
-                type="email"
-                autoComplete="email"
+                type="text"
+                autoComplete="username email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="name@parish.org"
+                placeholder="coordinator or officer@mas.com"
                 className="w-full h-11 pl-10 pr-4 rounded-xl border border-slate-300 bg-slate-50 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 shadow-2xs transition"
                 disabled={loading}
               />
