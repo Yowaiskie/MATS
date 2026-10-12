@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Modal, Button, StatusBadge, useToast } from '@/components'
 import { ConfirmModal } from '@/components/Dialog'
@@ -134,7 +136,7 @@ export const ContributionPurposeModal: React.FC<Props> = ({ isOpen, onClose, eve
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+        <ValidatedForm onSubmit={handleSubmit} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
           <div className="flex items-center justify-between pb-1">
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
               {editingId ? 'Edit Mode' : 'New Entry'}
@@ -145,7 +147,7 @@ export const ContributionPurposeModal: React.FC<Props> = ({ isOpen, onClose, eve
           </div>
           <div>
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">Name *</label>
-            <input
+            <FormInput
               type="text"
               required
               placeholder="e.g. Food Contribution"
@@ -184,7 +186,7 @@ export const ContributionPurposeModal: React.FC<Props> = ({ isOpen, onClose, eve
               {editingId ? 'Update Purpose' : 'Add Purpose'}
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
 
         <div className="space-y-2">
           <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Existing Purposes</h4>

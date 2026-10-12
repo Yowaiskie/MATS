@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../AuthContext'
@@ -135,14 +137,14 @@ export const LoginPage: React.FC = () => {
         )}
 
         {/* Form */}
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} noValidate className="space-y-4">
           {/* Email / Username Address */}
           <div className="space-y-1.5">
             <label htmlFor="email-address" className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
               Officer Username or Email
             </label>
             <div className="relative">
-              <input
+              <FormInput
                 id="email-address"
                 name="email"
                 type="text"
@@ -177,7 +179,7 @@ export const LoginPage: React.FC = () => {
               </button>
             </div>
             <div className="relative">
-              <input
+              <FormInput
                 id="password"
                 name="password"
                 type={showPassword ? 'text' : 'password'}
@@ -240,7 +242,7 @@ export const LoginPage: React.FC = () => {
               <span>Sign In to MATS</span>
             )}
           </button>
-        </form>
+        </ValidatedForm>
 
         {/* Bottom Shortcuts Drawer for Altar Server Excuses */}
         <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between text-xs">

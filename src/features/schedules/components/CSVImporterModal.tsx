@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
 import { recurringService } from '@/services/recurringService'
@@ -281,7 +282,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                 <p className="text-[11px] text-gray-500">
                   Select which month's active schedules to update with the assigned servers from your CSV file.
                 </p>
-                <input
+                <FormInput
                   type="month"
                   value={targetMonth}
                   onChange={(e) => setTargetMonth(e.target.value)}

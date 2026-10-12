@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { MEMBER_RANKS } from '@/types/member'
 import { CustomSelect, Button, BulkProgressBar } from '@/components'
@@ -67,7 +68,7 @@ export const BulkRankEditModal: React.FC<BulkRankEditModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-4">
           {error && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 font-bold animate-fade-in">
               {error}
@@ -128,7 +129,7 @@ export const BulkRankEditModal: React.FC<BulkRankEditModalProps> = ({
               Update {selectedCount} Members
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
@@ -593,7 +595,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
 
           {/* Form Mode (Create/Edit) */}
           {(mode === 'create' || mode === 'edit') && (
-            <form onSubmit={handleSaveTemplate} className="space-y-4">
+            <ValidatedForm onSubmit={handleSaveTemplate} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Template Name (Optional when creating multiple slots) */}
                 <div className="flex flex-col space-y-1">
@@ -612,7 +614,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 {/* Schedule Title */}
                 <div className="flex flex-col space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Schedule Title *</label>
-                  <input
+                  <FormInput
                     type="text"
                     required
                     value={title}
@@ -737,7 +739,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                       <div className="flex-1 flex items-center gap-2">
                         <div className="flex-1 flex flex-col space-y-0.5">
                           <span className="text-[9px] font-bold text-gray-400 uppercase">Start Time</span>
-                          <input
+                          <FormInput
                             type="time"
                             required
                             value={slot.startTime}
@@ -781,7 +783,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                   {loading ? 'Saving...' : 'Save Template'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           )}
           
           {/* Generate Mode */}

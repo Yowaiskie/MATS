@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo } from 'react'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
@@ -231,7 +232,7 @@ export const AutoAssignRotationModal: React.FC<AutoAssignRotationModalProps> = (
               </div>
 
               {dateRangeMode === 'month' ? (
-                <input
+                <FormInput
                   type="month"
                   value={selectedMonth}
                   onChange={e => setSelectedMonth(e.target.value)}

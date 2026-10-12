@@ -1,9 +1,11 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Navigate } from 'react-router-dom'
 import { Loading } from '@/components/Loading'
 import { PasswordConfirmModal } from '@/components/Dialog'
-import { CustomSelect, BulkProgressBar, ActionMenu, type ActionMenuGroup, Pagination } from '@/components'
+import { CustomSelect, BulkProgressBar, ActionMenu, type ActionMenuGroup, Pagination, Button, DatePicker, CurrencyInput } from '@/components'
 import { authService } from '@/services/authService'
 
 const FINANCE_PAGE_SIZE = 12
@@ -37,6 +39,8 @@ import { FinanceExportModal } from '@/features/finance/components/FinanceExportM
 import { FundRequisitionExportModal } from '@/features/finance/components/FundRequisitionExportModal'
 import { LiquidationExportModal } from '@/features/finance/components/LiquidationExportModal'
 import { DirectLiquidationModal } from '@/features/finance/components/DirectLiquidationModal'
+import { FundRequestHistoryBody } from '@/features/finance/components/FundRequestHistoryBody'
+import { validateIncomeForm, validateExpenseForm, revalidateTransactionErrors, type TransactionFieldErrors } from '@/features/finance/utils/transactionFormValidation'
 import { MemberCombobox } from '@/components/MemberCombobox'
 import { useToast } from '@/context/ToastContext'
 
@@ -164,6 +168,18 @@ export const FinancePage: React.FC = () => {
   const [expSpentByName, setExpSpentByName] = useState(profile?.displayName || '')
   const [expDate, setExpDate] = useState(getLocalYYYYMMDD())
   const [expDesc, setExpDesc] = useState('')
+  const [incomeFieldErrors, setIncomeFieldErrors] = useState<TransactionFieldErrors>({})
+  const [expenseFieldErrors, setExpenseFieldErrors] = useState<TransactionFieldErrors>({})
+
+  useEffect(() => {
+    const current = validateIncomeForm({ amount: incAmount, categoryId: incCategoryId, source: incSource, receivedFrom: incReceivedFrom, date: incDate })
+    setIncomeFieldErrors(previous => revalidateTransactionErrors(previous, current))
+  }, [incAmount, incCategoryId, incSource, incReceivedFrom, incDate])
+
+  useEffect(() => {
+    const current = validateExpenseForm({ amount: expAmount, categoryId: expCategoryId, spentByName: expSpentByName, date: expDate, description: expDesc })
+    setExpenseFieldErrors(previous => revalidateTransactionErrors(previous, current))
+  }, [expAmount, expCategoryId, expSpentByName, expDate, expDesc])
 
   // Form states - Category
   const [catName, setCatName] = useState('')
@@ -710,6 +726,7 @@ export const FinancePage: React.FC = () => {
 
   // Open Income Modal Helpers
   const handleOpenAddIncome = () => {
+    setIncomeFieldErrors({})
     setEditIncomeItem(null)
     setIncAmount('')
     setIncSource('')
@@ -721,6 +738,7 @@ export const FinancePage: React.FC = () => {
   }
 
   const handleOpenEditIncome = (inc: FinanceIncome) => {
+    setIncomeFieldErrors({})
     setEditIncomeItem(inc)
     const parts = inc.amount.toString().split('.')
     if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -736,8 +754,10 @@ export const FinancePage: React.FC = () => {
   // Handle Save Income (Create or Edit)
   const handleSaveIncome = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!incAmount || !incSource || !incCategoryId || !incReceivedFrom) {
-      setErrorMsg('Please populate all mandatory income fields.')
+    const errors = validateIncomeForm({ amount: incAmount, categoryId: incCategoryId, source: incSource, receivedFrom: incReceivedFrom, date: incDate })
+    setIncomeFieldErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      e.currentTarget.querySelector<HTMLElement>(`#income-${Object.keys(errors)[0]}`)?.focus()
       return
     }
     if (isPeriodClosed(incDate)) {
@@ -797,6 +817,7 @@ export const FinancePage: React.FC = () => {
 
   // Open Expense Modal Helpers
   const handleOpenAddExpense = () => {
+    setExpenseFieldErrors({})
     setEditExpenseItem(null)
     setExpAmount('')
     setExpCategoryId('')
@@ -807,6 +828,7 @@ export const FinancePage: React.FC = () => {
   }
 
   const handleOpenEditExpense = (exp: DirectExpense) => {
+    setExpenseFieldErrors({})
     setEditExpenseItem(exp)
     const parts = exp.amount.toString().split('.')
     if (parts[0]) parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',')
@@ -821,8 +843,10 @@ export const FinancePage: React.FC = () => {
   // Handle Save Expense (Create or Edit)
   const handleSaveExpense = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!expAmount || !expCategoryId || !expSpentByName) {
-      setErrorMsg('Please populate all mandatory expense fields.')
+    const errors = validateExpenseForm({ amount: expAmount, categoryId: expCategoryId, spentByName: expSpentByName, date: expDate, description: expDesc })
+    setExpenseFieldErrors(errors)
+    if (Object.keys(errors).length > 0) {
+      e.currentTarget.querySelector<HTMLElement>(`#expense-${Object.keys(errors)[0]}`)?.focus()
       return
     }
     if (isPeriodClosed(expDate)) {
@@ -3905,7 +3929,7 @@ export const FinancePage: React.FC = () => {
                   <div className="flex items-center gap-2 mt-2 flex-wrap">
                     <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs">
                       <span className="text-[10px] font-extrabold uppercase text-slate-400">From</span>
-                      <input
+                      <FormInput
                         type="date"
                         value={reportStartDate}
                         onChange={(e) => setReportStartDate(e.target.value)}
@@ -3915,7 +3939,7 @@ export const FinancePage: React.FC = () => {
                     <span className="text-slate-400 font-bold text-xs">to</span>
                     <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 shadow-2xs">
                       <span className="text-[10px] font-extrabold uppercase text-slate-400">To</span>
-                      <input
+                      <FormInput
                         type="date"
                         value={reportEndDate}
                         onChange={(e) => setReportEndDate(e.target.value)}
@@ -4403,105 +4427,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Body */}
-            <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
-              <div className="relative border-l-2 border-indigo-100 pl-4 ml-2 space-y-5 py-2">
-                {/* 1. Request submission */}
-                <div className="relative">
-                  <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-blue-500 border-2 border-white shadow-sm"></div>
-                  <div className="text-xs font-bold text-gray-900">Request Submitted</div>
-                  <div className="text-[11px] text-gray-500 mt-0.5">
-                    Requested amount: <strong className="text-gray-800">₱{historyRequest.requestedAmount.toLocaleString()}</strong> by <strong className="text-gray-800">{historyRequest.requestedByName}</strong>
-                  </div>
-                </div>
-
-                {/* 2. Approval or Rejection */}
-                {historyRequest.approvedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-emerald-700">Approved</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Approved by <strong className="text-gray-800">{historyRequest.approvedByName}</strong> {historyRequest.approvalRemarks ? `("${historyRequest.approvalRemarks}")` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {historyRequest.rejectedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-red-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-red-600">Rejected</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Rejected by <strong className="text-gray-800">{historyRequest.rejectedByName}</strong> {historyRequest.rejectionReason ? ` - Reason: "${historyRequest.rejectionReason}"` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {/* 3. Funds Released */}
-                {historyRequest.releasedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-amber-700">Funds Released</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Disbursed <strong className="text-gray-800">₱{historyRequest.releasedAmount?.toLocaleString()}</strong> by <strong className="text-gray-800">{historyRequest.releasedByName}</strong> to <strong className="text-gray-800">{historyRequest.releasedToName || historyRequest.requestedByName}</strong> on {historyRequest.releasedDate} {historyRequest.releaseRemarks ? `("${historyRequest.releaseRemarks}")` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {/* 4. Liquidation */}
-                {historyRequest.liquidatedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-indigo-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-indigo-700">Liquidation Submitted</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Reported by <strong className="text-gray-800">{historyRequest.liquidatedByName}</strong> showing <strong className="text-gray-800">₱{historyRequest.totalSpent?.toLocaleString()}</strong> spent and <strong className="text-gray-800">₱{historyRequest.returnedAmount?.toLocaleString()}</strong> returned. {historyRequest.liquidationRemarks ? `("${historyRequest.liquidationRemarks}")` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {/* 5. Closed */}
-                {historyRequest.liquidationReviewedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-gray-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-gray-700">Workflow Closed</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Reviewed & verified closed by <strong className="text-gray-800">{historyRequest.liquidationReviewedByName}</strong> {historyRequest.liquidationReviewRemarks ? `("${historyRequest.liquidationReviewRemarks}")` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {/* 5.1 Reopened for Review */}
-                {historyRequest.liquidationReopenedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-amber-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-amber-700">Reopened for Review</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Reopened by <strong className="text-gray-800">{historyRequest.liquidationReopenedByName}</strong> {historyRequest.liquidationReopenReason ? ` - Reason: "${historyRequest.liquidationReopenReason}"` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {/* 6. Cancelled */}
-                {historyRequest.cancelledByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-slate-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-slate-700">Request Cancelled</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Cancelled by <strong className="text-gray-800">{historyRequest.cancelledByName}</strong> {historyRequest.cancellationReason ? ` - Reason: "${historyRequest.cancellationReason}"` : ''}
-                    </div>
-                  </div>
-                )}
-
-                {/* 7. Voided */}
-                {historyRequest.voidedByName && (
-                  <div className="relative">
-                    <div className="absolute -left-[22px] mt-0.5 w-3.5 h-3.5 rounded-full bg-rose-500 border-2 border-white shadow-sm"></div>
-                    <div className="text-xs font-bold text-rose-700">Request Voided</div>
-                    <div className="text-[11px] text-gray-500 mt-0.5">
-                      Voided by <strong className="text-gray-800">{historyRequest.voidedByName}</strong> {historyRequest.voidReason ? ` - Reason: "${historyRequest.voidReason}"` : ''}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <FundRequestHistoryBody historyRequest={historyRequest} />
 
             {/* Footer */}
             <div className="flex justify-end p-3.5 border-t border-gray-100 bg-slate-50/50">
@@ -4541,24 +4467,25 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSaveIncome} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm noValidate onSubmit={handleSaveIncome} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Amount & Classification Card */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Amount & Classification</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount (₱) *</label>
-                    <input 
-                      type="text" 
-                      required 
-                      placeholder="0.00" 
-                      value={incAmount} 
-                      onChange={(e) => handleNumberChange(e.target.value, setIncAmount)} 
-                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-bold text-xs" 
+                    <label htmlFor="income-amount" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount (₱) *</label>
+                    <CurrencyInput
+                      id="income-amount"
+                      required
+                      value={incAmount}
+                      onChange={formatted => setIncAmount(formatted)}
+                      error={incomeFieldErrors.amount}
                     />
                   </div>
                   <div>
                     <CustomSelect
+                      id="income-categoryId"
+                      error={incomeFieldErrors.categoryId}
                       label="Category"
                       required
                       value={incCategoryId}
@@ -4571,15 +4498,19 @@ export const FinancePage: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Source Name / Revenue Tag *</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. Mass Donation, Solicitation, Church Subsidy" 
-                    value={incSource} 
-                    onChange={(e) => setIncSource(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                  <label htmlFor="income-source" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Source Name / Revenue Tag *</label>
+                  <FormInput
+                    id="income-source"
+                    aria-invalid={Boolean(incomeFieldErrors.source)}
+                    aria-describedby={incomeFieldErrors.source ? 'income-source-error' : undefined}
+                    type="text"
+                    required
+                    placeholder="e.g. Mass Donation, Solicitation, Church Subsidy"
+                    value={incSource}
+                    onChange={(e) => setIncSource(e.target.value)}
+                    className={`w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs ${incomeFieldErrors.source ? '!border-rose-500' : ''}`}
                   />
+                  {incomeFieldErrors.source && <p id="income-source-error" className="mt-1 text-xs font-medium text-rose-600">{incomeFieldErrors.source}</p>}
                 </div>
               </div>
 
@@ -4588,33 +4519,41 @@ export const FinancePage: React.FC = () => {
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">2. Transaction Metadata</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Received From *</label>
-                    <input 
-                      type="text" 
-                      required 
-                      placeholder="Name or Parish / Institution" 
-                      value={incReceivedFrom} 
-                      onChange={(e) => setIncReceivedFrom(e.target.value)} 
-                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                    <label htmlFor="income-receivedFrom" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Received From *</label>
+                    <FormInput
+                      id="income-receivedFrom"
+                      aria-invalid={Boolean(incomeFieldErrors.receivedFrom)}
+                      aria-describedby={incomeFieldErrors.receivedFrom ? 'income-receivedFrom-error' : undefined}
+                      type="text"
+                      required
+                      placeholder="Name or Parish / Institution"
+                      value={incReceivedFrom}
+                      onChange={(e) => setIncReceivedFrom(e.target.value)}
+                      className={`w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs ${incomeFieldErrors.receivedFrom ? '!border-rose-500' : ''}`}
                     />
+                    {incomeFieldErrors.receivedFrom && <p id="income-receivedFrom-error" className="mt-1 text-xs font-medium text-rose-600">{incomeFieldErrors.receivedFrom}</p>}
                   </div>
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Transaction Date *</label>
-                    <input 
-                      type="date" 
-                      required 
-                      value={incDate} 
-                      onChange={(e) => setIncDate(e.target.value)} 
-                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 font-semibold text-xs" 
+                    <label htmlFor="income-date" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Transaction Date *</label>
+                    <DatePicker
+                      id="income-date"
+                      value={incDate}
+                      onChange={setIncDate}
+                      ariaLabel="Transaction date"
+                      error={incomeFieldErrors.date}
+                      disabled={saving}
+                      size="md"
+                      clearable
+                      portal
                     />
                   </div>
                 </div>
                 <div>
                   <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Description & Notes</label>
-                  <textarea 
-                    value={incDesc} 
-                    onChange={(e) => setIncDesc(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 text-xs" 
+                  <textarea
+                    value={incDesc}
+                    onChange={(e) => setIncDesc(e.target.value)}
+                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-emerald-500 text-xs"
                     rows={2}
                     placeholder="Additional details, official receipt or voucher reference..."
                   ></textarea>
@@ -4622,23 +4561,29 @@ export const FinancePage: React.FC = () => {
               </div>
 
               {/* Sticky Footer */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
-                <button 
-                  type="button" 
-                  onClick={() => { setIsIncomeModalOpen(false); setEditIncomeItem(null); }} 
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <Button
+                  type="button"
+                  onClick={() => { setIsIncomeModalOpen(false); setEditIncomeItem(null); }}
+                  variant="secondary"
+                  size="dense"
+                  className="w-full sm:w-auto"
                 >
                   Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={saving} 
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-md shadow-emerald-600/20 disabled:opacity-50 transition cursor-pointer"
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  variant="success"
+                  size="dense"
+                  loading={saving}
+                  loadingText="Saving..."
+                  className="w-full sm:w-auto"
                 >
                   {saving ? 'Saving...' : editIncomeItem ? 'Update Income' : 'Save Income'}
-                </button>
+                </Button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -4667,24 +4612,25 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSaveExpense} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm noValidate onSubmit={handleSaveExpense} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Amount & Category Card */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Outflow & Category</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount (₱) *</label>
-                    <input 
-                      type="text" 
-                      required 
-                      placeholder="0.00" 
-                      value={expAmount} 
-                      onChange={(e) => handleNumberChange(e.target.value, setExpAmount)} 
-                      className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-bold text-xs" 
+                    <label htmlFor="expense-amount" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount (₱) *</label>
+                    <CurrencyInput
+                      id="expense-amount"
+                      required
+                      value={expAmount}
+                      onChange={formatted => setExpAmount(formatted)}
+                      error={expenseFieldErrors.amount}
                     />
                   </div>
                   <div>
                     <CustomSelect
+                      id="expense-categoryId"
+                      error={expenseFieldErrors.categoryId}
                       label="Category"
                       required
                       value={expCategoryId}
@@ -4697,15 +4643,19 @@ export const FinancePage: React.FC = () => {
                   </div>
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Spent By (Person / Officer) *</label>
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="e.g. Juan Dela Cruz" 
-                    value={expSpentByName} 
-                    onChange={(e) => setExpSpentByName(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-semibold text-xs" 
+                  <label htmlFor="expense-spentByName" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Spent By (Person / Officer) *</label>
+                  <FormInput
+                    id="expense-spentByName"
+                    aria-invalid={Boolean(expenseFieldErrors.spentByName)}
+                    aria-describedby={expenseFieldErrors.spentByName ? 'expense-spentByName-error' : undefined}
+                    type="text"
+                    required
+                    placeholder="e.g. Juan Dela Cruz"
+                    value={expSpentByName}
+                    onChange={(e) => setExpSpentByName(e.target.value)}
+                    className={`w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-semibold text-xs ${expenseFieldErrors.spentByName ? '!border-rose-500' : ''}`}
                   />
+                  {expenseFieldErrors.spentByName && <p id="expense-spentByName-error" className="mt-1 text-xs font-medium text-rose-600">{expenseFieldErrors.spentByName}</p>}
                 </div>
               </div>
 
@@ -4713,46 +4663,60 @@ export const FinancePage: React.FC = () => {
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">2. Purpose & Transaction Date</h5>
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Transaction Date *</label>
-                  <input 
-                    type="date" 
-                    required 
-                    value={expDate} 
-                    onChange={(e) => setExpDate(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 font-semibold text-xs" 
+                  <label htmlFor="expense-date" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Transaction Date *</label>
+                  <DatePicker
+                    id="expense-date"
+                    value={expDate}
+                    onChange={setExpDate}
+                    ariaLabel="Transaction date"
+                    error={expenseFieldErrors.date}
+                    disabled={saving}
+                    size="md"
+                    clearable
+                    portal
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Expense Purpose Description *</label>
-                  <textarea 
-                    required 
-                    value={expDesc} 
-                    onChange={(e) => setExpDesc(e.target.value)} 
-                    className="w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 text-xs" 
+                  <label htmlFor="expense-description" className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Expense Purpose Description *</label>
+                  <FormTextarea
+                    id="expense-description"
+                    aria-invalid={Boolean(expenseFieldErrors.description)}
+                    aria-describedby={expenseFieldErrors.description ? 'expense-description-error' : undefined}
+                    required
+                    value={expDesc}
+                    onChange={(e) => setExpDesc(e.target.value)}
+                    className={`w-full p-2.5 border border-gray-300 rounded-xl bg-white focus:ring-2 focus:ring-rose-500 text-xs ${expenseFieldErrors.description ? '!border-rose-500' : ''}`}
                     rows={2}
                     placeholder="Specific itemized description or reason for direct disbursement..."
-                  ></textarea>
+                  ></FormTextarea>
+                  {expenseFieldErrors.description && <p id="expense-description-error" className="mt-1 text-xs font-medium text-rose-600">{expenseFieldErrors.description}</p>}
                 </div>
               </div>
 
               {/* Sticky Footer */}
-              <div className="flex justify-end gap-2 pt-3 border-t border-gray-100 flex-wrap">
-                <button 
-                  type="button" 
-                  onClick={() => { setIsExpenseModalOpen(false); setEditExpenseItem(null); }} 
-                  className="px-4 py-2 border border-gray-200 text-xs font-semibold rounded-xl hover:bg-gray-50 cursor-pointer"
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2.5 pt-3 border-t border-gray-100">
+                <Button
+                  type="button"
+                  onClick={() => { setIsExpenseModalOpen(false); setEditExpenseItem(null); }}
+                  variant="secondary"
+                  size="dense"
+                  className="w-full sm:w-auto"
                 >
                   Cancel
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={saving} 
-                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-md shadow-rose-600/20 disabled:opacity-50 transition cursor-pointer"
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={saving}
+                  variant="danger"
+                  size="dense"
+                  loading={saving}
+                  loadingText="Saving..."
+                  className="w-full sm:w-auto"
                 >
                   {saving ? 'Saving...' : editExpenseItem ? 'Update Expense' : 'Save Expense'}
-                </button>
+                </Button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -4781,11 +4745,11 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSaveCategory} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleSaveCategory} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <div>
                   <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Category Name *</label>
-                  <input 
+                  <FormInput
                     type="text" 
                     required 
                     placeholder="e.g. Utility Bills, Donations, Liturgical Supplies" 
@@ -4827,7 +4791,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Saving...' : editCategoryItem ? 'Update Category' : 'Create Category'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -4854,7 +4818,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleCreateRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleCreateRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Top Metadata Grid */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Request Details & Source</h5>
@@ -4955,7 +4919,7 @@ export const FinancePage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Request Title *</label>
-                    <input 
+                    <FormInput
                       type="text" 
                       required 
                       placeholder="e.g. Replenishing of Liturgical Supplies" 
@@ -4966,7 +4930,7 @@ export const FinancePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Purpose / Intended Objective *</label>
-                    <input 
+                    <FormInput
                       type="text" 
                       required 
                       placeholder="Detailed purpose" 
@@ -4977,7 +4941,7 @@ export const FinancePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Date Needed *</label>
-                    <input 
+                    <FormInput
                       type="date" 
                       required 
                       value={reqDateNeeded} 
@@ -5092,7 +5056,7 @@ export const FinancePage: React.FC = () => {
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 font-bold text-gray-400 text-sm">₱</span>
-                      <input
+                      <FormInput
                         type="text"
                         inputMode="decimal"
                         required
@@ -5240,7 +5204,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Submitting...' : 'Submit Fund Requisition'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -5273,7 +5237,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleSaveEditRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleSaveEditRequest} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Fund Source Selection */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Channel & Core Request Info</h5>
@@ -5372,7 +5336,7 @@ export const FinancePage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Request Title *</label>
-                    <input 
+                    <FormInput
                       type="text" 
                       required 
                       placeholder="e.g. Replenishing of Liturgical Supplies" 
@@ -5383,7 +5347,7 @@ export const FinancePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Purpose / Intended Objective *</label>
-                    <input 
+                    <FormInput
                       type="text" 
                       required 
                       placeholder="Detailed purpose" 
@@ -5394,7 +5358,7 @@ export const FinancePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Date Needed *</label>
-                    <input 
+                    <FormInput
                       type="date" 
                       required 
                       value={editReqDateNeeded} 
@@ -5509,7 +5473,7 @@ export const FinancePage: React.FC = () => {
                     </label>
                     <div className="relative">
                       <span className="absolute left-3 top-2.5 font-bold text-gray-400 text-sm">₱</span>
-                      <input
+                      <FormInput
                         type="text"
                         inputMode="decimal"
                         required
@@ -5657,7 +5621,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Saving Changes...' : 'Save Changes'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -5691,7 +5655,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleReleaseSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleReleaseSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Event Allocation Notice */}
               {selectedRequest.targetEventName && (
                 <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-xl text-xs text-indigo-950 leading-relaxed flex items-start gap-2.5">
@@ -5739,7 +5703,7 @@ export const FinancePage: React.FC = () => {
                         <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
                           Disbursed By (Parish Office / Secretary) *
                         </label>
-                        <input
+                        <FormInput
                           type="text"
                           required
                           value={relParishOfficeDisbursedBy}
@@ -5763,7 +5727,7 @@ export const FinancePage: React.FC = () => {
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       <div>
                         <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Amount Released (₱) *</label>
-                        <input 
+                        <FormInput
                           type="text" 
                           required 
                           placeholder="0.00" 
@@ -5775,7 +5739,7 @@ export const FinancePage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release / Handover Date *</label>
-                        <input 
+                        <FormInput
                           type="date" 
                           required 
                           value={relDate} 
@@ -5811,7 +5775,7 @@ export const FinancePage: React.FC = () => {
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Released Amount (₱) *</label>
-                        <input 
+                        <FormInput
                           type="text" 
                           required 
                           placeholder="0.00" 
@@ -5824,7 +5788,7 @@ export const FinancePage: React.FC = () => {
                     </div>
                     <div>
                       <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Release Date *</label>
-                      <input 
+                      <FormInput
                         type="date" 
                         required 
                         value={relDate} 
@@ -5867,7 +5831,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Recording Release...' : selectedRequest.fundSource === 'parish' ? 'Confirm Parish Release' : 'Execute Release'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -5895,14 +5859,14 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleLiquidationSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleLiquidationSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Header Info */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-3">
                 <h5 className="text-[11px] font-black text-slate-800 uppercase tracking-tight">1. Liquidation Memo Header</h5>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">To (Parish Priest / Addressee) *</label>
-                    <input 
+                    <FormInput
                       type="text" 
                       required 
                       value={liqTo} 
@@ -5912,7 +5876,7 @@ export const FinancePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">From *</label>
-                    <input 
+                    <FormInput
                       type="text" 
                       required 
                       value={liqFrom} 
@@ -5922,7 +5886,7 @@ export const FinancePage: React.FC = () => {
                   </div>
                   <div>
                     <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">Liquidation Date *</label>
-                    <input 
+                    <FormInput
                       type="date" 
                       required 
                       value={liqDate} 
@@ -6162,7 +6126,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Submitting...' : 'Submit Liquidation Statement'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -6190,7 +6154,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleConfirmCancel} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleConfirmCancel} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Summary Card */}
               <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
                 <div className="flex justify-between items-center text-xs">
@@ -6211,7 +6175,7 @@ export const FinancePage: React.FC = () => {
                 <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
                   Cancellation Reason *
                 </label>
-                <textarea
+                <FormTextarea
                   required
                   rows={3}
                   maxLength={300}
@@ -6240,7 +6204,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Cancelling...' : 'Confirm Cancellation'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -6268,7 +6232,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleConfirmVoid} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleConfirmVoid} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Warning Card */}
               <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-2 text-xs text-rose-950">
                 <div className="flex items-start gap-2">
@@ -6291,7 +6255,7 @@ export const FinancePage: React.FC = () => {
                 <label className="block text-[10px] font-bold text-gray-600 uppercase mb-1">
                   Void Reason *
                 </label>
-                <textarea
+                <FormTextarea
                   required
                   rows={3}
                   maxLength={300}
@@ -6320,7 +6284,7 @@ export const FinancePage: React.FC = () => {
                   {saving ? 'Voiding...' : 'Confirm Void'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -6348,7 +6312,7 @@ export const FinancePage: React.FC = () => {
             </div>
 
             {/* Modal Body Form */}
-            <form onSubmit={handleReopenLiquidationSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
+            <ValidatedForm onSubmit={handleReopenLiquidationSubmit} className="p-3.5 sm:p-5 overflow-y-auto space-y-4 flex-1 text-xs">
               {/* Info Card */}
               <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl space-y-2 text-xs text-amber-950">
                 <div className="flex items-start gap-2">
@@ -6371,7 +6335,7 @@ export const FinancePage: React.FC = () => {
                 <label className="block text-[10px] font-bold text-gray-700 uppercase mb-1">
                   Reason for Reopening *
                 </label>
-                <textarea
+                <FormTextarea
                   required
                   rows={3}
                   maxLength={300}
@@ -6403,7 +6367,7 @@ export const FinancePage: React.FC = () => {
                   <span>{saving ? 'Reopening...' : 'Reopen for Review'}</span>
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         </div>
       )}
@@ -6698,7 +6662,7 @@ export const FinancePage: React.FC = () => {
 
               {/* Request Changes / Revision Form Section */}
               {showRevisionSection ? (
-                <form onSubmit={handleRequestRevisionSubmit} className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 space-y-3 animate-fade-in">
+                <ValidatedForm onSubmit={handleRequestRevisionSubmit} className="p-4 bg-amber-50/80 rounded-2xl border border-amber-200 space-y-3 animate-fade-in">
                   <div className="flex items-center justify-between">
                     <h5 className="text-xs font-black text-amber-900 uppercase tracking-tight flex items-center gap-1.5">
                       <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -6721,7 +6685,7 @@ export const FinancePage: React.FC = () => {
                     <label className="block text-[10px] font-bold text-amber-900 uppercase mb-1">
                       Reason for Revision / Required Changes *
                     </label>
-                    <textarea
+                    <FormTextarea
                       required
                       rows={3}
                       value={reviewRevisionReason}
@@ -6746,7 +6710,7 @@ export const FinancePage: React.FC = () => {
                       {saving ? 'Returning...' : 'Confirm & Request Changes'}
                     </button>
                   </div>
-                </form>
+                </ValidatedForm>
               ) : reviewLiquidationRequest.status === 'closed' ? (
                 /* Closed View Toolbar & Reopen Option */
                 <div className="space-y-3 pt-2">
@@ -6793,7 +6757,7 @@ export const FinancePage: React.FC = () => {
                 </div>
               ) : (
                 /* Approval Form & Toolbar */
-                <form onSubmit={handleApproveLiquidationSubmit} className="space-y-3 pt-2">
+                <ValidatedForm onSubmit={handleApproveLiquidationSubmit} className="space-y-3 pt-2">
                   {/* Action Toolbar */}
                   <div className="flex items-center justify-between gap-2 flex-wrap p-3 bg-slate-50 rounded-xl border border-slate-200">
                     <div className="flex items-center gap-2 flex-wrap">
@@ -6872,7 +6836,7 @@ export const FinancePage: React.FC = () => {
                       <span>{saving ? 'Approving & Closing...' : 'Approve Liquidation & Close'}</span>
                     </button>
                   </div>
-                </form>
+                </ValidatedForm>
               )}
             </div>
           </div>

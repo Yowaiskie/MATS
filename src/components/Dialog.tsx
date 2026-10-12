@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button'
@@ -308,12 +310,12 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
           <h3 id="password-confirm-title" className="text-base font-black text-slate-900 tracking-tight">{title}</h3>
           <p className="mt-1.5 text-xs font-medium text-slate-600 leading-relaxed">{message}</p>
         </div>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Enter Password to Continue
             </label>
-            <input
+            <FormInput
               type="password"
               autoFocus
               required
@@ -347,7 +349,7 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
               {confirmLabel}
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>,
     document.body

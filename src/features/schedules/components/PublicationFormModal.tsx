@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import type { ScheduleTemplate } from '@/types/schedule'
@@ -826,7 +828,7 @@ export const PublicationFormModal: React.FC<Props> = ({
             </div>
           )}
 
-          <form id="pub-form" onSubmit={handleSubmit} className="space-y-4">
+          <ValidatedForm id="pub-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Publication Type Selector */}
             <div>
               <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-2">
@@ -901,7 +903,7 @@ export const PublicationFormModal: React.FC<Props> = ({
               <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
                 Publication Name
               </label>
-              <input
+              <FormInput
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -946,7 +948,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                   <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
                     Start Date
                   </label>
-                  <input
+                  <FormInput
                     type="date"
                     value={startDate}
                     onChange={(e) => handleDateChange(e.target.value, endDate)}
@@ -958,7 +960,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                   <label className="block text-[10px] font-extrabold uppercase text-gray-500 mb-1.5">
                     End Date
                   </label>
-                  <input
+                  <FormInput
                     type="date"
                     value={endDate}
                     onChange={(e) => handleDateChange(startDate, e.target.value)}
@@ -1008,7 +1010,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                   )}
                 </div>
               </div>
-              <input
+              <FormInput
                 type="datetime-local"
                 value={submissionDeadline}
                 onChange={(e) => setSubmissionDeadline(e.target.value)}
@@ -1041,7 +1043,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                     <label className="block text-[10px] font-extrabold uppercase text-purple-800 mb-1">
                       Max Special Occasion Slots / Person
                     </label>
-                    <input
+                    <FormInput
                       type="number"
                       min="1"
                       value={maxSpecialPerServer}
@@ -1055,7 +1057,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-1">
                         Max Sundays / Person
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="0"
                         value={maxSundaysPerServer}
@@ -1067,7 +1069,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-slate-600 mb-1">
                         Max Weekdays / Person
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="0"
                         value={maxWeekdaysPerServer}
@@ -1092,7 +1094,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                     <label className="block text-[10px] font-extrabold uppercase text-purple-800 mb-1">
                       Max Servers / Special Event Slot
                     </label>
-                    <input
+                    <FormInput
                       type="number"
                       min="1"
                       value={maxServersPerSpecialSlot}
@@ -1106,7 +1108,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-indigo-800 mb-1">
                         Max Servers / Sunday Mass
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="1"
                         value={maxServersPerSundaySlot}
@@ -1118,7 +1120,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-indigo-800 mb-1">
                         Max Servers / Weekday Mass
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="1"
                         value={maxServersPerWeekdaySlot}
@@ -1178,7 +1180,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                           <label className="block text-[10px] font-extrabold uppercase text-slate-700 mb-1">
                             Max Chevaliers
                           </label>
-                          <input
+                          <FormInput
                             type="number"
                             min="0"
                             max={currentSlotCapacity}
@@ -1193,7 +1195,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                           <label className="block text-[10px] font-extrabold uppercase text-slate-700 mb-1">
                             Max Paladins
                           </label>
-                          <input
+                          <FormInput
                             type="number"
                             min="0"
                             max={currentSlotCapacity}
@@ -1209,7 +1211,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                             <label className="block text-[10px] font-extrabold uppercase text-slate-700 mb-1">
                               Max Squires
                             </label>
-                            <input
+                            <FormInput
                               type="number"
                               min="0"
                               max={currentSlotCapacity}
@@ -1624,7 +1626,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-amber-900 mb-1">
                         Warning Absence Threshold
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="1"
                         max="20"
@@ -1639,7 +1641,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-rose-900 mb-1">
                         Suspension Absence Threshold
                       </label>
-                      <input
+                      <FormInput
                         type="number"
                         min="2"
                         max="50"
@@ -1711,7 +1713,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                         <label className="block text-[10px] font-extrabold uppercase text-purple-900 mb-1">
                           Start Time
                         </label>
-                        <input
+                        <FormInput
                           type="time"
                           value={defaultStartTime}
                           onChange={(e) => {
@@ -1725,7 +1727,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                         <label className="block text-[10px] font-extrabold uppercase text-purple-900 mb-1">
                           End Time
                         </label>
-                        <input
+                        <FormInput
                           type="time"
                           value={defaultEndTime}
                           onChange={(e) => {
@@ -1755,7 +1757,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                           <label className="block text-[9px] font-extrabold uppercase text-purple-900 mb-0.5">
                             Date
                           </label>
-                          <input
+                          <FormInput
                             type="date"
                             value={quickAddDate || startDate}
                             onChange={(e) => setQuickAddDate(e.target.value)}
@@ -1767,13 +1769,13 @@ export const PublicationFormModal: React.FC<Props> = ({
                             Time (Start - End)
                           </label>
                           <div className="grid grid-cols-2 gap-1">
-                            <input
+                            <FormInput
                               type="time"
                               value={quickAddStartTime}
                               onChange={(e) => setQuickAddStartTime(e.target.value)}
                               className="w-full px-1.5 py-1.5 rounded-lg border border-purple-200 text-xs bg-white font-bold text-purple-950 focus:border-purple-500 focus:ring-1 focus:ring-purple-500"
                             />
-                            <input
+                            <FormInput
                               type="time"
                               value={quickAddEndTime}
                               onChange={(e) => setQuickAddEndTime(e.target.value)}
@@ -1916,7 +1918,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-0.5">
                                     Date
                                   </label>
-                                  <input
+                                  <FormInput
                                     type="date"
                                     value={slot.date}
                                     onChange={(e) => updateSlotDate(slot.id, e.target.value)}
@@ -1929,13 +1931,13 @@ export const PublicationFormModal: React.FC<Props> = ({
                                     Time (Start - End)
                                   </label>
                                   <div className="grid grid-cols-2 gap-1">
-                                    <input
+                                    <FormInput
                                       type="time"
                                       value={slot.startTime}
                                       onChange={(e) => updateSlotTime(slot.id, e.target.value, slot.endTime)}
                                       className="w-full px-1.5 py-1.5 rounded-lg border border-slate-200 text-xs font-bold text-purple-900 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-slate-50/60 focus:bg-white"
                                     />
-                                    <input
+                                    <FormInput
                                       type="time"
                                       value={slot.endTime}
                                       onChange={(e) => updateSlotTime(slot.id, slot.startTime, e.target.value)}
@@ -2057,7 +2059,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               />
             </div>
-          </form>
+          </ValidatedForm>
         </div>
 
         <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0">

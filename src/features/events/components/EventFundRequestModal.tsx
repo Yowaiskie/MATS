@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { CurrencyInput, Button, useToast } from '@/components'
@@ -134,7 +136,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-bold animate-fade-in">
             {error}
@@ -238,7 +240,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
 
         <div>
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-700 mb-1">Request Title *</label>
-          <input
+          <FormInput
             type="text"
             required
             maxLength={100}
@@ -261,7 +263,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">Date Needed *</label>
-            <input
+            <FormInput
               type="date"
               required
               value={dateNeeded}
@@ -273,7 +275,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">Purpose *</label>
-          <input
+          <FormInput
             type="text"
             required
             maxLength={150}
@@ -286,7 +288,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1">Additional Notes / Description</label>
-          <textarea
+          <FormTextarea
             rows={3}
             maxLength={500}
             value={description}
@@ -316,7 +318,7 @@ export const EventFundRequestModal: React.FC<Props> = ({
             Submit Request to Main Funds
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
     </Modal>
   )
 }

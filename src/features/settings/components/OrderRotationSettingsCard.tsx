@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Card, Button } from '@/components'
 import { settingsService } from '@/services/settingsService'
@@ -147,7 +148,7 @@ export const OrderRotationSettingsCard: React.FC<OrderRotationSettingsCardProps>
         )}
       </div>
 
-      <form onSubmit={handleSave} className="mt-6 space-y-6">
+      <ValidatedForm onSubmit={handleSave} className="mt-6 space-y-6">
         {/* Enable / Disable Toggle */}
         <div className="p-4 rounded-2xl border border-slate-200 bg-slate-50/70 flex items-center justify-between gap-4">
           <div>
@@ -331,7 +332,7 @@ export const OrderRotationSettingsCard: React.FC<OrderRotationSettingsCardProps>
             Save Order Rotation Settings
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
     </Card>
   )
 }

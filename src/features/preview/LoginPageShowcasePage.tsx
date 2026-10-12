@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -274,13 +276,13 @@ export const LoginPageShowcasePage: React.FC = () => {
                   )}
 
                   {/* Form */}
-                  <form onSubmit={handleSimulateSubmit} className="space-y-4">
+                  <ValidatedForm onSubmit={handleSimulateSubmit} className="space-y-4">
                     <div className="space-y-1.5">
                       <label className="block text-[11px] font-black uppercase text-slate-700 tracking-wider">
                         Email Address
                       </label>
                       <div className="relative">
-                        <input
+                        <FormInput
                           type="email"
                           value={email}
                           onChange={e => setEmail(e.target.value)}
@@ -306,7 +308,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                         </span>
                       </div>
                       <div className="relative">
-                        <input
+                        <FormInput
                           type={showPassword ? 'text' : 'password'}
                           value={password}
                           onChange={e => setPassword(e.target.value)}
@@ -362,7 +364,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                         <span>Sign In to MATS</span>
                       )}
                     </button>
-                  </form>
+                  </ValidatedForm>
 
                   <div className="pt-4 border-t border-slate-100 text-center">
                     <p className="text-[11px] text-slate-400 font-medium">
@@ -409,12 +411,12 @@ export const LoginPageShowcasePage: React.FC = () => {
                 )}
 
                 {/* Form */}
-                <form onSubmit={handleSimulateSubmit} className="space-y-4">
+                <ValidatedForm onSubmit={handleSimulateSubmit} className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600">
                       Officer Email
                     </label>
-                    <input
+                    <FormInput
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
@@ -434,7 +436,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                       </span>
                     </div>
                     <div className="relative">
-                      <input
+                      <FormInput
                         type={showPassword ? 'text' : 'password'}
                         value={password}
                         onChange={e => setPassword(e.target.value)}
@@ -474,7 +476,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                   >
                     {isLoading ? 'Authenticating...' : 'Sign In to Account'}
                   </button>
-                </form>
+                </ValidatedForm>
 
                 {/* Bottom Shortcuts Drawer */}
                 <div className="p-3.5 bg-indigo-50/70 border border-indigo-100 rounded-2xl flex items-center justify-between text-xs">
@@ -514,12 +516,12 @@ export const LoginPageShowcasePage: React.FC = () => {
                       </div>
                     </div>
 
-                    <form onSubmit={handleSimulateSubmit} className="space-y-4">
+                    <ValidatedForm onSubmit={handleSimulateSubmit} className="space-y-4">
                       <div className="space-y-1.5">
                         <label className="block text-[11px] font-black uppercase tracking-wider text-slate-700">
                           Email Address
                         </label>
-                        <input
+                        <FormInput
                           type="email"
                           value={email}
                           onChange={e => setEmail(e.target.value)}
@@ -538,7 +540,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                             Forgot Password?
                           </span>
                         </div>
-                        <input
+                        <FormInput
                           type={showPassword ? 'text' : 'password'}
                           value={password}
                           onChange={e => setPassword(e.target.value)}
@@ -561,7 +563,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                       >
                         {isLoading ? 'Signing in...' : 'Sign In to Dashboard'}
                       </button>
-                    </form>
+                    </ValidatedForm>
                   </div>
 
                   <div className="flex items-center justify-between pt-3 border-t border-slate-100 text-xs text-slate-500">
@@ -645,12 +647,12 @@ export const LoginPageShowcasePage: React.FC = () => {
                 </div>
 
                 {/* Form */}
-                <form onSubmit={handleSimulateSubmit} className="space-y-4">
+                <ValidatedForm onSubmit={handleSimulateSubmit} className="space-y-4">
                   <div className="space-y-1.5">
                     <label className="block text-[11px] font-black uppercase tracking-wider text-slate-500">
                       Email
                     </label>
-                    <input
+                    <FormInput
                       type="email"
                       value={email}
                       onChange={e => setEmail(e.target.value)}
@@ -669,7 +671,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                         Forgot?
                       </span>
                     </div>
-                    <input
+                    <FormInput
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={e => setPassword(e.target.value)}
@@ -692,7 +694,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                   >
                     {isLoading ? 'Signing in...' : 'Sign In'}
                   </button>
-                </form>
+                </ValidatedForm>
 
                 {/* Bottom Minimalist Links */}
                 <div className="pt-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-400">

@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card, Loading, StatusBadge, EmptyState, CustomSelect, Button, Modal, useToast, ActionMenu, type ActionMenuItem } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -946,14 +948,14 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
           <div>
             <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Date Range</label>
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <input
+              <FormInput
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-1/2 min-w-0 text-xs font-medium border border-gray-200 rounded-xl px-2 py-1.5 bg-white focus:outline-none shadow-xs"
               />
               <span className="text-gray-400 text-xs shrink-0">to</span>
-              <input
+              <FormInput
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
@@ -1458,7 +1460,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
             title="Record Contribution as Income" 
             maxWidth="sm"
           >
-            <form onSubmit={handleLinkFinanceSubmit} className="space-y-4">
+            <ValidatedForm onSubmit={handleLinkFinanceSubmit} className="space-y-4">
               <div className="p-3 bg-gray-50 border border-gray-200 rounded-xl text-xs text-gray-700 font-medium space-y-1">
                 <div>Contribution: <strong>₱{linkTarget.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong> ({linkTarget.purposeName}) from <strong>{linkTarget.contributorName}</strong></div>
                 {summary.totalLinked > 0 && (
@@ -1519,7 +1521,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                   <div className={`absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none font-bold text-xs ${isAmountExceeded ? 'text-red-500' : 'text-gray-400'}`}>
                     ₱
                   </div>
-                  <input
+                  <FormInput
                     type="number"
                     step="any"
                     min="0.01"
@@ -1626,7 +1628,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
               <div>
                 <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Income Received Date *</label>
-                <input
+                <FormInput
                   type="date"
                   required
                   value={financeLinkDate}
@@ -1661,7 +1663,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                   Confirm Link
                 </Button>
               </div>
-            </form>
+            </ValidatedForm>
           </Modal>
         )
       })()}
@@ -1798,7 +1800,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
           title={`Bulk Link ${selectedIds.length} Contributions to Finance`} 
           maxWidth="sm"
         >
-          <form onSubmit={handleBulkLinkSubmit} className="space-y-4">
+          <ValidatedForm onSubmit={handleBulkLinkSubmit} className="space-y-4">
             <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 font-medium">
               You are about to record <strong>{selectedIds.length} selected contributions</strong> (Total: <strong>₱{selectedSum.toLocaleString('en-US', { minimumFractionDigits: 2 })}</strong>) into Finance.
             </div>
@@ -1873,7 +1875,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
 
             <div>
               <label className="block text-[11px] font-bold uppercase text-gray-500 mb-1">Income Received Date *</label>
-              <input
+              <FormInput
                 type="date"
                 required
                 value={financeLinkDate}
@@ -1906,7 +1908,7 @@ export const EventContributionsBoard: React.FC<Props> = ({ eventId, eventName, i
                 Confirm Bulk Link
               </Button>
             </div>
-          </form>
+          </ValidatedForm>
         </Modal>
       )}
 

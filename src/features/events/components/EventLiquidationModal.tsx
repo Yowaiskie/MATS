@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button, useToast } from '@/components'
@@ -711,7 +712,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-600 mb-1">Liquidation Date:</label>
-                  <input
+                  <FormInput
                     type="date"
                     value={docDate}
                     onChange={e => setDocDate(e.target.value)}
@@ -857,7 +858,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
                     />
                     <div className="relative w-32 shrink-0">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₱</span>
-                      <input
+                      <FormInput
                         type="number"
                         placeholder="0.00"
                         value={item.amount || ''}
@@ -925,7 +926,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
                     />
                     <div className="relative w-28 shrink-0">
                       <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">₱</span>
-                      <input
+                      <FormInput
                         type="number"
                         placeholder="0.00"
                         value={item.amount || ''}
@@ -1095,7 +1096,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
                     <span>Table Row Spacing:</span>
                     <span className="text-blue-700 font-mono">{tablePadding.toFixed(1)} mm</span>
                   </div>
-                  <input
+                  <FormInput
                     type="range"
                     min="1.0"
                     max="3.6"
@@ -1113,7 +1114,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
                     <span>Space Between Sections:</span>
                     <span className="text-blue-700 font-mono">{sectionSpacing.toFixed(1)} mm</span>
                   </div>
-                  <input
+                  <FormInput
                     type="range"
                     min="2.0"
                     max="15.0"
@@ -1131,7 +1132,7 @@ export const EventLiquidationModal: React.FC<Props> = ({
                     <span>Signature Space:</span>
                     <span className="text-blue-700 font-mono">{signatureTopMargin.toFixed(1)} mm</span>
                   </div>
-                  <input
+                  <FormInput
                     type="range"
                     min="4.0"
                     max="24.0"

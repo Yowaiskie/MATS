@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { Card } from '@/components/Card'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -87,14 +89,14 @@ export const ChangePasswordPage: React.FC = () => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
           {/* Current Password */}
           <div>
             <label className="block text-xs font-bold text-gray-700 uppercase tracking-wider mb-1.5">
               Current Password <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <input
+              <FormInput
                 type={showCurrent ? 'text' : 'password'}
                 required
                 value={currentPassword}
@@ -128,7 +130,7 @@ export const ChangePasswordPage: React.FC = () => {
               New Password <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <input
+              <FormInput
                 type={showNew ? 'text' : 'password'}
                 required
                 minLength={6}
@@ -166,7 +168,7 @@ export const ChangePasswordPage: React.FC = () => {
               Confirm New Password <span className="text-red-500">*</span>
             </label>
             <div className="relative">
-              <input
+              <FormInput
                 type={showConfirm ? 'text' : 'password'}
                 required
                 minLength={6}
@@ -215,7 +217,7 @@ export const ChangePasswordPage: React.FC = () => {
               )}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       </Card>
     </div>
   )

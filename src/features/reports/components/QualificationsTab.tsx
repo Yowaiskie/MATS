@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
@@ -697,7 +698,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                     {/* Clean Clamped Type-in Input */}
                     <div className="flex items-center gap-1 bg-indigo-50/70 border border-indigo-200/80 rounded-lg px-2 py-0.5">
                       <span className="text-indigo-600 font-black text-[11px]">Min</span>
-                      <input
+                      <FormInput
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"

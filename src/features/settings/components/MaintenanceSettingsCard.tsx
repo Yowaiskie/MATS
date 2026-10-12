@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card } from '@/components/Card'
 import { maintenanceService } from '@/services/maintenanceService'
@@ -248,7 +249,7 @@ export const MaintenanceSettingsCard: React.FC<MaintenanceSettingsCardProps> = (
             Set an estimated date and time when MATS is expected to be back online.
           </p>
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-            <input
+            <FormInput
               type="datetime-local"
               value={settings.expectedEndAt || ''}
               onChange={(e) => setSettings((prev) => ({ ...prev, expectedEndAt: e.target.value }))}

@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
@@ -548,7 +550,7 @@ export const PublicExcusePage: React.FC = () => {
 
         {/* STEP 1: VERIFY IDENTITY */}
         {mode === 'submit' && step === 1 && (
-          <form onSubmit={handleVerify} className="space-y-4">
+          <ValidatedForm onSubmit={handleVerify} className="space-y-4">
             <div className="space-y-2">
               <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
                 1. Select Your Name
@@ -695,7 +697,7 @@ export const PublicExcusePage: React.FC = () => {
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700">
                     Day <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <FormInput
                     type="text"
                     inputMode="numeric"
                     maxLength={2}
@@ -715,7 +717,7 @@ export const PublicExcusePage: React.FC = () => {
                   <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700">
                     Year <span className="text-rose-500">*</span>
                   </label>
-                  <input
+                  <FormInput
                     type="text"
                     inputMode="numeric"
                     maxLength={4}
@@ -751,12 +753,12 @@ export const PublicExcusePage: React.FC = () => {
             >
               Verify & Proceed
             </Button>
-          </form>
+          </ValidatedForm>
         )}
 
         {/* STEP 2: SELECT SCHEDULES & PROVIDE REASON */}
         {mode === 'submit' && step === 2 && (
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <ValidatedForm onSubmit={handleSubmit} className="space-y-5">
             <div className="bg-indigo-50/60 border border-indigo-100 p-3.5 rounded-2xl flex items-center justify-between">
               <div>
                 <span className="text-[10px] font-extrabold uppercase text-indigo-500 block">Server Profile</span>
@@ -929,7 +931,7 @@ export const PublicExcusePage: React.FC = () => {
                 })}
               </div>
 
-              <textarea 
+              <FormTextarea
                 value={reason} 
                 onChange={e => setReason(e.target.value)}
                 className="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm bg-slate-50 text-slate-800 h-24 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
@@ -960,7 +962,7 @@ export const PublicExcusePage: React.FC = () => {
                 Submit Excuse ({selectedScheduleIds.size} Schedule{selectedScheduleIds.size > 1 ? 's' : ''})
               </Button>
             </div>
-          </form>
+          </ValidatedForm>
         )}
 
         {/* STEP 3: SUBMISSION SUCCESS */}

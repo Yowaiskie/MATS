@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Card, Button, CustomSelect } from '@/components'
 import { settingsService, DEFAULT_POLICY_SETTINGS, POLICY_PRESETS } from '@/services/settingsService'
@@ -134,7 +136,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
         )}
       </div>
 
-      <form onSubmit={handleSavePolicy} className="mt-6 space-y-6">
+      <ValidatedForm onSubmit={handleSavePolicy} className="mt-6 space-y-6">
         {/* Active Publication Sync Notification Banner */}
         {activePublication && (
           <div className="p-3.5 rounded-2xl bg-indigo-50/70 border border-indigo-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
@@ -241,7 +243,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
                 Warning Absence Threshold <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
+                <FormInput
                   type="number"
                   min={1}
                   max={50}
@@ -260,7 +262,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
                 Suspension Absence Threshold <span className="text-red-500">*</span>
               </label>
               <div className="relative">
-                <input
+                <FormInput
                   type="number"
                   min={2}
                   max={100}
@@ -300,7 +302,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
                 Evaluation Calendar Month Picker
               </label>
               <div className="relative">
-                <input
+                <FormInput
                   type="month"
                   value={policy.evaluationMonthStr || ''}
                   onChange={(e) => setPolicy(p => ({ ...p, evaluationMonthStr: e.target.value }))}
@@ -441,7 +443,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
                 <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 text-xs">
                   <span className="font-bold text-slate-700">Required Meeting Months:</span>
                   <div className="flex items-center gap-1.5">
-                    <input
+                    <FormInput
                       type="number"
                       min={1}
                       max={12}
@@ -475,7 +477,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
                 <div className="flex items-center justify-between pt-1 border-t border-gray-200/60 text-xs">
                   <span className="font-bold text-slate-700">Required Formation Count:</span>
                   <div className="flex items-center gap-1.5">
-                    <input
+                    <FormInput
                       type="number"
                       min={1}
                       max={12}
@@ -529,7 +531,7 @@ export const PolicySettingsCard: React.FC<PolicySettingsCardProps> = ({
             Save Policy Settings
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
     </Card>
   )
 }

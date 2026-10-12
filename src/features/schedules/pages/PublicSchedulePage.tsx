@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -1191,7 +1192,7 @@ export const PublicSchedulePage: React.FC = () => {
               </p>
             </div>
           ) : (
-            <form onSubmit={handleOpenConfirmModal} className="space-y-4 sm:space-y-6">
+            <ValidatedForm onSubmit={handleOpenConfirmModal} className="space-y-4 sm:space-y-6">
               {/* Member Picker Component */}
               <div className="space-y-2" id="member-picker-section">
                 <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">
@@ -1388,7 +1389,7 @@ export const PublicSchedulePage: React.FC = () => {
                 </span>
                 <span className="text-base">▹</span>
               </button>
-            </form>
+            </ValidatedForm>
           )}
         </div>
 

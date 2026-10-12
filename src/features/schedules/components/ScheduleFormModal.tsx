@@ -1,8 +1,9 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import type { Schedule, ScheduleInput, ScheduleStatus } from '@/types/schedule'
 import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
-import { SCHEDULE_CATEGORIES } from '@/types/attendanceCategory'
-import { CustomSelect, Button } from '@/components'
+import { Button } from '@/components'
+import { ScheduleFormFields } from '@/features/schedules/components/ScheduleFormFields'
 
 interface ScheduleFormModalProps {
   isOpen: boolean
@@ -27,11 +28,6 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   const [isCancelled, setIsCancelled] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errors, setErrors] = useState<{ [key: string]: string }>({})
-
-  const categoryOptions = [
-    { value: '', label: 'Auto-Detect from Title / Date (Default)' },
-    ...SCHEDULE_CATEGORIES.map(cat => ({ value: cat.key, label: cat.label })),
-  ]
 
   useEffect(() => {
     if (schedule) {
@@ -143,103 +139,29 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1" noValidate>
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1" noValidate>
           {errors.submit && (
             <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-600 font-bold">
               {errors.submit}
             </div>
           )}
 
-          {/* Service Title */}
-          <div>
-            <label htmlFor="schedule-title" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-              Service Title *
-            </label>
-            <input
-              id="schedule-title"
-              type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none"
-              placeholder="e.g. Monthly Meeting & OGF / Sunday Morning Mass"
-              disabled={loading}
-            />
-            {errors.title && <p className="mt-1 text-xs text-rose-600 font-bold">{errors.title}</p>}
-          </div>
-
-          {/* Category Tag */}
-          <CustomSelect
-            id="schedule-category"
-            label="Attendance Category (Optional / Auto-detected)"
-            helperText="Used for OGF & Meeting evaluation"
-            value={category}
-            onChange={(e) => setCategory(e.target.value as ScheduleCategoryKey | '')}
-            options={categoryOptions}
-            disabled={loading}
+          <ScheduleFormFields
+            title={title}
+            category={category}
+            date={date}
+            startTime={startTime}
+            location={location}
+            isCancelled={isCancelled}
+            loading={loading}
+            errors={errors}
+            onTitleChange={setTitle}
+            onCategoryChange={setCategory}
+            onDateChange={setDate}
+            onStartTimeChange={setStartTime}
+            onLocationChange={setLocation}
+            onCancelledChange={setIsCancelled}
           />
-
-          {/* Date */}
-          <div>
-            <label htmlFor="schedule-date" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-              Service Date *
-            </label>
-            <input
-              id="schedule-date"
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none"
-              disabled={loading}
-            />
-            {errors.date && <p className="mt-1 text-xs text-rose-600 font-bold">{errors.date}</p>}
-          </div>
-
-          {/* Start Time */}
-          <div>
-            <label htmlFor="schedule-start" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-              Start Time *
-            </label>
-            <input
-              id="schedule-start"
-              type="time"
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none"
-              disabled={loading}
-            />
-            {errors.startTime && <p className="mt-1 text-xs text-rose-600 font-bold">{errors.startTime}</p>}
-          </div>
-
-          {/* Street / Location / Venue */}
-          <div>
-            <label htmlFor="schedule-location" className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-400">
-              Street / Location / Venue (Optional)
-            </label>
-            <input
-              id="schedule-location"
-              type="text"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              className="mt-1 block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 disabled:opacity-50 transition-all outline-none"
-              placeholder="e.g. Mabini St., Block 3 Chapel, Purok 2"
-              disabled={loading}
-            />
-          </div>
-
-          {/* Cancellation Toggle */}
-          <div className="flex items-center space-x-3 pt-2">
-            <input
-              id="schedule-cancel"
-              type="checkbox"
-              checked={isCancelled}
-              onChange={(e) => setIsCancelled(e.target.checked)}
-              className="h-4 w-4 rounded border-slate-300 bg-white text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-              disabled={loading}
-            />
-            <label htmlFor="schedule-cancel" className="text-xs font-extrabold uppercase tracking-wider text-slate-500 select-none cursor-pointer">
-              Mark Service as Cancelled
-            </label>
-          </div>
 
           {/* Footer Actions */}
           <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-4 border-t border-slate-100 bg-white">
@@ -264,7 +186,7 @@ export const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               Save Schedule
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

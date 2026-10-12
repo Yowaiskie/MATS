@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Modal, CurrencyInput, CustomSelect, Button, useToast } from '@/components'
 import { MemberCombobox } from '@/components/MemberCombobox'
@@ -536,7 +538,7 @@ export const EventContributionModal: React.FC<Props> = ({
       {loading ? (
         <div className="py-12 text-center text-xs font-bold text-slate-400">Loading form parameters...</div>
       ) : (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
           {error && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold rounded-2xl animate-fade-in">
               {error}
@@ -685,7 +687,7 @@ export const EventContributionModal: React.FC<Props> = ({
 
               <div>
                 <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Contribution Date *</label>
-                <input
+                <FormInput
                   type="date"
                   required
                   value={contributedDate}
@@ -833,7 +835,7 @@ export const EventContributionModal: React.FC<Props> = ({
               {/* Group Mode: Date */}
               <div>
                 <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Contribution Date *</label>
-                <input
+                <FormInput
                   type="date"
                   required
                   value={contributedDate}
@@ -868,7 +870,7 @@ export const EventContributionModal: React.FC<Props> = ({
             {(paymentMethod === 'gcash' || paymentMethod === 'bank_transfer') && (
               <div>
                 <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">Reference Number (Numbers Only) *</label>
-                <input
+                <FormInput
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
@@ -926,7 +928,7 @@ export const EventContributionModal: React.FC<Props> = ({
               {contributionToEdit ? (entryMode === 'group' && groupEntries.filter(e => e.name.trim()).length > 1 ? `Update & Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Update Contribution') : (entryMode === 'group' ? `Save Group (${groupEntries.filter(e => e.name.trim()).length} Members)` : 'Save Contribution')}
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       )}
     </Modal>
   )

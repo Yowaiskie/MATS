@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -190,7 +192,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
       subtitle="Direct liquidation report for outside donations, personal advances, or sponsor funds"
       maxWidth="4xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-5">
         {/* Info Banner */}
         <div className="p-3.5 rounded-2xl bg-purple-50/80 border border-purple-200/80 flex items-start gap-3">
           <div className="w-7 h-7 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0 mt-0.5">
@@ -215,7 +217,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Report Title <span className="text-rose-500">*</span>
             </label>
-            <input
+            <FormInput
               type="text"
               required
               placeholder="e.g. Altar Servers Recollection Outside Expenses"
@@ -229,7 +231,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Liquidation Date <span className="text-rose-500">*</span>
             </label>
-            <input
+            <FormInput
               type="date"
               required
               value={liquidationDate}
@@ -243,7 +245,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
           <label className="block text-xs font-bold text-slate-700 mb-1">
             Purpose / Activity Summary <span className="text-rose-500">*</span>
           </label>
-          <input
+          <FormInput
             type="text"
             required
             placeholder="e.g. Food, materials, and tokens sponsored by alumni and outside donors"
@@ -258,7 +260,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1">
               Addressed To (Signatory Header) <span className="text-rose-500">*</span>
             </label>
-            <input
+            <FormInput
               type="text"
               required
               value={liquidationTo}
@@ -271,7 +273,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
             <label className="block text-xs font-bold text-slate-700 mb-1">
               From (Ministry / Group Name) <span className="text-rose-500">*</span>
             </label>
-            <input
+            <FormInput
               type="text"
               required
               value={liquidationFrom}
@@ -495,7 +497,7 @@ export const DirectLiquidationModal: React.FC<DirectLiquidationModalProps> = ({
             {saving ? 'Saving Report...' : 'Save Outside Liquidation'}
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
     </Modal>
   )
 }

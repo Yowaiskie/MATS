@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import type { Member } from '@/types/member'
 import { memberService } from '@/services/memberService'
@@ -205,7 +206,7 @@ export const MemberCombobox: React.FC<MemberComboboxProps> = ({
       )}
 
       <div className="relative">
-        <input
+        <FormInput
           ref={inputRef}
           type="text"
           required={required}

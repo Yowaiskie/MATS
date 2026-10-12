@@ -1,3 +1,4 @@
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useMemo, useEffect } from 'react'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
@@ -317,7 +318,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
         </div>
       }
     >
-      <form onSubmit={handleSubmit} className="space-y-6 font-sans">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-6 font-sans">
         {/* Order Scope Notice if Order Leader */}
         {defaultOrderScope && (
           <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-xs">
@@ -599,7 +600,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
                 })}
               </div>
 
-              <textarea
+              <FormTextarea
                 value={reason}
                 onChange={e => setReason(e.target.value)}
                 rows={3}
@@ -656,7 +657,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
             </div>
           </div>
         </div>
-      </form>
+      </ValidatedForm>
     </Modal>
   )
 }

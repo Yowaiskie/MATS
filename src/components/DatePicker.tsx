@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef, useMemo, useId } from 'react'
+import { createPortal } from 'react-dom'
 
 export interface DatePickerProps {
   value: string // 'YYYY-MM-DD' or ''
@@ -16,7 +17,11 @@ export interface DatePickerProps {
   id?: string
   name?: string
   ariaLabel?: string
-  formatDisplay?: 'long' | 'short' | 'iso' // 'long' = Sep 24, 2026; 'short' = 09/24/2026; 'iso' = 2026-09-24
+  error?: string
+  ariaDescribedBy?: string
+  portal?: boolean
+  selectionMode?: 'date' | 'month'
+  formatDisplay?: 'long' | 'short' | 'iso' | 'month' // 'month' = October 2026
 }
 
 const MONTH_NAMES = [
@@ -41,7 +46,7 @@ const parseYYYYMMDD = (str: string): { year: number; month: number; day: number 
 }
 
 const formatYYYYMMDD = (year: number, month: number, day: number): string => {
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
+  return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`
 }
 
 const getTodayYYYYMMDD = (): string => {
@@ -65,10 +70,19 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   id,
   name,
   ariaLabel,
+  error,
+  ariaDescribedBy,
+  portal = false,
+  selectionMode = 'date',
   formatDisplay = 'long'
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const calendarRef = useRef<HTMLDivElement>(null)
+  const calendarId = useId()
+  const errorId = `${calendarId}-error`
+  const [popoverStyle, setPopoverStyle] = useState<React.CSSProperties>({})
 
   // Internal view year and month for calendar popover navigation ONLY
   // Changing viewYear/viewMonth does NOT call onChange or cause parent data reloads!
@@ -81,6 +95,59 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     const parsed = parseYYYYMMDD(value)
     return parsed ? parsed.month - 1 : new Date().getMonth()
   })
+
+  useLayoutEffect(() => {
+    if (!isOpen || !portal) return
+    const updatePosition = () => {
+      const trigger = triggerRef.current
+      const calendar = calendarRef.current
+      if (!trigger || !calendar) return
+      const viewport = window.visualViewport
+      const viewportLeft = viewport?.offsetLeft ?? 0
+      const viewportTop = viewport?.offsetTop ?? 0
+      const viewportWidth = viewport?.width ?? window.innerWidth
+      const viewportHeight = viewport?.height ?? window.innerHeight
+      const margin = 8
+      const gap = 6
+      const width = Math.max(0, Math.min(288, viewportWidth - margin * 2))
+      const rect = trigger.getBoundingClientRect()
+      const below = viewportTop + viewportHeight - rect.bottom - gap - margin
+      const above = rect.top - viewportTop - gap - margin
+      const opensBelow = below >= Math.min(calendar.scrollHeight, 320) || below >= above
+      const maxHeight = Math.max(0, Math.min(opensBelow ? below : above, viewportHeight - margin * 2))
+      const height = Math.min(calendar.scrollHeight, maxHeight)
+      const left = Math.max(viewportLeft + margin, Math.min(
+        align === 'right' ? rect.right - width : rect.left,
+        viewportLeft + viewportWidth - width - margin
+      ))
+      const top = Math.max(viewportTop + margin, Math.min(
+        opensBelow ? rect.bottom + gap : rect.top - gap - height,
+        viewportTop + viewportHeight - height - margin
+      ))
+      setPopoverStyle({ position: 'fixed', left, top, width, maxHeight, overflowY: 'auto' })
+    }
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    window.visualViewport?.addEventListener('resize', updatePosition)
+    window.visualViewport?.addEventListener('scroll', updatePosition)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+      window.visualViewport?.removeEventListener('resize', updatePosition)
+      window.visualViewport?.removeEventListener('scroll', updatePosition)
+    }
+  }, [isOpen, portal, align, viewYear, viewMonth, showTodayButton, clearable, value])
+
+  useEffect(() => {
+    if (isOpen && portal && !disabled) {
+      const calendar = calendarRef.current
+      const selectedDay = calendar?.querySelector<HTMLButtonElement>('[aria-pressed="true"]:not(:disabled)')
+      const firstDay = calendar?.querySelector<HTMLButtonElement>('[data-calendar-day]:not(:disabled)')
+      const dayToFocus = selectedDay || firstDay
+      dayToFocus?.focus({ preventScroll: true })
+    }
+  }, [isOpen, portal, disabled])
 
   // Sync internal view month/year when popover is opened or value is updated
   useEffect(() => {
@@ -96,13 +163,14 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   // Close on outside click or Escape
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      if (!containerRef.current?.contains(e.target as Node) && !calendarRef.current?.contains(e.target as Node)) {
         setIsOpen(false)
       }
     }
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setIsOpen(false)
+        if (portal) triggerRef.current?.focus()
       }
     }
     if (isOpen) {
@@ -113,7 +181,11 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       document.removeEventListener('mousedown', handleClickOutside)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen])
+  }, [isOpen, portal])
+
+  useEffect(() => {
+    if (disabled) setIsOpen(false)
+  }, [disabled])
 
   // Navigation handlers (internal view changes ONLY)
   const handlePrevMonth = (e: React.MouseEvent) => {
@@ -147,13 +219,16 @@ export const DatePicker: React.FC<DatePickerProps> = ({
   }
 
   const handleSelectDay = (dateStr: string) => {
+    if (disabled || (minDate && dateStr < minDate) || (maxDate && dateStr > maxDate)) return
     onChange(dateStr)
     setIsOpen(false)
+    if (portal) triggerRef.current?.focus()
   }
 
   const handleSelectToday = (e: React.MouseEvent) => {
     e.stopPropagation()
     const today = getTodayYYYYMMDD()
+    if (disabled || (minDate && today < minDate) || (maxDate && today > maxDate)) return
     onChange(today)
     const parsed = parseYYYYMMDD(today)
     if (parsed) {
@@ -161,12 +236,16 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       setViewMonth(parsed.month - 1)
     }
     setIsOpen(false)
+    if (portal) triggerRef.current?.focus()
   }
 
-  const handleClear = (e: React.MouseEvent) => {
+  const handleClear = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.preventDefault()
     e.stopPropagation()
+    if (disabled) return
     onChange('')
     setIsOpen(false)
+    if (portal) triggerRef.current?.focus()
   }
 
   // Display text computation
@@ -177,6 +256,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     if (formatDisplay === 'iso') {
       return value
     }
+    if (formatDisplay === 'month') return `${MONTH_NAMES[parsed.month - 1]} ${parsed.year}`
     if (formatDisplay === 'short') {
       return `${String(parsed.month).padStart(2, '0')}/${String(parsed.day).padStart(2, '0')}/${parsed.year}`
     }
@@ -260,6 +340,152 @@ export const DatePicker: React.FC<DatePickerProps> = ({
     md: 'h-10 text-xs px-3 rounded-xl'
   }[size]
 
+  const calendar = (
+    <div
+      ref={calendarRef}
+      id={calendarId}
+      role="dialog"
+      aria-label={ariaLabel || placeholder}
+      style={portal ? popoverStyle : undefined}
+      className={`${portal ? 'fixed z-[110]' : 'absolute top-full mt-1.5 z-50'} bg-white rounded-2xl border border-slate-200 shadow-xl p-3 w-72 space-y-2.5 animate-in fade-in zoom-in-95 duration-150 select-none ${
+        portal ? '' : align === 'right' ? 'right-0' : 'left-0'
+      }`}
+    >
+      {/* Calendar Header with Navigation Controls (Month & Year) */}
+      <div className="flex items-center justify-between gap-1 pb-2 border-b border-slate-100">
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={handlePrevYear}
+            className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Previous Year"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={handlePrevMonth}
+            hidden={selectionMode === 'month'}
+            className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Previous Month"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="text-center font-black text-xs text-slate-800 tracking-tight">
+          {selectionMode === 'date' && <span>{MONTH_NAMES[viewMonth]} </span>}
+          <span className="text-slate-500 font-bold">{viewYear}</span>
+        </div>
+
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={handleNextMonth}
+            hidden={selectionMode === 'month'}
+            className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Next Month"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            onClick={handleNextYear}
+            className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+            title="Next Year"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      {selectionMode === 'month' ? (
+        <div className="grid grid-cols-3 gap-2">
+          {MONTH_NAMES_SHORT.map((month, index) => {
+            const dateStr = formatYYYYMMDD(viewYear, index + 1, 1)
+            const isSelected = value.slice(0, 7) === dateStr.slice(0, 7)
+            const isDisabled = (minDate && dateStr.slice(0, 7) < minDate.slice(0, 7)) || (maxDate && dateStr.slice(0, 7) > maxDate.slice(0, 7))
+            return <button key={month} type="button" data-calendar-day data-calendar-month aria-label={dateStr.slice(0, 7)} aria-pressed={isSelected}
+              disabled={disabled || Boolean(isDisabled)} onClick={() => handleSelectDay(dateStr)}
+              className={`h-9 rounded-xl text-xs font-bold transition cursor-pointer ${isSelected ? 'bg-indigo-600 text-white' : 'text-slate-700 hover:bg-slate-100'} disabled:opacity-30 disabled:cursor-not-allowed`}>{month}</button>
+          })}
+        </div>
+      ) : <>
+      {/* Weekday Names Header */}
+      <div className="grid grid-cols-7 text-center">
+        {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w, idx) => (
+          <span key={idx} className="text-[10px] font-extrabold text-slate-400 uppercase">
+            {w}
+          </span>
+        ))}
+      </div>
+
+      {/* Days Grid */}
+      <div className="grid grid-cols-7 gap-1">
+        {calendarCells.map((cell) => {
+          const { dateStr, dayNum, isCurrentMonth, isToday, isSelected, isDisabled } = cell
+          return (
+            <button
+              key={dateStr}
+              type="button"
+              disabled={disabled || isDisabled}
+              aria-label={dateStr}
+              aria-pressed={isSelected}
+              data-calendar-day
+              onClick={() => !isDisabled && handleSelectDay(dateStr)}
+              className={`h-7 w-7 mx-auto rounded-xl flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer select-none ${
+                isSelected
+                  ? 'bg-blue-600 text-white font-black shadow-sm ring-2 ring-blue-600/30'
+                  : isToday
+                  ? 'border border-blue-400 bg-blue-50/70 text-blue-700 font-extrabold'
+                  : isCurrentMonth
+                  ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                  : 'text-slate-300 hover:bg-slate-50 hover:text-slate-400'
+              } ${isDisabled ? 'opacity-20 cursor-not-allowed pointer-events-none' : ''}`}
+            >
+              {dayNum}
+            </button>
+          )
+        })}
+      </div>
+      </>}
+
+      {/* Bottom Toolbar (Today & Clear Buttons) */}
+      {(showTodayButton || clearable) && (
+        <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] font-bold">
+          {showTodayButton ? (
+            <button
+              type="button"
+              onClick={handleSelectToday}
+              disabled={disabled || Boolean((minDate && getTodayYYYYMMDD() < minDate) || (maxDate && getTodayYYYYMMDD() > maxDate))}
+              className="px-2.5 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Today
+            </button>
+          ) : <div />}
+
+          {clearable && value && (
+            <button
+              type="button"
+              onClick={handleClear}
+              className="px-2.5 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       {/* Input button trigger */}
@@ -267,11 +493,19 @@ export const DatePicker: React.FC<DatePickerProps> = ({
         type="button"
         id={id}
         name={name}
+        ref={triggerRef}
+        aria-expanded={isOpen && !disabled}
+        aria-controls={isOpen ? calendarId : undefined}
+        aria-haspopup="dialog"
+        aria-invalid={Boolean(error)}
+        aria-describedby={[ariaDescribedBy, error ? errorId : undefined].filter(Boolean).join(' ') || undefined}
         aria-label={ariaLabel || placeholder}
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(prev => !prev)}
         className={`w-full flex items-center justify-between gap-2 border bg-white transition cursor-pointer select-none shadow-2xs font-medium text-left ${sizeClasses} ${
-          isOpen
+          error
+            ? 'border-rose-500 ring-rose-500/20 text-slate-900'
+            : isOpen
             ? 'border-blue-500 ring-2 ring-blue-500/20 bg-blue-50/20 text-blue-950 font-bold'
             : value
             ? 'border-slate-200 hover:border-slate-300 text-slate-900 font-bold'
@@ -295,7 +529,7 @@ export const DatePicker: React.FC<DatePickerProps> = ({
               onClick={handleClear}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
-                  handleClear(e as any)
+                  handleClear(e)
                 }
               }}
               className="p-0.5 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-600 cursor-pointer"
@@ -313,127 +547,8 @@ export const DatePicker: React.FC<DatePickerProps> = ({
       </button>
 
       {/* Popover Calendar Grid */}
-      {isOpen && (
-        <div
-          className={`absolute top-full mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl z-50 p-3 w-72 space-y-2.5 animate-in fade-in zoom-in-95 duration-150 select-none ${
-            align === 'right' ? 'right-0' : 'left-0'
-          }`}
-        >
-          {/* Calendar Header with Navigation Controls (Month & Year) */}
-          <div className="flex items-center justify-between gap-1 pb-2 border-b border-slate-100">
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={handlePrevYear}
-                className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                title="Previous Year"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={handlePrevMonth}
-                className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                title="Previous Month"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="text-center font-black text-xs text-slate-800 tracking-tight">
-              <span>{MONTH_NAMES[viewMonth]}</span>{' '}
-              <span className="text-slate-500 font-bold">{viewYear}</span>
-            </div>
-
-            <div className="flex items-center gap-0.5">
-              <button
-                type="button"
-                onClick={handleNextMonth}
-                className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                title="Next Month"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={handleNextYear}
-                className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                title="Next Year"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {/* Weekday Names Header */}
-          <div className="grid grid-cols-7 text-center">
-            {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((w, idx) => (
-              <span key={idx} className="text-[10px] font-extrabold text-slate-400 uppercase">
-                {w}
-              </span>
-            ))}
-          </div>
-
-          {/* Days Grid */}
-          <div className="grid grid-cols-7 gap-1">
-            {calendarCells.map((cell) => {
-              const { dateStr, dayNum, isCurrentMonth, isToday, isSelected, isDisabled } = cell
-              return (
-                <button
-                  key={dateStr}
-                  type="button"
-                  disabled={isDisabled}
-                  onClick={() => !isDisabled && handleSelectDay(dateStr)}
-                  className={`h-7 w-7 mx-auto rounded-xl flex items-center justify-center text-[11px] font-bold transition-all cursor-pointer select-none ${
-                    isSelected
-                      ? 'bg-blue-600 text-white font-black shadow-sm ring-2 ring-blue-600/30'
-                      : isToday
-                      ? 'border border-blue-400 bg-blue-50/70 text-blue-700 font-extrabold'
-                      : isCurrentMonth
-                      ? 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
-                      : 'text-slate-300 hover:bg-slate-50 hover:text-slate-400'
-                  } ${isDisabled ? 'opacity-20 cursor-not-allowed pointer-events-none' : ''}`}
-                >
-                  {dayNum}
-                </button>
-              )
-            })}
-          </div>
-
-          {/* Bottom Toolbar (Today & Clear Buttons) */}
-          {(showTodayButton || clearable) && (
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 text-[11px] font-bold">
-              {showTodayButton ? (
-                <button
-                  type="button"
-                  onClick={handleSelectToday}
-                  className="px-2.5 py-1 text-blue-600 hover:text-blue-800 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                >
-                  Today
-                </button>
-              ) : <div />}
-
-              {clearable && value && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="px-2.5 py-1 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-          )}
-        </div>
-      )}
+      {isOpen && !disabled && (portal ? createPortal(calendar, document.body) : calendar)}
+      {error && <p id={errorId} className="mt-1 text-xs font-medium text-rose-600">{error}</p>}
     </div>
   )
 }

@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { ORDER_GROUPS, ORDER_COLORS, formatMemberOrders } from '@/types/member'
 
@@ -77,7 +78,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-4">
           {error && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 font-bold animate-fade-in">
               {error}
@@ -168,7 +169,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
               {loading ? 'Updating...' : `Apply to ${selectedCount} Members`}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

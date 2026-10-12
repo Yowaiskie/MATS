@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button, useToast } from '@/components'
@@ -144,7 +146,7 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
         )}
 
         {/* Add New Category Card */}
-        <form onSubmit={handleAddCategory} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
+        <ValidatedForm onSubmit={handleAddCategory} className="p-4 bg-slate-50 border border-slate-200/80 rounded-2xl space-y-3">
           <div className="flex items-center justify-between">
             <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
               New Classification
@@ -154,7 +156,7 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
             </span>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 pt-1">
-            <input
+            <FormInput
               type="text"
               required
               value={newCatName}
@@ -172,7 +174,7 @@ export const ManageInventoryCategoriesModal: React.FC<Props> = ({
               Add Category
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
 
         {/* Category List */}
         <div className="space-y-2">

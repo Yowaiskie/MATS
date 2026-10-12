@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button } from '@/components/Button'
@@ -640,7 +641,7 @@ export const RemindAttendanceModal: React.FC<RemindAttendanceModalProps> = ({
 
                       {datePreset === 'custom' && (
                         <div>
-                          <input
+                          <FormInput
                             type="date"
                             value={customDate}
                             onChange={e => setCustomDate(e.target.value)}

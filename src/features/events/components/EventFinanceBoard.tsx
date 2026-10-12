@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Card, Loading, StatusBadge, EmptyState, CustomSelect, ActionMenu, type ActionMenuItem } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -617,7 +618,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
             {/* Date Range Filter */}
             <div className="lg:col-span-4 flex items-center gap-1.5 sm:gap-2">
-              <input
+              <FormInput
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -625,7 +626,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 title="Start Date"
               />
               <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
-              <input
+              <FormInput
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
@@ -690,7 +691,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
 
             {/* Date Range Filter */}
             <div className="lg:col-span-5 flex items-center gap-1.5 sm:gap-2">
-              <input
+              <FormInput
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -698,7 +699,7 @@ export const EventFinanceBoard: React.FC<Props> = ({ eventId, eventName, isHeadO
                 title="Start Date"
               />
               <span className="text-slate-400 text-xs font-bold shrink-0">to</span>
-              <input
+              <FormInput
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}

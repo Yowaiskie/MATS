@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import type { Member, MemberInput, SuspensionDurationType } from '@/types/member'
 import { ORDER_GROUPS, MEMBER_RANKS, ORDER_COLORS, getMemberOrders, formatMemberOrders } from '@/types/member'
@@ -296,7 +298,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1" noValidate>
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-4 overflow-y-auto pr-1 flex-1" noValidate>
           {errors.submit && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-600">
               {errors.submit}
@@ -476,7 +478,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
             <label htmlFor="modal-dob" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
               Date of Birth *
             </label>
-            <input
+            <FormInput
               id="modal-dob"
               type="date"
               value={dateOfBirth}
@@ -522,7 +524,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
 
             {/* Input with dedicated right padding & status icon */}
             <div className="relative">
-              <input
+              <FormInput
                 id="modal-phone"
                 type="tel"
                 maxLength={contactMode === 'mobile' ? 11 : 10}
@@ -693,7 +695,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                       Start Date *
                     </label>
-                    <input
+                    <FormInput
                       type="date"
                       value={suspensionStartDate}
                       onChange={(e) => handleStartDateChange(e.target.value)}
@@ -711,7 +713,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                         Until Manually Cleared
                       </div>
                     ) : (
-                      <input
+                      <FormInput
                         type="date"
                         value={suspensionEndDate}
                         onChange={(e) => setSuspensionEndDate(e.target.value)}
@@ -820,7 +822,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               {loading ? 'Saving...' : 'Save Member'}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

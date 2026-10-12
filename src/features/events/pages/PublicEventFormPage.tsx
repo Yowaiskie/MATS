@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -974,7 +976,7 @@ export const PublicEventFormPage: React.FC = () => {
         )}
 
         {/* Public Form Form Element */}
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {/* Dynamic Questions Rendering */}
           {visibleQuestions.map((q, idx) => {
             const hasError = !!validationErrors[q.id]
@@ -1037,7 +1039,7 @@ export const PublicEventFormPage: React.FC = () => {
               {/* Render Question Control */}
               <div className="pt-1">
                 {q.type === 'short_text' && (
-                  <input
+                  <FormInput
                     type="text"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1048,7 +1050,7 @@ export const PublicEventFormPage: React.FC = () => {
                 )}
 
                 {q.type === 'long_text' && (
-                  <textarea
+                  <FormTextarea
                     required={q.required}
                     value={answers[q.id] || ''}
                     onChange={e => handleInputChange(q.id, e.target.value)}
@@ -1380,7 +1382,7 @@ export const PublicEventFormPage: React.FC = () => {
                 {q.type === 'yes_no' && (
                   <div className="flex items-center space-x-4">
                     <label className="flex-1 flex items-center justify-center space-x-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition">
-                      <input
+                      <FormInput
                         type="radio"
                         name={`q_${q.id}`}
                         required={q.required}
@@ -1391,7 +1393,7 @@ export const PublicEventFormPage: React.FC = () => {
                       <span className="text-xs font-bold text-slate-800">Yes</span>
                     </label>
                     <label className="flex-1 flex items-center justify-center space-x-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition">
-                      <input
+                      <FormInput
                         type="radio"
                         name={`q_${q.id}`}
                         required={q.required}
@@ -1548,7 +1550,7 @@ export const PublicEventFormPage: React.FC = () => {
                 })()}
 
                 {q.type === 'name_selector' && (
-                  <input
+                  <FormInput
                     type="text"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1770,7 +1772,7 @@ export const PublicEventFormPage: React.FC = () => {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                           </svg>
                         </div>
-                        <input
+                        <FormInput
                           type="tel"
                           required={q.required}
                           value={currentVal}
@@ -1809,7 +1811,7 @@ export const PublicEventFormPage: React.FC = () => {
                 })()}
 
                 {q.type === 'date' && (
-                  <input
+                  <FormInput
                     type="date"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1819,7 +1821,7 @@ export const PublicEventFormPage: React.FC = () => {
                 )}
 
                 {q.type === 'time' && (
-                  <input
+                  <FormInput
                     type="time"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1829,7 +1831,7 @@ export const PublicEventFormPage: React.FC = () => {
                 )}
 
                 {q.type === 'number' && (
-                  <input
+                  <FormInput
                     type="number"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1979,7 +1981,7 @@ export const PublicEventFormPage: React.FC = () => {
               </span>
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
 
       <div className="relative z-10 text-center mb-6 text-slate-400 text-xs font-medium">

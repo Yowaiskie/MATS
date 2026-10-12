@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry, AppointmentSlotAnswer } from '@/types/eventForm'
 import type { Member } from '@/types/member'
@@ -156,7 +158,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs">
+        <ValidatedForm onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 sm:space-y-5 text-xs">
           {error && (
             <div className="p-3.5 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl text-xs font-bold animate-fade-in">
               {error}
@@ -199,7 +201,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
 
             <div>
               <label className="block font-bold text-slate-700 mb-1">Respondent Email</label>
-              <input
+              <FormInput
                 type="email"
                 value={respondentEmail}
                 onChange={e => setRespondentEmail(e.target.value)}
@@ -224,7 +226,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
 
                   {/* Text Inputs */}
                   {(q.type === 'short_text' || q.type === 'number') && (
-                    <input
+                    <FormInput
                       type={q.type === 'number' ? 'number' : 'text'}
                       value={currentVal !== undefined && currentVal !== null ? String(currentVal) : ''}
                       onChange={e => handleAnswerChange(q.id, e.target.value)}
@@ -286,7 +288,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
 
                   {/* Date Input */}
                   {q.type === 'date' && (
-                    <input
+                    <FormInput
                       type="date"
                       value={currentVal !== undefined && currentVal !== null ? String(currentVal) : ''}
                       onChange={e => handleAnswerChange(q.id, e.target.value)}
@@ -673,7 +675,7 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
               Save Changes
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

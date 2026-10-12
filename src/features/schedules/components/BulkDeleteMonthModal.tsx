@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState } from 'react'
 import { scheduleService } from '@/services/scheduleService'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -119,7 +120,7 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Select Month
             </label>
-            <input
+            <FormInput
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}

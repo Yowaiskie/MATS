@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
@@ -159,7 +160,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Voucher Date
               </label>
-              <input
+              <FormInput
                 type="date"
                 value={docDate}
                 onChange={e => setDocDate(e.target.value)}
@@ -181,7 +182,7 @@ export const FundRequisitionExportModal: React.FC<FundRequisitionExportModalProp
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Date Needed
               </label>
-              <input
+              <FormInput
                 type="date"
                 value={dateNeeded}
                 onChange={e => setDateNeeded(e.target.value)}

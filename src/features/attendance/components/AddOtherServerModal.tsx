@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import type { Member } from '@/types/member'
 import { getFullName } from '@/utils/member'
@@ -105,7 +106,7 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex-1 flex flex-col overflow-hidden text-xs">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 flex-1 flex flex-col overflow-hidden text-xs">
           {/* Search Box */}
           <div className="relative">
             <input
@@ -179,7 +180,7 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
               </Button>
             </div>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

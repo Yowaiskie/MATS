@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
@@ -931,7 +932,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                         {durationMode === '2' ? 'Starting Month' : 'Target Month'}
                       </label>
-                      <input
+                      <FormInput
                         type="month"
                         value={selectedStartMonth}
                         onChange={e => handleStartMonthChange(e.target.value)}
@@ -949,7 +950,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                         <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                           Start Date
                         </label>
-                        <input
+                        <FormInput
                           type="date"
                           value={customStartDate}
                           onChange={e => {
@@ -964,7 +965,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                         <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                           End Date
                         </label>
-                        <input
+                        <FormInput
                           type="date"
                           value={customEndDate}
                           onChange={e => {

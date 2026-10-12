@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
@@ -223,7 +224,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                 Report Date
               </label>
-              <input
+              <FormInput
                 type="date"
                 value={docDate}
                 onChange={e => setDocDate(e.target.value)}
@@ -418,7 +419,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                 <span>Table Row Spacing</span>
                 <span className="text-indigo-600 font-mono font-bold">{tablePadding.toFixed(1)} mm</span>
               </div>
-              <input
+              <FormInput
                 type="range"
                 min="1.0"
                 max="3.6"
@@ -441,7 +442,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                 <span>Space Between Sections</span>
                 <span className="text-indigo-600 font-mono font-bold">{sectionSpacing.toFixed(1)} mm</span>
               </div>
-              <input
+              <FormInput
                 type="range"
                 min="2.0"
                 max="15.0"
@@ -464,7 +465,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                 <span>Signature Space</span>
                 <span className="text-indigo-600 font-mono font-bold">{signatureTopMargin.toFixed(1)} mm</span>
               </div>
-              <input
+              <FormInput
                 type="range"
                 min="4.0"
                 max="24.0"

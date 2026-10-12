@@ -1,10 +1,12 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { eventService } from '@/services/eventService'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { userService } from '@/services/userService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
-import { Button, CustomSelect } from '@/components'
+import { Button, CustomSelect, DatePicker, TimePicker } from '@/components'
 import { useToast } from '@/context/ToastContext'
 import type { EventStage, Priority, Event } from '@/types/event'
 import type { UserProfile } from '@/types/auth'
@@ -15,6 +17,9 @@ interface EventFormModalProps {
   onSaved: () => void
   editItem?: Event
 }
+
+type EventField = 'title' | 'startDate' | 'endDate' | 'startTime' | 'endTime'
+type EventFieldErrors = Partial<Record<EventField, string>>
 
 export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose, onSaved, editItem }) => {
   const { profile } = useAuth()
@@ -34,6 +39,16 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
   const [users, setUsers] = useState<UserProfile[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fieldErrors, setFieldErrors] = useState<EventFieldErrors>({})
+
+  const clearFieldError = (field: EventField) => {
+    setFieldErrors(previous => {
+      if (!previous[field]) return previous
+      const next = { ...previous }
+      delete next[field]
+      return next
+    })
+  }
 
   useEffect(() => {
     if (isOpen) {
@@ -62,13 +77,34 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setHeadUid(profile?.uid || '')
       }
       setError(null)
+      setFieldErrors({})
     }
   }, [isOpen, editItem, profile])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
-    if (!title.trim() || !startDate) {
-      setError('Please fill in Event Title and Start Date.')
+    if (submitting) return
+    const errors: EventFieldErrors = {}
+    if (!title.trim()) errors.title = 'Event title is required.'
+    if (!startDate) errors.startDate = 'Start date is required.'
+    // Preserve native date/time constraints while displaying our own feedback.
+    for (const [field, value] of [['startDate', startDate], ['endDate', endDate]] as const) {
+      if (!value) continue
+      const input = document.createElement('input')
+      input.type = 'date'
+      input.value = value
+      if (input.value !== value) errors[field] = 'Choose a valid date.'
+    }
+    for (const [field, value] of [['startTime', startTime], ['endTime', endTime]] as const) {
+      if (!value) continue
+      const input = document.createElement('input')
+      input.type = 'time'
+      input.value = value
+      if (input.value !== value) errors[field] = 'Choose a valid time.'
+    }
+    setFieldErrors(errors)
+    if (Object.keys(errors).length) {
+      document.getElementById(`event-${Object.keys(errors)[0]}`)?.focus()
       return
     }
 
@@ -182,7 +218,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         </div>
 
         <div className="py-4 overflow-y-auto pr-1">
-          <form id="eventForm" onSubmit={handleSubmit} className="space-y-3.5">
+          <ValidatedForm id="eventForm" noValidate onSubmit={handleSubmit} className="space-y-3.5">
             {error && (
               <div className="bg-rose-50 text-rose-700 p-3 rounded-xl text-xs font-bold border border-rose-200">
                 {error}
@@ -190,8 +226,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             )}
 
             <div>
-              <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Event Title *</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" placeholder="e.g. Grand Feast Mass 2026" required />
+              <label htmlFor="event-title" className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Event Title *</label>
+              <FormInput id="event-title" type="text" value={title} onChange={(e) => {
+                setTitle(e.target.value)
+                if (e.target.value.trim()) clearFieldError('title')
+              }} aria-invalid={Boolean(fieldErrors.title)} aria-describedby={fieldErrors.title ? 'event-title-error' : undefined} className={`block w-full rounded-xl border ${fieldErrors.title ? 'border-rose-400' : 'border-slate-200'} bg-slate-50/50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all`} placeholder="e.g. Grand Feast Mass 2026" required />
+              {fieldErrors.title && <p id="event-title-error" className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors.title}</p>}
             </div>
 
             <div>
@@ -222,25 +262,37 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
               <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3.5 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" placeholder="e.g. Main Parish Hall" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Start Date *</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" required />
+                <label htmlFor="event-startDate" className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Start Date *</label>
+                <DatePicker id="event-startDate" value={startDate} onChange={value => {
+                  setStartDate(value)
+                  if (value) clearFieldError('startDate')
+                }} size="dense" portal clearable disabled={submitting} ariaLabel="Start date (required)" error={fieldErrors.startDate} />
               </div>
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Date</label>
-                <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" />
+                <label htmlFor="event-endDate" className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Date</label>
+                <DatePicker id="event-endDate" value={endDate} onChange={value => {
+                  setEndDate(value)
+                  clearFieldError('endDate')
+                }} size="dense" portal clearable disabled={submitting} ariaLabel="End date" error={fieldErrors.endDate} />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Start Time</label>
-                <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" />
+                <label htmlFor="event-startTime" className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">Start Time</label>
+                <TimePicker id="event-startTime" label="Start time" value={startTime} onChange={value => {
+                  setStartTime(value)
+                  clearFieldError('startTime')
+                }} disabled={submitting} error={fieldErrors.startTime} />
               </div>
               <div>
-                <label className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Time</label>
-                <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="block w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all" />
+                <label htmlFor="event-endTime" className="block text-[10px] font-extrabold text-slate-400 uppercase tracking-wider mb-1">End Time</label>
+                <TimePicker id="event-endTime" label="End time" value={endTime} onChange={value => {
+                  setEndTime(value)
+                  clearFieldError('endTime')
+                }} disabled={submitting} error={fieldErrors.endTime} />
               </div>
             </div>
 
@@ -273,11 +325,12 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
                 />
               </div>
             </div>
-          </form>
+          </ValidatedForm>
         </div>
         
         <div className="pt-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 bg-white">
           <Button
+            type="button"
             variant="secondary"
             size="sm"
             className="w-full sm:w-auto"

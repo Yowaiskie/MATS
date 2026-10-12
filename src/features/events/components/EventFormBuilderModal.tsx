@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type {
@@ -970,7 +971,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                       {/* Slot Limit Input */}
                                       <div className="flex items-center gap-1 bg-indigo-50/80 border border-indigo-200 rounded-lg px-2 py-1" title="Max slots allowed for this option">
                                         <span className="text-[9px] font-black uppercase text-indigo-700">Max:</span>
-                                        <input
+                                        <FormInput
                                           type="number"
                                           min="1"
                                           value={currentLimit ?? ''}
@@ -1218,7 +1219,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                   <div>
                                     <label className="text-[11px] font-bold text-slate-700 block mb-1">Target Date:</label>
-                                    <input
+                                    <FormInput
                                       type="date"
                                       value={bulkGenDate}
                                       onChange={e => setBulkGenDate(e.target.value)}
@@ -1237,7 +1238,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                   </div>
                                   <div>
                                     <label className="text-[11px] font-bold text-slate-700 block mb-1">Slot Capacity (Pax):</label>
-                                    <input
+                                    <FormInput
                                       type="number"
                                       min="0"
                                       value={bulkGenCapacity}
@@ -1251,7 +1252,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                   <div>
                                     <label className="text-[11px] font-bold text-slate-700 block mb-1">Start Time (24h):</label>
-                                    <input
+                                    <FormInput
                                       type="time"
                                       value={bulkGenStartTime}
                                       onChange={e => setBulkGenStartTime(e.target.value)}
@@ -1260,7 +1261,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                   </div>
                                   <div>
                                     <label className="text-[11px] font-bold text-slate-700 block mb-1">End Time (24h):</label>
-                                    <input
+                                    <FormInput
                                       type="time"
                                       value={bulkGenEndTime}
                                       onChange={e => setBulkGenEndTime(e.target.value)}
@@ -1322,7 +1323,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                         <span className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center font-black text-xs">
                                           {dIdx + 1}
                                         </span>
-                                        <input
+                                        <FormInput
                                           type="date"
                                           value={dateConfig.date}
                                           onChange={e => {
@@ -1491,7 +1492,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                                                 </div>
                                                 <div>
                                                   <label className="text-[9px] font-bold text-slate-500 block">Capacity:</label>
-                                                  <input
+                                                  <FormInput
                                                     type="number"
                                                     min="0"
                                                     value={slot.maxCapacity === undefined ? '' : slot.maxCapacity}
@@ -2126,7 +2127,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Open Date / Time (Optional)</label>
-                <input
+                <FormInput
                   type="datetime-local"
                   value={startAt}
                   onChange={e => setStartAt(e.target.value)}
@@ -2136,7 +2137,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Close Date / Time (Optional)</label>
-                <input
+                <FormInput
                   type="datetime-local"
                   value={closeAt}
                   onChange={e => setCloseAt(e.target.value)}

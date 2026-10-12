@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { userService } from '@/services/userService'
 import { authService } from '@/services/authService'
@@ -1613,7 +1615,7 @@ export const UsersPage: React.FC = () => {
             </div>
 
             {/* Modal Scrollable Body */}
-            <form id="user-form" onSubmit={handleSaveUser} className="flex-1 overflow-y-auto p-6 space-y-6">
+            <ValidatedForm id="user-form" onSubmit={handleSaveUser} className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Account Credentials */}
               <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200/80 space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
@@ -1626,7 +1628,7 @@ export const UsersPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">User Email *</label>
-                    <input
+                    <FormInput
                       type="email"
                       required
                       disabled={!!editingUser}
@@ -1737,7 +1739,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         Password *
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         required
                         minLength={6}
@@ -1751,7 +1753,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         Confirm Password *
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         required
                         minLength={6}
@@ -1776,7 +1778,7 @@ export const UsersPage: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
                           Current Password {password.length > 0 && <span className="text-rose-500">*</span>}
                         </label>
-                        <input
+                        <FormInput
                           type="password"
                           required={password.length > 0}
                           value={currentPassword}
@@ -1789,7 +1791,7 @@ export const UsersPage: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
                           New Password (Optional)
                         </label>
-                        <input
+                        <FormInput
                           type="password"
                           minLength={6}
                           value={password}
@@ -1802,7 +1804,7 @@ export const UsersPage: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
                           Confirm New Password
                         </label>
-                        <input
+                        <FormInput
                           type="password"
                           required={password.length > 0}
                           minLength={6}
@@ -1822,7 +1824,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         New Password (Optional)
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         minLength={6}
                         value={password}
@@ -1835,7 +1837,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         Confirm New Password
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         required={password.length > 0}
                         minLength={6}
@@ -2360,7 +2362,7 @@ export const UsersPage: React.FC = () => {
                 </div>
 
               </div>
-            </form>
+            </ValidatedForm>
 
             {/* Modal Fixed Footer */}
             <div className="flex items-center justify-end space-x-3 p-4 border-t border-gray-100 bg-white shrink-0">
@@ -2455,7 +2457,7 @@ export const UsersPage: React.FC = () => {
                 </div>
 
                 {/* Add / Edit Preset Form */}
-                <form onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
+                <ValidatedForm onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
                   {presetEditing ? `Edit Preset: ${presetEditing.name}` : 'Create New Permission Preset'}
                 </h4>
@@ -2463,7 +2465,7 @@ export const UsersPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Preset Name *</label>
-                    <input
+                    <FormInput
                       type="text"
                       required
                       value={presetFormName}
@@ -2921,7 +2923,7 @@ export const UsersPage: React.FC = () => {
                     {presetEditing ? 'Update Preset' : 'Save New Preset'}
                   </Button>
                 </div>
-              </form>
+              </ValidatedForm>
             </div>
 
             <div className="p-4 border-t border-gray-100 bg-white flex justify-end shrink-0">

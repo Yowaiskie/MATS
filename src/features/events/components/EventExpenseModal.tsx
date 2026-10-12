@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { MemberCombobox } from '@/components/MemberCombobox'
@@ -338,7 +340,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
       }
       maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-5 p-1">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-5 p-1">
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-bold animate-fade-in">
             {error}
@@ -416,7 +418,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Date *</label>
-            <input
+            <FormInput
               type="date"
               required
               value={date}
@@ -429,7 +431,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Spent On / Item *</label>
-            <input
+            <FormInput
               type="text"
               required
               maxLength={100}
@@ -644,7 +646,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Fund Allocation (Optional)</label>
-          <input
+          <FormInput
             type="text"
             list="allocations-list"
             maxLength={50}
@@ -693,7 +695,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
         {fundSource === 'event' && categoryId === 'new' && (
           <div className="animate-in fade-in slide-in-from-top-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-blue-600 mb-1.5">New Category Name *</label>
-            <input
+            <FormInput
               type="text"
               required
               maxLength={50}
@@ -708,7 +710,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Description (Optional)</label>
-          <textarea
+          <FormTextarea
             rows={2}
             maxLength={500}
             value={description}
@@ -738,7 +740,7 @@ export const EventExpenseModal: React.FC<Props> = ({ isOpen, onClose, eventId, e
             {editItem ? 'Update Expense' : 'Save Expense'}
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
     </Modal>
   )
 }

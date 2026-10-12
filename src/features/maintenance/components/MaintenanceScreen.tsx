@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useMaintenance } from '@/context/MaintenanceContext'
@@ -213,12 +215,12 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
               </div>
             )}
 
-            <form onSubmit={handleAdminLogin} className="space-y-4">
+            <ValidatedForm onSubmit={handleAdminLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Username or Email
                 </label>
-                <input
+                <FormInput
                   type="text"
                   required
                   value={email}
@@ -233,7 +235,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
                   Password
                 </label>
                 <div className="relative">
-                  <input
+                  <FormInput
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
@@ -278,7 +280,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
                   <span>Back to Maintenance Notice</span>
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         )}
 
