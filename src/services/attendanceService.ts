@@ -5,11 +5,10 @@ import {
   getDoc,
   query, 
   where, 
-  writeBatch,
   serverTimestamp,
   addDoc,
   updateDoc,
-  deleteDoc
+  runTransaction
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import type { AttendanceSession, AttendanceRecord, AttendanceInput, AttendanceStatus } from '@/types/attendance'
@@ -67,7 +66,7 @@ export const attendanceService = {
   },
 
   /**
-   * Saves attendance records inside a chunked sequential batch write.
+   * Saves records in sequential transactions, checking the session lock in each chunk.
    */
   async saveAttendanceRecords(
     sessionId: string,
@@ -89,51 +88,41 @@ export const attendanceService = {
 
     if (inputs.length === 0) return
 
-    const BATCH_SIZE_LIMIT = 500
+    const BATCH_SIZE_LIMIT = 499 // Reserve one write for the parent session revision.
     const attendanceRef = collection(db, ATTENDANCE_COLLECTION)
 
     // 2. Commit batch operations sequentially
     for (let i = 0; i < inputs.length; i += BATCH_SIZE_LIMIT) {
       const chunk = inputs.slice(i, i + BATCH_SIZE_LIMIT)
-      const batch = writeBatch(db)
-
-      chunk.forEach((input) => {
-        if (input.id) {
-          // Update existing document
-          const docRef = doc(db, ATTENDANCE_COLLECTION, input.id)
-          batch.update(docRef, {
-            status: input.status,
-            remarks: input.remarks?.trim() || '',
-            isOtherServer: input.isOtherServer ?? false,
-            updatedAt: serverTimestamp()
-          })
-        } else {
-          // Add new document
-          const newDocRef = doc(attendanceRef)
-          batch.set(newDocRef, {
-            sessionId,
-            scheduleId,
-            memberId: input.memberId,
-            status: input.status,
-            remarks: input.remarks?.trim() || '',
-            attendanceDate: date,
-            isOtherServer: input.isOtherServer ?? false,
-            createdAt: serverTimestamp(),
-            updatedAt: serverTimestamp()
-          })
-        }
+      const recordRefs = chunk.map(input => input.id ? doc(db, ATTENDANCE_COLLECTION, input.id) : doc(attendanceRef))
+      await runTransaction(db, async transaction => {
+        const currentSession = await transaction.get(sessionRef)
+        if (!currentSession.exists() || currentSession.data().locked) throw new Error('This attendance session is locked and cannot be modified.')
+        chunk.forEach((input, index) => {
+          if (input.id) {
+            transaction.update(recordRefs[index], {
+              status: input.status,
+              remarks: input.remarks?.trim() || '',
+              isOtherServer: input.isOtherServer ?? false,
+              updatedAt: serverTimestamp()
+            })
+          } else {
+            transaction.set(recordRefs[index], {
+              sessionId,
+              scheduleId,
+              memberId: input.memberId,
+              status: input.status,
+              remarks: input.remarks?.trim() || '',
+              attendanceDate: date,
+              isOtherServer: input.isOtherServer ?? false,
+              createdAt: serverTimestamp(),
+              updatedAt: serverTimestamp()
+            })
+          }
+        })
+        transaction.update(sessionRef, { hasRecords: true, lastUpdatedBy: performedBy, lastUpdatedAt: serverTimestamp(), updatedAt: serverTimestamp() })
       })
-
-      await batch.commit()
     }
-
-    // 3. Mark update timestamp & last updated user on parent session
-    await updateDoc(sessionRef, {
-      hasRecords: true,
-      lastUpdatedBy: performedBy,
-      lastUpdatedAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
-    })
 
     const titleStr = scheduleTitle ? `'${scheduleTitle}'` : `schedule (${date})`
 
@@ -198,7 +187,15 @@ export const attendanceService = {
    */
   async deleteAttendanceRecord(recordId: string): Promise<void> {
     const docRef = doc(db, ATTENDANCE_COLLECTION, recordId)
-    await deleteDoc(docRef)
+    await runTransaction(db, async transaction => {
+      const record = await transaction.get(docRef)
+      if (!record.exists()) return
+      const sessionRef = doc(db, SESSIONS_COLLECTION, record.data().sessionId)
+      const session = await transaction.get(sessionRef)
+      if (!session.exists() || session.data().locked) throw new Error('This attendance session is locked and cannot be modified.')
+      transaction.delete(docRef)
+      transaction.update(sessionRef, { updatedAt: serverTimestamp(), lastUpdatedAt: serverTimestamp() })
+    })
   },
 
   /**

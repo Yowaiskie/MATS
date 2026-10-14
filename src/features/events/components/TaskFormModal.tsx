@@ -6,6 +6,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { ConfirmModal, MemberSearchDropdown, Button, useToast } from '@/components'
 import type { EventTask, Priority, TaskStatus, EventAssignment } from '@/types/event'
 import { TaskDetailsFields } from '@/features/events/components/TaskDetailsFields'
+import { isOwnEventTask } from '@/utils/eventTaskNotifications'
 
 interface TaskFormModalProps {
   isOpen: boolean
@@ -31,7 +32,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
   const [startDate, setStartDate] = useState(existingTask?.startDate || '')
   const [dueDate, setDueDate] = useState(existingTask?.dueDate || '')
   const [assignedMemberName, setAssignedMemberName] = useState(existingTask?.assignedMemberName || '')
+  const [assignedMemberUid, setAssignedMemberUid] = useState(existingTask?.assignedMemberUid || '')
   const [assignments, setAssignments] = useState<EventAssignment[]>([])
+  const assigneeOptions = [...new Map(assignments.map(a => [a.memberUid, { id: a.memberUid, name: a.memberName, subtitle: a.eventRoleName || undefined }])).values()]
+  if (assignedMemberUid && assignedMemberName && !assigneeOptions.some(option => option.id === assignedMemberUid)) assigneeOptions.push({ id: assignedMemberUid, name: assignedMemberName, subtitle: undefined })
   
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -46,10 +50,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
       setStartDate(existingTask?.startDate || '')
       setDueDate(existingTask?.dueDate || '')
       setAssignedMemberName(existingTask?.assignedMemberName || '')
+      setAssignedMemberUid(existingTask?.assignedMemberUid || '')
       setError(null)
       
       // Clear unread status if it's assigned to the current user
-      if (existingTask && existingTask.unreadByAssignee && existingTask.assignedMemberName === profile?.displayName) {
+      if (existingTask && existingTask.unreadByAssignee && isOwnEventTask(existingTask, profile)) {
         eventTaskService.updateTask(existingTask.id, { unreadByAssignee: false }, profile?.email || 'System').catch(err => {
           console.error('Failed to mark task as read:', err)
         })
@@ -61,9 +66,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
     if (isOpen && eventId) {
       eventAssignmentService.getAssignmentsByEventId(eventId).then(data => {
         setAssignments(data)
+        if (!existingTask?.assignedMemberUid && existingTask?.assignedMemberName) {
+          const matches = [...new Set(data.filter(a => a.memberName === existingTask.assignedMemberName).map(a => a.memberUid))]
+          if (matches.length === 1) setAssignedMemberUid(matches[0])
+        }
       }).catch(err => console.error(err))
     }
-  }, [isOpen, eventId])
+  }, [isOpen, eventId, existingTask])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,7 +93,8 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           status,
           startDate: startDate || null,
           dueDate: dueDate || null,
-          assignedMemberName: assignedMemberName || null
+          assignedMemberName: assignedMemberName || null,
+          assignedMemberUid: assignedMemberUid || null
         }, profile?.email || 'System')
         toast.success('Task Updated', 'Event task updated successfully.')
       } else {
@@ -95,7 +105,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           priority,
           status,
           dueDate,
-          assignedMemberUid: null,
+          assignedMemberUid: assignedMemberUid || null,
           assignedMemberName: assignedMemberName || null,
           assignedRoleId: null,
           assignedRoleName: null,
@@ -192,23 +202,19 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Assign To</label>
                 {canEdit && profile?.displayName && (
-                  <button type="button" onClick={() => setAssignedMemberName(profile.displayName!)} className="text-[10px] text-indigo-600 font-extrabold hover:text-indigo-800 cursor-pointer">
+                  <button type="button" onClick={() => { setAssignedMemberName(profile.displayName!); setAssignedMemberUid(profile.memberId || profile.uid) }} className="text-[10px] text-indigo-600 font-extrabold hover:text-indigo-800 cursor-pointer">
                     Assign to me
                   </button>
                 )}
               </div>
               <MemberSearchDropdown
-                options={assignments.map(a => ({
-                  id: a.id,
-                  name: a.memberName,
-                  subtitle: a.eventRoleName || undefined
-                }))}
-                value={assignedMemberName}
-                mode="name"
+                options={assigneeOptions}
+                value={assignedMemberUid}
+                mode="id"
                 disabled={!canEdit || submitting}
                 title="Assign Team Member"
                 placeholder="-- Unassigned --"
-                onChange={(val: string) => setAssignedMemberName(val)}
+                onChange={(val: string) => { setAssignedMemberUid(val); setAssignedMemberName(assignments.find(a => a.memberUid === val)?.memberName || '') }}
               />
             </div>
           </ValidatedForm>

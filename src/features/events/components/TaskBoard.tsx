@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react'
 import { Loading, Button, useToast } from '@/components'
 import { eventTaskService } from '@/services/eventTaskService'
+import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useSearchParams } from 'react-router-dom'
+import { isOwnEventTask } from '@/utils/eventTaskNotifications'
 import type { EventTask, TaskStatus } from '@/types/event'
 import { TaskCard } from './TaskCard'
 import { TaskFormModal } from './TaskFormModal'
@@ -25,12 +28,19 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
   const [selectedTask, setSelectedTask] = useState<EventTask | undefined>()
   const { canAction, profile } = useAuth()
   const { toast } = useToast()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const taskToOpen = searchParams.get('task')
   const canManageTasks = isHeadOrCreator || canAction('canAssignTasks')
+  const canUpdateTask = (task: EventTask) => !!isHeadOrCreator || canAction('canUpdateAnyTask') || (canAction('canUpdateOwnTasks') && isOwnEventTask(task, profile))
 
   const fetchTasks = async () => {
     try {
-      const data = await eventTaskService.getTasksByEventId(eventId)
-      setTasks(data.filter(t => !t.isArchived))
+      const [data, assignments] = await Promise.all([eventTaskService.getTasksByEventId(eventId), eventAssignmentService.getAssignmentsByEventId(eventId)])
+      setTasks(data.filter(t => !t.isArchived).map(task => {
+        if (task.assignedMemberUid || !task.assignedMemberName) return task
+        const matches = [...new Set(assignments.filter(a => a.memberName === task.assignedMemberName).map(a => a.memberUid))]
+        return matches.length === 1 ? { ...task, assignedMemberUid: matches[0] } : task
+      }))
     } catch (err) {
       console.error('Failed to load tasks:', err)
       toast.error('Load Failed', 'Failed to load event tasks.')
@@ -43,12 +53,23 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
     fetchTasks()
   }, [eventId])
 
+  useEffect(() => {
+    if (loading || !taskToOpen) return
+    const task = tasks.find(item => item.id === taskToOpen)
+    if (task) { setSelectedTask(task); setIsModalOpen(true) }
+    else toast.error('Task Unavailable', 'This task was deleted or archived.')
+    const params = new URLSearchParams(searchParams)
+    params.delete('task')
+    setSearchParams(params, { replace: true })
+  }, [loading, taskToOpen, tasks, searchParams, setSearchParams, toast])
+
   const handleAssignToMe = async (e: React.MouseEvent, taskId: string) => {
     e.stopPropagation()
     if (!profile?.displayName) return
     try {
       await eventTaskService.updateTask(taskId, { 
         assignedMemberName: profile.displayName,
+        assignedMemberUid: profile.memberId || profile.uid,
         unreadByAssignee: false 
       }, profile?.email || 'System')
       toast.success('Task Claimed', 'You have assigned this task to yourself.')
@@ -63,6 +84,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
     e.stopPropagation()
     const taskToMove = tasks.find(t => t.id === taskId)
     if (taskToMove && taskToMove.status !== newStatus) {
+      if (!canUpdateTask(taskToMove)) { toast.error('Access Denied', 'You cannot update this task.'); return }
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
       try {
         await eventTaskService.updateTask(taskId, { status: newStatus }, profile?.email || 'System')
@@ -78,7 +100,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
   const handleDragStart = (e: React.DragEvent, taskId: string) => {
     const task = tasks.find(t => t.id === taskId)
     if (!task) return
-    const canUpdate = isHeadOrCreator || canAction('canUpdateAnyTask') || (canAction('canUpdateOwnTasks') && task.assignedMemberName === profile?.displayName)
+    const canUpdate = canUpdateTask(task)
     if (!canUpdate) {
       e.preventDefault()
       return
@@ -101,6 +123,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
 
     const taskToMove = tasks.find(t => t.id === taskId)
     if (taskToMove && taskToMove.status !== newStatus) {
+      if (!canUpdateTask(taskToMove)) { toast.error('Access Denied', 'You cannot update this task.'); return }
       setTasks(prev => prev.map(t => t.id === taskId ? { ...t, status: newStatus } : t))
       try {
         await eventTaskService.updateTask(taskId, { status: newStatus }, profile?.displayName || 'User')
@@ -179,7 +202,7 @@ export const TaskBoard: React.FC<TaskBoardProps> = ({ eventId, isHeadOrCreator }
                     task={task} 
                     onClick={(t) => { setSelectedTask(t); setIsModalOpen(true) }}
                     onDragStart={handleDragStart}
-                    canAssignToMe={!isHeadOrCreator && !canAction('canUpdateAnyTask') && canAction('canUpdateOwnTasks') && task.assignedMemberName !== profile?.displayName}
+                    canAssignToMe={!isHeadOrCreator && !canAction('canUpdateAnyTask') && canAction('canUpdateOwnTasks') && !isOwnEventTask(task, profile)}
                     onAssignToMe={handleAssignToMe}
                     onStatusChange={handleStatusChange}
                   />

@@ -9,6 +9,7 @@ import { nativeWidgetService } from '@/services/nativeWidgetService'
 import { FilterDropdown } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Loading } from '@/components/Loading'
+import { getReportOrderScope } from '@/utils/reportScope'
 import {
   AreaChart,
   Area,
@@ -132,6 +133,7 @@ const GROUP_COLORS: Record<string, string> = {
 export const DashboardOverview: React.FC = () => {
   const { profile } = useAuth()
   const userOrder = profile?.assignedOrder
+  const reportOrderScope = getReportOrderScope(profile)
   const orderTheme = (userOrder && ORDER_THEMES[userOrder]) ? ORDER_THEMES[userOrder] : DEFAULT_THEME
 
   const [data, setData] = useState<{
@@ -188,7 +190,7 @@ export const DashboardOverview: React.FC = () => {
     const loadDashboard = async () => {
       try {
         setLoading(true)
-        const dashboardData = await dashboardService.getDashboardData(userOrder)
+        const dashboardData = await dashboardService.getDashboardData(reportOrderScope)
         setData(dashboardData)
         nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, profile).catch(() => {})
       } catch (err: any) {
@@ -200,7 +202,7 @@ export const DashboardOverview: React.FC = () => {
     }
 
     loadDashboard()
-  }, [userOrder, profile])
+  }, [reportOrderScope, profile])
 
   // Format 12-hour time format helper
   const formatTime12 = (timeStr: string) => {
@@ -446,20 +448,20 @@ export const DashboardOverview: React.FC = () => {
               <div className="p-3.5 rounded-2xl bg-amber-50/60 border border-amber-100/80 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-amber-900 block">Warning Threshold</span>
-                  <span className="text-[10px] text-amber-700/80 font-medium">Servers nearing absence limit</span>
+                  <span className="text-[10px] text-amber-700/80 font-medium">{reportOrderScope || 'All ministry groups'} · Servers nearing absence limit</span>
                 </div>
                 <span className="text-2xl font-black text-amber-700">
-                  {userOrder ? (data.stats.userOrderWarningCount ?? 0) : (data.stats.warningMembersCount ?? 0)}
+                  {reportOrderScope ? (data.stats.userOrderWarningCount ?? 0) : (data.stats.warningMembersCount ?? 0)}
                 </span>
               </div>
 
               <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-100/80 flex items-center justify-between">
                 <div>
                   <span className="text-xs font-bold text-rose-900 block">Suspended Profiles</span>
-                  <span className="text-[10px] text-rose-700/80 font-medium">Exceeded 2-month absence rule</span>
+                  <span className="text-[10px] text-rose-700/80 font-medium">{reportOrderScope || 'All ministry groups'} · {data.stats.operatingCycleTitle || 'Current cycle'}</span>
                 </div>
                 <span className="text-2xl font-black text-rose-700">
-                  {userOrder ? (data.stats.userOrderSuspendedCount ?? 0) : (data.stats.suspendedMembersCount ?? 0)}
+                  {reportOrderScope ? (data.stats.userOrderSuspendedCount ?? 0) : (data.stats.suspendedMembersCount ?? 0)}
                 </span>
               </div>
 

@@ -1,4 +1,4 @@
-export type NotificationType = 'attendance_reminder' | 'admin_broadcast' | 'system_alert' | 'excuse_request'
+export type NotificationType = 'attendance_reminder' | 'admin_broadcast' | 'system_alert' | 'excuse_request' | 'event_task_assignment' | 'event_task_deadline' | 'event_task_reminder'
 export type NotificationPriority = 'urgent' | 'important' | 'info'
 export type NotificationTarget = 'all' | 'officers' | 'admins'
 
@@ -15,6 +15,12 @@ export interface AppNotification {
   memberId?: string
   actionUrl?: string
   actionLabel?: string
+  eventId?: string
+  taskId?: string
+  dueDate?: string | null
+  reminderStage?: 'three_days' | 'one_day' | 'due_today' | 'overdue'
+  deliveryMode?: 'in_app_only'
+  taskNotificationVersion?: number
   createdBy: string
   createdByName?: string
   createdAt: any

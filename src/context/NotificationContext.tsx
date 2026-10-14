@@ -6,6 +6,8 @@ import type { Schedule } from '@/types/schedule'
 import type { ExcuseRequest } from '@/types/excuse'
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { db } from '@/firebase/config'
+import { eventTaskNotificationService, type PersonalEventTask } from '@/services/eventTaskNotificationService'
+import { getTaskReminderStage, isActiveEventTask } from '@/utils/eventTaskNotifications'
 
 interface NotificationContextType {
   notifications: AppNotification[]
@@ -37,7 +39,9 @@ const UNTAKEN_CHECK_INTERVAL_MS = 60 * 1000 // Check every 60 seconds for newly 
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, isAdmin, canAction, hasModuleAccess } = useAuth()
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const [storedNotifications, setNotifications] = useState<AppNotification[]>([])
+  const [personalTasks, setPersonalTasks] = useState<PersonalEventTask[]>([])
+  const [reminderNow, setReminderNow] = useState(() => new Date())
   const [pendingExcuses, setPendingExcuses] = useState<ExcuseRequest[]>([])
   const [untakenSchedules, setUntakenSchedules] = useState<UntakenScheduleInfo[]>([])
   
@@ -95,6 +99,61 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   profileRef.current = profile
 
   const canReviewExcuses = isAdmin || profile?.role === 'coordinator' || profile?.role === 'admin' || profile?.role === 'order_leader' || canAction('canReviewExcuses') || canAction('canApproveExcuses') || hasModuleAccess('excuses')
+  const canViewEvents = hasModuleAccess('events')
+
+  useEffect(() => {
+    if (!profile?.uid || !canViewEvents) { setPersonalTasks([]); return }
+    let disposed = false
+    let unsubscribe: (() => void) | null = null
+    let currentTasks: PersonalEventTask[] = []
+    let checking = false
+    const evaluate = async () => {
+      if (disposed || checking || document.visibilityState !== 'visible' || !navigator.onLine) return
+      checking = true
+      const now = new Date()
+      setReminderNow(now)
+      try {
+        for (const item of currentTasks) {
+          if (disposed) break
+          if (isActiveEventTask(item.task, item.event) && getTaskReminderStage(item.task.dueDate, now)) {
+            try { await eventTaskNotificationService.deliverReminder(item, now) }
+            catch (error) { console.warn('Event task reminder check failed:', error) }
+          }
+        }
+      }
+      finally { checking = false }
+    }
+    const connect = () => {
+      if (disposed || document.visibilityState !== 'visible' || unsubscribe) return
+      unsubscribe = eventTaskNotificationService.subscribeToPersonalTasks(profile, items => {
+        if (disposed) return
+        currentTasks = items
+        setPersonalTasks(items)
+        void evaluate()
+      })
+    }
+    const visibility = () => {
+      if (document.visibilityState === 'visible') { connect(); void evaluate() }
+      else { unsubscribe?.(); unsubscribe = null }
+    }
+    connect()
+    const timer = setInterval(() => { void evaluate() }, 60_000)
+    document.addEventListener('visibilitychange', visibility)
+    window.addEventListener('online', visibility)
+    return () => {
+      disposed = true
+      unsubscribe?.()
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', visibility)
+      window.removeEventListener('online', visibility)
+    }
+  }, [profile?.uid, profile?.role, profile?.memberId, profile?.displayName, profile?.memberName, canViewEvents])
+
+  const notifications = storedNotifications.filter(notification => {
+    if (notification.type !== 'event_task_reminder') return true
+    const item = personalTasks.find(entry => entry.task.id === notification.taskId && entry.task.eventId === notification.eventId)
+    return !!item && isActiveEventTask(item.task, item.event) && notification.targetMemberIds?.includes(item.recipient) && notification.dueDate === item.task.dueDate && (notification.taskNotificationVersion ?? 0) === (item.task.notificationVersion ?? 0) && notification.reminderStage === getTaskReminderStage(item.task.dueDate, reminderNow)
+  })
 
   const refreshUntaken = useCallback(async () => {
     if (!user?.uid) return
@@ -200,6 +259,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     setLoading(true)
+    setNotifications([])
     const currentRole = profileRef.current?.role || 'user'
     const currentMemberId = profileRef.current?.memberId
     const currentEmail = user.email
@@ -221,6 +281,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         refreshUntaken()
+        if (!unsubscribeRef.current) unsubscribeRef.current = notificationService.subscribeToUserNotifications(
+          user.uid, profileRef.current?.role || 'user', profileRef.current?.memberId, user.email,
+          list => { if (isMountedRef.current) { setNotifications(list); setLoading(false) } }
+        )
         if (idleTimerRef.current) {
           clearTimeout(idleTimerRef.current)
           idleTimerRef.current = null
@@ -253,7 +317,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [user?.uid, refreshUntaken])
+  }, [user?.uid, profile?.role, profile?.memberId, user?.email, refreshUntaken])
 
   // Compute role-based relevant untaken schedules
   const canManageAttendance = isAdmin || profile?.role === 'coordinator' || canAction('canTakeAttendance') || canAction('canManageSchedules')

@@ -333,6 +333,7 @@ export const NotificationBell: React.FC = () => {
                   {filteredNotifications.map((notif) => {
                     const isUnread = !notif.readBy || !notif.readBy.includes(user?.uid || '')
                     const isAttendanceReminder = notif.type === 'attendance_reminder'
+                    const isEventTask = typeof notif.type === 'string' && notif.type.startsWith('event_task_')
                     const isExcuseRequest = notif.type === 'excuse_request'
 
                     return (
@@ -349,6 +350,10 @@ export const NotificationBell: React.FC = () => {
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-rose-100 text-rose-800 border border-rose-200">
                                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                                 Excuse Request
+                              </span>
+                            ) : isEventTask ? (
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border ${notif.reminderStage === 'overdue' ? 'bg-rose-100 text-rose-800 border-rose-200' : 'bg-indigo-100 text-indigo-800 border-indigo-200'}`}>
+                                {notif.reminderStage === 'overdue' ? 'Overdue Task' : notif.type === 'event_task_reminder' ? 'Task Reminder' : 'Event Task'}
                               </span>
                             ) : isAttendanceReminder ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase bg-amber-100 text-amber-800 border border-amber-200">

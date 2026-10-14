@@ -19,8 +19,9 @@ export const memberService = {
   /**
    * Fetches all members from Firestore, ordered by lastName then firstName.
    * If includeArchived is false, it excludes 'archived' status members.
+   * readOnly skips automatic suspension restoration, for reporting and trackers.
    */
-  async getMembers(includeArchived: boolean | 'archived_only' = false): Promise<Member[]> {
+  async getMembers(includeArchived: boolean | 'archived_only' = false, options: { readOnly?: boolean } = {}): Promise<Member[]> {
     const membersRef = collection(db, MEMBERS_COLLECTION)
     const snapshot = await getDocs(membersRef)
     let members = snapshot.docs.map(doc => ({
@@ -36,7 +37,7 @@ export const memberService = {
       m => m.status === 'suspended' && m.suspensionEndDate && m.suspensionEndDate < todayStr
     )
 
-    if (expiredSuspensions.length > 0) {
+    if (!options.readOnly && expiredSuspensions.length > 0) {
       // Process auto-unsuspensions
       expiredSuspensions.forEach(async (m) => {
         const completedRecord = {

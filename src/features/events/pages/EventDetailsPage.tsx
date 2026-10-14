@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { eventService } from '@/services/eventService'
 import type { Event } from '@/types/event'
 import { TaskBoard } from '../components/TaskBoard'
@@ -10,6 +10,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { EventFinanceBoard } from '../components/EventFinanceBoard'
 import { EventFormsTab } from '../components/EventFormsTab'
 import { EventContributionsBoard } from '../components/EventContributionsBoard'
+import { EventRequirementsTab } from '../components/EventRequirementsTab'
 import { EventFormModal } from '../components/EventFormModal'
 import { dashboardService } from '@/services/dashboardService'
 import { eventTaskService } from '@/services/eventTaskService'
@@ -18,11 +19,12 @@ import { PasswordConfirmModal } from '@/components/Dialog'
 import { Button, StatusBadge } from '@/components'
 import { useToast } from '@/context/ToastContext'
 
-type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms' | 'contributions'
+type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms' | 'contributions' | 'requirements'
 
 export const EventDetailsPage: React.FC = () => {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { toast } = useToast()
   const [event, setEvent] = useState<Event | null>(null)
   const [loading, setLoading] = useState(true)
@@ -46,7 +48,7 @@ export const EventDetailsPage: React.FC = () => {
         const isCreatorOrHead = data.createdByUid === profile.uid || data.headUid === profile.uid
         if (!isCreatorOrHead) {
           const userName = profile.displayName || profile.email || ''
-          const myAssignments = await dashboardService.getMyEventAssignments(userName, profile.uid)
+          const myAssignments = await dashboardService.getMyEventAssignments(userName, profile.uid, profile.memberId)
           const isMember = myAssignments.some(a => a.eventId === id)
           if (!isMember) {
             setAccessDenied(true)
@@ -93,6 +95,10 @@ export const EventDetailsPage: React.FC = () => {
   useEffect(() => {
     fetchEvent()
   }, [id])
+
+  useEffect(() => {
+    if (searchParams.get('task') || searchParams.get('tab') === 'tasks') setActiveTab('tasks')
+  }, [searchParams])
 
   if (loading) return <div className="p-8 text-center text-gray-500">Loading workspace...</div>
   if (accessDenied) return (
@@ -159,6 +165,7 @@ export const EventDetailsPage: React.FC = () => {
           { key: 'timeline', label: 'Timeline' },
           ...((canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? [{ key: 'finance', label: 'Finance' }] : []),
           { key: 'forms', label: 'Forms' },
+          { key: 'requirements', label: 'Requirements' },
           ...((canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? [{ key: 'contributions', label: 'Contributions' }] : [])
         ].map((t) => {
           const isActive = activeTab === t.key
@@ -192,6 +199,8 @@ export const EventDetailsPage: React.FC = () => {
         <EventFinanceBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : activeTab === 'forms' ? (
         <EventFormsTab eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
+      ) : activeTab === 'requirements' ? (
+        <EventRequirementsTab key={event.id} eventId={event.id} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : activeTab === 'contributions' && (canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? (
         <EventContributionsBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
       ) : (

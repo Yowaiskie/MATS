@@ -12,7 +12,8 @@ import {
   onSnapshot,
   arrayUnion,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  where
 } from 'firebase/firestore'
 import type { AppNotification, PushNotificationProgress, AssignedServerAccount } from '@/types/notification'
 import type { UserProfile } from '@/types/auth'
@@ -1062,11 +1063,9 @@ class NotificationService {
       limit(30)
     )
 
-    return onSnapshot(q, (snapshot) => {
-      const allNotifs = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      } as AppNotification)).sort((a, b) => {
+    const sources = new Map<string, AppNotification[]>()
+    const publish = () => {
+      const allNotifs = [...new Map([...sources.values()].flat().map(n => [n.id, n])).values()].sort((a, b) => {
         const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : Date.now())
         const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : Date.now())
         return timeB - timeA
@@ -1119,6 +1118,7 @@ class NotificationService {
       // Automatically post new incoming notifications to the Device Notification Drawer / Status Bar
       const nowMs = Date.now()
       relevant.forEach((notif) => {
+        if (notif.deliveryMode === 'in_app_only') return
         const isUnread = !notif.readBy || !notif.readBy.includes(_userId)
 
         // Calculate creation age
@@ -1167,7 +1167,17 @@ class NotificationService {
       })
 
       callback(relevant)
-    })
+    }
+    const receive = (source: string, snapshot: import('firebase/firestore').QuerySnapshot) => {
+      sources.set(source, snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as AppNotification))
+      publish()
+    }
+    const unsubscribeGlobal = onSnapshot(q, snapshot => receive('global', snapshot), error => console.warn('Notification feed failed:', error))
+    const targets = [...new Set([_userId, memberId, emailClean].filter((id): id is string => !!id))]
+    const unsubscribeTargeted = targets.length ? onSnapshot(query(
+      collection(db, NOTIFICATIONS_COLLECTION), where('targetMemberIds', 'array-contains-any', targets), orderBy('createdAt', 'desc'), limit(100)
+    ), snapshot => receive('targeted', snapshot), error => console.warn('Targeted notification feed failed:', error)) : () => {}
+    return () => { unsubscribeGlobal(); unsubscribeTargeted() }
   }
 
   /**

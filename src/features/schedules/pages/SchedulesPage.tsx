@@ -11,12 +11,14 @@ import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
 import { TemplateManagerModal } from '../components/TemplateManagerModal'
 import { PublicationsTab } from '../components/PublicationsTab'
 import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
+import { BulkFinalizeAttendanceModal } from '../components/BulkFinalizeAttendanceModal'
+import { useNotificationContext } from '@/context/NotificationContext'
 import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
 import { RemindAttendanceModal } from '@/components/RemindAttendanceModal'
 import { AutoAssignRotationModal } from '../components/AutoAssignRotationModal'
 import { ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
-import { FilterDropdown, DatePicker, ActionMenu, Loading } from '@/components'
+import { Button, FilterDropdown, DatePicker, ActionMenu, Loading } from '@/components'
 import type { Member } from '@/types/member'
 import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
@@ -133,6 +135,8 @@ export const SchedulesPage: React.FC = () => {
   const { profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageSchedules')
+  const canFinalize = isAdmin || canAction('canFinalizeAttendance')
+  const { refreshUntaken } = useNotificationContext()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [initialFilters] = useState<SavedScheduleFilters>(() => getInitialFilterState(searchParams))
@@ -180,6 +184,7 @@ export const SchedulesPage: React.FC = () => {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteMonthOpen, setBulkDeleteMonthOpen] = useState(false)
+  const [bulkFinalizeOpen, setBulkFinalizeOpen] = useState(false)
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
@@ -435,7 +440,7 @@ export const SchedulesPage: React.FC = () => {
 
   const handleSelectAll = () => {
     // Selects / deselects ALL filtered schedules across every page
-    if (selectedIds.size === filteredSchedules.length) {
+    if (filteredSchedules.every(schedule => selectedIds.has(schedule.id))) {
       setSelectedIds(new Set())
     } else {
       setSelectedIds(new Set(filteredSchedules.map(s => s.id)))
@@ -582,7 +587,15 @@ export const SchedulesPage: React.FC = () => {
   const safePage = Math.min(currentPage, totalPages)
   const currentPageItems = filteredSchedules.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
-  const allFilteredSelected = filteredSchedules.length > 0 && selectedIds.size === filteredSchedules.length
+  const allFilteredSelected = filteredSchedules.length > 0 && filteredSchedules.every(schedule => selectedIds.has(schedule.id))
+  const filteredSelectionKey = filteredSchedules.map(schedule => schedule.id).sort().join(',')
+  useEffect(() => {
+    const visibleIds = new Set(filteredSelectionKey ? filteredSelectionKey.split(',') : [])
+    setSelectedIds(previous => {
+      const next = new Set([...previous].filter(id => visibleIds.has(id)))
+      return next.size === previous.size ? previous : next
+    })
+  }, [filteredSelectionKey])
   const someSelected = selectedIds.size > 0
 
   return (
@@ -635,6 +648,7 @@ export const SchedulesPage: React.FC = () => {
         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
           {activeTab === 'schedules' && (
             <>
+              {canFinalize && <Button variant="success" size="dense" disabled={loading} onClick={() => setBulkFinalizeOpen(true)}>Bulk Finalize Attendance</Button>}
               {/* Segmented View Mode Toggle */}
               <div className="flex border border-gray-200 bg-white rounded-xl p-1 shadow-2xs">
                 <button
@@ -1052,8 +1066,8 @@ export const SchedulesPage: React.FC = () => {
       ) : filteredSchedules.length > 0 ? (
         <>
           {/* Bulk actions toolbar */}
-          {canManage && (
-            <div className="flex items-center justify-between gap-3 px-1">
+          {(canManage || canFinalize) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-1">
               <div className="flex items-center gap-2.5 flex-wrap">
                 {/* Bulk select toggle */}
                 <button
@@ -1093,7 +1107,7 @@ export const SchedulesPage: React.FC = () => {
               </div>
 
               {/* Bulk delete button */}
-              {bulkSelectMode && selectedIds.size > 0 && (
+              {canManage && bulkSelectMode && selectedIds.size > 0 && (
                 <button
                   onClick={() => setBulkDeleteOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-rose-600/20"
@@ -1247,6 +1261,7 @@ export const SchedulesPage: React.FC = () => {
       />
 
       {/* Bulk Delete Confirm Dialog */}
+      {bulkFinalizeOpen && <BulkFinalizeAttendanceModal onClose={() => setBulkFinalizeOpen(false)} onCompleted={async () => { await loadData(false); await refreshUntaken() }} />}
       <ConfirmModal
         isOpen={bulkDeleteOpen}
         onClose={() => setBulkDeleteOpen(false)}

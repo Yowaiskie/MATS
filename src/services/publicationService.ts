@@ -45,8 +45,12 @@ export const publicationService = {
   /**
    * Retrieves the currently active published publication.
    */
-  async getActivePublication(): Promise<SchedulePublication | null> {
-    const list = await this.getPublications()
+  async getActivePublication(options: { regularOnly?: boolean } = {}): Promise<SchedulePublication | null> {
+    const publications = await this.getPublications()
+    // Attendance policy summaries must not inherit a special event's exclusions.
+    const list = options.regularOnly
+      ? publications.filter(publication => publication.publicationType !== 'special_event')
+      : publications
     if (list.length === 0) return null
 
     // 1. Find published publications

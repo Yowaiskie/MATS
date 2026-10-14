@@ -85,7 +85,7 @@ export const dashboardService = {
 
     const [allMembers, activePub, basePolicy] = await Promise.all([
       memberService.getMembers(true),
-      publicationService.getActivePublication(),
+      publicationService.getActivePublication({ regularOnly: true }),
       settingsService.getPolicySettings()
     ])
 
@@ -135,20 +135,10 @@ export const dashboardService = {
     const suspendedMemberIds = new Set<string>()
     const warningMemberIds = new Set<string>()
 
-    // 1. Collect members whose profile status is explicitly / manually 'suspended' (as is)
+    // 1. Collect members whose profile status is explicitly / manually 'suspended'
     allMembers.forEach(m => {
       if (m.status === 'suspended') {
-        const sStart = m.suspensionStartDate || ''
-        const sEnd = m.suspensionEndDate || ''
-
-        // Check if suspension period overlaps with current operating cycle
-        const isSuspensionActiveThisPeriod = !sStart || (
-          sStart <= endDate && (!sEnd || sEnd >= startDate)
-        )
-
-        if (isSuspensionActiveThisPeriod) {
-          suspendedMemberIds.add(m.id)
-        }
+        suspendedMemberIds.add(m.id)
       }
     })
 
@@ -175,12 +165,16 @@ export const dashboardService = {
     if (userOrder) {
       userOrderSuspendedCount = Array.from(suspendedMemberIds).filter(id => {
         const m = allMembers.find(mem => mem.id === id)
-        return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
+        const memberOrder = m?.order?.toLowerCase().trim()
+        const targetOrder = userOrder.toLowerCase().trim()
+        return memberOrder && (memberOrder.includes(targetOrder) || targetOrder.includes(memberOrder))
       }).length
 
       userOrderWarningCount = Array.from(warningMemberIds).filter(id => {
         const m = allMembers.find(mem => mem.id === id)
-        return m?.order && m.order.toLowerCase().includes(userOrder.toLowerCase())
+        const memberOrder = m?.order?.toLowerCase().trim()
+        const targetOrder = userOrder.toLowerCase().trim()
+        return memberOrder && (memberOrder.includes(targetOrder) || targetOrder.includes(memberOrder))
       }).length
     } else {
       userOrderSuspendedCount = suspendedMembersCount
@@ -420,8 +414,8 @@ export const dashboardService = {
     return list
   },
 
-  async getMyEventAssignments(identifier: string, uid?: string): Promise<any[]> {
-    if (!identifier && !uid) return []
+  async getMyEventAssignments(identifier: string, uid?: string, memberId?: string): Promise<any[]> {
+    if (!identifier && !uid && !memberId) return []
     
     // First, query all active events so we can map IDs to titles
     const eventsQuery = query(collection(db, 'events'), where('isArchived', '==', false))
@@ -434,10 +428,10 @@ export const dashboardService = {
     const assignmentsMap = new Map<string, any>()
 
     // Query by memberUid if provided
-    if (uid) {
+      if (uid || memberId) {
       const qUid = query(
         collection(db, 'eventAssignments'),
-        where('memberUid', '==', uid)
+          where('memberUid', 'in', [...new Set([uid, memberId].filter(Boolean))])
       )
       const snapUid = await getDocs(qUid)
       snapUid.forEach(doc => {
@@ -455,9 +449,11 @@ export const dashboardService = {
         where('memberName', '==', identifier)
       )
       const snapName = await getDocs(qName)
+      const matchingMemberIds = new Set(snapName.docs.filter(document => eventTitles[document.data().eventId]).map(document => document.data().memberUid))
       snapName.forEach(doc => {
         const data = doc.data()
-        if (eventTitles[data.eventId]) {
+        const matchesIdentity = data.memberUid === uid || data.memberUid === memberId || (!memberId && matchingMemberIds.size === 1)
+        if (eventTitles[data.eventId] && matchesIdentity) {
           assignmentsMap.set(doc.id, { id: doc.id, ...data, eventTitle: eventTitles[data.eventId] })
         }
       })
