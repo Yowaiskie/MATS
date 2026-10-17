@@ -22,9 +22,22 @@ Match existing files: two-space indentation, single quotes, and generally omitte
 
 Reuse shared components and existing services. Preserve TanStack Query for server state and React hooks/context for client state. Oxlint is configured through the npm script; no dedicated formatter is configured.
 
-## Testing Guidelines
+## Testing & Quality Gates
 
-There is no configured automated test framework, test script, or coverage threshold. Run build and lint checks before submitting code changes. Manually exercise affected workflows, permissions, loading/error states, and mobile layouts. For Android changes, verify the native flow after synchronization. Record checks and results in the pull request.
+MATS follows quality gates before changes are approved:
+1. **Planning Document Review**: Requirements, spec, and task plan are reviewed and approved before coding.
+2. **Pre-Test / Lint Review**: Run `npm run lint` (`oxlint`) and TypeScript verification (`tsc -b`).
+3. **Security Review**: Check Firestore security rules, authentication guards, and input sanitization (OWASP / LLM security checklist).
+4. **Verification**: Manually exercise affected workflows, permissions, loading/error states, and mobile layouts. If automated tests are added, verify via test suite. For Android changes, verify native flow via `npm run cap:sync`.
+5. **Code Review Sign-off**: Independent review before merge or handoff.
+
+## Spec-Driven Development & Harness Workflow
+
+When implementing significant features or complex architectural changes:
+- **Spec-First Pipeline**: Requirements (`docs/`) -> Technical Specification (`specs/*.md`) -> Task Plan (`docs/task-plan.md` or `.agent/main-plan/`) -> Implementation -> Verification.
+- **Decision Logging**: Record architectural choices, trade-offs, and data structure decisions in [DECISIONS.md](file:///C:/Users/kyle/Desktop/MATS/DECISIONS.md).
+- **Branch Isolation**: Always work in dedicated feature branches (`feature/*` or `fix/*`). Never run generation or code modifications directly on `main`.
+- **Clarification Before Assumptions**: Clarify ambiguities with explicit choices and recommendations before proceeding with code changes.
 
 ## Commit & Pull Request Guidelines
 

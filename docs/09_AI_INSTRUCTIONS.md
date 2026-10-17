@@ -99,6 +99,9 @@ Organize files by feature instead of file type whenever possible.
 Approved structure:
 
 ```
+docs/           # Project specifications and architecture docs
+specs/          # Feature specifications generated from requirements
+DECISIONS.md    # Architectural and design decision logs
 src/
 ├── app/
 ├── assets/
@@ -120,6 +123,17 @@ src/
 ├── utils/
 └── main.tsx
 ```
+
+---
+
+# Spec-Driven Development Process
+
+For non-trivial features and modules:
+1. **Requirements**: Define business and functional requirements (`docs/` or user brief).
+2. **Specification**: Produce technical specifications (`specs/<feature>-spec.md`) detailing data models, Firestore interactions, and UI components.
+3. **Task Plan**: Break into ordered, traceable tasks.
+4. **Implementation**: Write code adhering to project conventions and guidelines.
+5. **Quality Review**: Review code against linting, security rules, and component standards before merging.
 
 ---
 
