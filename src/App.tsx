@@ -27,6 +27,7 @@ import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
 import { InventoryPage } from '@/features/inventory/pages/InventoryPage'
 import { DesignSystemShowcasePage } from '@/features/preview/DesignSystemShowcasePage'
 import { LoginPageShowcasePage } from '@/features/preview/LoginPageShowcasePage'
+import { BulkFinalizeShowcasePage } from '@/features/preview/BulkFinalizeShowcasePage'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { ToastProvider } from '@/context/ToastContext'
 import { NotificationProvider } from '@/context/NotificationContext'
@@ -59,6 +60,7 @@ function App() {
                 {/* Design System Preview Route (Phase 1 Preview) */}
                 <Route path="/design-system-preview" element={<DesignSystemShowcasePage />} />
                 <Route path="/login-preview" element={<LoginPageShowcasePage />} />
+                <Route path="/bulk-finalize-preview" element={<BulkFinalizeShowcasePage />} />
 
                 {/* Public Login Route */}
                 <Route 
