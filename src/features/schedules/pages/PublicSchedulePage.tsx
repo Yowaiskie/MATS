@@ -825,7 +825,13 @@ export const PublicSchedulePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div
+        className="min-h-screen bg-slate-50 flex items-center justify-center p-4"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
         <div className="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
       </div>
     )
@@ -835,7 +841,13 @@ export const PublicSchedulePage: React.FC = () => {
     const isDraft = publication?.status === 'draft'
 
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
+      <div
+        className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
         {/* Background glow accents */}
         <div className="absolute -top-40 -left-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
@@ -1107,7 +1119,10 @@ export const PublicSchedulePage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0">
+    <div
+      className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+    >
       {/* LEFT FORM PANEL */}
       <div className="w-full lg:w-[380px] lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col shrink-0 shadow-xs justify-between">
         <div>
@@ -1495,7 +1510,10 @@ export const PublicSchedulePage: React.FC = () => {
 
       {/* MOBILE FLOATING BOTTOM ACTION BAR (< lg) */}
       {!isClosed && (
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-3 sm:p-4 animate-in slide-in-from-bottom duration-200">
+        <div
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-3 sm:p-4 animate-in slide-in-from-bottom duration-200"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
+        >
           <div className="max-w-md mx-auto flex items-center justify-between gap-3">
             {!selectedMemberId ? (
               <button

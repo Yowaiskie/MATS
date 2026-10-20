@@ -185,6 +185,7 @@ export const SchedulesPage: React.FC = () => {
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteMonthOpen, setBulkDeleteMonthOpen] = useState(false)
   const [bulkFinalizeOpen, setBulkFinalizeOpen] = useState(false)
+  const [bulkFinalizeScheduleIds, setBulkFinalizeScheduleIds] = useState<string[] | undefined>(undefined)
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
@@ -475,8 +476,40 @@ export const SchedulesPage: React.FC = () => {
 
   const handleToggleLock = async (s: Schedule) => {
     try {
-      const nextLocked = !s.isLocked
-      await scheduleService.toggleLockSchedule(s.id, nextLocked, profile?.email || 'Admin')
+      const session = attendanceSessions.find((sess) => sess.scheduleId === s.id)
+      const isCurrentlyLocked = !!s.isLocked || !!session?.locked
+      const nextLocked = !isCurrentlyLocked
+      const actor = profile?.email || 'Admin'
+
+      if (nextLocked) {
+        const assignedIds = s.assignedMembers || []
+        if (assignedIds.length > 0) {
+          if (!session) {
+            setBulkFinalizeScheduleIds([s.id])
+            setBulkFinalizeOpen(true)
+            return
+          }
+          const existingRecords = await attendanceService.getAttendanceForSession(session.id)
+          const recordedMemberIds = new Set(existingRecords.filter((r) => !!r.status).map((r) => r.memberId))
+          const hasUnmarked = assignedIds.some((id) => !recordedMemberIds.has(id))
+          if (hasUnmarked) {
+            setBulkFinalizeScheduleIds([s.id])
+            setBulkFinalizeOpen(true)
+            return
+          }
+        }
+        const targetSession = session || (await attendanceService.getOrCreateSession(s.id))
+        await Promise.all([
+          scheduleService.toggleLockSchedule(s.id, true, actor),
+          attendanceService.setSessionLockState(targetSession.id, true, actor, s.title),
+        ])
+      } else {
+        await Promise.all([
+          scheduleService.toggleLockSchedule(s.id, false, actor),
+          ...(session ? [attendanceService.setSessionLockState(session.id, false, actor, s.title)] : []),
+        ])
+      }
+      await refreshUntaken()
       await loadData(false)
       if (nextLocked) {
         toast.success('Schedule Locked', `Schedule "${s.title}" has been finalized & locked.`)
@@ -516,6 +549,8 @@ export const SchedulesPage: React.FC = () => {
   }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
   const getAttendanceState = (scheduleId: string, status: string, _scheduleObj?: Schedule): ScheduleAttendanceState => {
+    const resolvedSchedule = _scheduleObj || schedules.find((s) => s.id === scheduleId)
+    if (resolvedSchedule?.isLocked) return 'finalized'
     if (status === 'upcoming' || status === 'cancelled') return 'none'
     const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
     if (!session) return 'untaken'
@@ -653,7 +688,10 @@ export const SchedulesPage: React.FC = () => {
                   variant="primary"
                   size="dense"
                   disabled={loading}
-                  onClick={() => setBulkFinalizeOpen(true)}
+                  onClick={() => {
+                    setBulkFinalizeScheduleIds(undefined)
+                    setBulkFinalizeOpen(true)
+                  }}
                   icon={
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
@@ -1275,7 +1313,19 @@ export const SchedulesPage: React.FC = () => {
       />
 
       {/* Bulk Delete Confirm Dialog */}
-      {bulkFinalizeOpen && <BulkFinalizeAttendanceModal onClose={() => setBulkFinalizeOpen(false)} onCompleted={async () => { await loadData(false); await refreshUntaken() }} />}
+      {bulkFinalizeOpen && (
+        <BulkFinalizeAttendanceModal
+          scheduleIds={bulkFinalizeScheduleIds}
+          onClose={() => {
+            setBulkFinalizeOpen(false)
+            setBulkFinalizeScheduleIds(undefined)
+          }}
+          onCompleted={async () => {
+            await loadData(false)
+            await refreshUntaken()
+          }}
+        />
+      )}
       <ConfirmModal
         isOpen={bulkDeleteOpen}
         onClose={() => setBulkDeleteOpen(false)}

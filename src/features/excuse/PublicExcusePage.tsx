@@ -494,7 +494,13 @@ export const PublicExcusePage: React.FC = () => {
   const selectedTrackMember = members.find(m => m.id === trackMemberId)
 
   return (
-    <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans text-slate-800">
+    <div
+      className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans text-slate-800"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+      }}
+    >
       {/* Sacred Ambient Mesh Glow Halos */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[600px] h-[350px] sm:h-[600px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
@@ -1222,7 +1228,7 @@ export const PublicExcusePage: React.FC = () => {
         )}
       </div>
       <div className="relative z-10 text-center mb-6 text-slate-400 text-xs font-medium">
-        <span>Archdiocese of Lipa · Ministry of Altar Servers</span>
+        <span>Sacred Heart of Jesus Parish - MBS · Ministry of Altar Servers</span>
       </div>
     </div>
   )

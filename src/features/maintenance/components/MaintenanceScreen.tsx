@@ -85,7 +85,13 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans">
+    <div
+      className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+      }}
+    >
       {/* Sacred Ambient Mesh Glow Halos */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />

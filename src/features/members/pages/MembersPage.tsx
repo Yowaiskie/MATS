@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { memberService } from '@/services/memberService'
+import { renewalService } from '@/services/renewalService'
 import { Card } from '@/components/Card'
 import { ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
 import { authService } from '@/services/authService'
@@ -11,7 +12,11 @@ import { MemberPDFImportModal } from '../components/MemberPDFImportModal'
 import { BulkRankEditModal } from '../components/BulkRankEditModal'
 import { BulkOrderEditModal } from '../components/BulkOrderEditModal'
 import { MemberExportModal } from '../components/MemberExportModal'
+import { CreateRenewalCycleModal } from '../components/CreateRenewalCycleModal'
+import { EnrollMemberModal } from '../components/EnrollMemberModal'
+import { EditCycleMembershipModal } from '../components/EditCycleMembershipModal'
 import type { Member, MemberInput } from '@/types/member'
+import type { RenewalCycle, RenewalMembership, RenewalMembershipWithMember } from '@/types/renewal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useToast } from '@/context/ToastContext'
 
@@ -22,7 +27,23 @@ export const MembersPage: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
 
-  // List settings
+  // Renewal Cycle State
+  const [cycles, setCycles] = useState<RenewalCycle[]>([])
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('directory')
+  const [cycleMembers, setCycleMembers] = useState<Member[]>([])
+  const [cycleMembershipMap, setCycleMembershipMap] = useState<Map<string, RenewalMembership>>(new Map())
+  const [allPermanentMembers, setAllPermanentMembers] = useState<Member[]>([])
+  const [cycleMenuOpen, setCycleMenuOpen] = useState(false)
+  const cycleMenuRef = useRef<HTMLDivElement>(null)
+
+  // Renewal Cycle Modals
+  const [createCycleOpen, setCreateCycleOpen] = useState(false)
+  const [enrollOpen, setEnrollOpen] = useState(false)
+  const [editingCycleMembership, setEditingCycleMembership] = useState<RenewalMembershipWithMember | null>(null)
+  const [confirmRemoveFromCycle, setConfirmRemoveFromCycle] = useState<{ memberId: string; memberName: string } | null>(null)
+  const [confirmArchiveCycle, setConfirmArchiveCycle] = useState<RenewalCycle | null>(null)
+
+  // List settings (Permanent directory mode)
   const [showArchived, setShowArchived] = useState(false)
 
   // Modals state
@@ -47,32 +68,71 @@ export const MembersPage: React.FC = () => {
   const [bulkOrderEditOpen, setBulkOrderEditOpen] = useState(false)
   const [bulkProcessing, setBulkProcessing] = useState(false)
 
-  const importMenuRef = React.useRef<HTMLDivElement>(null)
+  const importMenuRef = useRef<HTMLDivElement>(null)
 
-  // Close import menu on click outside
+  const isCycleMode = selectedCycleId !== 'directory'
+  const selectedCycle = cycles.find(c => c.id === selectedCycleId) || null
+
+  // Close menus on click outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (importMenuRef.current && !importMenuRef.current.contains(event.target as Node)) {
         setImportMenuOpen(false)
       }
+      if (cycleMenuRef.current && !cycleMenuRef.current.contains(event.target as Node)) {
+        setCycleMenuOpen(false)
+      }
     }
-    if (importMenuOpen) {
+    if (importMenuOpen || cycleMenuOpen) {
       document.addEventListener('mousedown', handleClickOutside)
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [importMenuOpen])
+  }, [importMenuOpen, cycleMenuOpen])
 
-  // Set default modals state correctly
-  useEffect(() => {
-    setImportOpen(false)
-  }, [])
-
-  // Clear selection when switching tabs
+  // Clear selection when switching tabs or cycles
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [showArchived])
+  }, [showArchived, selectedCycleId])
+
+  const loadCycles = async () => {
+    try {
+      const data = await renewalService.getCycles()
+      setCycles(data)
+      return data
+    } catch (err: any) {
+      console.error('Failed to load renewal cycles:', err)
+      toast.error('Cycle Error', err?.message || 'Failed to load renewal cycles.')
+      return []
+    }
+  }
+
+  const loadCycleMemberships = async (cycleId: string) => {
+    try {
+      const memberships = await renewalService.getMembershipsForCycle(cycleId)
+      const map = new Map<string, RenewalMembership>()
+      const membersList: Member[] = []
+      memberships.forEach(m => {
+        map.set(m.memberId, m)
+        membersList.push(m.member)
+      })
+      setCycleMembershipMap(map)
+      setCycleMembers(membersList)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Load Error', 'Failed to load cycle members.')
+    }
+  }
+
+  const loadAllPermanent = async () => {
+    try {
+      const all = await memberService.getMembers(false)
+      setAllPermanentMembers(all)
+    } catch (err) {
+      console.error(err)
+    }
+  }
 
   const loadMembers = async (showSpinner = true) => {
     if (showSpinner) setLoading(true)
@@ -87,9 +147,99 @@ export const MembersPage: React.FC = () => {
     }
   }
 
+  // Initial load
   useEffect(() => {
-    loadMembers()
-  }, [showArchived])
+    const init = async () => {
+      setLoading(true)
+      const loadedCycles = await loadCycles()
+      await loadAllPermanent()
+      await loadMembers(false)
+
+      // Default to current active cycle if one exists
+      const current = loadedCycles.find(c => c.isCurrent)
+      if (current) {
+        setSelectedCycleId(current.id)
+        await loadCycleMemberships(current.id)
+      } else if (loadedCycles.length > 0) {
+        setSelectedCycleId(loadedCycles[0].id)
+        await loadCycleMemberships(loadedCycles[0].id)
+      } else {
+        setSelectedCycleId('directory')
+      }
+      setLoading(false)
+    }
+    init()
+  }, [])
+
+  // When selectedCycleId changes
+  useEffect(() => {
+    if (selectedCycleId !== 'directory') {
+      loadCycleMemberships(selectedCycleId)
+    } else {
+      loadMembers(false)
+    }
+  }, [selectedCycleId, showArchived])
+
+  // ── Cycle actions ─────────────────────────────────────────────
+  const handleSetCurrentCycle = async (cycleId: string) => {
+    const actor = profile?.email || 'Admin'
+    try {
+      await renewalService.setCurrentCycle(cycleId, actor)
+      toast.success('Active Cycle Updated', 'Selected cycle is now the active current renewal cycle.')
+      await loadCycles()
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Update Failed', err.message || 'Failed to set active cycle.')
+    }
+  }
+
+  const handleArchiveCycleConfirmed = async () => {
+    if (!confirmArchiveCycle) return
+    const actor = profile?.email || 'Admin'
+    try {
+      await renewalService.archiveCycle(confirmArchiveCycle.id, actor)
+      toast.success('Cycle Archived', `${confirmArchiveCycle.name} is now archived and locked.`)
+      setConfirmArchiveCycle(null)
+      await loadCycles()
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Archive Failed', err.message || 'Failed to archive cycle.')
+    }
+  }
+
+  const handleUnarchiveCycle = async (cycleId: string) => {
+    const actor = profile?.email || 'Admin'
+    try {
+      await renewalService.unarchiveCycle(cycleId, actor)
+      toast.success('Cycle Unlocked', 'Cycle has been unarchived and can now receive updates.')
+      await loadCycles()
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Unlock Failed', err.message || 'Failed to unarchive cycle.')
+    }
+  }
+
+  const handleRemoveFromCycleConfirmed = async () => {
+    if (!confirmRemoveFromCycle || !selectedCycle) return
+    const actor = profile?.email || 'Admin'
+    try {
+      await renewalService.removeMembership(
+        selectedCycle.id,
+        confirmRemoveFromCycle.memberId,
+        actor
+      )
+      toast.success(
+        'Removed from Cycle',
+        `${confirmRemoveFromCycle.memberName} was removed from ${selectedCycle.name}. Permanent record remains intact.`
+      )
+      setConfirmRemoveFromCycle(null)
+      await loadCycleMemberships(selectedCycle.id)
+      await loadCycles()
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Removal Failed', err.message || 'Failed to remove member from cycle.')
+    }
+  }
 
   // ── Single-record callbacks ───────────────────────────────────
   const handleAddOrEditSubmit = async (input: MemberInput) => {
@@ -99,10 +249,38 @@ export const MembersPage: React.FC = () => {
         await memberService.updateMember(editingMember.id, input, actor)
         toast.success('Profile Updated', `Successfully updated profile for ${input.firstName} ${input.lastName}.`)
       } else {
-        await memberService.addMember(input, actor)
-        toast.success('Member Added', `Successfully added ${input.firstName} ${input.lastName} to member directory.`)
+        const newMemberId = await memberService.addMember(input, actor)
+        // If an active cycle is currently selected, auto-enroll the newly registered member
+        if (selectedCycle && !selectedCycle.isArchived) {
+          try {
+            await renewalService.enrollMemberInCycle(
+              selectedCycle.id,
+              newMemberId,
+              {
+                cycleRank: input.rank,
+                membershipStatus: 'active',
+                notes: 'Auto-enrolled upon registration'
+              },
+              actor
+            )
+            toast.success(
+              'Member Registered & Enrolled',
+              `Added ${input.firstName} ${input.lastName} to permanent directory and enrolled into ${selectedCycle.name}.`
+            )
+          } catch (enrollErr: any) {
+            console.error(enrollErr)
+            toast.success('Member Added', `Successfully added ${input.firstName} ${input.lastName} to member directory.`)
+          }
+        } else {
+          toast.success('Member Added', `Successfully added ${input.firstName} ${input.lastName} to member directory.`)
+        }
       }
       await loadMembers(false)
+      await loadAllPermanent()
+      if (selectedCycle) {
+        await loadCycleMemberships(selectedCycle.id)
+        await loadCycles()
+      }
     } catch (err: any) {
       console.error(err)
       toast.error('Save Failed', err.message || 'Failed to save member profile.')
@@ -110,7 +288,7 @@ export const MembersPage: React.FC = () => {
   }
 
   const handleArchive = (id: string) => {
-    const member = members.find(m => m.id === id)
+    const member = members.find(m => m.id === id) || cycleMembers.find(m => m.id === id)
     setConfirmArchive({ id, name: member ? `${member.firstName} ${member.lastName}` : 'this member' })
   }
 
@@ -121,6 +299,10 @@ export const MembersPage: React.FC = () => {
     try {
       await memberService.deleteMember(id, profile?.email || 'Admin')
       await loadMembers(false)
+      await loadAllPermanent()
+      if (selectedCycle) {
+        await loadCycleMemberships(selectedCycle.id)
+      }
       toast.success('Member Deleted', `${name} was permanently removed.`)
     } catch (err: any) {
       console.error(err)
@@ -129,7 +311,7 @@ export const MembersPage: React.FC = () => {
   }
 
   const handleDelete = (id: string) => {
-    const member = members.find(m => m.id === id)
+    const member = members.find(m => m.id === id) || cycleMembers.find(m => m.id === id)
     setConfirmDelete({ id, name: member ? `${member.firstName} ${member.lastName}` : 'this member' })
   }
 
@@ -141,6 +323,10 @@ export const MembersPage: React.FC = () => {
       await memberService.deleteMember(id, profile?.email || 'Admin')
       setConfirmDelete(null)
       await loadMembers(false)
+      await loadAllPermanent()
+      if (selectedCycle) {
+        await loadCycleMemberships(selectedCycle.id)
+      }
       toast.success('Member Deleted', `${name} was permanently removed.`)
     } catch (err: any) {
       console.error(err)
@@ -153,6 +339,7 @@ export const MembersPage: React.FC = () => {
       const member = members.find(m => m.id === id)
       await memberService.restoreMember(id, profile?.email || 'Admin')
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Member Restored', `${member ? member.firstName + ' ' + member.lastName : 'Member'} has been restored to active.`)
     } catch (err: any) {
       console.error(err)
@@ -164,6 +351,7 @@ export const MembersPage: React.FC = () => {
     try {
       await memberService.importMembersBatch(inputs, profile?.email || 'Admin')
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Import Successful', `Successfully imported ${inputs.length} member records.`)
     } catch (err: any) {
       console.error(err)
@@ -181,8 +369,6 @@ export const MembersPage: React.FC = () => {
     })
   }, [])
 
-  // "Select all" in table context means: trigger bulk action dialog
-  // We reuse onSelectAll prop slot as the bulk-action button handler in MemberTable
   const handleBulkActionButton = () => {
     if (showArchived) {
       setBulkRestoreOpen(true)
@@ -195,7 +381,6 @@ export const MembersPage: React.FC = () => {
     setSelectedIds(new Set())
   }, [])
 
-  // Bulk delete confirmed
   const handleBulkArchiveConfirmed = async () => {
     setBulkProcessing(true)
     try {
@@ -204,6 +389,7 @@ export const MembersPage: React.FC = () => {
       setBulkArchiveOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Bulk Delete Complete', `${ids.length} member(s) have been permanently deleted.`)
     } catch (err: any) {
       console.error(err)
@@ -213,7 +399,6 @@ export const MembersPage: React.FC = () => {
     }
   }
 
-  // Bulk restore confirmed
   const handleBulkRestoreConfirmed = async () => {
     setBulkProcessing(true)
     try {
@@ -222,6 +407,7 @@ export const MembersPage: React.FC = () => {
       setBulkRestoreOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Bulk Restore Complete', `${ids.length} member(s) have been restored to active.`)
     } catch (err: any) {
       console.error(err)
@@ -231,7 +417,6 @@ export const MembersPage: React.FC = () => {
     }
   }
 
-  // Bulk delete confirmed
   const handleBulkDeleteConfirmed = async (password: string) => {
     setBulkProcessing(true)
     try {
@@ -241,6 +426,7 @@ export const MembersPage: React.FC = () => {
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Bulk Delete Complete', `${ids.length} member(s) have been permanently deleted.`)
     } catch (err: any) {
       console.error(err)
@@ -250,7 +436,6 @@ export const MembersPage: React.FC = () => {
     }
   }
 
-  // Bulk rank edit confirmed
   const handleBulkRankEditConfirmed = async (newRank: string) => {
     setBulkProcessing(true)
     try {
@@ -259,6 +444,7 @@ export const MembersPage: React.FC = () => {
       setBulkRankEditOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Bulk Rank Update Complete', `Successfully updated rank to '${newRank}' for ${ids.length} member(s).`)
     } catch (err: any) {
       console.error(err)
@@ -268,7 +454,6 @@ export const MembersPage: React.FC = () => {
     }
   }
 
-  // Bulk order edit confirmed
   const handleBulkOrderEditConfirmed = async (newOrder: string) => {
     setBulkProcessing(true)
     try {
@@ -277,6 +462,7 @@ export const MembersPage: React.FC = () => {
       setBulkOrderEditOpen(false)
       setSelectedIds(new Set())
       await loadMembers(false)
+      await loadAllPermanent()
       toast.success('Bulk Order Update Complete', `Successfully updated order to '${newOrder || 'Unassigned'}' for ${ids.length} member(s).`)
     } catch (err: any) {
       console.error(err)
@@ -294,18 +480,20 @@ export const MembersPage: React.FC = () => {
     )
   }
 
+  const membersToDisplay = isCycleMode ? cycleMembers : members
+
   return (
     <div className="space-y-6">
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">Member Management</h1>
-          <p className="text-sm text-gray-500 mt-1">Manage ministry members, profile records, and bulk imports.</p>
+          <p className="text-sm text-gray-500 mt-1">Manage annual renewal cycles, cycle-specific rosters, and ministry records.</p>
         </div>
 
         {/* Action Buttons Toolbar */}
         <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Export Button (Available for masterlist export) */}
+          {/* Export Button */}
           <button
             type="button"
             onClick={() => {
@@ -390,28 +578,205 @@ export const MembersPage: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Renewal Cycle Selector & Management Bar ───────────── */}
+      <div className="p-3.5 sm:p-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Cycle:
+              </span>
+              <select
+                value={selectedCycleId}
+                onChange={(e) => setSelectedCycleId(e.target.value)}
+                className="text-xs font-bold text-slate-800 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-blue-500 shadow-2xs cursor-pointer min-w-[220px]"
+              >
+                {cycles.length > 0 && (
+                  <optgroup label="Annual Renewal Cycles">
+                    {cycles.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({c.year}){c.isCurrent ? ' • Current' : ''}{c.isArchived ? ' • Archived' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="Masterlist">
+                  <option value="directory">All Permanent Members (Directory)</option>
+                </optgroup>
+              </select>
+            </div>
+
+            {/* Cycle Status Badges */}
+            {selectedCycle && (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {selectedCycle.isCurrent && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Active Current Cycle
+                  </span>
+                )}
+                {selectedCycle.isArchived ? (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                    Archived (Locked)
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                    {cycleMembers.length} Enrolled
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Cycle Actions */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {canManage && selectedCycle && !selectedCycle.isArchived && (
+              <button
+                type="button"
+                onClick={() => setEnrollOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3.5 py-2 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-indigo-600/20 active:scale-95"
+              >
+                <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+                </svg>
+                <span>Enroll Member</span>
+              </button>
+            )}
+
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => setCreateCycleOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs active:scale-95"
+              >
+                <svg className="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                <span>New Cycle</span>
+              </button>
+            )}
+
+            {/* Cycle Management Dropdown */}
+            {canManage && selectedCycle && (
+              <div className="relative" ref={cycleMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setCycleMenuOpen(prev => !prev)}
+                  className="p-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer shadow-2xs"
+                  title="Cycle Options"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                  </svg>
+                </button>
+
+                {cycleMenuOpen && (
+                  <div className="absolute right-0 mt-1.5 w-48 rounded-xl bg-white border border-slate-200 shadow-xl py-1 z-30 animate-in fade-in zoom-in-95">
+                    {!selectedCycle.isCurrent && !selectedCycle.isArchived && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCycleMenuOpen(false)
+                          handleSetCurrentCycle(selectedCycle.id)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-blue-50 hover:text-blue-700 text-left cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Set as Current Active</span>
+                      </button>
+                    )}
+                    {!selectedCycle.isArchived ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCycleMenuOpen(false)
+                          setConfirmArchiveCycle(selectedCycle)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-amber-700 hover:bg-amber-50 text-left cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                        </svg>
+                        <span>Archive & Lock Cycle</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCycleMenuOpen(false)
+                          handleUnarchiveCycle(selectedCycle.id)
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-50 text-left cursor-pointer"
+                      >
+                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        <span>Unlock / Unarchive</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Archived Warning Banner */}
+        {selectedCycle && selectedCycle.isArchived && (
+          <div className="p-3 bg-amber-50 border border-amber-200/80 rounded-xl text-xs text-amber-900 flex items-start gap-2.5">
+            <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <div>
+              <span className="font-bold">Historical Record:</span> This renewal cycle is archived and locked. Roster records and classifications are preserved for reporting and cannot be altered unless unarchived.
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Subnavigation tab toggle */}
       <div className="flex border-b border-gray-200 space-x-6">
-        <button
-          onClick={() => setShowArchived(false)}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all duration-150 cursor-pointer ${
-            !showArchived
-              ? 'border-blue-600 text-blue-600 font-bold'
-              : 'border-transparent text-gray-400 hover:text-gray-600'
-          }`}
-        >
-          Active Members ({showArchived ? '--' : members.length})
-        </button>
-        <button
-          onClick={() => setShowArchived(true)}
-          className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all duration-150 cursor-pointer ${
-            showArchived
-              ? 'border-blue-600 text-blue-600 font-bold'
-              : 'border-transparent text-gray-400 hover:text-gray-600'
-          }`}
-        >
-          Archived Members ({showArchived ? members.length : '--'})
-        </button>
+        {isCycleMode ? (
+          <>
+            <button
+              onClick={() => {}}
+              className="pb-3 text-sm font-bold tracking-wide border-b-2 border-blue-600 text-blue-600 cursor-default"
+            >
+              Cycle Roster ({cycleMembers.length} enrolled)
+            </button>
+            <button
+              onClick={() => setSelectedCycleId('directory')}
+              className="pb-3 text-sm font-semibold tracking-wide border-b-2 border-transparent text-gray-400 hover:text-gray-600 cursor-pointer"
+            >
+              View Permanent Directory ({allPermanentMembers.length})
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              onClick={() => setShowArchived(false)}
+              className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all duration-150 cursor-pointer ${
+                !showArchived
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              Active Members ({showArchived ? '--' : members.length})
+            </button>
+            <button
+              onClick={() => setShowArchived(true)}
+              className={`pb-3 text-sm font-semibold tracking-wide border-b-2 transition-all duration-150 cursor-pointer ${
+                showArchived
+                  ? 'border-blue-600 text-blue-600 font-bold'
+                  : 'border-transparent text-gray-400 hover:text-gray-600'
+              }`}
+            >
+              Archived Members ({showArchived ? members.length : '--'})
+            </button>
+          </>
+        )}
       </div>
 
       {/* Members List table card */}
@@ -423,7 +788,7 @@ export const MembersPage: React.FC = () => {
           </div>
         ) : (
           <MemberTable
-            members={members}
+            members={membersToDisplay}
             onEdit={(m) => {
               setEditingMember(m)
               setFormOpen(true)
@@ -431,7 +796,7 @@ export const MembersPage: React.FC = () => {
             onArchive={handleArchive}
             onRestore={handleRestore}
             onDelete={handleDelete}
-            showArchived={showArchived}
+            showArchived={!isCycleMode && showArchived}
             selectedIds={selectedIds}
             onToggleSelect={handleToggleSelect}
             onSelectAll={handleBulkActionButton}
@@ -444,11 +809,16 @@ export const MembersPage: React.FC = () => {
               setExportOpen(true)
             }}
             bulkProcessing={bulkProcessing}
+            isCycleMode={isCycleMode}
+            isCycleArchived={selectedCycle?.isArchived}
+            cycleMembershipMap={cycleMembershipMap}
+            onEditCycleMembership={(m) => setEditingCycleMembership(m)}
+            onRemoveFromCycle={(memberId, memberName) => setConfirmRemoveFromCycle({ memberId, memberName })}
           />
         )}
       </Card>
 
-      {/* Modals Container */}
+      {/* ── Modals Container ──────────────────────────────────── */}
       <MemberFormModal
         isOpen={formOpen}
         onClose={() => {
@@ -457,30 +827,93 @@ export const MembersPage: React.FC = () => {
         }}
         onSubmit={handleAddOrEditSubmit}
         member={editingMember}
-        existingMembers={members}
+        existingMembers={allPermanentMembers.length > 0 ? allPermanentMembers : members}
+      />
+
+      <CreateRenewalCycleModal
+        isOpen={createCycleOpen}
+        onClose={() => setCreateCycleOpen(false)}
+        onSubmit={async (input) => {
+          const actor = profile?.email || 'Admin'
+          const newCycle = await renewalService.createCycle(input, actor)
+          toast.success('Renewal Cycle Created', `Created ${input.name}. Starts with an empty roster.`)
+          await loadCycles()
+          setSelectedCycleId(newCycle.id)
+        }}
+      />
+
+      {selectedCycle && (
+        <EnrollMemberModal
+          isOpen={enrollOpen}
+          onClose={() => setEnrollOpen(false)}
+          cycle={selectedCycle}
+          availableMembers={allPermanentMembers.filter(m => m.status !== 'archived' && !cycleMembershipMap.has(m.id))}
+          onEnrollSuccess={async () => {
+            toast.success('Enrollment Complete', `Members successfully enrolled in ${selectedCycle.name}.`)
+            await loadCycleMemberships(selectedCycle.id)
+            await loadCycles()
+          }}
+          actor={profile?.email || 'Admin'}
+        />
+      )}
+
+      <EditCycleMembershipModal
+        isOpen={!!editingCycleMembership}
+        onClose={() => setEditingCycleMembership(null)}
+        membership={editingCycleMembership}
+        cycleName={selectedCycle?.name || 'Cycle'}
+        onSaveSuccess={async () => {
+          toast.success('Classification Updated', 'Cycle membership details successfully updated.')
+          if (selectedCycle) {
+            await loadCycleMemberships(selectedCycle.id)
+          }
+        }}
+        actor={profile?.email || 'Admin'}
       />
 
       <MemberImportModal
         isOpen={importOpen}
         onClose={() => setImportOpen(false)}
         onImport={handleImport}
-        existingMembers={members}
+        existingMembers={allPermanentMembers.length > 0 ? allPermanentMembers : members}
       />
 
       <MemberPDFImportModal
         isOpen={pdfImportOpen}
         onClose={() => setPdfImportOpen(false)}
         onImport={handleImport}
-        existingMembers={members}
+        existingMembers={allPermanentMembers.length > 0 ? allPermanentMembers : members}
       />
 
       <MemberExportModal
         isOpen={exportOpen}
         onClose={() => setExportOpen(false)}
-        members={members}
+        members={membersToDisplay}
         selectedMemberIds={selectedIds}
-        showArchived={showArchived}
+        showArchived={!isCycleMode && showArchived}
         initialScope={exportScope}
+      />
+
+      {/* Remove from Cycle Confirm Dialog */}
+      <ConfirmModal
+        isOpen={!!confirmRemoveFromCycle}
+        onClose={() => setConfirmRemoveFromCycle(null)}
+        onConfirm={handleRemoveFromCycleConfirmed}
+        variant="danger"
+        title="Remove Member from Renewal Cycle"
+        message={`Are you sure you want to remove ${confirmRemoveFromCycle?.memberName} from ${selectedCycle?.name}? Note: Their permanent member profile and records in other cycles will NOT be deleted.`}
+        confirmLabel="Remove from Cycle"
+      />
+
+      {/* Archive Cycle Confirm Dialog */}
+      <ConfirmModal
+        isOpen={!!confirmArchiveCycle}
+        onClose={() => setConfirmArchiveCycle(null)}
+        onConfirm={handleArchiveCycleConfirmed}
+        variant="warning"
+        title="Archive Renewal Cycle"
+        message={`Are you sure you want to archive ${confirmArchiveCycle?.name}? Enrolled member rosters and classifications will become locked and read-only to preserve historical records.`}
+        confirmLabel="Archive & Lock Cycle"
       />
 
       {/* Single Delete Confirm Dialog */}

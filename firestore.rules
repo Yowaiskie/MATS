@@ -85,6 +85,19 @@ service cloud.firestore {
       allow read: if true; // Public excuse form lists members
       allow write: if isSuperAdmin() || hasPermission('canManageMembers');
     }
+
+    // renewalCycles collection
+    match /renewalCycles/{cycleId} {
+      allow read: if true;
+      allow create, update: if isSuperAdmin() || hasPermission('canManageMembers');
+      allow delete: if isSuperAdmin();
+    }
+
+    // renewalMemberships collection
+    match /renewalMemberships/{membershipId} {
+      allow read: if true;
+      allow create, update, delete: if isSuperAdmin() || hasPermission('canManageMembers');
+    }
     
     // schedules collection
     match /schedules/{scheduleId} {

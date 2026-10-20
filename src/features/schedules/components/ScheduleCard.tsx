@@ -80,7 +80,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
   // 1. Is schedule locked? (attendance session finalized & locked by admin)
   const isFinalizedAttendance = attendanceState === 'finalized'
-  const isLocked = isFinalizedAttendance
+  const isLocked = isFinalizedAttendance || !!schedule.isLocked
 
   // 2. Is attendance in progress (only if NOT locked)?
   const isInProgress = !isLocked && attendanceState === 'in_progress'
@@ -93,6 +93,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
 
   const getEffectiveStatus = (): CardStatus => {
     if (computedStatus === 'cancelled') return 'cancelled'
+    if (isLocked) return 'completed'
     if (computedStatus === 'upcoming') return 'upcoming'
     if (computedStatus === 'ongoing') return 'ongoing'
     if (isLocked) return 'completed'
@@ -292,7 +293,7 @@ export const ScheduleCard: React.FC<ScheduleCardProps> = ({
                 ? [
                     {
                       id: 'toggle-lock',
-                      label: schedule.isLocked ? 'Unlock Schedule' : 'Finalize & Lock',
+                      label: isLocked ? 'Unlock Schedule' : 'Finalize & Lock',
                       variant: 'success' as const,
                       onClick: () => onToggleLock(schedule),
                       icon: (

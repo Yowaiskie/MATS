@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { eventService } from '@/services/eventService'
 import type { Event } from '@/types/event'
-import { Card, Pagination, Loading, Button, StatusBadge, EmptyState, ActionMenu } from '@/components'
+import { Card, Pagination, Loading, Button, StatusBadge, EmptyState } from '@/components'
 import { EventFormModal } from '../components/EventFormModal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { dashboardService } from '@/services/dashboardService'
@@ -127,15 +127,19 @@ export const EventsPage: React.FC = () => {
               </table>
             </div>
 
-            {/* Mobile Card View */}
+            {/* Mobile Card View — Directly clickable card to open workspace */}
             <div className="md:hidden divide-y divide-slate-100">
               {paginatedEvents.map(event => (
-                <div key={event.id} className="p-4 space-y-3 bg-white hover:bg-slate-50/50 transition-colors">
+                <Link
+                  key={event.id}
+                  to={`/events/${event.id}`}
+                  className="block p-4 space-y-3 bg-white hover:bg-slate-50 active:bg-slate-100/80 transition-colors cursor-pointer group"
+                >
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <Link to={`/events/${event.id}`} className="font-extrabold text-sm text-indigo-600 hover:underline line-clamp-1">
+                      <span className="font-extrabold text-sm text-indigo-600 group-hover:underline line-clamp-1 block">
                         {event.title}
-                      </Link>
+                      </span>
                       <div className="flex items-center gap-1.5 mt-1 text-xs font-semibold text-slate-500">
                         <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -152,25 +156,14 @@ export const EventsPage: React.FC = () => {
                       <span className="font-semibold text-slate-700">{event.headName || 'Unassigned'}</span>
                     </div>
 
-                    <ActionMenu
-                      triggerVariant="meatball"
-                      tooltip="Event Options"
-                      size="sm"
-                      items={[
-                        {
-                          label: 'Open Workspace',
-                          variant: 'primary',
-                          icon: (
-                            <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-                            </svg>
-                          ),
-                          href: `/events/${event.id}`
-                        }
-                      ]}
-                    />
+                    <span className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 group-hover:translate-x-0.5 transition-transform">
+                      <span>Open</span>
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                      </svg>
+                    </span>
                   </div>
-                </div>
+                </Link>
               ))}
             </div>
 

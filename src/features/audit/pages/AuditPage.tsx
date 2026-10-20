@@ -288,7 +288,14 @@ export const AuditPage: React.FC = () => {
     EVENT_CONTRIBUTION_RESTORE: 'bg-indigo-100 text-indigo-800 border-indigo-200',
     EVENT_CONTRIBUTION_DELETE: 'bg-red-100 text-red-800 border-red-200',
     EVENT_CONTRIBUTION_LINK_FINANCE: 'bg-teal-100 text-teal-800 border-teal-200',
-    EVENT_CONTRIBUTION_EXPORT: 'bg-purple-100 text-purple-800 border-purple-200'
+    EVENT_CONTRIBUTION_EXPORT: 'bg-purple-100 text-purple-800 border-purple-200',
+    RENEWAL_CYCLE_CREATE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    RENEWAL_CYCLE_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    RENEWAL_CYCLE_ACTIVATE: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    RENEWAL_CYCLE_ARCHIVE: 'bg-amber-100 text-amber-800 border-amber-200',
+    RENEWAL_MEMBERSHIP_ADD: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    RENEWAL_MEMBERSHIP_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
+    RENEWAL_MEMBERSHIP_REMOVE: 'bg-red-100 text-red-800 border-red-200'
   }
 
   // Friendly human-readable property key dictionary

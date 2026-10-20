@@ -119,6 +119,9 @@ export const BulkFinalizeAttendanceModal: React.FC<BulkFinalizeAttendanceModalPr
       // Auto-select all ready sessions by default
       const readyIds = results.filter(i => i.eligible && !i.isFinalized).map(i => i.scheduleId)
       setSelectedIds(new Set(readyIds))
+      if (readyIds.length === 0 && results.some(i => !i.isFinalized && !i.eligible)) {
+        setActiveTab('incomplete')
+      }
     } catch (err: any) {
       console.error(err)
       // Use the ref so this callback never re-creates just because toast changed reference
@@ -143,24 +146,26 @@ export const BulkFinalizeAttendanceModal: React.FC<BulkFinalizeAttendanceModalPr
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
     return items.filter(item => {
-      // 1. Date Range
-      if (dateRangePreset === 'this_week') {
-        const d = new Date()
-        const day = d.getDay()
-        const diffToSunday = d.getDate() - day
-        const sunday = new Date(d.setDate(diffToSunday))
-        const sunStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`
-        if (item.date < sunStr || item.date > todayStr) return false
-      } else if (dateRangePreset === 'this_month') {
-        const ym = todayStr.substring(0, 7)
-        if (!item.date.startsWith(ym)) return false
-      } else if (dateRangePreset === 'last_30_days') {
-        const past30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        const past30Str = `${past30.getFullYear()}-${String(past30.getMonth() + 1).padStart(2, '0')}-${String(past30.getDate()).padStart(2, '0')}`
-        if (item.date < past30Str) return false
-      } else if (dateRangePreset === 'custom') {
-        if (startDate && item.date < startDate) return false
-        if (endDate && item.date > endDate) return false
+      // 1. Date Range (skip date filter when explicitly scoped to scheduleIds)
+      if (!scheduleIds || scheduleIds.length === 0) {
+        if (dateRangePreset === 'this_week') {
+          const d = new Date()
+          const day = d.getDay()
+          const diffToSunday = d.getDate() - day
+          const sunday = new Date(d.setDate(diffToSunday))
+          const sunStr = `${sunday.getFullYear()}-${String(sunday.getMonth() + 1).padStart(2, '0')}-${String(sunday.getDate()).padStart(2, '0')}`
+          if (item.date < sunStr || item.date > todayStr) return false
+        } else if (dateRangePreset === 'this_month') {
+          const ym = todayStr.substring(0, 7)
+          if (!item.date.startsWith(ym)) return false
+        } else if (dateRangePreset === 'last_30_days') {
+          const past30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+          const past30Str = `${past30.getFullYear()}-${String(past30.getMonth() + 1).padStart(2, '0')}-${String(past30.getDate()).padStart(2, '0')}`
+          if (item.date < past30Str) return false
+        } else if (dateRangePreset === 'custom') {
+          if (startDate && item.date < startDate) return false
+          if (endDate && item.date > endDate) return false
+        }
       }
 
       // 2. Search Query
@@ -175,7 +180,7 @@ export const BulkFinalizeAttendanceModal: React.FC<BulkFinalizeAttendanceModalPr
 
       return true
     })
-  }, [items, dateRangePreset, startDate, endDate, searchQuery])
+  }, [items, scheduleIds, dateRangePreset, startDate, endDate, searchQuery])
 
   const readyItems = useMemo(() => filteredItems.filter(i => !i.isFinalized && i.eligible), [filteredItems])
   const incompleteItems = useMemo(() => filteredItems.filter(i => !i.isFinalized && !i.eligible), [filteredItems])
@@ -228,6 +233,9 @@ export const BulkFinalizeAttendanceModal: React.FC<BulkFinalizeAttendanceModalPr
       }))
       // Auto-select the newly resolved session for when they view the Ready tab later
       setSelectedIds(prev => new Set([...prev, scheduleId]))
+      if (scheduleIds && scheduleIds.length === 1) {
+        setActiveTab('ready')
+      }
 
       toastRef.current.success('Roster Updated', 'Unmarked servers have been marked as absent. Session moved to Ready.')
     } catch (err: any) {

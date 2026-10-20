@@ -235,7 +235,13 @@ export const PublicEventFormPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div
+        className="min-h-screen bg-slate-50 flex items-center justify-center p-4"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
         <Loading variant="spinner" label="Loading registration form..." />
       </div>
     )
@@ -246,7 +252,13 @@ export const PublicEventFormPage: React.FC = () => {
     const isAuthRequired = pageLoadError === 'auth_required'
 
     return (
-      <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans">
+      <div
+        className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
         {/* Sacred Ambient Mesh Glow Halos */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
@@ -621,7 +633,13 @@ export const PublicEventFormPage: React.FC = () => {
   // Submission Confirmation Screen
   if (submittedTrackingNumber) {
     return (
-      <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans">
+      <div
+        className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
         {/* Sacred Ambient Mesh Glow Halos */}
         <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
@@ -788,7 +806,13 @@ export const PublicEventFormPage: React.FC = () => {
   }
 
   return (
-    <div className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center py-6 px-3 sm:py-10 sm:px-4 overflow-x-hidden font-sans">
+    <div
+      className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center py-6 px-3 sm:py-10 sm:px-4 overflow-x-hidden font-sans"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
       {/* Sacred Ambient Mesh Glow Halos */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[650px] h-[350px] sm:h-[650px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
       <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
@@ -1985,7 +2009,7 @@ export const PublicEventFormPage: React.FC = () => {
       </div>
 
       <div className="relative z-10 text-center mb-6 text-slate-400 text-xs font-medium">
-        <span>Archdiocese of Lipa · Ministry of Altar Servers</span>
+        <span>Sacred Heart of Jesus Parish - MBS · Ministry of Altar Servers</span>
       </div>
 
       <AlertModal

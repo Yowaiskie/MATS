@@ -206,7 +206,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                     />
                     <div>
                       <span className="text-xs font-black tracking-widest text-indigo-300 uppercase block">
-                        Archdiocese of Lipa
+                        Sacred Heart of Jesus Parish - MBS
                       </span>
                       <span className="text-base font-black text-white tracking-tight">
                         Ministry of Altar Servers
@@ -614,7 +614,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                   </div>
 
                   <div className="text-[11px] text-indigo-300 font-medium text-center">
-                    Ministry of Altar Servers • Archdiocese of Lipa
+                    Sacred Heart of Jesus Parish - MBS · Ministry of Altar Servers
                   </div>
                 </div>
               </div>
@@ -637,7 +637,7 @@ export const LoginPageShowcasePage: React.FC = () => {
                     />
                     <div>
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
-                        MATS ARCHDIOCESE
+                        Sacred Heart of Jesus Parish - MBS
                       </span>
                       <h1 className="text-xl font-black text-slate-900 tracking-tight">
                         Sign in to account
