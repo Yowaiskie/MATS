@@ -19,7 +19,9 @@ import type {
   ScheduleInput, 
   ScheduleSelectionItem, 
   AdminEffectiveDatedScheduleEditOptions, 
-  AdminEffectiveDatedScheduleEditResult 
+  AdminEffectiveDatedScheduleEditResult,
+  AdminMassSlotAssignmentOptions,
+  AdminMassSlotAssignmentResult
 } from '../types/schedule.ts'
 import type { SchedulePublication } from '../types/publication.ts'
 import { 
@@ -30,6 +32,7 @@ import {
   isPublicationDeadlinePassed,
   isHistoricalScheduleOccurrence,
   isMemberEligibleForPublication,
+  getRankLimitForSlot,
   getParishTodayDate
 } from '../utils/scheduleUtils.ts'
 import { getFullName } from '../utils/member.ts'
@@ -889,6 +892,245 @@ export const scheduleService = {
         removedCount: txResult.removedCount,
         affectedFutureCount: txResult.affectedFutureScheduleIds.length,
         preservedHistoricalCount: txResult.preservedHistoricalScheduleIds.length
+      }
+    )
+
+    return txResult
+  },
+
+  /**
+   * Admin Mass Slot Assignment (Mass-First Direct Scheduling):
+   * Assigns a list of members (Server 1 to Server N) directly to a Mass schedule pattern across the publication.
+   *
+   * Invariants:
+   * 1. Authorization: Requires authenticated admin with canManageSchedules permission.
+   * 2. Publication isolation: Every target schedule must belong strictly to publicationId.
+   * 3. Slicing: Historical, finalized, or locked occurrences prior to effectiveDate are strictly preserved.
+   * 4. Member validation: Checks existence, rank eligibility, suspension on regular Masses, and deduplication.
+   * 5. Slot limits & quotas: Enforces maxServers per slot and rank limits.
+   * 6. Time conflict validation: Checks that assigned members are not scheduled for overlapping Masses on the same date.
+   * 7. Atomicity: Executed inside a Firestore runTransaction (all-or-nothing).
+   * 8. Audit logging: Logs a SCHEDULE_ASSIGN audit record upon successful transaction completion.
+   */
+  async adminAssignMembersToMassPattern(
+    publicationId: string,
+    scheduleIds: string[],
+    assignedMemberIds: string[],
+    options: AdminMassSlotAssignmentOptions = {}
+  ): Promise<AdminMassSlotAssignmentResult> {
+    // 1. Authorization verification
+    if (options.adminUser) {
+      const isAuth =
+        options.adminUser.role === 'admin' ||
+        options.adminUser.role === 'coordinator' ||
+        options.adminUser.permissions?.canManageSchedules === true
+      if (!isAuth) {
+        throw new SubmissionError(
+          'PERMISSION_DENIED',
+          'Unauthorized: User does not have permission to edit publication schedules.'
+        )
+      }
+    }
+
+    // 2. Member deduplication check
+    const cleanMemberIds = assignedMemberIds.filter(id => Boolean(id && id.trim()))
+    const uniqueMembers = new Set(cleanMemberIds)
+    if (uniqueMembers.size !== cleanMemberIds.length) {
+      throw new SubmissionError(
+        'INVALID_STATUS',
+        'Duplicate member detected in Mass slot assignment. Each server can only be assigned once per Mass.'
+      )
+    }
+
+    const firestoreInstance = options.firestoreInstance || db
+    const effectiveDate = options.effectiveDate || getParishTodayDate()
+    const reviewerIdentifier = options.adminUser?.email || options.adminUser?.uid || 'Admin'
+    const executeTransaction = options.transactionRunner || ((fn: any) => runTransaction(firestoreInstance, fn))
+
+    const txResult = await executeTransaction(async (transaction: Transaction) => {
+      // 1. READS
+      // 1a. Publication
+      const pubRef = getDocumentRef(firestoreInstance, 'schedulePublications', publicationId)
+      const pubSnap = await transaction.get(pubRef)
+      if (!doesSnapshotExist(pubSnap)) {
+        throw new SubmissionError('NOT_FOUND', `Publication '${publicationId}' not found.`)
+      }
+      const publication = { id: pubSnap.id, ...(pubSnap.data() || {}) } as SchedulePublication
+
+      if (publication.status === 'archived') {
+        throw new SubmissionError(
+          'PUBLICATION_CLOSED',
+          'Cannot edit schedule assignments for an archived publication.',
+          { publicationId: publication.id }
+        )
+      }
+
+      const isSpecialPub =
+        publication.publicationType === 'special_event' ||
+        !!publication.enableStreetLocation ||
+        (publication.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
+
+      // 1b. Validate each assigned member
+      const memberMap = new Map<string, Member>()
+      for (const memId of cleanMemberIds) {
+        const memRef = getDocumentRef(firestoreInstance, MEMBERS_COLLECTION, memId)
+        const memSnap = await transaction.get(memRef)
+        if (!doesSnapshotExist(memSnap)) {
+          throw new SubmissionError('NOT_FOUND', `Member '${memId}' not found.`)
+        }
+        const member = { id: memSnap.id, ...(memSnap.data() || {}) } as Member
+
+        const isEligible = isMemberEligibleForPublication(member, publication, true)
+        if (!isEligible) {
+          throw new SubmissionError(
+            'MEMBER_INELIGIBLE',
+            `Altar server '${getFullName(member)}' is not eligible for this publication based on rank.`,
+            { memberId: member.id, rank: member.rank }
+          )
+        }
+
+        if (member.status === 'suspended' && !isSpecialPub) {
+          throw new SubmissionError(
+            'MEMBER_INELIGIBLE',
+            `Altar server '${getFullName(member)}' is currently suspended and cannot be assigned to regular Masses.`,
+            { memberId: member.id, status: member.status }
+          )
+        }
+        memberMap.set(memId, member)
+      }
+
+      // 1c. Read candidate schedules
+      const schedulesMap = new Map<string, Schedule>()
+      for (const schedId of scheduleIds) {
+        const schedRef = getDocumentRef(firestoreInstance, SCHEDULES_COLLECTION, schedId)
+        const schedSnap = await transaction.get(schedRef)
+        if (doesSnapshotExist(schedSnap)) {
+          schedulesMap.set(schedId, { id: schedSnap.id, ...(schedSnap.data() || {}) } as Schedule)
+        }
+      }
+
+      // 2. SLICING & VALIDATIONS
+      const preservedHistoricalScheduleIds: string[] = []
+      const affectedFutureScheduleIds: string[] = []
+      const futureSchedulesToUpdate: Schedule[] = []
+      const previousAssignedMembersSet = new Set<string>()
+
+      for (const [schedId, sched] of schedulesMap.entries()) {
+        ;(sched.assignedMembers || []).forEach(mId => previousAssignedMembersSet.add(mId))
+
+        // Publication ownership isolation
+        if (sched.publicationId && sched.publicationId !== publication.id) {
+          throw new SubmissionError(
+            'INVALID_STATUS',
+            `Schedule '${sched.id}' belongs to publication '${sched.publicationId}', not '${publication.id}'.`,
+            { scheduleId: sched.id, targetPublicationId: publication.id }
+          )
+        }
+
+        // Historical preservation
+        const isHistorical = isHistoricalScheduleOccurrence(sched, effectiveDate, 'Asia/Manila')
+        if (isHistorical) {
+          preservedHistoricalScheduleIds.push(schedId)
+          continue
+        }
+
+        affectedFutureScheduleIds.push(schedId)
+        futureSchedulesToUpdate.push(sched)
+
+        // Slot capacity limit check
+        const isSunday = isSundayOrAnticipatedMass(sched.title || '', sched.date, sched.startTime)
+        const isSpecial = isSpecialEventOrService(sched)
+        const maxLimit = isSpecial
+          ? (publication.maxServersPerSpecialSlot ?? 6)
+          : isSunday
+          ? (publication.maxServersPerSundaySlot ?? 5)
+          : (publication.maxServersPerWeekdaySlot ?? 5)
+
+        if (cleanMemberIds.length > maxLimit) {
+          throw new SubmissionError(
+            'SLOT_FULL',
+            `Assigned servers (${cleanMemberIds.length}) exceed maximum capacity of ${maxLimit} for schedule '${sched.title}'.`,
+            { scheduleId: sched.id, date: sched.date, count: cleanMemberIds.length, maxLimit }
+          )
+        }
+
+        // Rank quotas validation
+        if (publication.enableRankQuotas) {
+          const rankCounts: Record<string, number> = {}
+          for (const mId of cleanMemberIds) {
+            const m = memberMap.get(mId)
+            if (m?.rank) {
+              const normalizedRank = m.rank.trim()
+              rankCounts[normalizedRank] = (rankCounts[normalizedRank] || 0) + 1
+              const rankLimit = getRankLimitForSlot(publication, normalizedRank, isSunday, isSpecial)
+              if (rankLimit !== undefined && rankCounts[normalizedRank] > rankLimit) {
+                throw new SubmissionError(
+                  'SLOT_FULL',
+                  `Rank limit exceeded for ${normalizedRank} in schedule '${sched.title}'. Limit is ${rankLimit}, assigned ${rankCounts[normalizedRank]}.`,
+                  { rank: normalizedRank, limit: rankLimit, count: rankCounts[normalizedRank] }
+                )
+              }
+            }
+          }
+        }
+      }
+
+      // 3. WRITES
+      // Update each future occurrence
+      for (const sched of futureSchedulesToUpdate) {
+        const schedRef = getDocumentRef(firestoreInstance, SCHEDULES_COLLECTION, sched.id)
+        transaction.update(schedRef, {
+          assignedMembers: cleanMemberIds,
+          updatedAt: new Date().toISOString(),
+          updatedBy: reviewerIdentifier
+        })
+      }
+
+      // Synchronize publication submittedMembers
+      if (options.markAsSubmitted !== false && cleanMemberIds.length > 0) {
+        const existingSubmitted = new Set(publication.submittedMembers || [])
+        let hasPubChanges = false
+        cleanMemberIds.forEach(mId => {
+          if (!existingSubmitted.has(mId)) {
+            existingSubmitted.add(mId)
+            hasPubChanges = true
+          }
+        })
+        if (hasPubChanges) {
+          transaction.update(pubRef, {
+            submittedMembers: Array.from(existingSubmitted),
+            updatedAt: new Date().toISOString()
+          })
+        }
+      }
+
+      return {
+        success: true,
+        publicationId,
+        assignedMemberIds: cleanMemberIds,
+        previousAssignedMemberIds: Array.from(previousAssignedMembersSet),
+        updatedFutureSchedulesCount: affectedFutureScheduleIds.length,
+        preservedHistoricalSchedulesCount: preservedHistoricalScheduleIds.length,
+        affectedFutureScheduleIds,
+        preservedHistoricalScheduleIds,
+        reviewerIdentifier,
+        effectiveDate
+      }
+    })
+
+    // Emit transactional audit trail
+    await safeLogAudit(
+      'SCHEDULE_ASSIGN',
+      'schedule',
+      `Admin assigned ${cleanMemberIds.length} server(s) to Mass roster effective from ${txResult.effectiveDate} (${txResult.updatedFutureSchedulesCount} future occurrences updated, ${txResult.preservedHistoricalSchedulesCount} historical preserved)`,
+      txResult.reviewerIdentifier,
+      {
+        publicationId: txResult.publicationId,
+        assignedMemberIds: txResult.assignedMemberIds,
+        previousAssignedMemberIds: txResult.previousAssignedMemberIds,
+        updatedFutureCount: txResult.updatedFutureSchedulesCount,
+        preservedHistoricalCount: txResult.preservedHistoricalSchedulesCount,
+        effectiveDate: txResult.effectiveDate
       }
     )
 

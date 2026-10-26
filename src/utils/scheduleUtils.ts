@@ -844,7 +844,7 @@ export const isHistoricalScheduleOccurrence = (
   effectiveDate?: string,
   parishTimeZone = 'Asia/Manila'
 ): boolean => {
-  if (schedule.isLocked || schedule.attendanceFinalized || schedule.attendanceSessionFinalized) {
+  if (schedule.isLocked || schedule.attendanceFinalized || schedule.attendanceSessionFinalized || schedule.status === 'finalized' || schedule.status === 'completed') {
     return true
   }
 

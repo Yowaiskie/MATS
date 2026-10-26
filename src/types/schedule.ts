@@ -94,3 +94,28 @@ export interface AdminEffectiveDatedScheduleEditResult {
   addedCount: number
   removedCount: number
 }
+
+export interface AdminMassSlotAssignmentOptions {
+  effectiveDate?: string // YYYY-MM-DD in Asia/Manila, defaults to parish today
+  adminUser?: {
+    uid: string
+    email?: string
+    role?: string
+    permissions?: { canManageSchedules?: boolean; [key: string]: any }
+  }
+  markAsSubmitted?: boolean
+  firestoreInstance?: any
+  transactionRunner?: <T>(fn: (transaction: any) => Promise<T>) => Promise<T>
+}
+
+export interface AdminMassSlotAssignmentResult {
+  success: boolean
+  publicationId: string
+  patternId?: string
+  assignedMemberIds: string[]
+  previousAssignedMemberIds: string[]
+  updatedFutureSchedulesCount: number
+  preservedHistoricalSchedulesCount: number
+  affectedFutureScheduleIds: string[]
+  preservedHistoricalScheduleIds: string[]
+}

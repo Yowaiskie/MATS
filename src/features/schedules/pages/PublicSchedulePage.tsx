@@ -24,6 +24,8 @@ import {
   type SchedulePattern
 } from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { useAuth } from '@/features/authentication/AuthContext'
+import { AdminMassAssignmentPanel } from '../components/AdminMassAssignmentPanel'
 
 
 export const getLiturgicalTheme = (colorKey?: string, isSpecialPubFallback: boolean = false) => {
@@ -159,6 +161,9 @@ export const getLiturgicalTheme = (colorKey?: string, isSpecialPubFallback: bool
 export const PublicSchedulePage: React.FC = () => {
   const { id: publicationId } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const { user, profile, isAdmin, canAction } = useAuth()
+  const canAdminSchedule = Boolean(user && (isAdmin || canAction('canManageSchedules') || profile?.permissions?.canManageSchedules))
+  const [schedulingMode, setSchedulingMode] = useState<'member' | 'admin'>('member')
   
   const [publication, setPublication] = useState<SchedulePublication | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
@@ -731,7 +736,7 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }
 
-  if ((!publication || publication.status === 'draft') && !loading) {
+  if ((!publication || (!canAdminSchedule && publication.status === 'draft')) && !loading) {
     const isDraft = publication?.status === 'draft'
 
     return (
@@ -1086,7 +1091,64 @@ export const PublicSchedulePage: React.FC = () => {
             </div>
           </div>
 
-          {isDraft ? (
+          {canAdminSchedule && (
+            <div className="mb-5 p-1 bg-slate-100 rounded-xl border border-slate-200 flex items-center">
+              <button
+                type="button"
+                onClick={() => setSchedulingMode('member')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  schedulingMode === 'member'
+                    ? 'bg-white text-indigo-700 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                <span>Member Mode</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setSchedulingMode('admin')}
+                className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                  schedulingMode === 'admin'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <span>Admin Mode</span>
+              </button>
+            </div>
+          )}
+
+          {schedulingMode === 'admin' && canAdminSchedule ? (
+            <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-3 mt-2 sm:mt-4">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                </div>
+                <span className="text-xs font-black text-slate-800 uppercase tracking-wide">Admin Direct Mode</span>
+              </div>
+              <p className="text-xs text-slate-600 leading-relaxed font-medium">
+                You are managing Mass rosters as an authorized administrator. Select any Mass on the right, assign servers directly to slots, and save with one click.
+              </p>
+              <div className="pt-2 border-t border-slate-200/70 text-xs font-semibold text-slate-600 space-y-1.5">
+                <div className="flex justify-between">
+                  <span>Eligible Servers:</span>
+                  <span className="font-extrabold text-slate-800">{members.length}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Publication Schedules:</span>
+                  <span className="font-extrabold text-slate-800">{publicationSchedules.length}</span>
+                </div>
+              </div>
+            </div>
+          ) : isDraft ? (
             <div className="bg-slate-50 border border-slate-200/80 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
               <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center mx-auto mb-3 shadow-xs">
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1346,7 +1408,14 @@ export const PublicSchedulePage: React.FC = () => {
 
       {/* RIGHT MATRIX TABLE PANEL */}
       <div className="flex-1 p-3.5 sm:p-6 md:p-10 overflow-x-auto overflow-y-auto">
-        {publicationSchedules.length === 0 ? (
+        {schedulingMode === 'admin' && canAdminSchedule ? (
+          <AdminMassAssignmentPanel
+            publication={publication!}
+            publicationSchedules={publicationSchedules}
+            members={members}
+            onSuccess={loadData}
+          />
+        ) : publicationSchedules.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-10 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs">
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -1440,7 +1509,7 @@ export const PublicSchedulePage: React.FC = () => {
       </div>
 
       {/* MOBILE FLOATING BOTTOM ACTION BAR (< lg) */}
-      {!isClosed && (
+      {!isClosed && schedulingMode === 'member' && (
         <div
           className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-3 sm:p-4 animate-in slide-in-from-bottom duration-200"
           style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.75rem)' }}
