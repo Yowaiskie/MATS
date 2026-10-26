@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore'
 import type { SchedulePublication, SchedulePublicationInput, PublicationStatus } from '../types/publication.ts'
 import type { AdminUserContext } from '../types/submission.ts'
+import { getParishTodayDate } from '../utils/scheduleUtils.ts'
 
 export interface PublicationLifecycleOptions {
   db?: Firestore
@@ -194,8 +195,15 @@ export const publicationService = {
 
   /**
    * Retrieves the currently active published publication.
+   * By default (currentOnly: true), only returns a published publication whose date range spans today's parish date.
+   * If allowFuture is true, falls back to future published publications when none span today.
    */
-  async getActivePublication(options: { regularOnly?: boolean; db?: Firestore } = {}): Promise<SchedulePublication | null> {
+  async getActivePublication(options: { 
+    regularOnly?: boolean; 
+    db?: Firestore; 
+    allowFuture?: boolean;
+    currentDate?: string;
+  } = {}): Promise<SchedulePublication | null> {
     const publications = await this.getPublications(options.db)
     const list = options.regularOnly
       ? publications.filter(publication => publication.publicationType !== 'special_event')
@@ -204,7 +212,7 @@ export const publicationService = {
 
     // 1. Find published publications
     const published = list.filter(p => p.status === 'published')
-    const today = new Date().toISOString().split('T')[0]
+    const today = options.currentDate || getParishTodayDate('Asia/Manila')
 
     if (published.length > 0) {
       // Prioritize regular cycle publication spanning today's date
@@ -212,12 +220,22 @@ export const publicationService = {
       if (regularCurrent) return regularCurrent
 
       const current = published.find(p => p.startDate <= today && today <= p.endDate)
-      return current || published[0]
+      if (current) return current
+
+      if (options.allowFuture) {
+        return published[0]
+      }
+      return null
     }
 
     // 2. Fallback to any publication spanning today
     const currentAny = list.find(p => p.startDate <= today && today <= p.endDate)
-    return currentAny || list[0]
+    if (currentAny) return currentAny
+
+    if (options.allowFuture) {
+      return list[0]
+    }
+    return null
   },
 
   /**

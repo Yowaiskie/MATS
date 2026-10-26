@@ -4,15 +4,15 @@ import {
   query,
   where
 } from 'firebase/firestore'
-import { db } from '@/firebase/config'
-import type { Schedule } from '@/types/schedule'
-import type { AttendanceSession } from '@/types/attendance'
-import type { Member } from '@/types/member'
-import { memberService } from './memberService'
-import { getScheduleStatus, calculateMonthsBetween } from '@/utils/scheduleUtils'
-import { publicationService } from './publicationService'
-import { settingsService, type SuspensionPolicySettings } from './settingsService'
-import { reportService } from './reportService'
+import { db } from '../firebase/config.ts'
+import type { Schedule } from '../types/schedule.ts'
+import type { AttendanceSession } from '../types/attendance.ts'
+import type { Member } from '../types/member.ts'
+import { getScheduleStatus, getParishTodayDate } from '../utils/scheduleUtils.ts'
+import { publicationService } from './publicationService.ts'
+import type { SuspensionPolicySettings } from './settingsService.ts'
+import { scheduleService } from './scheduleService.ts'
+import { resolveEvaluationContext } from '../utils/evaluationContext.ts'
 
 export interface BirthdayCelebrant {
   id: string
@@ -45,6 +45,8 @@ export interface DashboardStats {
   attendanceSessionsCount: number
   operatingCycleTitle?: string
   operatingCycleMonths?: number
+  evaluationPeriodLabel?: string
+  evaluationPeriodType?: 'regular_publication' | 'calendar_month'
 }
 
 export interface ActivityLog {
@@ -61,11 +63,24 @@ const toDate = (timestamp: any): Date => {
   return new Date(timestamp)
 }
 
+export interface DashboardDataDependencies {
+  db?: any
+  getAttendanceSessions?: () => Promise<AttendanceSession[]>
+  getMembers?: (includeArchived?: boolean) => Promise<Member[]>
+  getPublications?: () => Promise<any[]>
+  getActivePublication?: (options?: any) => Promise<any>
+  getPolicySettings?: () => Promise<SuspensionPolicySettings>
+  loadReportData?: (startDate: string, endDate: string, members: Member[]) => Promise<any>
+  generateMemberReport?: (data: any, policy: any) => any[]
+  getSchedulesByDate?: (date: string) => Promise<Schedule[]>
+  getSchedules?: () => Promise<Schedule[]>
+}
+
 export const dashboardService = {
   /**
    * Retrieves all dashboard statistics and recent activities efficiently.
    */
-  async getDashboardData(userOrder?: string): Promise<{
+  async getDashboardData(userOrder?: string, deps: DashboardDataDependencies = {}): Promise<{
     stats: DashboardStats
     todaySchedules: Schedule[]
     activities: ActivityLog[]
@@ -73,60 +88,73 @@ export const dashboardService = {
     members: Member[]
   }> {
     let attendanceSessions: AttendanceSession[] = []
-    try {
-      const sessionSnapshot = await getDocs(collection(db, 'attendanceSessions'))
-      attendanceSessions = sessionSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as AttendanceSession[]
-    } catch (err) {
-      console.warn('Could not load attendanceSessions for dashboard:', err)
-    }
-
-    const [allMembers, activePub, basePolicy] = await Promise.all([
-      memberService.getMembers(true),
-      publicationService.getActivePublication({ regularOnly: true }),
-      settingsService.getPolicySettings()
-    ])
-
-    // Calculate dates and active operating cycle policy
-    const today = new Date()
-    const currentYear = today.getFullYear()
-    const currentMonthNum = today.getMonth() + 1
-    const currentMonthStr = `${currentYear}-${String(currentMonthNum).padStart(2, '0')}`
-    const lastDayOfMonth = new Date(currentYear, currentMonthNum, 0).getDate()
-
-    let startDate: string
-    let endDate: string
-    let activePolicy: SuspensionPolicySettings
-    let operatingCycleTitle: string
-    let operatingCycleMonths: number = 1
-
-    if (activePub) {
-      startDate = activePub.startDate
-      endDate = activePub.endDate
-      operatingCycleTitle = activePub.name
-      operatingCycleMonths = calculateMonthsBetween(startDate, endDate)
-
-      const defaultWarning = operatingCycleMonths === 2 ? 3 : operatingCycleMonths >= 3 ? 4 : 2
-      const defaultSuspension = operatingCycleMonths === 2 ? 5 : operatingCycleMonths >= 3 ? 7 : 3
-
-      activePolicy = {
-        ...basePolicy,
-        warningAbsenceThreshold: activePub.warningAbsenceThreshold ?? defaultWarning,
-        suspensionAbsenceThreshold: activePub.suspensionAbsenceThreshold ?? defaultSuspension,
-        evaluationMonths: operatingCycleMonths,
-        includeSundays: activePub.includeSundays !== undefined ? activePub.includeSundays : basePolicy.includeSundays,
-        includeWeekdays: activePub.includeWeekdays !== undefined ? activePub.includeWeekdays : basePolicy.includeWeekdays,
-        includeMeetings: activePub.includeMeetings !== undefined ? activePub.includeMeetings : basePolicy.includeMeetings,
+    if (deps.getAttendanceSessions) {
+      try {
+        attendanceSessions = await deps.getAttendanceSessions()
+      } catch (err) {
+        console.warn('Could not load attendanceSessions for dashboard:', err)
       }
     } else {
-      startDate = `${currentMonthStr}-01`
-      endDate = `${currentMonthStr}-${String(lastDayOfMonth).padStart(2, '0')}`
-      operatingCycleTitle = 'This Month'
-      operatingCycleMonths = basePolicy.evaluationMonths || 1
-      activePolicy = basePolicy
+      try {
+        const firestoreDb = deps.db || db
+        const sessionSnapshot = await getDocs(collection(firestoreDb, 'attendanceSessions'))
+        attendanceSessions = sessionSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as AttendanceSession[]
+      } catch (err) {
+        console.warn('Could not load attendanceSessions for dashboard:', err)
+      }
     }
+
+    let allMembers: Member[]
+    let basePolicy: SuspensionPolicySettings
+
+    if (deps.getMembers) {
+      allMembers = await deps.getMembers(true)
+    } else {
+      const { memberService } = await import('./memberService.ts')
+      allMembers = await memberService.getMembers(true)
+    }
+
+    let publications: any[] = []
+    if (deps.getPublications) {
+      publications = await deps.getPublications()
+    } else if (deps.getActivePublication) {
+      const pub = await deps.getActivePublication({ regularOnly: true })
+      if (pub) publications = [pub]
+    } else {
+      publications = await publicationService.getPublications(deps.db || db)
+    }
+
+    if (deps.getPolicySettings) {
+      basePolicy = await deps.getPolicySettings()
+    } else {
+      const { settingsService } = await import('./settingsService.ts')
+      basePolicy = await settingsService.getPolicySettings()
+    }
+
+    // Calculate dates and active operating cycle policy in Asia/Manila parish timezone
+    const parishTodayStr = getParishTodayDate('Asia/Manila') // "YYYY-MM-DD"
+    const [pYearStr, pMonthStr] = parishTodayStr.split('-')
+    const currentYear = parseInt(pYearStr, 10)
+    const currentMonthNum = parseInt(pMonthStr, 10)
+
+    const resolvedContext = resolveEvaluationContext({
+      publications,
+      basePolicy,
+      currentDate: parishTodayStr
+    })
+
+    const startDate = resolvedContext.startDate
+    const endDate = resolvedContext.endDate
+    const activePolicy = resolvedContext.policy
+    const operatingCycleTitle = resolvedContext.periodLabel
+    const operatingCycleMonths = resolvedContext.policy.evaluationMonths || 1
+    const evaluationPeriodLabel = resolvedContext.publication
+      ? `${resolvedContext.publication.name} (Regular Publication)`
+      : resolvedContext.periodLabel
+    const evaluationPeriodType = (resolvedContext.periodType === 'regular_publication' ? 'regular_publication' : 'calendar_month') as 'regular_publication' | 'calendar_month'
 
     let suspendedMembersCount = 0
     let userOrderSuspendedCount = 0
@@ -144,9 +172,24 @@ export const dashboardService = {
 
     // 2. Combine with dynamic attendance policy infractions for this cycle
     try {
-      const reportData = await reportService.loadReportData(startDate, endDate, allMembers)
+      let reportData: any
+      let memberRows: any[]
+
+      if (deps.loadReportData) {
+        reportData = await deps.loadReportData(startDate, endDate, allMembers)
+      } else {
+        const { reportService } = await import('./reportService.ts')
+        reportData = await reportService.loadReportData(startDate, endDate, allMembers)
+      }
+
       monthSchedules = reportData.schedules
-      const memberRows = reportService.generateMemberReport(reportData, activePolicy)
+
+      if (deps.generateMemberReport) {
+        memberRows = deps.generateMemberReport(reportData, activePolicy)
+      } else {
+        const { reportService } = await import('./reportService.ts')
+        memberRows = reportService.generateMemberReport(reportData, activePolicy)
+      }
       memberRows.forEach(r => {
         if (r.warningStatus === 'suspended') {
           suspendedMemberIds.add(r.memberId)
@@ -209,16 +252,30 @@ export const dashboardService = {
       completedSchedules,
       attendanceSessionsCount: attendanceSessions.length,
       operatingCycleTitle,
-      operatingCycleMonths
+      operatingCycleMonths,
+      evaluationPeriodLabel,
+      evaluationPeriodType
     }
 
-    // 2. Filter today's schedules
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-    
-    const todaySchedules = monthSchedules
-      .filter(s => s.date === todayStr)
-      // Sorted by startTime chronologically
-      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    // 2. Fetch today's duty roster independently for parishTodayStr (Asia/Manila)
+    let todaySchedules: Schedule[] = []
+    try {
+      const directToday = deps.getSchedulesByDate
+        ? await deps.getSchedulesByDate(parishTodayStr)
+        : await scheduleService.getSchedulesByDate(parishTodayStr)
+      // Merge with any today schedules from monthSchedules to ensure complete coverage without duplicates
+      const mergedMap = new Map<string, Schedule>()
+      monthSchedules.filter(s => s.date === parishTodayStr).forEach(s => mergedMap.set(s.id, s))
+      directToday.forEach(s => mergedMap.set(s.id, s))
+      todaySchedules = Array.from(mergedMap.values())
+        .filter(s => s.status !== 'cancelled')
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    } catch (err) {
+      console.warn('Could not load independent today schedules, falling back to monthSchedules:', err)
+      todaySchedules = monthSchedules
+        .filter(s => s.date === parishTodayStr && s.status !== 'cancelled')
+        .sort((a, b) => a.startTime.localeCompare(b.startTime))
+    }
 
     // 3. Formulate recent activities by combining members, schedules, and sessions
     const activities: ActivityLog[] = []
@@ -243,8 +300,21 @@ export const dashboardService = {
       })
     })
 
+    // Fetch recent schedules (broad window not constrained to future publication)
+    let recentScheduleSource = monthSchedules
+    try {
+      const recentWindowSchedules = deps.getSchedules
+        ? await deps.getSchedules()
+        : await scheduleService.getSchedules()
+      if (recentWindowSchedules && recentWindowSchedules.length > 0) {
+        recentScheduleSource = recentWindowSchedules
+      }
+    } catch {
+      recentScheduleSource = monthSchedules
+    }
+
     // Map schedule activities (up to 5 latest)
-    const sortedSchedules = [...monthSchedules].sort((a, b) => {
+    const sortedSchedules = [...recentScheduleSource].sort((a, b) => {
       const dateA = toDate(a.updatedAt || a.createdAt).getTime()
       const dateB = toDate(b.updatedAt || b.createdAt).getTime()
       return dateB - dateA
@@ -309,18 +379,20 @@ export const dashboardService = {
   },
 
   /**
-   * Calculates birthday celebrants for any target month (1-12) and year.
+   * Calculates birthday celebrants for any target month (1-12) and year in Asia/Manila parish timezone.
    */
   calculateBirthdaysForMonth(
     members: Member[],
     targetMonth: number,
-    targetYear: number = new Date().getFullYear(),
+    targetYear?: number,
     sortMode: 'day' | 'name' | 'order' = 'day'
   ): BirthdayCelebrant[] {
-    const today = new Date()
-    const currentYear = today.getFullYear()
-    const currentMonthNum = today.getMonth() + 1
-    const currentDay = today.getDate()
+    const parishTodayStr = getParishTodayDate('Asia/Manila')
+    const [pYearStr, pMonthStr, pDayStr] = parishTodayStr.split('-')
+    const currentYear = parseInt(pYearStr, 10)
+    const currentMonthNum = parseInt(pMonthStr, 10)
+    const currentDay = parseInt(pDayStr, 10)
+    const resolvedTargetYear = targetYear ?? currentYear
     const todayDateOnly = new Date(currentYear, currentMonthNum - 1, currentDay)
 
     const monthNames = [
@@ -365,15 +437,15 @@ export const dashboardService = {
         }
 
         if (bMonth === targetMonth && bDay && !isNaN(bDay) && bDay >= 1 && bDay <= 31) {
-          const isCurrentMonth = targetMonth === currentMonthNum && targetYear === currentYear
+          const isCurrentMonth = targetMonth === currentMonthNum && resolvedTargetYear === currentYear
           const isToday = isCurrentMonth && bDay === currentDay
 
-          // Target birthday date in targetYear
-          const targetBirthdayDate = new Date(targetYear, targetMonth - 1, bDay)
+          // Target birthday date in resolvedTargetYear
+          const targetBirthdayDate = new Date(resolvedTargetYear, targetMonth - 1, bDay)
           const diffTime = targetBirthdayDate.getTime() - todayDateOnly.getTime()
           const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
           const isUpcoming = daysRemaining > 0
-          const turningAge = bYear && bYear > 1900 && bYear <= targetYear ? targetYear - bYear : undefined
+          const turningAge = bYear && bYear > 1900 && bYear <= resolvedTargetYear ? resolvedTargetYear - bYear : undefined
 
           const suffix = m.suffix ? ` ${m.suffix}` : ''
           const fullName = `${m.firstName}${m.middleName ? ` ${m.middleName[0]}.` : ''} ${m.lastName}${suffix}`

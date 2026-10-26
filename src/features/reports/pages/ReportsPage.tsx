@@ -14,10 +14,11 @@ import { MemberReportExportModal } from '../components/MemberReportExportModal'
 import { HolyHourAnalyticsTab } from '../components/HolyHourAnalyticsTab'
 import { QualificationsTab } from '../components/QualificationsTab'
 import { publicationService } from '@/services/publicationService'
-import { calculateMonthsBetween } from '@/utils/scheduleUtils'
 import type { SchedulePublication } from '@/types/publication'
-import type { SuspensionPolicySettings } from '@/services/settingsService'
+import { settingsService, type SuspensionPolicySettings } from '@/services/settingsService'
 import { getReportOrderScope } from '@/utils/reportScope'
+import { getParishTodayDate } from '@/utils/scheduleUtils'
+import { resolveEvaluationContext } from '@/utils/evaluationContext'
 
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour' | 'qualifications'
 
@@ -61,18 +62,35 @@ export const ReportsPage: React.FC = () => {
   const [showBreakdownModal, setShowBreakdownModal] = useState(false)
   const [showExportPdfModal, setShowExportPdfModal] = useState(false)
 
-  // Load publications and auto-bind to the active published publication on mount
+  // Load publications and auto-bind to the active regular publication cycle on mount
   useEffect(() => {
     const fetchPublications = async () => {
       try {
         const pubs = await publicationService.getPublications()
         setPublications(pubs)
-        const active = await publicationService.getActivePublication()
-        if (active) {
-          setSelectedPublicationId(active.id)
-          setStartDate(active.startDate)
-          setEndDate(active.endDate)
+        let basePolicy: SuspensionPolicySettings = {
+          warningAbsenceThreshold: 2,
+          suspensionAbsenceThreshold: 3,
+          evaluationMonths: 1,
+          includeSundays: true,
+          includeWeekdays: false,
+          includeMeetings: true
         }
+        try {
+          basePolicy = await settingsService.getPolicySettings()
+        } catch {
+          // fallback to base defaults
+        }
+        const resolved = resolveEvaluationContext({
+          publications: pubs,
+          basePolicy,
+          currentDate: getParishTodayDate('Asia/Manila')
+        })
+        if (resolved.publication) {
+          setSelectedPublicationId(resolved.publication.id)
+        }
+        setStartDate(resolved.startDate)
+        setEndDate(resolved.endDate)
       } catch (err) {
         console.error('Failed to load schedule publications:', err)
       }
@@ -125,38 +143,23 @@ export const ReportsPage: React.FC = () => {
     setCurrentPage(1)
   }, [searchQuery, statusFilter, startDate, endDate, selectedYear])
 
-  // Compute active publication policy overrides
-  const selectedPub = publications.find(p => p.id === selectedPublicationId)
-  const getActivePolicy = (): SuspensionPolicySettings => {
-    const basePolicy = rawData?.policy || {
+  // Compute active evaluation context and policy overrides via shared resolver
+  const resolvedContext = resolveEvaluationContext({
+    publications,
+    basePolicy: rawData?.policy || {
       warningAbsenceThreshold: 2,
       suspensionAbsenceThreshold: 3,
       evaluationMonths: 1,
       includeSundays: true,
       includeWeekdays: false,
       includeMeetings: true
-    }
+    },
+    targetPublicationId: selectedPublicationId || undefined,
+    customDateRange: selectedPublicationId === 'custom' ? { startDate, endDate } : undefined
+  })
 
-    if (selectedPub) {
-      const pubMonths = calculateMonthsBetween(selectedPub.startDate, selectedPub.endDate)
-      const defaultWarning = pubMonths === 2 ? 3 : pubMonths >= 3 ? 4 : 2
-      const defaultSuspension = pubMonths === 2 ? 5 : pubMonths >= 3 ? 7 : 3
-
-      return {
-        ...basePolicy,
-        warningAbsenceThreshold: selectedPub.warningAbsenceThreshold ?? defaultWarning,
-        suspensionAbsenceThreshold: selectedPub.suspensionAbsenceThreshold ?? defaultSuspension,
-        evaluationMonths: pubMonths,
-        includeSundays: selectedPub.includeSundays !== undefined ? selectedPub.includeSundays : basePolicy.includeSundays,
-        includeWeekdays: selectedPub.includeWeekdays !== undefined ? selectedPub.includeWeekdays : basePolicy.includeWeekdays,
-        includeMeetings: selectedPub.includeMeetings !== undefined ? selectedPub.includeMeetings : basePolicy.includeMeetings,
-      }
-    }
-
-    return basePolicy
-  }
-
-  const activePolicy = getActivePolicy()
+  const selectedPub = publications.find(p => p.id === selectedPublicationId) || resolvedContext.publication
+  const activePolicy = resolvedContext.policy
 
   // Compute scoped raw data based on logged in user's assignedOrder (or permissions assignedOrder)
   const getScopedRawData = (): ReportRawData | null => {

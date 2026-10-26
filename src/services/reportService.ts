@@ -4,15 +4,23 @@ import {
   query, 
   where
 } from 'firebase/firestore'
-import { db } from '@/firebase/config'
-import type { Member } from '@/types/member'
-import type { Schedule } from '@/types/schedule'
-import type { AttendanceRecord, AttendanceStatus } from '@/types/attendance'
-import { calculateAttendanceSummary, calculateAttendanceRate } from '@/utils/attendance'
-import { getFullName } from '@/utils/member'
-import { isSundayOrAnticipatedMass, isHolyHourSchedule, isMeetingSchedule } from '@/utils/scheduleUtils'
-import { settingsService, DEFAULT_POLICY_SETTINGS } from '@/services/settingsService'
-import type { SuspensionPolicySettings } from '@/services/settingsService'
+import { db } from '../firebase/config.ts'
+import type { Member } from '../types/member.ts'
+import type { Schedule } from '../types/schedule.ts'
+import type { AttendanceRecord, AttendanceStatus } from '../types/attendance.ts'
+import { calculateAttendanceSummary, calculateAttendanceRate } from '../utils/attendance.ts'
+import { getFullName } from '../utils/member.ts'
+import { isSundayOrAnticipatedMass, isHolyHourSchedule, isMeetingSchedule } from '../utils/scheduleUtils.ts'
+import type { SuspensionPolicySettings } from './settingsService.ts'
+
+export const DEFAULT_POLICY_SETTINGS: SuspensionPolicySettings = {
+  warningAbsenceThreshold: 2,
+  suspensionAbsenceThreshold: 3,
+  evaluationMonths: 1,
+  includeSundays: true,
+  includeWeekdays: false,
+  includeMeetings: true
+}
 
 const MEMBERS_COLLECTION = 'members'
 const SCHEDULES_COLLECTION = 'schedules'
@@ -57,6 +65,8 @@ export interface MemberReportRow {
   rate: number
   warningStatus: 'active' | 'warning' | 'suspended' | 'inactive'
   warningCategory: 'none' | 'sunday' | 'weekday' | 'meeting' | 'multiple' // which category triggered warning/suspension
+  suspensionSource?: 'profile' | 'attendance' | 'none'
+  isZeroAttendance?: boolean
   missedSchedules: MissedScheduleItem[]
   sundayAbsences: number
   weekdayAbsences: number
@@ -102,7 +112,7 @@ export interface ScheduleCategorySelection {
   includeMeetings: boolean
 }
 
-export { isHolyHourSchedule, isMeetingSchedule } from '@/utils/scheduleUtils'
+export { isHolyHourSchedule, isMeetingSchedule } from '../utils/scheduleUtils.ts'
 
 export interface ServiceHistoryItem {
   scheduleId: string
@@ -205,6 +215,7 @@ export const reportService = {
 
     let policy = DEFAULT_POLICY_SETTINGS
     try {
+      const { settingsService } = await import('./settingsService.ts')
       policy = await settingsService.getPolicySettings()
     } catch (err) {
       console.warn('Could not load policy settings for report:', err)
@@ -381,21 +392,26 @@ export const reportService = {
       const warningCount = [sundayWarning, weekdayWarning, meetingWarning].filter(Boolean).length
 
       const effectiveTotal = summary.total - summary.excused
+      const isZeroAttendance = summary.present === 0 && summary.absent > 0 && otherServerSchedules.length === 0 && effectiveTotal > 0
+      let suspensionSource: 'profile' | 'attendance' | 'none' = 'none'
+
       if (member.status === 'suspended') {
         warningStatus = 'suspended'
+        suspensionSource = 'profile'
         if (suspendedCount > 1) warningCategory = 'multiple'
         else if (sundaySuspended) warningCategory = 'sunday'
         else if (weekdaySuspended) warningCategory = 'weekday'
         else if (meetingSuspended) warningCategory = 'meeting'
         else warningCategory = 'multiple'
-      } else if (summary.present === 0 && summary.absent > 0 && otherServerSchedules.length === 0 && effectiveTotal > 0) {
-        warningStatus = 'inactive'
       } else if (suspendedCount > 0) {
         warningStatus = 'suspended'
+        suspensionSource = 'attendance'
         if (suspendedCount > 1) warningCategory = 'multiple'
         else if (sundaySuspended) warningCategory = 'sunday'
         else if (weekdaySuspended) warningCategory = 'weekday'
         else warningCategory = 'meeting'
+      } else if (isZeroAttendance) {
+        warningStatus = 'inactive'
       } else if (warningCount > 0) {
         warningStatus = 'warning'
         if (warningCount > 1) warningCategory = 'multiple'
@@ -417,6 +433,8 @@ export const reportService = {
         rate,
         warningStatus,
         warningCategory,
+        suspensionSource,
+        isZeroAttendance,
         missedSchedules,
         sundayAbsences,
         weekdayAbsences,

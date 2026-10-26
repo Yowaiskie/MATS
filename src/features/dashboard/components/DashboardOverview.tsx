@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { dashboardService, type ActivityLog, type BirthdayCelebrant } from '@/services/dashboardService'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import { getScheduleStatus } from '@/utils/scheduleUtils'
+import { getScheduleStatus, getParishTodayDate } from '@/utils/scheduleUtils'
 import { getOrderBadgeStyle } from '@/types/member'
 import { nativeWidgetService } from '@/services/nativeWidgetService'
 import { FilterDropdown } from '@/components'
@@ -148,8 +148,9 @@ export const DashboardOverview: React.FC = () => {
   const [error, setError] = useState<string | null>(null)
   const [sideTab, setSideTab] = useState<'birthdays' | 'activity'>('birthdays')
 
-  const currentMonthNumber = useMemo(() => new Date().getMonth() + 1, [])
-  const currentYearNumber = useMemo(() => new Date().getFullYear(), [])
+  const parishToday = useMemo(() => getParishTodayDate('Asia/Manila'), [])
+  const currentMonthNumber = useMemo(() => parseInt(parishToday.split('-')[1], 10), [parishToday])
+  const currentYearNumber = useMemo(() => parseInt(parishToday.split('-')[0], 10), [parishToday])
   const [selectedBirthdayMonth, setSelectedBirthdayMonth] = useState<number>(currentMonthNumber)
 
   const monthFilterOptions = useMemo(() => [
@@ -429,6 +430,12 @@ export const DashboardOverview: React.FC = () => {
               <div>
                 <h3 className="text-sm font-extrabold text-slate-900">Ministry Health Monitor</h3>
                 <p className="text-[11px] text-slate-400 font-medium">Member status and policy metrics</p>
+                <div className="mt-1 flex items-center gap-1.5">
+                  <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Evaluation Period:</span>
+                  <span className="inline-flex items-center text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100/80">
+                    {data.stats.evaluationPeriodLabel || data.stats.operatingCycleTitle || 'Current Month'}
+                  </span>
+                </div>
               </div>
               <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -457,8 +464,10 @@ export const DashboardOverview: React.FC = () => {
 
               <div className="p-3.5 rounded-2xl bg-rose-50/60 border border-rose-100/80 flex items-center justify-between">
                 <div>
-                  <span className="text-xs font-bold text-rose-900 block">Suspended Profiles</span>
-                  <span className="text-[10px] text-rose-700/80 font-medium">{reportOrderScope || 'All ministry groups'} · {data.stats.operatingCycleTitle || 'Current cycle'}</span>
+                  <span className="text-xs font-bold text-rose-900 block">Suspension Threshold</span>
+                  <span className="text-[10px] text-rose-700/80 font-medium">
+                    {reportOrderScope || 'All ministry groups'} · {data.stats.operatingCycleTitle || 'Current cycle'} · Servers exceeding absence limit
+                  </span>
                 </div>
                 <span className="text-2xl font-black text-rose-700">
                   {reportOrderScope ? (data.stats.userOrderSuspendedCount ?? 0) : (data.stats.suspendedMembersCount ?? 0)}
