@@ -7,7 +7,7 @@ import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
 import { publicationService } from '@/services/publicationService'
 import { auditService } from '@/services/auditService'
-import { isSundayOrAnticipatedMass, isTimeOverlapping, isScheduleIncludedInPublication, isMemberEligibleForPublication, isSpecialEventOrService, getRankLimitForSlot } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isTimeOverlapping, isMemberEligibleForPublication, isSpecialEventOrService, getRankLimitForSlot } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 
 export interface MemberAssignmentSummary {
@@ -46,13 +46,10 @@ export const autoAssignService = {
     const allMembers = await memberService.getMembers()
     const activeEligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, publication))
 
-    // 2. Fetch all schedules in the publication's date range
-    const schedules = await scheduleService.getSchedulesByDateRange(
-      publication.startDate,
-      publication.endDate
-    )
+    // 2. Fetch publication's isolated schedules
+    const schedules = await scheduleService.getSchedulesForPublication(publication)
     const activeSchedules = schedules.filter(
-      s => s.status !== 'cancelled' && !s.isLocked && isScheduleIncludedInPublication(s, publication)
+      s => s.status !== 'cancelled' && !s.isLocked
     )
 
     // 3. Determine candidates to assign

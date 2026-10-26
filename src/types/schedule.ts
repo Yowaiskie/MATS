@@ -4,6 +4,8 @@ export type ScheduleStatus = 'upcoming' | 'ongoing' | 'completed' | 'cancelled'
 
 export interface Schedule {
   id: string
+  publicationId?: string // Owning SchedulePublication ID for publication isolation
+  templateId?: string // Source ScheduleTemplate ID when generated from template
   title: string
   category?: ScheduleCategoryKey
   date: string // YYYY-MM-DD
@@ -19,6 +21,8 @@ export interface Schedule {
 }
 
 export interface ScheduleInput {
+  publicationId?: string
+  templateId?: string
   title: string
   category?: ScheduleCategoryKey
   date: string
@@ -56,4 +60,37 @@ export interface ScheduleTemplateInput {
   liturgicalColor?: string
   assignedMembers: string[]
   active: boolean
+}
+
+export interface ScheduleSelectionItem {
+  scheduleId: string
+  isSelected: boolean
+}
+
+export interface AdminEffectiveDatedScheduleEditOptions {
+  effectiveDate: string // YYYY-MM-DD in Asia/Manila timezone
+  adminUser?: {
+    uid: string
+    email?: string
+    role?: string
+    permissions?: { canManageSchedules?: boolean; [key: string]: any }
+  }
+  markAsSubmitted?: boolean
+  firestoreInstance?: any
+  transactionRunner?: <T>(fn: (transaction: any) => Promise<T>) => Promise<T>
+}
+
+export interface AdminEffectiveDatedScheduleEditResult {
+  success: boolean
+  memberId: string
+  publicationId: string
+  effectiveDate: string
+  previousAssignedScheduleIds: string[]
+  updatedAssignedScheduleIds: string[]
+  affectedFutureScheduleIds: string[]
+  preservedHistoricalScheduleIds: string[]
+  preservedHistoricalSchedulesCount: number
+  updatedFutureSchedulesCount: number
+  addedCount: number
+  removedCount: number
 }

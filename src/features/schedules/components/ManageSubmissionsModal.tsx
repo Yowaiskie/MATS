@@ -6,7 +6,7 @@ import { publicationService } from '@/services/publicationService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { autoAssignService, type AutoAssignResult } from '@/services/autoAssignService'
-import { isSundayOrAnticipatedMass, formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, formatTime12Hour, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { AdminEditMemberScheduleModal } from './AdminEditMemberScheduleModal'
 
@@ -80,16 +80,16 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
     setIsLoading(true)
     setMessage(null)
     try {
-      const [allMembers, schedList] = await Promise.all([
+      const [allMembers, validSchedules] = await Promise.all([
         memberService.getMembers(),
-        scheduleService.getSchedulesByDateRange(publication.startDate, publication.endDate)
+        scheduleService.getSchedulesForPublication(publication)
       ])
 
       // Eligible altar servers based on publication's allowed ranks
       const eligible = allMembers.filter(m => isMemberEligibleForPublication(m, publication))
 
       setMembers(eligible)
-      setSchedules(schedList.filter(s => isScheduleIncludedInPublication(s, publication)))
+      setSchedules(validSchedules)
     } catch (err) {
       console.error('Failed to load submissions and schedules:', err)
       setMessage({ type: 'error', text: 'Failed to load member and schedule data.' })

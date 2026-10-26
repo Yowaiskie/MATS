@@ -6,7 +6,7 @@ import type { ScheduleTemplate } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
+import { isScheduleIncludedInPublication, isOfficialRegularMassSlot } from '@/utils/scheduleUtils'
 import { CustomSelect, Button } from '@/components'
 
 const STATUS_OPTIONS = [
@@ -107,7 +107,7 @@ export const PublicationFormModal: React.FC<Props> = ({
   const [defaultEndTime, setDefaultEndTime] = useState('19:00')
   const [liturgicalColor, setLiturgicalColor] = useState<string>('purple')
   const [eventSlots, setEventSlots] = useState<CustomEventSlotItem[]>([])
-  const [autoGenerateSpecialSlots, setAutoGenerateSpecialSlots] = useState<boolean>(true)
+  const [autoGenerateSpecialSlots, setAutoGenerateSpecialSlots] = useState<boolean>(false)
   const [showBulkLocationModal, setShowBulkLocationModal] = useState<boolean>(false)
   const [bulkLocationText, setBulkLocationText] = useState<string>('')
 
@@ -243,9 +243,14 @@ export const PublicationFormModal: React.FC<Props> = ({
         setSuspensionAbsenceThreshold(7)
       }
 
-      setEventSlots(prev => 
-        computeMatchingDates(newStart, newEnd, includedDaysOfWeek, defaultSlotTitle || name, defaultStartTime, defaultEndTime, prev)
-      )
+      const isEventMode = publicationType === 'special_event' || enableStreetLocation || (includedDaysOfWeek && includedDaysOfWeek.length > 0)
+      if (isEventMode) {
+        setEventSlots(prev => 
+          computeMatchingDates(newStart, newEnd, includedDaysOfWeek, defaultSlotTitle || name, defaultStartTime, defaultEndTime, prev)
+        )
+      } else {
+        setEventSlots([])
+      }
     }
   }
 
@@ -264,6 +269,11 @@ export const PublicationFormModal: React.FC<Props> = ({
       setIncludeSpecialEvents(false)
       setIncludeSundays(true)
       setIncludeWeekdays(true)
+      setAutoGenerateSpecialSlots(false)
+      setIncludedDaysOfWeek([])
+      setEnableStreetLocation(false)
+      setEventSlots([])
+      setGenerateSchedules(true)
     }
   }
 
@@ -636,52 +646,24 @@ export const PublicationFormModal: React.FC<Props> = ({
         setDefaultSlotTitle('')
         setDefaultStartTime('18:00')
         setDefaultEndTime('19:00')
-        setAutoGenerateSpecialSlots(true)
-
-        // Auto-load any existing schedules in DB for current month
-        const loadInitialMonthSchedules = async () => {
-          try {
-            const [existing, allMembers] = await Promise.all([
-              scheduleService.getSchedulesByDateRange(sStr, eStr),
-              memberService.getMembers()
-            ])
-            const memberMap = new Map((allMembers || []).map(m => [m.id, `${m.firstName} ${m.lastName}`.trim()]))
-            if (existing.length > 0) {
-              const loadedItems: CustomEventSlotItem[] = existing.map(s => {
-                const [y, m, d] = s.date.split('-').map(Number)
-                const dateObj = new Date(y, m - 1, d, 12, 0, 0)
-                const assignedIds = s.assignedMembers || []
-                return {
-                  id: s.id,
-                  scheduleId: s.id,
-                  date: s.date,
-                  dayName: dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
-                  title: s.title,
-                  startTime: s.startTime,
-                  endTime: s.endTime,
-                  location: s.location || '',
-                  liturgicalColor: s.liturgicalColor || 'purple',
-                  assignedMembers: [...assignedIds],
-                  assignedMemberNames: assignedIds.map(id => memberMap.get(id) || id)
-                }
-              })
-              setEventSlots(loadedItems)
-            } else {
-              setEventSlots([])
-            }
-          } catch (e) {
-            console.error('Failed to load initial schedules:', e)
-            setEventSlots([])
-          }
-        }
-        loadInitialMonthSchedules()
+        setAutoGenerateSpecialSlots(false)
+        setEventSlots([])
       }
       const loadTemplates = async () => {
         try {
           const fetched = await recurringService.getTemplates()
           const active = fetched.filter(t => t.active)
           setTemplates(active)
-          setSelectedTemplateIds(active.map(t => t.id))
+          
+          // Pre-select the 14 official Regular Mass templates by default
+          const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+          const officialIds = active.filter(t => {
+            const dow = dayNames.indexOf(t.dayOfWeek.toLowerCase().trim())
+            const normTime = (t.startTime || '').trim().slice(0, 5)
+            return dow >= 0 && isOfficialRegularMassSlot(dow, normTime)
+          }).map(t => t.id)
+
+          setSelectedTemplateIds(officialIds.length > 0 ? officialIds : active.map(t => t.id))
         } catch (err) {
           console.error('Failed to load templates', err)
         }
@@ -730,7 +712,7 @@ export const PublicationFormModal: React.FC<Props> = ({
         .map(s => s.trim())
         .filter(s => s.length > 0)
 
-      const isCustomSlotMode = publicationType === 'special_event' || enableStreetLocation || includedDaysOfWeek.length > 0 || autoGenerateSpecialSlots
+      const isCustomSlotMode = publicationType === 'special_event' || enableStreetLocation || (includedDaysOfWeek && includedDaysOfWeek.length > 0)
       const customSlotsPayload: CustomEventSlotInput[] | undefined = 
         (isCustomSlotMode && eventSlots.length > 0)
           ? eventSlots.map(s => ({
@@ -743,6 +725,12 @@ export const PublicationFormModal: React.FC<Props> = ({
               liturgicalColor: s.liturgicalColor || liturgicalColor || undefined
             }))
           : undefined
+
+      if (publicationType === 'regular' && generateSchedules && (!selectedTemplateIds || selectedTemplateIds.length === 0)) {
+        setError('Please select at least one active Schedule Template to generate regular schedules.')
+        setIsSubmitting(false)
+        return
+      }
 
       await onSubmit({ 
         name, startDate, endDate, description, status,

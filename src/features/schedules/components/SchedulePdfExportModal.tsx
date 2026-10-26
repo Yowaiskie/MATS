@@ -4,7 +4,7 @@ import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
 import { formatDocCodeWithDate } from '@/utils/pdfFooterHelper'
 import { Button } from '@/components'
 import {
@@ -258,14 +258,12 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
         }
       }
 
-      const [allMembers, rawSchedules] = await Promise.all([
+      const [allMembers, allSchedules] = await Promise.all([
         memberService.getMembers(),
-        scheduleService.getSchedulesByDateRange(startDate, endDate)
+        publication
+          ? scheduleService.getSchedulesForPublication(publication)
+          : scheduleService.getSchedulesByDateRange(startDate, endDate)
       ])
-
-      const allSchedules = publication
-        ? rawSchedules.filter(s => isScheduleIncludedInPublication(s, publication))
-        : rawSchedules
 
       const memberMap = new Map(allMembers.map(m => [m.id, formatMemberDisplayName(m, nameFormat)]))
 

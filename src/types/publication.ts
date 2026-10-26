@@ -19,6 +19,7 @@ export interface SchedulePublication {
   publicationType?: PublicationType
   description?: string
   submissionDeadline?: string // YYYY-MM-DD or YYYY-MM-DDTHH:mm
+  submissionDeadlineMs?: number
   maxSundaysPerServer?: number
   maxWeekdaysPerServer?: number
   maxSpecialPerServer?: number
@@ -55,6 +56,7 @@ export interface SchedulePublicationInput {
   publicationType?: PublicationType
   description?: string
   submissionDeadline?: string
+  submissionDeadlineMs?: number
   maxSundaysPerServer?: number
   maxWeekdaysPerServer?: number
   maxSpecialPerServer?: number

@@ -1,4 +1,4 @@
-import type { Schedule, ScheduleStatus } from '@/types/schedule'
+import type { Schedule, ScheduleStatus, ScheduleTemplate } from '@/types/schedule'
 import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
 
@@ -96,6 +96,48 @@ export const isMeetingSchedule = (title?: string): boolean => {
 }
 
 /**
+ * Detects whether a schedule is one of the corrupted legacy TEST dummy schedules.
+ * Specifically checks for dummy test markers without template association, while preserving
+ * legitimate Masses (such as "Testimony Mass", "Testimonial Service", "Test of Faith Mass", etc.).
+ */
+export const isCorruptedLegacyTestSchedule = (schedule?: {
+  title?: string
+  templateId?: string
+  metadata?: any
+  category?: string
+} | null): boolean => {
+  if (!schedule) return false
+
+  // 1. Explicit test metadata flags
+  if (schedule.metadata?.isTest === true || schedule.metadata?.isTestGenerated === true) {
+    return true
+  }
+
+  // 2. If it has a legitimate templateId from active parish templates, it is an official templated Mass
+  if (schedule.templateId) {
+    return false
+  }
+
+  const rawTitle = (schedule.title || '').trim()
+  if (!rawTitle) return false
+  const titleLower = rawTitle.toLowerCase()
+
+  // 3. Exact match for dummy title 'test' or 'test mass'
+  if (titleLower === 'test' || titleLower === 'test mass') {
+    return true
+  }
+
+  // 4. Dummy test patterns: "TEST - 6:00 PM", "TEST (Slot)", "TEST [Daily]", "TEST: Slot", "TEST #1"
+  // Does NOT match real words like "testimony", "testimonial", "testament", or phrases like "test of faith"
+  const dummyPlaceholderPattern = /^test\s*([-:#/]\s*\d+|[-:#/]\s*[a-z0-9]|\(.*\)|\[.*\]|#\d+|\s+(slot|run|dummy|placeholder|debug|auto|gen\b))/i
+  if (dummyPlaceholderPattern.test(rawTitle)) {
+    return true
+  }
+
+  return false
+}
+
+/**
  * Determines whether a schedule is a Sunday Mass or a Saturday Anticipated Sunday Mass.
  * Saturday masses at or after 5:00 PM (17:00), or titled with 'anticipated' or evening time (e.g. 6pm / 6:00),
  * are categorized as Sunday (Anticipated) Mass.
@@ -105,16 +147,21 @@ export const isSundayOrAnticipatedMass = (
   dateStr: string,
   startTime?: string
 ): boolean => {
-  const titleLower = title.toLowerCase()
+  const titleLower = (title || '').toLowerCase().trim()
 
-  // 1. Direct title check for 'sunday' or 'anticipated'
-  if (titleLower.includes('sunday') || titleLower.includes('anticipated')) {
+  // 1. Exclude corrupted test or debug schedules
+  if (isCorruptedLegacyTestSchedule({ title })) {
+    return false
+  }
+
+  // 2. Direct title check for 'anticipated'
+  if (titleLower.includes('anticipated')) {
     return true
   }
 
   if (!dateStr) return false
 
-  // 2. Parse YYYY-MM-DD in local time
+  // 3. Parse YYYY-MM-DD in local time
   const parts = dateStr.split('-')
   if (parts.length < 3) return false
 
@@ -124,18 +171,18 @@ export const isSundayOrAnticipatedMass = (
 
   if (isNaN(year) || isNaN(month) || isNaN(day)) return false
 
-  const localDate = new Date(year, month - 1, day)
+  const localDate = new Date(year, month - 1, day, 12, 0, 0)
   const dayOfWeek = localDate.getDay() // 0 = Sunday, 6 = Saturday
 
-  // 3. Sunday dates
-  if (dayOfWeek === 0) {
-    return true
-  }
+  const normTime = startTime ? startTime.trim().slice(0, 5) : ''
 
-  // 4. Saturday evening / anticipated masses (5:00 PM / 17:00 or later, or 6pm/6:00/evening in title)
+  // 4. Saturday evening / anticipated masses (5:00 PM / 17:00 or later, or official anticipated slot)
   if (dayOfWeek === 6) {
-    if (startTime) {
-      const timeParts = startTime.split(':')
+    if (normTime) {
+      if (isOfficialRegularMassSlot(6, normTime)) {
+        return true
+      }
+      const timeParts = normTime.split(':')
       const hours = parseInt(timeParts[0], 10)
       if (!isNaN(hours) && hours >= 17) {
         return true
@@ -155,6 +202,22 @@ export const isSundayOrAnticipatedMass = (
     }
   }
 
+  // 5. Sunday dates
+  if (dayOfWeek === 0) {
+    if (normTime) {
+      // If start time is provided, verify it is an official Sunday regular mass or explicitly titled Sunday Mass
+      if (isOfficialRegularMassSlot(0, normTime)) {
+        return true
+      }
+      return (
+        titleLower.includes('sunday mass') ||
+        titleLower.includes('linggo') ||
+        titleLower.includes('misa ng linggo')
+      )
+    }
+    return true
+  }
+
   return false
 }
 
@@ -165,6 +228,9 @@ export const isSundayOrAnticipatedMass = (
 export const isSpecialEventOrService = (
   schedule: { title?: string; category?: string }
 ): boolean => {
+  if (schedule.category === 'mass_sunday' || schedule.category === 'mass_weekday') {
+    return false
+  }
   if (schedule.category === 'special_event' || schedule.category === 'practice' || schedule.category === 'other') {
     return true
   }
@@ -295,10 +361,28 @@ export const isSpecialEventOrService = (
  * Checks if a schedule should be included in a Publication based on dynamic publication settings.
  */
 export const isScheduleIncludedInPublication = (
-  schedule: Pick<Schedule, 'title' | 'date' | 'startTime' | 'status'> & { category?: string },
+  schedule: Pick<Schedule, 'title' | 'date' | 'startTime' | 'status'> & {
+    id?: string
+    publicationId?: string
+    category?: string
+    templateId?: string
+  },
   publication?: Partial<SchedulePublication> | null
 ): boolean => {
   if (schedule.status === 'cancelled') return false
+
+  // Strict publication ownership check if both have IDs
+  if (schedule.publicationId && publication?.id && schedule.publicationId !== publication.id) {
+    return false
+  }
+
+  // Publication date range filtering (if schedule has date and publication has dates)
+  if (schedule.date && publication?.startDate && schedule.date < publication.startDate) {
+    return false
+  }
+  if (schedule.date && publication?.endDate && schedule.date > publication.endDate) {
+    return false
+  }
 
   const title = schedule.title || ''
   const titleLower = title.toLowerCase().trim()
@@ -341,12 +425,21 @@ export const isScheduleIncludedInPublication = (
   }
 
   // 4. Regular Mass Cycle Publication Mode (Default)
-  if (isHolyHourSchedule(title)) {
+  if (schedule.category === 'holy_hour' || isHolyHourSchedule(title)) {
     return publication?.includeHolyHour ?? false
   }
 
-  if (isMeetingSchedule(title)) {
+  if (schedule.category === 'meeting' || isMeetingSchedule(title)) {
     return publication?.includeMeetings ?? false
+  }
+
+  if (schedule.category === 'special_event' || isSpecialEventOrService(schedule)) {
+    return publication?.includeSpecialEvents ?? false
+  }
+
+  // Exclude corrupted legacy test schedules from regular publications
+  if (isCorruptedLegacyTestSchedule(schedule)) {
+    return false
   }
 
   const isSunday = isSundayOrAnticipatedMass(title, schedule.date, schedule.startTime)
@@ -559,15 +652,499 @@ export const getSlotRankBreakdown = (
 }
 
 /**
- * Checks if a publication's submission deadline has passed.
+ * Resolves a publication's submission deadline epoch in milliseconds.
+ * Prefers publication.submissionDeadlineMs if present and valid;
+ * otherwise parses publication.submissionDeadline.
  */
-export const isPublicationDeadlinePassed = (publication?: Partial<SchedulePublication> | null): boolean => {
-  if (!publication?.submissionDeadline || !publication.submissionDeadline.trim()) return false
-  const deadlineStr = publication.submissionDeadline.trim()
-  const deadline = new Date(deadlineStr)
-  if (isNaN(deadline.getTime())) return false
-  return new Date().getTime() > deadline.getTime()
+export const getPublicationDeadlineMs = (publication?: Partial<SchedulePublication> | null): number | null => {
+  if (!publication) return null
+
+  if (typeof publication.submissionDeadlineMs === 'number' && !isNaN(publication.submissionDeadlineMs)) {
+    return publication.submissionDeadlineMs
+  }
+
+  if (publication.submissionDeadline && publication.submissionDeadline.trim()) {
+    const parsed = new Date(publication.submissionDeadline.trim())
+    const ms = parsed.getTime()
+    if (!isNaN(ms)) {
+      return ms
+    }
+  }
+
+  return null
 }
 
+/**
+ * Checks if a publication's submission deadline has passed.
+ * Accepts an optional referenceTime (Date or timestamp in ms) to support
+ * trustworthy server-side validation or simulation.
+ * Uses >= comparison so the exact deadline moment is treated as closed.
+ */
+export const isPublicationDeadlinePassed = (
+  publication?: Partial<SchedulePublication> | null,
+  referenceTime?: number | Date
+): boolean => {
+  const deadlineMs = getPublicationDeadlineMs(publication)
+  if (deadlineMs === null) return false
 
+  const refMs = referenceTime instanceof Date
+    ? referenceTime.getTime()
+    : typeof referenceTime === 'number'
+      ? referenceTime
+      : Date.now()
 
+  return refMs >= deadlineMs
+}
+
+export interface CountdownResult {
+  hasDeadline: boolean
+  isExpired: boolean
+  totalSecondsRemaining: number
+  days: number
+  hours: number
+  minutes: number
+  seconds: number
+  formatted: string
+}
+
+/**
+ * Computes remaining time until a publication's deadline for real-time countdown display.
+ */
+export const getCountdownTimeRemaining = (
+  publication?: Partial<SchedulePublication> | null,
+  referenceTime?: number | Date
+): CountdownResult => {
+  const deadlineMs = getPublicationDeadlineMs(publication)
+  if (deadlineMs === null) {
+    return {
+      hasDeadline: false,
+      isExpired: false,
+      totalSecondsRemaining: 0,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      formatted: 'No deadline'
+    }
+  }
+
+  const refMs = referenceTime instanceof Date
+    ? referenceTime.getTime()
+    : typeof referenceTime === 'number'
+      ? referenceTime
+      : Date.now()
+
+  const diffMs = deadlineMs - refMs
+  if (diffMs <= 0) {
+    return {
+      hasDeadline: true,
+      isExpired: true,
+      totalSecondsRemaining: 0,
+      days: 0,
+      hours: 0,
+      minutes: 0,
+      seconds: 0,
+      formatted: 'Deadline expired'
+    }
+  }
+
+  const totalSecs = Math.floor(diffMs / 1000)
+  const days = Math.floor(totalSecs / 86400)
+  const hours = Math.floor((totalSecs % 86400) / 3600)
+  const minutes = Math.floor((totalSecs % 3600) / 60)
+  const seconds = totalSecs % 60
+
+  const formatted = days > 0
+    ? `${days}d ${hours}h ${minutes}m ${seconds}s left`
+    : `${hours}h ${minutes}m ${seconds}s left`
+
+  return {
+    hasDeadline: true,
+    isExpired: false,
+    totalSecondsRemaining: totalSecs,
+    days,
+    hours,
+    minutes,
+    seconds,
+    formatted
+  }
+}
+
+// ============================================================================
+// Official Regular Mass Slots & Grouping Utilities
+// ============================================================================
+
+export interface OfficialMassSlot {
+  dayOfWeek: number // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+  startTime: string // HH:MM
+  label: string
+  isSundayOrAnticipated: boolean
+}
+
+export const OFFICIAL_REGULAR_MASS_SLOTS: OfficialMassSlot[] = [
+  // Saturday Anticipated Mass
+  { dayOfWeek: 6, startTime: '18:00', label: 'Saturday 6:00 PM Anticipated Mass', isSundayOrAnticipated: true },
+
+  // Sunday Regular Masses
+  { dayOfWeek: 0, startTime: '06:00', label: 'Sunday 6:00 AM', isSundayOrAnticipated: true },
+  { dayOfWeek: 0, startTime: '07:30', label: 'Sunday 7:30 AM', isSundayOrAnticipated: true },
+  { dayOfWeek: 0, startTime: '09:00', label: 'Sunday 9:00 AM', isSundayOrAnticipated: true },
+  { dayOfWeek: 0, startTime: '16:00', label: 'Sunday 4:00 PM', isSundayOrAnticipated: true },
+  { dayOfWeek: 0, startTime: '17:30', label: 'Sunday 5:30 PM', isSundayOrAnticipated: true },
+  { dayOfWeek: 0, startTime: '19:00', label: 'Sunday 7:00 PM', isSundayOrAnticipated: true },
+
+  // Weekday Daily Morning Masses (Mon - Fri 6:00 AM)
+  { dayOfWeek: 1, startTime: '06:00', label: 'Monday 6:00 AM', isSundayOrAnticipated: false },
+  { dayOfWeek: 2, startTime: '06:00', label: 'Tuesday 6:00 AM', isSundayOrAnticipated: false },
+  { dayOfWeek: 3, startTime: '06:00', label: 'Wednesday 6:00 AM', isSundayOrAnticipated: false },
+  { dayOfWeek: 4, startTime: '06:00', label: 'Thursday 6:00 AM', isSundayOrAnticipated: false },
+  { dayOfWeek: 5, startTime: '06:00', label: 'Friday 6:00 AM', isSundayOrAnticipated: false },
+
+  // Weekday Evening Masses (Wed & Fri 6:00 PM)
+  { dayOfWeek: 3, startTime: '18:00', label: 'Wednesday 6:00 PM', isSundayOrAnticipated: false },
+  { dayOfWeek: 5, startTime: '18:00', label: 'Friday 6:00 PM', isSundayOrAnticipated: false }
+]
+
+export const isOfficialRegularMassSlot = (dayOfWeek: number, startTime: string): boolean => {
+  const normTime = (startTime || '').trim().slice(0, 5)
+  return OFFICIAL_REGULAR_MASS_SLOTS.some(
+    s => s.dayOfWeek === dayOfWeek && s.startTime === normTime
+  )
+}
+
+/**
+ * Returns the current date in YYYY-MM-DD format within the parish timezone (default: Asia/Manila).
+ */
+export const getParishTodayDate = (parishTimeZone = 'Asia/Manila'): string => {
+  const now = new Date()
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: parishTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now)
+  } catch {
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+}
+
+/**
+ * Checks whether a schedule occurrence is historical / immutable.
+ * An occurrence is historical if:
+ * 1. It is explicitly locked (isLocked === true) or attendance is finalized (attendanceFinalized === true).
+ * 2. An effectiveDate (YYYY-MM-DD) is provided and the schedule date is strictly before the effectiveDate.
+ * 3. Its date and startTime are in the past relative to the parish timezone wall-clock time (even if status is stale as 'upcoming').
+ */
+export const isHistoricalScheduleOccurrence = (
+  schedule: { date: string; startTime: string; status?: string; isLocked?: boolean; attendanceFinalized?: boolean; attendanceSessionFinalized?: boolean },
+  effectiveDate?: string,
+  parishTimeZone = 'Asia/Manila'
+): boolean => {
+  if (schedule.isLocked || schedule.attendanceFinalized || schedule.attendanceSessionFinalized) {
+    return true
+  }
+
+  if (effectiveDate && schedule.date < effectiveDate) {
+    return true
+  }
+
+  const now = new Date()
+  let todayStr: string
+  let currentTimeStr: string
+
+  try {
+    todayStr = new Intl.DateTimeFormat('en-CA', {
+      timeZone: parishTimeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit'
+    }).format(now)
+
+    currentTimeStr = new Intl.DateTimeFormat('en-GB', {
+      timeZone: parishTimeZone,
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    }).format(now)
+  } catch {
+    const year = now.getFullYear()
+    const month = String(now.getMonth() + 1).padStart(2, '0')
+    const day = String(now.getDate()).padStart(2, '0')
+    todayStr = `${year}-${month}-${day}`
+    const hours = String(now.getHours()).padStart(2, '0')
+    const minutes = String(now.getMinutes()).padStart(2, '0')
+    currentTimeStr = `${hours}:${minutes}`
+  }
+
+  if (schedule.date < todayStr) {
+    return true
+  }
+
+  if (schedule.date === todayStr) {
+    const cutoff = (schedule.startTime || '00:00').trim().slice(0, 5)
+    if (cutoff <= currentTimeStr) {
+      return true
+    }
+  }
+
+  return schedule.status === 'completed'
+}
+
+export interface SchedulePattern {
+  id: string
+  date?: string
+  dayOfWeek: number
+  dayName: string
+  startTime: string
+  title?: string
+  location?: string
+  liturgicalColor?: string
+  scheduleIds: string[]
+  assignedMembers: string[]
+  isSpecialEvent?: boolean
+  templateId?: string
+}
+
+export interface GroupedPublicationPatterns {
+  sundayPatterns: SchedulePattern[]
+  weekdayPatterns: SchedulePattern[]
+  specialPatterns: SchedulePattern[]
+}
+
+export interface GroupSchedulesOptions {
+  activeTemplates?: ScheduleTemplate[]
+}
+
+/**
+ * Groups publication schedules into recurring Sunday patterns, Weekday patterns, and Special patterns.
+ * Excludes non-regular test schedules, isolates custom events into specialPatterns when enabled,
+ * and preserves Saturday 6:00 PM Anticipated Mass and official Wednesday/Friday 6:00 PM Masses.
+ * 
+ * Dynamic template hook: When activeTemplates are provided (wired in Phase 4 via recurringService.getTemplates()),
+ * they serve as the authoritative list of recurring templates. In the absence of loaded templates, official
+ * parish slots (OFFICIAL_REGULAR_MASS_SLOTS) provide conservative fallback classification.
+ */
+export const groupSchedulesIntoPatterns = (
+  schedules: Schedule[],
+  publication?: Partial<SchedulePublication> | null,
+  options?: GroupSchedulesOptions
+): GroupedPublicationPatterns => {
+  const isSpecialPub =
+    publication?.publicationType === 'special_event' ||
+    !!publication?.enableStreetLocation ||
+    (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
+
+  if (isSpecialPub) {
+    // For special events or dated street mass publications, group by each unique schedule slot chronologically
+    const sortedSchedules = [...schedules].sort((a, b) => {
+      if (a.date !== b.date) return a.date.localeCompare(b.date)
+      return a.startTime.localeCompare(b.startTime)
+    })
+
+    const patternMap = new Map<string, SchedulePattern>()
+    sortedSchedules.forEach(s => {
+      const [y, m, d] = s.date.split('-').map(Number)
+      const dObj = new Date(y, m - 1, d, 12, 0, 0)
+      const dayOfWeek = isNaN(dObj.getTime()) ? 0 : dObj.getDay()
+      const dayName = isNaN(dObj.getTime())
+        ? s.date
+        : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }).toUpperCase()
+      const patternKey = `${s.date}-${s.startTime}`
+
+      if (!patternMap.has(patternKey)) {
+        patternMap.set(patternKey, {
+          id: s.id,
+          date: s.date,
+          dayOfWeek,
+          dayName,
+          startTime: s.startTime,
+          title: s.title,
+          location: s.location,
+          liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
+          scheduleIds: [s.id],
+          assignedMembers: s.assignedMembers ? [...s.assignedMembers] : [],
+          isSpecialEvent: true,
+          templateId: s.templateId
+        })
+      } else {
+        const existing = patternMap.get(patternKey)!
+        if (!existing.scheduleIds.includes(s.id)) {
+          existing.scheduleIds.push(s.id)
+        }
+        if (s.location && !existing.location) {
+          existing.location = s.location
+        }
+        s.assignedMembers?.forEach(memId => {
+          if (!existing.assignedMembers.includes(memId)) {
+            existing.assignedMembers.push(memId)
+          }
+        })
+      }
+    })
+
+    return {
+      sundayPatterns: [],
+      weekdayPatterns: [],
+      specialPatterns: Array.from(patternMap.values())
+    }
+  }
+
+  // Regular Publication Mode
+  const sundayMap = new Map<string, SchedulePattern>()
+  const weekdayMap = new Map<string, SchedulePattern>()
+  const specialMap = new Map<string, SchedulePattern>()
+
+  schedules.forEach(s => {
+    // 1. Exclude corrupted legacy test schedules from all recurring mass grids
+    if (isCorruptedLegacyTestSchedule(s)) {
+      return
+    }
+
+    // 2. Check if schedule is a special occasion, holy hour, or meeting
+    const isSpecialCategory =
+      s.category === 'special_event' ||
+      s.category === 'holy_hour' ||
+      s.category === 'meeting' ||
+      isSpecialEventOrService(s) ||
+      isHolyHourSchedule(s.title || '') ||
+      isMeetingSchedule(s.title || '')
+
+    if (isSpecialCategory) {
+      // Only route to specialPatterns if enabled by publication settings
+      const isAllowed =
+        (s.category === 'holy_hour' || isHolyHourSchedule(s.title || '')) ? (publication?.includeHolyHour ?? false) :
+        (s.category === 'meeting' || isMeetingSchedule(s.title || '')) ? (publication?.includeMeetings ?? false) :
+        (publication?.includeSpecialEvents ?? false)
+
+      if (isAllowed) {
+        const [y, m, d] = s.date.split('-').map(Number)
+        const dObj = new Date(y, m - 1, d, 12, 0, 0)
+        const dayOfWeek = isNaN(dObj.getTime()) ? 0 : dObj.getDay()
+        const dayName = isNaN(dObj.getTime())
+          ? s.date
+          : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }).toUpperCase()
+        const specialKey = `${s.date}-${s.startTime}`
+
+        if (!specialMap.has(specialKey)) {
+          specialMap.set(specialKey, {
+            id: s.id,
+            date: s.date,
+            dayOfWeek,
+            dayName,
+            startTime: s.startTime,
+            title: s.title,
+            location: s.location,
+            liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
+            scheduleIds: [s.id],
+            assignedMembers: s.assignedMembers ? [...s.assignedMembers] : [],
+            isSpecialEvent: true,
+            templateId: s.templateId
+          })
+        } else {
+          const existing = specialMap.get(specialKey)!
+          if (!existing.scheduleIds.includes(s.id)) {
+            existing.scheduleIds.push(s.id)
+          }
+          if (s.location && !existing.location) {
+            existing.location = s.location
+          }
+          s.assignedMembers?.forEach(memId => {
+            if (!existing.assignedMembers.includes(memId)) {
+              existing.assignedMembers.push(memId)
+            }
+          })
+        }
+      }
+      return
+    }
+
+    // 3. Regular Sunday or Weekday Mass schedule
+    const d = new Date(s.date + 'T00:00:00')
+    const dayOfWeek = d.getDay()
+    const normTime = (s.startTime || '').trim().slice(0, 5)
+
+    // Check template match if active templates provided (dynamic template hook for Phase 4)
+    let templateMatched = false
+    if (options?.activeTemplates && options.activeTemplates.length > 0) {
+      const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+      const matchedTemplate = options.activeTemplates.find(t => {
+        if (s.templateId && t.id === s.templateId) return true
+        const tDow = dayNames.indexOf(t.dayOfWeek.toLowerCase().trim())
+        return tDow === dayOfWeek && (t.startTime || '').trim().slice(0, 5) === normTime
+      })
+      if (matchedTemplate && matchedTemplate.active !== false) {
+        templateMatched = true
+      }
+    }
+
+    // Check if this slot qualifies as an official regular mass slot
+    const isOfficialSlot = isOfficialRegularMassSlot(dayOfWeek, normTime)
+
+    // Conservative check: For recurring pattern grids, schedule must match official slot or active template
+    // Or have an explicit regular Mass category/title (and not an unrecognized custom time)
+    const qualifiesAsRegular = isOfficialSlot || templateMatched || (s.templateId !== undefined)
+
+    if (!qualifiesAsRegular) {
+      // If it doesn't match an official slot or template, do not leak into regular recurring grid
+      return
+    }
+
+    const isSundayCycle = isSundayOrAnticipatedMass(s.title || '', s.date, s.startTime)
+    const patternId = `${dayOfWeek}-${s.startTime}`
+    const targetMap = isSundayCycle ? sundayMap : weekdayMap
+
+    if (!targetMap.has(patternId)) {
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()
+      targetMap.set(patternId, {
+        id: patternId,
+        dayOfWeek,
+        dayName,
+        startTime: s.startTime,
+        title: s.title,
+        location: s.location,
+        liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
+        scheduleIds: [],
+        assignedMembers: [],
+        templateId: s.templateId
+      })
+    }
+
+    const pattern = targetMap.get(patternId)!
+    if (!pattern.scheduleIds.includes(s.id)) {
+      pattern.scheduleIds.push(s.id)
+    }
+    s.assignedMembers?.forEach(memId => {
+      if (!pattern.assignedMembers.includes(memId)) {
+        pattern.assignedMembers.push(memId)
+      }
+    })
+  })
+
+  const getSortWeight = (p: SchedulePattern) => {
+    // Anticipated mass on Saturday goes before Sunday
+    if (p.dayOfWeek === 6 && p.startTime >= '16:00') return -1
+    return p.dayOfWeek
+  }
+
+  const sortPatterns = (patterns: SchedulePattern[]) => {
+    return patterns.sort((a, b) => {
+      const weightA = getSortWeight(a)
+      const weightB = getSortWeight(b)
+      if (weightA !== weightB) return weightA - weightB
+      return a.startTime.localeCompare(b.startTime)
+    })
+  }
+
+  return {
+    sundayPatterns: sortPatterns(Array.from(sundayMap.values())),
+    weekdayPatterns: sortPatterns(Array.from(weekdayMap.values())),
+    specialPatterns: Array.from(specialMap.values()).sort((a, b) => {
+      if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date)
+      return a.startTime.localeCompare(b.startTime)
+    })
+  }
+}

@@ -177,7 +177,7 @@ export const AuditPage: React.FC = () => {
   
   const actions: AuditAction[] = [
     'MEMBER_CREATE', 'MEMBER_UPDATE', 'MEMBER_DELETE', 'MEMBER_ARCHIVE', 'MEMBER_IMPORT',
-    'SCHEDULE_CREATE', 'SCHEDULE_UPDATE', 'SCHEDULE_DELETE', 'SCHEDULE_ASSIGN',
+    'SCHEDULE_CREATE', 'SCHEDULE_UPDATE', 'SCHEDULE_DELETE', 'SCHEDULE_ASSIGN', 'SCHEDULE_SUBMISSION_APPROVE', 'SCHEDULE_SUBMISSION_REJECT',
     'ATTENDANCE_SAVE', 'ATTENDANCE_LOCK', 'ATTENDANCE_UNLOCK', 'SETTINGS_UPDATE',
     'USER_PASSWORD_CHANGE', 'USER_LOGIN', 'EXCUSE_SUBMITTED', 'EXCUSE_APPROVED',
     'EXCUSE_REJECTED', 'EXCUSE_CANCELLED', 'CATEGORY_CREATE', 'CATEGORY_UPDATE', 'CATEGORY_ARCHIVE', 'CATEGORY_RESTORE', 'CATEGORY_DELETE',
@@ -200,6 +200,8 @@ export const AuditPage: React.FC = () => {
     SCHEDULE_UPDATE: 'bg-blue-100 text-blue-800 border-blue-200',
     SCHEDULE_DELETE: 'bg-red-100 text-red-800 border-red-200',
     SCHEDULE_ASSIGN: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+    SCHEDULE_SUBMISSION_APPROVE: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    SCHEDULE_SUBMISSION_REJECT: 'bg-rose-100 text-rose-800 border-rose-200',
     ATTENDANCE_SAVE: 'bg-blue-100 text-blue-800 border-blue-200',
     ATTENDANCE_LOCK: 'bg-purple-100 text-purple-800 border-purple-200',
     ATTENDANCE_UNLOCK: 'bg-orange-100 text-orange-800 border-orange-200',

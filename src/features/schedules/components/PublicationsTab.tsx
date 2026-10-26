@@ -57,8 +57,7 @@ export const PublicationsTab: React.FC = () => {
             const eligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, pub))
             const eligibleIdSet = new Set(eligibleMembers.map(m => m.id))
 
-            const schedList = await scheduleService.getSchedulesByDateRange(pub.startDate, pub.endDate)
-            const validScheds = schedList.filter(s => isScheduleIncludedInPublication(s, pub))
+            const validScheds = await scheduleService.getSchedulesForPublication(pub)
             
             const assignedIds = new Set<string>()
             validScheds.forEach(s => {
@@ -123,7 +122,7 @@ export const PublicationsTab: React.FC = () => {
   const handlePublish = async (pub: SchedulePublication) => {
     try {
       await publicationService.updatePublication(pub.id, { status: 'published' })
-      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false, 'System', pub)
       await loadData()
       toast.success('Published', 'Publication is now open for scheduling.')
     } catch (err: any) {
@@ -143,7 +142,7 @@ export const PublicationsTab: React.FC = () => {
         submissionDeadline: newDeadlineIso,
         status: 'published'
       })
-      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false, 'System', pub)
       await loadData()
       toast.success('Deadline Extended', `Publication deadline extended by ${days} days and reopened for scheduling.`)
     } catch (err: any) {
@@ -158,7 +157,7 @@ export const PublicationsTab: React.FC = () => {
         submissionDeadline: '',
         status: 'published'
       })
-      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+      await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false, 'System', pub)
       await loadData()
       toast.success('Deadline Removed', 'Deadline cleared and publication kept open for scheduling.')
     } catch (err: any) {
@@ -197,7 +196,7 @@ export const PublicationsTab: React.FC = () => {
     try {
       await publicationService.updatePublication(pub.id, { status: newStatus })
       if (newStatus === 'published') {
-        await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false)
+        await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, false, 'System', pub)
       }
       await loadData()
       toast.success('Status Updated', `Publication status changed to ${newStatus.toUpperCase()}.`)
@@ -215,7 +214,7 @@ export const PublicationsTab: React.FC = () => {
     try {
       let lockedCount = 0
       if (isLocked !== undefined) {
-        lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, isLocked)
+        lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, isLocked, 'System', pub)
       }
       await publicationService.updatePublication(pub.id, { status: targetStatus })
       await loadData()
@@ -238,15 +237,16 @@ export const PublicationsTab: React.FC = () => {
     selectedTemplateIds?: string[],
     customEventSlots?: CustomEventSlotInput[]
   ) => {
+    let pubId = selectedPublication?.id
     if (selectedPublication) {
       await publicationService.updatePublication(selectedPublication.id, input)
     } else {
-      await publicationService.addPublication(input)
+      pubId = await publicationService.addPublication(input)
     }
 
-    if (input.status === 'published') {
+    if (input.status === 'published' && pubId) {
       try {
-        await scheduleService.bulkLockSchedules(input.startDate, input.endDate, false)
+        await scheduleService.bulkLockSchedules(input.startDate, input.endDate, false, 'System', { id: pubId, ...input })
       } catch (err) {
         console.warn('Failed to unlock schedules on publication save:', err)
       }
@@ -268,18 +268,19 @@ export const PublicationsTab: React.FC = () => {
         let updatedCount = 0
 
         for (const slot of customEventSlots) {
-          // Check if schedule already exists for this slot by exact scheduleId or matching date & time
+          // Check if schedule already exists for this slot:
+          // Strictly match by exact scheduleId OR by same date, startTime, and owning publicationId
           const existing = existingSchedules.find(s => 
             (slot.scheduleId && s.id === slot.scheduleId) ||
-            (s.date === slot.date && s.startTime === slot.startTime) ||
-            (s.date === slot.date && (input.publicationType === 'special_event' || s.category === 'special_event')) ||
-            (s.date === slot.date && isScheduleIncludedInPublication(s, input))
+            (s.publicationId && pubId && s.publicationId === pubId && s.date === slot.date && s.startTime === slot.startTime) ||
+            (!s.publicationId && s.date === slot.date && s.startTime === slot.startTime && s.title.toLowerCase() === (slot.title || input.name).toLowerCase())
           )
 
           if (existing) {
             retainedScheduleIds.add(existing.id)
             // Update existing schedule location and details
             await scheduleService.updateSchedule(existing.id, {
+              publicationId: pubId,
               title: slot.title || input.name || existing.title,
               date: slot.date || existing.date,
               startTime: slot.startTime || existing.startTime,
@@ -292,6 +293,7 @@ export const PublicationsTab: React.FC = () => {
           } else {
             // Add new schedule only if it doesn't already exist
             const newId = await scheduleService.addSchedule({
+              publicationId: pubId,
               title: slot.title || input.name || 'Special Mass',
               date: slot.date,
               startTime: slot.startTime || '18:00',
@@ -343,7 +345,7 @@ export const PublicationsTab: React.FC = () => {
     }
 
     // 2. Regular template-based generation
-    if (!selectedPublication && generateSchedules && selectedTemplateIds) {
+    if (!selectedPublication && generateSchedules && selectedTemplateIds && pubId) {
       try {
         const activeTemplates = (await recurringService.getTemplates())
           .filter(t => t.active && selectedTemplateIds.includes(t.id))
@@ -352,7 +354,8 @@ export const PublicationsTab: React.FC = () => {
           const report = await recurringService.generateSchedules(
             input.startDate,
             input.endDate,
-            activeTemplates
+            activeTemplates,
+            { publicationId: pubId }
           )
           toast.success(
             'Publication Created', 

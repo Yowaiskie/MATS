@@ -10,7 +10,8 @@ import {
 import { db } from '@/firebase/config'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import { isTimeOverlapping } from '@/utils/scheduleUtils'
+import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
+import { isTimeOverlapping, OFFICIAL_REGULAR_MASS_SLOTS, isOfficialRegularMassSlot } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { scheduleService } from './scheduleService'
 import { memberService } from './memberService'
@@ -256,6 +257,7 @@ export const recurringService = {
     options?: {
       autoRotateOrderGroups?: boolean
       startingGroup?: string
+      publicationId?: string
     }
   ): Promise<{ created: number; skipped: number; duplicates: number; validationErrors: string[] }> {
     const result = {
@@ -327,12 +329,17 @@ export const recurringService = {
           slotEndTime = `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
         }
 
-        // 2. Duplicate schedule check (same title, date, startTime)
-        const isDuplicate = existingSchedules.some(s => 
-          s.title.toLowerCase() === temp.title.toLowerCase() &&
-          s.date === dateStr &&
-          s.startTime === temp.startTime
-        )
+        // 2. Duplicate schedule check (same date & startTime for this publication)
+        const isDuplicate = existingSchedules.some(s => {
+          if (options?.publicationId) {
+            return s.publicationId === options.publicationId &&
+              s.date === dateStr &&
+              s.startTime === temp.startTime
+          }
+          return s.title.toLowerCase() === temp.title.toLowerCase() &&
+            s.date === dateStr &&
+            s.startTime === temp.startTime
+        })
 
         if (isDuplicate) {
           result.duplicates++
@@ -365,7 +372,10 @@ export const recurringService = {
         // 4. Create the schedule doc in Firestore
         try {
           const newId = await scheduleService.addSchedule({
+            publicationId: options?.publicationId,
+            templateId: temp.id,
             title: temp.title,
+            category: ((temp.dayOfWeek === 'Sunday' || (temp.dayOfWeek === 'Saturday' && temp.startTime >= '18:00')) ? 'mass_sunday' : 'mass_weekday') as ScheduleCategoryKey,
             date: dateStr,
             startTime: temp.startTime,
             endTime: slotEndTime,
@@ -376,7 +386,10 @@ export const recurringService = {
           // Add to in-memory list to catch conflicts in subsequent generator iterations
           existingSchedules.push({
             id: newId,
+            publicationId: options?.publicationId,
+            templateId: temp.id,
             title: temp.title,
+            category: ((temp.dayOfWeek === 'Sunday' || (temp.dayOfWeek === 'Saturday' && temp.startTime >= '18:00')) ? 'mass_sunday' : 'mass_weekday') as ScheduleCategoryKey,
             date: dateStr,
             startTime: temp.startTime,
             endTime: slotEndTime,
@@ -396,6 +409,46 @@ export const recurringService = {
 
 
     return result
+  },
+
+  /**
+   * Non-destructively validates a list of Schedule Templates against the parish's 14 official Regular Mass slots.
+   */
+  validateOfficialRegularTemplates(templates: ScheduleTemplate[]): {
+    activeCount: number
+    matchedCount: number
+    missingSlots: string[]
+    extraSlots: string[]
+  } {
+    const active = templates.filter(t => t.active !== false)
+    const matchedSlots = new Set<string>()
+    const extraSlots: string[] = []
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+    active.forEach(t => {
+      const dow = dayNames.indexOf(t.dayOfWeek.toLowerCase().trim())
+      const normTime = (t.startTime || '').trim().slice(0, 5)
+      if (dow >= 0 && isOfficialRegularMassSlot(dow, normTime)) {
+        matchedSlots.add(`${dow}-${normTime}`)
+      } else {
+        extraSlots.push(`${t.dayOfWeek} ${t.startTime} (${t.title})`)
+      }
+    })
+
+    const missingSlots: string[] = []
+    OFFICIAL_REGULAR_MASS_SLOTS.forEach(slot => {
+      const key = `${slot.dayOfWeek}-${slot.startTime}`
+      if (!matchedSlots.has(key)) {
+        missingSlots.push(slot.label)
+      }
+    })
+
+    return {
+      activeCount: active.length,
+      matchedCount: matchedSlots.size,
+      missingSlots,
+      extraSlots
+    }
   },
 
   /**

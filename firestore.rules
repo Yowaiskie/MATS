@@ -54,6 +54,20 @@ service cloud.firestore {
       return val is bool;
     }
 
+    function isPublicationOpenForSubmission(pubData) {
+      return pubData.status == 'published' && (
+        (
+          (!('submissionDeadline' in pubData) || pubData.submissionDeadline == null || pubData.submissionDeadline == '') &&
+          (!('submissionDeadlineMs' in pubData) || pubData.submissionDeadlineMs == null)
+        ) ||
+        (
+          'submissionDeadlineMs' in pubData &&
+          pubData.submissionDeadlineMs is int &&
+          request.time.toMillis() < pubData.submissionDeadlineMs
+        )
+      );
+    }
+
     // ==========================================
     // Collection Rules & Validations
     // ==========================================
@@ -99,11 +113,11 @@ service cloud.firestore {
       allow create, update, delete: if isSuperAdmin() || hasPermission('canManageMembers');
     }
     
-    // schedules collection
+    // schedules collection (Official Liturgical Rosters)
     match /schedules/{scheduleId} {
       allow read: if true;
-      allow create, delete: if hasPermission('canManageSchedules');
-      allow update: if true; // Allows unauthenticated public self-service schedule response
+      // Zero public write access. Only authenticated admins with canManageSchedules can write.
+      allow create, update, delete: if hasPermission('canManageSchedules');
     }
     
     // attendanceSessions collection
@@ -144,8 +158,30 @@ service cloud.firestore {
     // schedulePublications collection
     match /schedulePublications/{pubId} {
       allow read: if true;
-      allow create, delete: if hasPermission('canManageSchedules');
-      allow update: if true; // Allows unauthenticated public submission tracking
+      // Zero public write access. Only authenticated admins with canManageSchedules can write.
+      allow create, update, delete: if hasPermission('canManageSchedules');
+    }
+
+    // scheduleSubmissions collection (Pending Public Intake)
+    match /scheduleSubmissions/{submissionId} {
+      allow read: if true;
+      
+      // Public intake: anonymous clients can only create a pending submission
+      // Must use deterministic document ID: {publicationId}_{memberId}
+      allow create: if (
+        submissionId == request.resource.data.publicationId + '_' + request.resource.data.memberId &&
+        request.resource.data.status == 'pending' &&
+        isValidString(request.resource.data.publicationId, 1, 100) &&
+        isValidString(request.resource.data.memberId, 1, 100) &&
+        (!('memberName' in request.resource.data) || isValidString(request.resource.data.memberName, 1, 150)) &&
+        request.resource.data.requestedScheduleIds is list &&
+        request.resource.data.requestedScheduleIds.size() <= 50 &&
+        exists(/databases/$(database)/documents/schedulePublications/$(request.resource.data.publicationId)) &&
+        isPublicationOpenForSubmission(get(/databases/$(database)/documents/schedulePublications/$(request.resource.data.publicationId)).data)
+      );
+
+      // Only authorized administrators can update (approve / reject) or delete submissions
+      allow update, delete: if hasPermission('canManageSchedules');
     }
 
     // counters collection

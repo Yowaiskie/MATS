@@ -5,25 +5,26 @@ import { useQueryClient } from '@tanstack/react-query'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { publicationService } from '@/services/publicationService'
+import { submissionService } from '@/services/submissionService'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { SchedulePublication } from '@/types/publication'
+import type { ScheduleSubmission } from '@/types/submission'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication, getRankLimitForSlot, getSlotRankBreakdown, isPublicationDeadlinePassed } from '@/utils/scheduleUtils'
+import {
+  formatTime12Hour,
+  isScheduleIncludedInPublication,
+  isMemberEligibleForPublication,
+  getRankLimitForSlot,
+  getSlotRankBreakdown,
+  isPublicationDeadlinePassed,
+  getCountdownTimeRemaining,
+  type CountdownResult,
+  groupSchedulesIntoPatterns,
+  type SchedulePattern
+} from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
-interface SchedulePattern {
-  id: string
-  date?: string
-  dayOfWeek: number
-  dayName: string
-  startTime: string
-  title?: string
-  location?: string
-  liturgicalColor?: string
-  scheduleIds: string[]
-  assignedMembers: string[]
-}
 
 export const getLiturgicalTheme = (colorKey?: string, isSpecialPubFallback: boolean = false) => {
   const key = colorKey?.toLowerCase()
@@ -162,6 +163,7 @@ export const PublicSchedulePage: React.FC = () => {
   const [publication, setPublication] = useState<SchedulePublication | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [members, setMembers] = useState<Member[]>([])
+  const [submissions, setSubmissions] = useState<ScheduleSubmission[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedMemberId, setSelectedMemberId] = useState<string>('')
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
@@ -175,12 +177,25 @@ export const PublicSchedulePage: React.FC = () => {
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false)
   const [currentTime, setCurrentTime] = useState<number>(() => Date.now())
 
-  // Dynamic ticker to ensure deadline comparisons update reactively in real time
+  // Dynamic ticker to ensure deadline comparisons and countdown update in real time
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(Date.now())
-    }, 10000)
+    }, 1000)
     return () => clearInterval(timer)
+  }, [])
+
+  // Listen for tab focus or visibility changes to sync immediately on mobile device wake / app resume
+  useEffect(() => {
+    const handleSync = () => {
+      setCurrentTime(Date.now())
+    }
+    document.addEventListener('visibilitychange', handleSync)
+    window.addEventListener('focus', handleSync)
+    return () => {
+      document.removeEventListener('visibilitychange', handleSync)
+      window.removeEventListener('focus', handleSync)
+    }
   }, [])
 
   const loadData = async () => {
@@ -202,24 +217,25 @@ export const PublicSchedulePage: React.FC = () => {
 
       setPublication(pub)
 
-      // 2. Fetch all members and schedules for date range in parallel
-      // Broaden date range query to cover full month so no scheduled days are missed
-      const [sY, sM] = pub.startDate.split('-').map(Number)
-      const [eY, eM] = pub.endDate.split('-').map(Number)
-      const qStart = `${sY}-${String(sM).padStart(2, '0')}-01`
-      const lastDay = new Date(eY, eM, 0).getDate()
-      const qEnd = `${eY}-${String(eM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-      const [membersData, schedsData] = await Promise.all([
+      // 2. Fetch all members, publication schedules, and pending submissions in parallel
+      const [membersData, schedsData, subsData] = await Promise.all([
         queryClient.fetchQuery({
           queryKey: ['members'],
           queryFn: () => memberService.getMembers(),
           staleTime: 1000 * 60 * 2
         }),
         queryClient.fetchQuery({
-          queryKey: ['public-schedules', pub.id, qStart, qEnd],
-          queryFn: () => scheduleService.getSchedulesByDateRange(qStart, qEnd),
+          queryKey: ['public-schedules', pub.id],
+          queryFn: () => scheduleService.getSchedulesForPublication(pub),
           staleTime: 0
+        }),
+        queryClient.fetchQuery({
+          queryKey: ['public-submissions', pub.id],
+          queryFn: () => submissionService.getSubmissionsForPublication(pub.id),
+          staleTime: 0
+        }).catch(err => {
+          console.warn('Could not fetch existing submissions:', err)
+          return [] as ScheduleSubmission[]
         })
       ])
 
@@ -228,6 +244,7 @@ export const PublicSchedulePage: React.FC = () => {
 
       setMembers(eligible)
       setSchedules(schedsData)
+      setSubmissions(subsData || [])
     } catch (err: any) {
       console.error(err)
       setMessage({ type: 'error', text: 'Failed to load publication details.' })
@@ -248,12 +265,23 @@ export const PublicSchedulePage: React.FC = () => {
     )
   }, [schedules, publication])
 
+  const memberSubmission = useMemo(() => {
+    if (!selectedMemberId) return null
+    return submissions.find(s => s.memberId === selectedMemberId) || null
+  }, [selectedMemberId, submissions])
+
   // Sync selected schedules when selected member changes
   useEffect(() => {
     if (!selectedMemberId) {
       setSelectedScheduleIds(new Set())
       return
     }
+    // If the member has an existing pending submission, show their requested slots
+    if (memberSubmission) {
+      setSelectedScheduleIds(new Set(memberSubmission.requestedScheduleIds))
+      return
+    }
+    // Otherwise show official assignments (from approved schedules)
     const initial = new Set<string>()
     publicationSchedules.forEach(s => {
       if (s.assignedMembers?.includes(selectedMemberId)) {
@@ -261,120 +289,14 @@ export const PublicSchedulePage: React.FC = () => {
       }
     })
     setSelectedScheduleIds(initial)
-  }, [selectedMemberId, publicationSchedules])
+  }, [selectedMemberId, publicationSchedules, memberSubmission])
 
   const isSpecialPub = publication?.publicationType === 'special_event' || !!publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
 
-  // Group into patterns
+  // Group into patterns using centralized domain utility
   const { sundayPatterns, weekdayPatterns, specialPatterns } = useMemo(() => {
-    if (isSpecialPub) {
-      // For special events or dated street mass publications, group by each unique schedule slot chronologically
-      const sortedSchedules = [...publicationSchedules].sort((a, b) => {
-        if (a.date !== b.date) return a.date.localeCompare(b.date)
-        return a.startTime.localeCompare(b.startTime)
-      })
-
-      const patternMap = new Map<string, SchedulePattern>()
-      sortedSchedules.forEach(s => {
-        const [y, m, d] = s.date.split('-').map(Number)
-        const dObj = new Date(y, m - 1, d, 12, 0, 0)
-        const dayOfWeek = dObj.getDay()
-        const dayName = isNaN(dObj.getTime())
-          ? s.date
-          : dObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', weekday: 'short' }).toUpperCase()
-        const patternKey = `${s.date}-${s.startTime}`
-
-        if (!patternMap.has(patternKey)) {
-          patternMap.set(patternKey, {
-            id: s.id,
-            date: s.date,
-            dayOfWeek,
-            dayName,
-            startTime: s.startTime,
-            title: s.title,
-            location: s.location,
-            liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
-            scheduleIds: [s.id],
-            assignedMembers: s.assignedMembers ? [...s.assignedMembers] : []
-          })
-        } else {
-          const existing = patternMap.get(patternKey)!
-          if (!existing.scheduleIds.includes(s.id)) {
-            existing.scheduleIds.push(s.id)
-          }
-          if (s.location && !existing.location) {
-            existing.location = s.location
-          }
-          s.assignedMembers?.forEach(memId => {
-            if (!existing.assignedMembers.includes(memId)) {
-              existing.assignedMembers.push(memId)
-            }
-          })
-        }
-      })
-
-      return {
-        sundayPatterns: [],
-        weekdayPatterns: [],
-        specialPatterns: Array.from(patternMap.values())
-      }
-    }
-
-    const patternMap = new Map<string, SchedulePattern>()
-
-    publicationSchedules.forEach(s => {
-      const d = new Date(s.date + 'T00:00:00')
-      const dayOfWeek = d.getDay()
-      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()
-      const patternId = `${dayOfWeek}-${s.startTime}-${s.title || ''}-${s.location || ''}`
-
-      if (!patternMap.has(patternId)) {
-        patternMap.set(patternId, {
-          id: patternId,
-          dayOfWeek,
-          dayName,
-          startTime: s.startTime,
-          title: s.title,
-          location: s.location,
-          liturgicalColor: s.liturgicalColor || publication?.liturgicalColor,
-          scheduleIds: [],
-          assignedMembers: []
-        })
-      }
-
-      const pattern = patternMap.get(patternId)!
-      pattern.scheduleIds.push(s.id)
-      
-      // Merge unique assigned members
-      s.assignedMembers?.forEach(memId => {
-        if (!pattern.assignedMembers.includes(memId)) {
-          pattern.assignedMembers.push(memId)
-        }
-      })
-    })
-
-    const allPatterns = Array.from(patternMap.values())
-    
-    const getSortWeight = (p: SchedulePattern) => {
-      // Anticipated mass on Saturday goes before Sunday
-      if (p.dayOfWeek === 6 && p.startTime >= '16:00') return -1
-      return p.dayOfWeek
-    }
-
-    // Sort by dayOfWeek (Sun=0, Mon=1...) then startTime
-    allPatterns.sort((a, b) => {
-      const weightA = getSortWeight(a)
-      const weightB = getSortWeight(b)
-      if (weightA !== weightB) return weightA - weightB
-      return a.startTime.localeCompare(b.startTime)
-    })
-
-    return {
-      sundayPatterns: allPatterns.filter(p => p.dayOfWeek === 0 || (p.dayOfWeek === 6 && p.startTime >= '16:00')),
-      weekdayPatterns: allPatterns.filter(p => p.dayOfWeek !== 0 && !(p.dayOfWeek === 6 && p.startTime >= '16:00')),
-      specialPatterns: []
-    }
-  }, [publicationSchedules, isSpecialPub])
+    return groupSchedulesIntoPatterns(publicationSchedules, publication)
+  }, [publicationSchedules, publication])
 
   const memberMap = useMemo(() => {
     return new Map(members.map(m => [m.id, getFullName(m)]))
@@ -409,23 +331,26 @@ export const PublicSchedulePage: React.FC = () => {
 
   const hasSubmitted = useMemo(() => {
     if (!publication || !selectedMemberId) return false
-    return publication.submittedMembers?.includes(selectedMemberId) || false
-  }, [publication, selectedMemberId])
+    return !!memberSubmission || publication.submittedMembers?.includes(selectedMemberId) || false
+  }, [publication, selectedMemberId, memberSubmission])
 
   const isFinalized = publication?.status === 'archived'
+  const isDraft = publication?.status === 'draft'
 
   const isDeadlinePassed = useMemo(() => {
     if (currentTime <= 0) return false
-    return isPublicationDeadlinePassed(publication)
+    return isPublicationDeadlinePassed(publication, currentTime)
   }, [publication, currentTime])
 
-  const isClosed = isFinalized || isDeadlinePassed
+  const countdown = useMemo<CountdownResult>(() => {
+    return getCountdownTimeRemaining(publication, currentTime)
+  }, [publication, currentTime])
+
+  const isClosed = isFinalized || isDraft || isDeadlinePassed
 
   const availableMembers = useMemo(() => {
-    if (!publication) return members
-    // Member remains available unless they have submitted their schedule
-    return members.filter(m => !publication.submittedMembers?.includes(m.id))
-  }, [members, publication])
+    return members
+  }, [members])
 
   const filteredAvailableMembers = useMemo(() => {
     const sorted = availableMembers.slice().sort((a, b) => a.lastName.localeCompare(b.lastName))
@@ -468,12 +393,7 @@ export const PublicSchedulePage: React.FC = () => {
         ? (publication?.maxSpecialPerServer ?? 2)
         : (publication?.maxWeekdaysPerServer ?? 8)
       const maxed = selectedSpecialCount >= maxSlots
-      let msg = ''
-      if (maxed) {
-        msg = `You have selected ${selectedSpecialCount} schedule slot(s), reaching your maximum quota. Once saved, your submission will be finalized.`
-      } else {
-        msg = `You have currently selected ${selectedSpecialCount}/${maxSlots} schedule slot(s). Since you haven't reached the full quota yet, your chosen slots will be saved and locked, and you can still select more slots later.`
-      }
+      const msg = `You have selected ${selectedSpecialCount} schedule slot(s). Once submitted, your selections will be sent to the ministry coordinator for review and approval.`
       return { isQuotaMaxed: maxed, confirmModalMessage: msg }
     }
 
@@ -486,12 +406,7 @@ export const PublicSchedulePage: React.FC = () => {
     const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
     const maxed = sunMaxed && wkMaxed
 
-    let msg = ''
-    if (maxed) {
-      msg = `You have selected ${selectedSundayCount} Sunday(s) and ${selectedWeekdayCount} Weekday(s), reaching your maximum quota. Once saved, your submission will be finalized.`
-    } else {
-      msg = `You have currently selected ${selectedSundayCount}/${maxSun} Sunday(s) and ${selectedWeekdayCount}/${maxWk} Weekday(s). Since you haven't reached the full quota yet, your chosen slots will be saved and locked, and you can still select more slots later.`
-    }
+    const msg = `You have selected ${selectedSundayCount} Sunday(s) and ${selectedWeekdayCount} Weekday(s). Once submitted, your selections will be sent to the ministry coordinator for review and approval.`
 
     return { isQuotaMaxed: maxed, confirmModalMessage: msg }
   }, [publication, isSpecialPub, selectedSpecialCount, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
@@ -509,14 +424,15 @@ export const PublicSchedulePage: React.FC = () => {
   }
 
   const handleCellClick = (patternId: string, category: 'sunday' | 'weekday' | 'special') => {
-    if (isFinalized) {
-      setLimitModal({ title: 'Scheduling Closed', message: 'This schedule period has been finalized by the administrator.' })
-      return
-    }
-    if (isDeadlinePassed) {
-      const deadMsg = `The submission deadline (${new Date(publication!.submissionDeadline!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}) has passed. Scheduling is now closed.`
-      setMessage({ type: 'error', text: deadMsg })
-      setLimitModal({ title: 'Deadline Passed', message: deadMsg })
+    if (isClosed) {
+      setLimitModal({
+        title: 'Scheduling Closed',
+        message: isDraft
+          ? 'This publication is currently in draft mode and not accepting submissions.'
+          : isFinalized
+            ? 'This schedule period has been finalized by the administrator.'
+            : `The submission deadline (${publication?.submissionDeadline ? new Date(publication.submissionDeadline).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}) has passed. Scheduling is now closed.`
+      })
       return
     }
     if (hasSubmitted) return
@@ -688,16 +604,15 @@ export const PublicSchedulePage: React.FC = () => {
 
   const handleOpenConfirmModal = (e: React.FormEvent) => {
     e.preventDefault()
-    if (isFinalized) {
-      setMessage({ type: 'error', text: 'This schedule period has been finalized.' })
-      setLimitModal({ title: 'Scheduling Closed', message: 'This schedule period has been finalized by the administrator.' })
-      return
-    }
-
-    if (isDeadlinePassed) {
-      const deadMsg = `The submission deadline (${new Date(publication!.submissionDeadline!).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}) has passed. Submissions are no longer accepted.`
-      setMessage({ type: 'error', text: deadMsg })
-      setLimitModal({ title: 'Deadline Passed', message: deadMsg })
+    if (isClosed) {
+      setLimitModal({
+        title: 'Submissions Closed',
+        message: isDraft
+          ? 'This publication is currently in draft mode and not accepting submissions.'
+          : isFinalized
+            ? 'This schedule period has been finalized by the administrator.'
+            : `The submission deadline (${publication?.submissionDeadline ? new Date(publication.submissionDeadline).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }) : ''}) has passed. Submissions are no longer accepted.`
+      })
       return
     }
 
@@ -726,11 +641,18 @@ export const PublicSchedulePage: React.FC = () => {
 
   const handleConfirmedSave = async () => {
     setConfirmSubmitOpen(false)
-    if (!selectedMemberId) return
+    if (!publication || !selectedMemberId) return
 
-    if (isFinalized || isDeadlinePassed) {
+    if (isClosed) {
       setMessage({ type: 'error', text: 'Submissions are closed for this publication.' })
-      setLimitModal({ title: 'Scheduling Closed', message: 'Submissions are no longer accepted for this publication.' })
+      setLimitModal({
+        title: 'Scheduling Closed',
+        message: isDraft
+          ? 'This publication is currently in draft mode and not accepting submissions.'
+          : isFinalized
+            ? 'This schedule period has been finalized by the administrator.'
+            : 'Submissions are no longer accepted for this publication.'
+      })
       return
     }
 
@@ -738,86 +660,58 @@ export const PublicSchedulePage: React.FC = () => {
     setMessage(null)
 
     try {
-      const selections = publicationSchedules.map(s => ({
-        scheduleId: s.id,
-        isSelected: selectedScheduleIds.has(s.id)
+      const selectedPatterns = isSpecialPub
+        ? specialPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id)))
+        : [...sundayPatterns, ...weekdayPatterns].filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id)))
+
+      const slotSummaries = selectedPatterns.map(p => ({
+        dayOfWeek: p.dayOfWeek,
+        dayName: p.dayName,
+        startTime: p.startTime,
+        title: p.title,
+        location: p.location,
+        datesCount: p.scheduleIds.length,
+        scheduleIds: p.scheduleIds
       }))
 
-      await scheduleService.submitPublicScheduleSelections(selectedMemberId, selections)
-      
-      if (isSpecialPub) {
-        const maxSpecial = publication?.maxSpecialPerServer ?? 2
-        const fullyCompleted = selectedSpecialCount >= maxSpecial
-
-        if (publication && fullyCompleted) {
-          await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
-          setMessage({ 
-            type: 'success', 
-            text: `Awesome! You have reached your quota (${selectedSpecialCount} Special Occasion slots) and your submission is now finalized.` 
-          })
-        } else {
-          setMessage({ 
-            type: 'success', 
-            text: `Your selections (${selectedSpecialCount} Special Occasion slot(s)) have been saved! Since you haven't reached the full quota yet, your name remains in the list so you can select the remaining slots later.` 
-          })
+      const newSubmission = await submissionService.createPendingSubmission(
+        {
+          publicationId: publication.id,
+          memberId: selectedMemberId,
+          memberName: selectedMember ? getFullName(selectedMember) : selectedMemberName,
+          memberRank: selectedMember?.rank || '',
+          requestedScheduleIds: Array.from(selectedScheduleIds),
+          slotSummaries
+        },
+        {
+          member: selectedMember || undefined,
+          publication,
+          publicationSchedules
         }
-      } else {
-        const maxSun = publication?.maxSundaysPerServer ?? 4
-        const maxWk = publication?.maxWeekdaysPerServer ?? 8
-        const hasSun = sundayPatterns.length > 0
-        const hasWk = weekdayPatterns.length > 0
+      )
 
-        const sunMaxed = !hasSun || selectedSundayCount >= maxSun
-        const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
-        const fullyCompleted = sunMaxed && wkMaxed
+      // Add to local state so user immediately sees their submission confirmed
+      setSubmissions(prev => [...prev.filter(s => s.memberId !== selectedMemberId), newSubmission])
 
-        if (publication && fullyCompleted) {
-          await publicationService.markMemberSubmitted(publication.id, selectedMemberId)
-          setMessage({ 
-            type: 'success', 
-            text: `Awesome! You have reached your quota (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) and your submission is now finalized.` 
-          })
-        } else {
-          setMessage({ 
-            type: 'success', 
-            text: `Your selections (${selectedSundayCount} Sunday, ${selectedWeekdayCount} Weekday) have been saved! Since you haven't reached the full quota yet, your name remains in the list so you can select the remaining slots later.` 
-          })
-        }
-      }
+      const successTitle = 'Submission Received!'
+      const successMsg = `Thank you, ${selectedMember?.firstName || 'Altar Server'}! Your schedule preferences have been submitted for review. Once approved by your ministry coordinator, your official assignments will be confirmed.`
 
-      // Refresh schedules and publication from backend
-      await queryClient.invalidateQueries({ queryKey: ['publication', publicationId] })
-      const updatedPub = await queryClient.fetchQuery({
-        queryKey: ['publication', publicationId],
-        queryFn: () => publicationService.getPublication(publicationId!),
-        staleTime: 0
+      setMessage({
+        type: 'success',
+        text: successMsg
       })
-      if (!updatedPub) throw new Error('Publication not found.')
-
-      await queryClient.invalidateQueries({
-        queryKey: ['public-schedules', updatedPub.id, updatedPub.startDate, updatedPub.endDate]
+      setLimitModal({
+        title: successTitle,
+        message: successMsg
       })
-      const updatedScheds = await queryClient.fetchQuery({
-        queryKey: ['public-schedules', updatedPub.id, updatedPub.startDate, updatedPub.endDate],
-        queryFn: () => scheduleService.getSchedulesByDateRange(updatedPub.startDate, updatedPub.endDate),
-        staleTime: 0
-      })
-
-      setPublication(updatedPub)
-      setSchedules(updatedScheds)
-
-      const isCompleted = isSpecialPub 
-        ? selectedSpecialCount >= (updatedPub.maxSpecialPerServer ?? 2)
-        : (sundayPatterns.length === 0 || selectedSundayCount >= (updatedPub.maxSundaysPerServer ?? 4)) && 
-          (weekdayPatterns.length === 0 || selectedWeekdayCount >= (updatedPub.maxWeekdaysPerServer ?? 8))
-
-      if (isCompleted) {
-        setSelectedMemberId('')
-        setSelectedScheduleIds(new Set())
-      }
     } catch (err: any) {
       console.error(err)
-      setMessage({ type: 'error', text: err.message || 'Failed to save schedule.' })
+      const errMsg = err.message || 'Failed to submit schedule preferences.'
+      setMessage({ type: 'error', text: errMsg })
+      setLimitModal({
+        title: 'Submission Not Accepted',
+        message: errMsg
+      })
     } finally {
       setSubmitting(false)
     }
@@ -1135,15 +1029,22 @@ export const PublicSchedulePage: React.FC = () => {
               <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Schedule Selection</h1>
               <p className="text-xs font-bold text-indigo-600 truncate">{publication?.name}</p>
               {publication?.submissionDeadline && (
-                <p className={`text-[11px] font-bold mt-0.5 flex items-center gap-1 ${isDeadlinePassed ? 'text-rose-700' : 'text-purple-700'}`}>
-                  <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>
-                    {isDeadlinePassed ? 'Deadline Passed: ' : 'Deadline: '}
-                    {new Date(publication.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
-                  </span>
-                </p>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <p className={`text-[11px] font-bold mt-0.5 flex items-center gap-1 ${isDeadlinePassed ? 'text-rose-700' : 'text-purple-700'}`}>
+                    <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>
+                      {isDeadlinePassed ? 'Deadline Passed: ' : 'Deadline: '}
+                      {new Date(publication.submissionDeadline).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </span>
+                  </p>
+                  {!isDeadlinePassed && countdown.hasDeadline && (
+                    <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 border border-purple-200">
+                      ⏱ {countdown.formatted}
+                    </span>
+                  )}
+                </div>
               )}
             </div>
           </div>
@@ -1172,6 +1073,11 @@ export const PublicSchedulePage: React.FC = () => {
                     </span>
                     <span>{new Date(publication.submissionDeadline).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true })}</span>
                   </div>
+                  {!isDeadlinePassed && countdown.hasDeadline && (
+                    <span className="ml-auto inline-flex items-center px-2.5 py-1 rounded-lg text-[11px] font-black bg-purple-100 text-purple-800 tracking-wide border border-purple-200 shrink-0">
+                      ⏱ {countdown.formatted}
+                    </span>
+                  )}
                 </div>
               )}
               {publication?.description && (
@@ -1180,7 +1086,23 @@ export const PublicSchedulePage: React.FC = () => {
             </div>
           </div>
 
-          {isFinalized ? (
+          {isDraft ? (
+            <div className="bg-slate-50 border border-slate-200/80 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 text-slate-600 flex items-center justify-center mx-auto mb-3 shadow-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </div>
+              <h3 className="text-slate-900 font-black mb-1 sm:mb-2 text-base sm:text-lg tracking-tight">Draft Schedule (Submissions Not Open)</h3>
+              <p className="text-slate-600 text-xs sm:text-sm leading-relaxed">
+                This schedule publication is currently in draft mode and is not accepting submissions.
+              </p>
+            </div>
+          ) : isFinalized ? (
             <div className="bg-amber-50 border border-amber-200/80 p-5 sm:p-6 rounded-2xl text-center shadow-xs mt-2 sm:mt-4">
               <div className="w-12 h-12 rounded-2xl bg-amber-100 border border-amber-200 text-amber-700 flex items-center justify-center mx-auto mb-3 shadow-xs">
                 <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -1304,11 +1226,16 @@ export const PublicSchedulePage: React.FC = () => {
                                   }`}
                                 >
                                   <div>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
                                       <span className="text-xs font-bold">{m.lastName}, {m.firstName}</span>
                                       {m.status === 'suspended' && (
                                         <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-rose-100 text-rose-700 border border-rose-200">
                                           SUSPENDED
+                                        </span>
+                                      )}
+                                      {(submissions.some(s => s.memberId === m.id) || publication?.submittedMembers?.includes(m.id)) && (
+                                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                          SUBMITTED
                                         </span>
                                       )}
                                     </div>
@@ -1345,8 +1272,10 @@ export const PublicSchedulePage: React.FC = () => {
 
               {hasSubmitted ? (
                 <div className="bg-amber-50/80 border border-amber-200 p-3.5 sm:p-4 rounded-2xl text-xs text-amber-900 leading-relaxed shadow-xs">
-                  <strong className="block mb-1 text-amber-950 font-extrabold">Finalized</strong>
-                  You have already saved your schedule for this publication. If you need to make changes, please contact your administrator.
+                  <strong className="block mb-1 text-amber-950 font-extrabold">
+                    {memberSubmission?.status === 'approved' ? '✓ Schedule Approved' : '⏳ Submission Received (Pending Review)'}
+                  </strong>
+                  Your schedule preferences have already been submitted. To make changes or corrections, please contact your ministry coordinator directly.
                 </div>
               ) : (!isSuspended || isSpecialPub) && (
                 isSpecialPub ? (
@@ -1373,7 +1302,7 @@ export const PublicSchedulePage: React.FC = () => {
                 )
               )}
 
-              {message && !hasSubmitted && (
+              {message && (
                 <div className={`p-3.5 sm:p-4 rounded-2xl text-xs font-bold ${message.type === 'success' ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-rose-50 text-rose-800 border border-rose-200'}`}>
                   {message.text}
                 </div>
@@ -1391,16 +1320,18 @@ export const PublicSchedulePage: React.FC = () => {
               >
                 <span>
                   {submitting 
-                    ? 'Saving...' 
+                    ? 'Submitting...' 
                     : isClosed
                       ? 'Scheduling Closed'
-                      : isSuspended && !isSpecialPub
-                        ? 'Account Suspended (Cannot Save)'
-                        : isQuotaMaxed 
-                          ? 'Submit & Finalize Schedule' 
-                          : isSpecialPub
-                            ? `Save Selections (${selectedSpecialCount} special slot(s))`
-                            : `Save Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
+                      : hasSubmitted
+                        ? 'Schedule Already Submitted'
+                        : isSuspended && !isSpecialPub
+                          ? 'Account Suspended (Cannot Submit)'
+                          : isQuotaMaxed 
+                            ? 'Submit Schedule Preferences' 
+                            : isSpecialPub
+                              ? `Submit Selections (${selectedSpecialCount} special slot(s))`
+                              : `Submit Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
                 </span>
                 <span className="text-base">▹</span>
               </button>
@@ -1531,7 +1462,7 @@ export const PublicSchedulePage: React.FC = () => {
               </button>
             ) : hasSubmitted ? (
               <div className="w-full text-center py-2 text-xs font-bold text-amber-800 bg-amber-50 rounded-xl border border-amber-200">
-                Schedule Already Saved
+                {memberSubmission?.status === 'approved' ? '✓ Schedule Approved' : '⏳ Submission Received (Pending Review)'}
               </div>
             ) : isSuspended && !isSpecialPub ? (
               <div className="w-full text-center py-2 text-xs font-extrabold text-rose-800 bg-rose-50 rounded-xl border border-rose-200">
@@ -1559,7 +1490,7 @@ export const PublicSchedulePage: React.FC = () => {
                   disabled={submitting || selectedScheduleIds.size === 0}
                   className={`py-3 px-5 ${bannerTheme.buttonClass} active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-md transition-all shrink-0 flex items-center gap-1.5 cursor-pointer`}
                 >
-                  <span>{submitting ? 'Saving...' : isQuotaMaxed ? 'Finalize' : 'Save'}</span>
+                  <span>{submitting ? 'Submitting...' : 'Submit'}</span>
                   <span>▹</span>
                 </button>
               </>
@@ -1574,9 +1505,9 @@ export const PublicSchedulePage: React.FC = () => {
         onClose={() => setConfirmSubmitOpen(false)}
         onConfirm={handleConfirmedSave}
         variant="info"
-        title={isQuotaMaxed ? 'Confirm Final Schedule Submission' : 'Save Schedule Selections'}
+        title="Confirm Schedule Submission"
         message={confirmModalMessage}
-        confirmLabel={submitting ? 'Saving...' : isQuotaMaxed ? 'Submit & Finalize' : 'Yes, Save Selections'}
+        confirmLabel={submitting ? 'Submitting...' : 'Submit Preferences'}
         cancelLabel="Review Selections"
         loading={submitting}
       />

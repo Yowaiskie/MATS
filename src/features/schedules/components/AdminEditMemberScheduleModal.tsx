@@ -4,7 +4,14 @@ import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { scheduleService } from '@/services/scheduleService'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour, isSundayOrAnticipatedMass, isScheduleIncludedInPublication, getSlotRankBreakdown } from '@/utils/scheduleUtils'
+import { useAuth } from '@/features/authentication/AuthContext'
+import { 
+  formatTime12Hour, 
+  isSundayOrAnticipatedMass, 
+  getSlotRankBreakdown, 
+  isHistoricalScheduleOccurrence, 
+  getParishTodayDate 
+} from '@/utils/scheduleUtils'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import { Button, useToast } from '@/components'
 
@@ -41,12 +48,37 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   onSuccess
 }) => {
   const { toast } = useToast()
+  const { user, profile } = useAuth()
   const [selectedMemberId, setSelectedMemberId] = useState<string>(initialMember?.id || '')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [markAsSubmitted, setMarkAsSubmitted] = useState<boolean>(true)
   const [loading, setLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Effective Date state (defaults to parish today, clamped to publication range)
+  const [effectiveDate, setEffectiveDate] = useState<string>(() => {
+    const today = getParishTodayDate()
+    if (publication) {
+      if (today < publication.startDate) return publication.startDate
+      if (today > publication.endDate) return publication.endDate
+    }
+    return today
+  })
+
+  // Synchronize effectiveDate with publication boundaries if publication changes
+  useEffect(() => {
+    if (publication) {
+      const today = getParishTodayDate()
+      if (today < publication.startDate) {
+        setEffectiveDate(publication.startDate)
+      } else if (today > publication.endDate) {
+        setEffectiveDate(publication.endDate)
+      } else {
+        setEffectiveDate(today)
+      }
+    }
+  }, [publication])
 
   // Sync selected member when initialMember changes
   useEffect(() => {
@@ -66,8 +98,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
     if (!publication) return
     setLoading(true)
     try {
-      const schedList = await scheduleService.getSchedulesByDateRange(publication.startDate, publication.endDate)
-      const valid = schedList.filter(s => isScheduleIncludedInPublication(s, publication))
+      const valid = await scheduleService.getSchedulesForPublication(publication)
       setSchedules(valid)
     } catch (err: any) {
       console.error('Failed to load schedules for editing:', err)
@@ -101,7 +132,10 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       const dayOfWeek = new Date(y, m - 1, d).getDay()
       const dayName = DAY_NAMES[dayOfWeek]
       const isSun = isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
-      const patternId = `${dayOfWeek}-${s.startTime}-${s.title}-${s.location || ''}`
+      const isEventMode = publication?.publicationType === 'special_event' || !!publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
+      const patternId = isEventMode 
+        ? `${dayOfWeek}-${s.startTime}-${s.title}-${s.location || ''}`
+        : `${dayOfWeek}-${s.startTime}`
 
       if (!patternMap.has(patternId)) {
         patternMap.set(patternId, {
@@ -176,6 +210,36 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
     return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
   }, [weekdayPatterns, selectedScheduleIds])
 
+  // Occurrence statistics: Historical Preserved vs Future to Update
+  const occurrenceStats = useMemo(() => {
+    if (!schedules.length || !selectedMemberId) {
+      return { preservedHistoricalCount: 0, targetFutureCount: 0, totalFutureAvailable: 0 }
+    }
+
+    let preservedHistoricalCount = 0
+    let targetFutureCount = 0
+    let totalFutureAvailable = 0
+
+    schedules.forEach(s => {
+      const isHist = isHistoricalScheduleOccurrence(s, effectiveDate)
+      const isAssigned = s.assignedMembers?.includes(selectedMemberId)
+      const isSelected = selectedScheduleIds.has(s.id)
+
+      if (isHist) {
+        if (isAssigned) {
+          preservedHistoricalCount++
+        }
+      } else {
+        totalFutureAvailable++
+        if (isSelected) {
+          targetFutureCount++
+        }
+      }
+    })
+
+    return { preservedHistoricalCount, targetFutureCount, totalFutureAvailable }
+  }, [schedules, selectedMemberId, effectiveDate, selectedScheduleIds])
+
   if (!isOpen || !publication) return null
 
   const handleTogglePattern = (pattern: ScheduleSlotPattern) => {
@@ -223,15 +287,27 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         isSelected: selectedScheduleIds.has(s.id)
       }))
 
-      await scheduleService.adminUpdateMemberPublicationSchedules(
+      const result = await scheduleService.adminUpdateMemberPublicationSchedulesEffectiveDated(
         publication.id,
         selectedMemberId,
         selections,
-        markAsSubmitted,
-        'Admin'
+        {
+          effectiveDate,
+          markAsSubmitted,
+          adminUser: {
+            uid: user?.uid || profile?.uid || 'Admin',
+            email: user?.email || undefined,
+            role: profile?.role || 'admin',
+            permissions: { canManageSchedules: true }
+          }
+        }
       )
 
-      toast.success(`Schedule successfully updated for ${currentMember ? getFullName(currentMember) : 'member'}.`)
+      toast.success(
+        `Schedule updated for ${currentMember ? getFullName(currentMember) : 'member'}. ` +
+        `(${result.updatedFutureSchedulesCount} future occurrences updated, ` +
+        `${result.preservedHistoricalSchedulesCount} historical occurrences preserved)`
+      )
 
       onSuccess()
       onClose()
@@ -478,6 +554,50 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
                 )}
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Effective Date & Historical Preservation Banner */}
+        <div className="px-4 py-3 sm:px-6 bg-indigo-50/50 border-b border-indigo-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <label htmlFor="effective-date-input" className="text-xs font-black text-slate-800">
+                  Effective Date:
+                </label>
+                <input
+                  id="effective-date-input"
+                  type="date"
+                  value={effectiveDate}
+                  min={publication.startDate}
+                  max={publication.endDate}
+                  onChange={(e) => setEffectiveDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg border border-indigo-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                Occurrences before this date, locked schedules, or finalized sessions remain unchanged.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100/80 border border-emerald-200 text-emerald-800 text-xs font-extrabold shadow-2xs" title="Occurrences that will be assigned or modified from the effective date onward">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Future to Update: {occurrenceStats.targetFutureCount}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100/80 border border-amber-200 text-amber-900 text-xs font-extrabold shadow-2xs" title="Past, locked, or finalized occurrences that are preserved intact">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Historical Preserved: {occurrenceStats.preservedHistoricalCount}
+            </span>
           </div>
         </div>
 

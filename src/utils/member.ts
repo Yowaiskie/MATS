@@ -1,5 +1,5 @@
-import type { Member, MemberInput } from '@/types/member'
-import { getMemberOrders } from '@/types/member'
+import type { Member, MemberInput } from '../types/member.ts'
+import { getMemberOrders } from '../types/member.ts'
 
 /**
  * Formats a member's name as "LastName, FirstName MiddleName Suffix" (with optional Nickname in parentheses).
