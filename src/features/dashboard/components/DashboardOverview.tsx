@@ -193,7 +193,8 @@ export const DashboardOverview: React.FC = () => {
         setLoading(true)
         const dashboardData = await dashboardService.getDashboardData(reportOrderScope)
         setData(dashboardData)
-        nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, profile).catch(() => {})
+        // Reuse already loaded schedules and members to avoid duplicate Firestore collection reads
+        nativeWidgetService.syncUpcomingMassesWidget(dashboardData.monthSchedules, dashboardData.members, profile).catch(() => {})
       } catch (err: any) {
         console.error(err)
         setError('Failed to fetch real-time dashboard data.')

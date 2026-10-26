@@ -198,12 +198,26 @@ class NotificationService {
     const day = String(now.getDate()).padStart(2, '0')
     const todayStr = `${year}-${month}-${day}`
 
+    // Bound the evaluation window to the last 14 days up to today to avoid full database table scans
+    const pastBoundaryDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+    const pYear = pastBoundaryDate.getFullYear()
+    const pMonth = String(pastBoundaryDate.getMonth() + 1).padStart(2, '0')
+    const pDay = String(pastBoundaryDate.getDate()).padStart(2, '0')
+    const startDateStr = `${pYear}-${pMonth}-${pDay}`
+
     const hours = String(now.getHours()).padStart(2, '0')
     const minutes = String(now.getMinutes()).padStart(2, '0')
     const currentTimeStr = `${hours}:${minutes}`
 
+    const schedulesRef = collection(db, 'schedules')
+    const schedulesQuery = query(
+      schedulesRef,
+      where('date', '>=', startDateStr),
+      where('date', '<=', todayStr)
+    )
+
     const [schedulesSnap, sessionsSnap, usersSnap, membersSnap] = await Promise.all([
-      getDocs(collection(db, 'schedules')),
+      getDocs(schedulesQuery),
       getDocs(collection(db, 'attendanceSessions')),
       getDocs(collection(db, USERS_COLLECTION)),
       getDocs(collection(db, 'members'))

@@ -96,10 +96,14 @@ export const nativeWidgetService = {
         return trimmed
       }
 
-      // 1. Fetch schedules if not provided
+      // 1. Fetch schedules if not provided (scoped to today and tomorrow only)
       let schedules = providedSchedules
       if (!schedules || schedules.length === 0) {
-        schedules = await scheduleService.getSchedules()
+        try {
+          schedules = await scheduleService.getSchedulesByDateRange(todayStr, tomorrowStr)
+        } catch {
+          schedules = await scheduleService.getSchedules()
+        }
       }
 
       // 2. Fetch members map if not provided (always include archived for accurate historical lookups)

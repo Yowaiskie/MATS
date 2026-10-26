@@ -83,6 +83,7 @@ export const dashboardService = {
   async getDashboardData(userOrder?: string, deps: DashboardDataDependencies = {}): Promise<{
     stats: DashboardStats
     todaySchedules: Schedule[]
+    monthSchedules: Schedule[]
     activities: ActivityLog[]
     monthBirthdays: BirthdayCelebrant[]
     members: Member[]
@@ -300,17 +301,17 @@ export const dashboardService = {
       })
     })
 
-    // Fetch recent schedules (broad window not constrained to future publication)
+    // Fetch recent schedules (prioritize loaded monthSchedules; fallback to deps.getSchedules if provided)
     let recentScheduleSource = monthSchedules
-    try {
-      const recentWindowSchedules = deps.getSchedules
-        ? await deps.getSchedules()
-        : await scheduleService.getSchedules()
-      if (recentWindowSchedules && recentWindowSchedules.length > 0) {
-        recentScheduleSource = recentWindowSchedules
+    if (deps.getSchedules) {
+      try {
+        const recentWindowSchedules = await deps.getSchedules()
+        if (recentWindowSchedules && recentWindowSchedules.length > 0) {
+          recentScheduleSource = recentWindowSchedules
+        }
+      } catch {
+        recentScheduleSource = monthSchedules
       }
-    } catch {
-      recentScheduleSource = monthSchedules
     }
 
     // Map schedule activities (up to 5 latest)
@@ -372,6 +373,7 @@ export const dashboardService = {
     return {
       stats,
       todaySchedules,
+      monthSchedules,
       activities: activities.slice(0, 10), // show up to top 10 latest activities
       monthBirthdays,
       members: allMembers

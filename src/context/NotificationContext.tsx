@@ -35,7 +35,7 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
 const IDLE_DISCONNECT_MS = 5 * 60 * 1000 // 5 minutes in background
-const UNTAKEN_CHECK_INTERVAL_MS = 60 * 1000 // Check every 60 seconds for newly passed mass times
+const UNTAKEN_CHECK_INTERVAL_MS = 15 * 60 * 1000 // Check every 15 minutes while active tab to save Firestore quota
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, profile, isAdmin, canAction, hasModuleAccess } = useAuth()
@@ -157,6 +157,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const refreshUntaken = useCallback(async () => {
     if (!user?.uid) return
+    // Prevent fetching when tab is backgrounded / idle
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
     try {
       const data = await notificationService.getUntakenSchedules()
       if (isMountedRef.current) {
@@ -179,7 +181,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     refreshUntaken()
-    periodicTimerRef.current = setInterval(refreshUntaken, UNTAKEN_CHECK_INTERVAL_MS)
+    periodicTimerRef.current = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshUntaken()
+      }
+    }, UNTAKEN_CHECK_INTERVAL_MS)
 
     return () => {
       if (periodicTimerRef.current) {
