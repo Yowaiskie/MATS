@@ -13,6 +13,7 @@ import {
 } from 'firebase/firestore'
 import {
   type ScheduleSubmission,
+  type RequestedSlotSummary,
   type CreateSubmissionInput,
   type ApproveSubmissionOptions,
   type RejectSubmissionOptions,
@@ -180,6 +181,23 @@ export function validateSubmission(
     throw new Error('A submission cannot exceed 50 requested schedule slots.')
   }
 
+  if (input.requestedScheduleIds.some(id => typeof id !== 'string' || !id.trim())) {
+    throw new Error('Each requested schedule must have a valid ID.')
+  }
+
+  if (input.slotSummaries !== undefined) {
+    if (!Array.isArray(input.slotSummaries)) throw new Error('Slot summaries must be a list.')
+    for (const summary of input.slotSummaries) {
+      if (!summary || typeof summary.startTime !== 'string' || !summary.startTime.trim()) {
+        throw new Error('Each slot summary requires a start time.')
+      }
+      if (!Array.isArray(summary.scheduleIds) || summary.scheduleIds.length === 0 ||
+        summary.scheduleIds.some(id => typeof id !== 'string' || !id.trim())) {
+        throw new Error('Each slot summary requires valid schedule IDs.')
+      }
+    }
+  }
+
   // Schedule ownership verification: every requested schedule ID must belong to this publication
   if (publicationSchedules && publicationSchedules.length > 0) {
     const validScheduleIds = new Set(
@@ -192,6 +210,10 @@ export function validateSubmission(
         throw new Error(`Selected schedule (${id}) does not belong to this publication.`)
       }
     }
+  }
+
+  if (typeof input.memberName !== 'string' || !input.memberName.trim()) {
+    throw new Error('Altar server name is required.')
   }
 }
 
@@ -311,6 +333,18 @@ export const submissionService = {
 
     const nowIso = new Date().toISOString()
     const memberNameClean = input.memberName.trim().slice(0, 150)
+    // Public patterns may omit a location or other optional display metadata.
+    // Firestore rejects undefined inside nested array objects. Whitelist optional
+    // fields here while keeping validated required fields explicit and unchanged.
+    const slotSummaries: RequestedSlotSummary[] = (input.slotSummaries ?? []).map(summary => ({
+      startTime: summary.startTime,
+      scheduleIds: summary.scheduleIds,
+      ...(summary.dayOfWeek !== undefined ? { dayOfWeek: summary.dayOfWeek } : {}),
+      ...(summary.dayName !== undefined ? { dayName: summary.dayName } : {}),
+      ...(summary.title !== undefined ? { title: summary.title } : {}),
+      ...(summary.location !== undefined ? { location: summary.location } : {}),
+      ...(summary.datesCount !== undefined ? { datesCount: summary.datesCount } : {})
+    }))
 
     const submissionData = {
       id: submissionId,
@@ -320,7 +354,7 @@ export const submissionService = {
       memberRank: input.memberRank || member.rank || '',
       status: 'pending' as const,
       requestedScheduleIds: input.requestedScheduleIds,
-      slotSummaries: input.slotSummaries || [],
+      slotSummaries,
       submittedAt: nowIso,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()

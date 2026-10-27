@@ -9,6 +9,7 @@ import type { SchedulePublication } from '../src/types/publication.ts';
 import type { Member } from '../src/types/member.ts';
 import type { Schedule } from '../src/types/schedule.ts';
 import type { CreateSubmissionInput } from '../src/types/submission.ts';
+import type { Firestore } from 'firebase/firestore';
 
 const basePublication: SchedulePublication = {
   id: 'pub-test-2026',
@@ -62,6 +63,43 @@ const baseSchedules: Schedule[] = [
     updatedAt: {} as any
   }
 ];
+
+test('real intake service omits only optional undefined summary fields with one read and one write', async () => {
+  let reads = 0
+  const writes: Record<string, unknown>[] = []
+  const assertDefined = (value: unknown) => {
+    assert.notEqual(value, undefined)
+    if (Array.isArray(value)) value.forEach(assertDefined)
+    else if (value && typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) Object.values(value).forEach(assertDefined)
+  }
+  const db = {
+    getDoc: async () => { reads++; return { exists: () => false } },
+    setDoc: async (_collection: string, _id: string, data: Record<string, unknown>) => {
+      assertDefined(data)
+      writes.push(data)
+    }
+  } as unknown as Firestore
+  const input: CreateSubmissionInput = {
+    publicationId: basePublication.id, memberId: baseMember.id, memberName: '  Juan Dela Cruz  ',
+    requestedScheduleIds: [baseSchedules[0].id],
+    slotSummaries: [{ startTime: '06:00', scheduleIds: [baseSchedules[0].id], dayOfWeek: 0, dayName: undefined, title: undefined, location: undefined, datesCount: undefined }]
+  }
+  const result = await submissionService.createPendingSubmission(input, { firestoreInstance: db, publication: basePublication, member: baseMember, publicationSchedules: baseSchedules, serverTime: Date.parse('2026-11-01T00:00:00Z') })
+  assert.equal(reads, 1)
+  assert.equal(writes.length, 1)
+  assert.equal(result.memberName, 'Juan Dela Cruz')
+  assert.deepEqual(result.slotSummaries, [{ startTime: '06:00', scheduleIds: [baseSchedules[0].id], dayOfWeek: 0 }])
+  assert.equal(Object.hasOwn(input.slotSummaries![0], 'location'), true, 'Caller input must not be mutated')
+})
+
+test('required public submission fields are validated rather than sanitized to empty defaults', () => {
+  const input: CreateSubmissionInput = { publicationId: basePublication.id, memberId: baseMember.id, memberName: 'Juan Dela Cruz', requestedScheduleIds: [baseSchedules[0].id] }
+  const context = { publication: basePublication, member: baseMember, publicationSchedules: baseSchedules, serverTime: Date.parse('2026-11-01T00:00:00Z') }
+  for (const memberName of ['', '   ', undefined]) assert.throws(() => validateSubmission({ ...input, memberName } as CreateSubmissionInput, context), /name is required/)
+  assert.throws(() => validateSubmission({ ...input, requestedScheduleIds: [undefined] } as unknown as CreateSubmissionInput, context), /valid ID/)
+  assert.throws(() => validateSubmission({ ...input, slotSummaries: [{ scheduleIds: [baseSchedules[0].id] }] } as unknown as CreateSubmissionInput, context), /start time/)
+  assert.throws(() => validateSubmission({ ...input, slotSummaries: [{ startTime: '06:00' }] } as unknown as CreateSubmissionInput, context), /valid schedule IDs/)
+})
 
 test('1. Deterministic Submission ID Generation', () => {
   const id = getSubmissionId('pub-test-2026', 'mem-101');
