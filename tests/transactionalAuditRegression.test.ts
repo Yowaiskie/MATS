@@ -90,6 +90,13 @@ class MockTransactionalStore {
 
         return result;
       },
+      collection: (colPath: string) => ({
+        docs: Array.from((this.collections.get(colPath) || new Map()).entries()).map(([id, data]) => ({
+          id,
+          exists: () => true,
+          data: () => JSON.parse(JSON.stringify(data))
+        }))
+      }),
       doc: (colPath: string, docId?: string) => ({
         collection: colPath,
         id: docId || `audit_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`

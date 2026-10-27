@@ -1987,7 +1987,7 @@ export const PublicationFormModal: React.FC<Props> = ({
               </div>
             )}
 
-            {!publication && publicationType === 'regular' && (
+            {publication?.status !== 'archived' && publicationType === 'regular' && (
               <div className="space-y-3 p-4 border border-blue-100 bg-blue-50/30 rounded-xl">
                 <label className="flex items-start gap-2.5 cursor-pointer">
                   <input
@@ -1999,7 +1999,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                   <div className="flex flex-col">
                     <span className="text-xs font-bold text-blue-900">Generate Schedules from Templates</span>
                     <span className="text-[10px] text-blue-700 leading-relaxed mt-0.5">
-                      Automatically create schedule slots between the Start and End dates using selected active Schedule Templates.
+                      Create missing schedule slots using selected active templates. Existing schedules and assignments are preserved, so this can also retry an interrupted generation.
                     </span>
                   </div>
                 </label>

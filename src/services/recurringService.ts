@@ -11,6 +11,8 @@ import { db } from '@/firebase/config'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
+import type { ScheduleInput } from '@/types/schedule'
+import { GenerationContextChangedError, getOccurrenceContext, getOccurrenceKey, validateScheduleRange } from '../utils/scheduleIntegrity.ts'
 import { isTimeOverlapping, OFFICIAL_REGULAR_MASS_SLOTS, isOfficialRegularMassSlot } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { scheduleService } from './scheduleService'
@@ -267,18 +269,19 @@ export const recurringService = {
       validationErrors: [] as string[]
     }
 
-    if (startDate > endDate) {
-      result.validationErrors.push('Start Date must be before or equal to End Date.')
-      return result
-    }
+    validateScheduleRange(startDate, endDate)
+
+    // One bounded server range query, shared across all template iterations.
+    const generation = await scheduleService.prepareGeneration(startDate, endDate, options?.publicationId)
+    const existingSchedules = generation.schedules
 
     // Load rotation settings & members if autoRotateOrderGroups is enabled
-    let rotationSettings = await settingsService.getOrderRotationSettings()
+    const rotationSettings = options?.autoRotateOrderGroups ? await settingsService.getOrderRotationSettings() : null
     let allMembers: Member[] = []
     let rotationStartIndex = 0
     const trackRotationIndices: Record<string, number> = {}
 
-    if (options?.autoRotateOrderGroups) {
+    if (options?.autoRotateOrderGroups && rotationSettings) {
       try {
         allMembers = await memberService.getMembers(true)
         const sequence = rotationSettings.rotationSequence && rotationSettings.rotationSequence.length > 0
@@ -297,8 +300,7 @@ export const recurringService = {
       }
     }
 
-    // Load all existing schedules to check for duplicate entries and assignment conflicts in memory
-    const existingSchedules = await scheduleService.getSchedules()
+    // Keep the bounded snapshot in memory to detect legacy random-ID records too.
 
     // Parse date bounds cleanly avoiding UTC timezone offsets
     const [sY, sM, sD] = startDate.split('-').map(Number)
@@ -329,27 +331,32 @@ export const recurringService = {
           slotEndTime = `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
         }
 
-        // 2. Duplicate schedule check (same date & startTime for this publication)
-        const isDuplicate = existingSchedules.some(s => {
-          if (options?.publicationId) {
-            return s.publicationId === options.publicationId &&
-              s.date === dateStr &&
-              s.startTime === temp.startTime
-          }
-          return s.title.toLowerCase() === temp.title.toLowerCase() &&
-            s.date === dateStr &&
-            s.startTime === temp.startTime
-        })
+        const occurrence: ScheduleInput = {
+          publicationId: options?.publicationId,
+          templateId: temp.id,
+          title: temp.title,
+          category: ((d.getDay() === 0 || (d.getDay() === 6 && temp.startTime >= '18:00')) ? 'mass_sunday' : 'mass_weekday') as ScheduleCategoryKey,
+          date: dateStr, startTime: temp.startTime, endTime: slotEndTime,
+          location: temp.location || '', status: 'upcoming'
+        }
+        // Same context only: Special Masses/other locations are independent.
+        const contextMatches = existingSchedules.filter(schedule => getOccurrenceContext(schedule) === getOccurrenceContext(occurrence))
+        const isDuplicate = contextMatches.some(schedule => getOccurrenceKey(schedule) === getOccurrenceKey(occurrence))
 
         if (isDuplicate) {
           result.duplicates++
           result.skipped++
           continue
         }
+        if (contextMatches.length > 0) {
+          result.validationErrors.push(`Ownership review required for ${dateStr} ${temp.startTime}: existing schedule(s) ${contextMatches.map(schedule => schedule.id).join(', ')}. No records were reassigned.`)
+          result.skipped++
+          continue
+        }
 
         // 3. Resolve assigned members (Auto-rotate order groups if applicable)
         let assignedMemberIds: string[] = []
-        if (options?.autoRotateOrderGroups && orderRotationService.matchesRotationTarget(temp, rotationSettings)) {
+        if (options?.autoRotateOrderGroups && rotationSettings && orderRotationService.matchesRotationTarget(temp, rotationSettings)) {
           const sequence = rotationSettings.rotationSequence && rotationSettings.rotationSequence.length > 0
             ? rotationSettings.rotationSequence
             : ['Order of San Pedro', 'Order of San Juan', 'Order of San Tiago', 'Order of San Andres']
@@ -371,28 +378,17 @@ export const recurringService = {
 
         // 4. Create the schedule doc in Firestore
         try {
-          const newId = await scheduleService.addSchedule({
-            publicationId: options?.publicationId,
-            templateId: temp.id,
-            title: temp.title,
-            category: ((temp.dayOfWeek === 'Sunday' || (temp.dayOfWeek === 'Saturday' && temp.startTime >= '18:00')) ? 'mass_sunday' : 'mass_weekday') as ScheduleCategoryKey,
-            date: dateStr,
-            startTime: temp.startTime,
-            endTime: slotEndTime,
-            status: 'upcoming',
-            assignedMembers: assignedMemberIds
-          })
+          const saved = await scheduleService.createGeneratedSchedule({ ...occurrence, assignedMembers: assignedMemberIds }, 'System', generation.publicationRevision)
+          if (!saved.created) {
+            result.duplicates++
+            result.skipped++
+            continue
+          }
 
           // Add to in-memory list to catch conflicts in subsequent generator iterations
           existingSchedules.push({
-            id: newId,
-            publicationId: options?.publicationId,
-            templateId: temp.id,
-            title: temp.title,
-            category: ((temp.dayOfWeek === 'Sunday' || (temp.dayOfWeek === 'Saturday' && temp.startTime >= '18:00')) ? 'mass_sunday' : 'mass_weekday') as ScheduleCategoryKey,
-            date: dateStr,
-            startTime: temp.startTime,
-            endTime: slotEndTime,
+            ...occurrence,
+            id: saved.id,
             status: 'upcoming',
             assignedMembers: assignedMemberIds,
             createdAt: new Date(),
@@ -403,6 +399,7 @@ export const recurringService = {
         } catch (err: any) {
           result.validationErrors.push(`Failed to save generated schedule for date ${dateStr}: ${err.message}`)
           result.skipped++
+          if (err instanceof GenerationContextChangedError) return result
         }
       }
     }

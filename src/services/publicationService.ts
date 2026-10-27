@@ -1,9 +1,7 @@
 import { 
   collection, 
   doc, 
-  addDoc, 
   updateDoc, 
-  deleteDoc, 
   getDoc, 
   getDocs, 
   query, 
@@ -12,11 +10,13 @@ import {
   arrayUnion, 
   arrayRemove,
   runTransaction,
+  type Transaction,
   type Firestore
 } from 'firebase/firestore'
 import type { SchedulePublication, SchedulePublicationInput, PublicationStatus } from '../types/publication.ts'
 import type { AdminUserContext } from '../types/submission.ts'
 import { getParishTodayDate } from '../utils/scheduleUtils.ts'
+import { guardPublicationMutation, guardPublicationRangeEdit, integrityDoc, needsPublicationOverlapCheck, scheduleIntegrityService } from './scheduleIntegrityService.ts'
 
 export interface PublicationLifecycleOptions {
   db?: Firestore
@@ -78,35 +78,18 @@ async function getDocument(firestoreInstance: any, collectionPath: string, docId
   return getDoc(docRef)
 }
 
-async function updateDocument(firestoreInstance: any, collectionPath: string, docId: string, data: any): Promise<void> {
-  if (firestoreInstance && typeof firestoreInstance.updateDoc === 'function') {
-    return firestoreInstance.updateDoc(collectionPath, docId, data)
-  }
-  const docRef = getDocumentRef(firestoreInstance, collectionPath, docId)
-  return updateDoc(docRef, data)
-}
-
-async function deleteDocument(firestoreInstance: any, collectionPath: string, docId: string): Promise<void> {
-  if (firestoreInstance && typeof firestoreInstance.deleteDoc === 'function') {
-    return firestoreInstance.deleteDoc(collectionPath, docId)
-  }
-  const docRef = getDocumentRef(firestoreInstance, collectionPath, docId)
-  return deleteDoc(docRef)
-}
-
-async function safeLogAudit(
-  action: any,
-  category: any,
+function writePublicationAudit(
+  firestoreInstance: Firestore,
+  transaction: Transaction,
+  action: 'SCHEDULE_CREATE' | 'SCHEDULE_UPDATE' | 'SCHEDULE_DELETE',
   description: string,
   performedBy: string,
-  details?: any
-): Promise<void> {
-  try {
-    const { auditService } = await import('./auditService.ts')
-    await auditService.logAction(action, category, description, performedBy, details)
-  } catch {
-    // Non-blocking in offline/test environments
-  }
+  details: Record<string, unknown>
+): void {
+  transaction.set(createNewDocumentRef(firestoreInstance, 'auditLogs'), {
+    action, category: 'schedule', description, performedBy, timestamp: serverTimestamp(),
+    details: JSON.parse(JSON.stringify(details))
+  })
 }
 
 /**
@@ -243,10 +226,10 @@ export const publicationService = {
    */
   async addPublication(input: SchedulePublicationInput, performedBy = 'System', db?: Firestore): Promise<string> {
     const firestoreInstance = await getEffectiveDb(db)
-    const pubRef = getCollectionRef(firestoreInstance, PUBLICATIONS_COLLECTION)
     const deadlineMs = input.submissionDeadlineMs ?? parseDeadlineMs(input.submissionDeadline)
 
-    const docRef = await addDoc(pubRef, {
+    const docRef = createNewDocumentRef(firestoreInstance, PUBLICATIONS_COLLECTION)
+    const publicationData = {
       name: input.name.trim(),
       startDate: input.startDate,
       endDate: input.endDate,
@@ -280,15 +263,14 @@ export const publicationService = {
       suspensionAbsenceThreshold: input.suspensionAbsenceThreshold ?? 5,
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp()
+    }
+    await executeLifecycleTransaction<void>(firestoreInstance, undefined, async transaction => {
+      await guardPublicationMutation(firestoreInstance, transaction, { ...publicationData, id: docRef.id } as SchedulePublication)
+      transaction.set(docRef, publicationData)
+      writePublicationAudit(firestoreInstance, transaction, 'SCHEDULE_CREATE',
+        `Created publication '${input.name}' (${input.publicationType === 'special_event' ? 'Special Occasion' : 'Regular Cycle'})`,
+        performedBy, { publicationId: docRef.id, input })
     })
-
-    await safeLogAudit(
-      'SCHEDULE_CREATE',
-      'schedule',
-      `Created publication '${input.name}' (${input.publicationType === 'special_event' ? 'Special Occasion' : 'Regular Cycle'})`,
-      performedBy,
-      { publicationId: docRef.id, input }
-    )
 
     return docRef.id
   },
@@ -342,15 +324,18 @@ export const publicationService = {
     if (input.warningAbsenceThreshold !== undefined) updateData.warningAbsenceThreshold = input.warningAbsenceThreshold
     if (input.suspensionAbsenceThreshold !== undefined) updateData.suspensionAbsenceThreshold = input.suspensionAbsenceThreshold
 
-    await updateDocument(firestoreInstance, PUBLICATIONS_COLLECTION, id, updateData)
-
-    await safeLogAudit(
-      'SCHEDULE_UPDATE',
-      'schedule',
-      `Updated publication details for ID: ${id} (${input.name || ''})`,
-      performedBy,
-      { publicationId: id, updates: input }
-    )
+    await executeLifecycleTransaction<void>(firestoreInstance, undefined, async transaction => {
+      const publicationRef = integrityDoc(firestoreInstance, PUBLICATIONS_COLLECTION, id)
+      const snapshot = await transaction.get(publicationRef)
+      if (!doesSnapshotExist(snapshot)) throw new Error(`Publication '${id}' not found.`)
+      const current = { ...snapshot.data(), id } as SchedulePublication
+      const next = { ...current, ...updateData } as SchedulePublication
+      if (needsPublicationOverlapCheck(current, next)) await guardPublicationRangeEdit(firestoreInstance, current, next)
+      await guardPublicationMutation(firestoreInstance, transaction, next, needsPublicationOverlapCheck(current, next))
+      transaction.update(publicationRef, updateData)
+      writePublicationAudit(firestoreInstance, transaction, 'SCHEDULE_UPDATE',
+        `Updated publication details for ID: ${id} (${input.name || ''})`, performedBy, { publicationId: id, updates: input })
+    })
   },
 
   /**
@@ -358,15 +343,17 @@ export const publicationService = {
    */
   async deletePublication(id: string, performedBy = 'System', db?: Firestore): Promise<void> {
     const firestoreInstance = await getEffectiveDb(db)
-    await deleteDocument(firestoreInstance, PUBLICATIONS_COLLECTION, id)
-
-    await safeLogAudit(
-      'SCHEDULE_DELETE',
-      'schedule',
-      `Deleted publication with ID: ${id}`,
-      performedBy,
-      { publicationId: id }
-    )
+    await executeLifecycleTransaction<void>(firestoreInstance, undefined, async transaction => {
+      const publicationRef = integrityDoc(firestoreInstance, PUBLICATIONS_COLLECTION, id)
+      const snapshot = await transaction.get(publicationRef)
+      if (!doesSnapshotExist(snapshot)) throw new Error(`Publication '${id}' not found.`)
+      const current = { ...snapshot.data(), id } as SchedulePublication
+      await scheduleIntegrityService.assertDeletable(firestoreInstance, current)
+      await guardPublicationMutation(firestoreInstance, transaction, current, false)
+      transaction.delete(publicationRef)
+      writePublicationAudit(firestoreInstance, transaction, 'SCHEDULE_DELETE',
+        `Deleted publication with ID: ${id}`, performedBy, { publicationId: id })
+    })
   },
 
   /**
@@ -558,6 +545,7 @@ export const publicationService = {
         updatedAt: serverTimestamp()
       }
 
+      await guardPublicationMutation(firestoreInstance, transaction, { ...current, id, ...updateData }, current.status === 'archived')
       transaction.update(pubRef, updateData)
 
       // Atomically create audit log within the same transaction
@@ -628,6 +616,7 @@ export const publicationService = {
         updatedAt: serverTimestamp()
       }
 
+      await guardPublicationMutation(firestoreInstance, transaction, { ...current, id, ...updateData }, current.status === 'archived')
       transaction.update(pubRef, updateData)
 
       // Atomically create audit log within the same transaction

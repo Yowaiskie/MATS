@@ -32,6 +32,10 @@ test('Live Firestore Security Rules Test Suite via Emulator', async (t) => {
     return;
   }
 
+  // Reset this demo emulator project so repeated runs do not turn creates into
+  // forbidden public updates or attempts to overwrite immutable audit records.
+  await testEnv.clearFirestore();
+
   // 0. Seed test fixtures with security rules disabled
   await testEnv.withSecurityRulesDisabled(async (context: any) => {
     const adminDb = context.firestore();

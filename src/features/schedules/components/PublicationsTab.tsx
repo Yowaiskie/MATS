@@ -3,13 +3,15 @@ import { publicationService } from '@/services/publicationService'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isScheduleIncludedInPublication, isMemberEligibleForPublication, isPublicationDeadlinePassed } from '@/utils/scheduleUtils'
+import { isMemberEligibleForPublication, isPublicationDeadlinePassed, isHistoricalScheduleOccurrence } from '@/utils/scheduleUtils'
+import { getOccurrenceContext } from '@/utils/scheduleIntegrity'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import { ConfirmModal } from '@/components/Dialog'
 import { ActionMenu, Pagination } from '@/components'
 import { PublicationFormModal, type CustomEventSlotInput } from './PublicationFormModal'
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
+import { DuplicateScheduleReportModal } from './DuplicateScheduleReportModal'
 import { useToast } from '@/context/ToastContext'
 
 const PAGE_SIZE = 8
@@ -27,6 +29,7 @@ export const PublicationsTab: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1)
 
   const [formOpen, setFormOpen] = useState(false)
+  const [duplicateReportOpen, setDuplicateReportOpen] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<SchedulePublication | null>(null)
   const [exportPdfPub, setExportPdfPub] = useState<SchedulePublication | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
@@ -115,7 +118,7 @@ export const PublicationsTab: React.FC = () => {
       toast.success('Deleted', 'Publication has been deleted.')
     } catch (err: any) {
       console.error(err)
-      toast.error('Delete Failed', err.message || 'Failed to delete publication.')
+      toast.error('Publication Preserved', err.message || 'Unable to verify this publication is empty. Archive it instead.')
     }
   }
 
@@ -213,10 +216,13 @@ export const PublicationsTab: React.FC = () => {
     setLoading(true)
     try {
       let lockedCount = 0
+      // Validate reactivation before any unlock; a rejected overlap must leave
+      // the archived publication's schedule locks untouched.
+      if (isLocked === false) await publicationService.updatePublication(pub.id, { status: targetStatus })
       if (isLocked !== undefined) {
         lockedCount = await scheduleService.bulkLockSchedules(pub.startDate, pub.endDate, isLocked, 'System', pub)
       }
-      await publicationService.updatePublication(pub.id, { status: targetStatus })
+      if (isLocked !== false) await publicationService.updatePublication(pub.id, { status: targetStatus })
       await loadData()
       toast.success(
         targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Updated',
@@ -244,43 +250,37 @@ export const PublicationsTab: React.FC = () => {
       pubId = await publicationService.addPublication(input)
     }
 
-    if (input.status === 'published' && pubId) {
-      try {
-        await scheduleService.bulkLockSchedules(input.startDate, input.endDate, false, 'System', { id: pubId, ...input })
-      } catch (err) {
-        console.warn('Failed to unlock schedules on publication save:', err)
-      }
-    }
+    // Saving settings or retrying generation must not unlock existing schedules.
+    // Unlocking remains an explicit publication lifecycle action.
     
     // 1. If custom event / street mass slots are provided to generate, update, or remove
     if (customEventSlots !== undefined && (input.publicationType === 'special_event' || input.enableStreetLocation || (input.includedDaysOfWeek && input.includedDaysOfWeek.length > 0) || customEventSlots.length > 0)) {
       try {
-        // Query broad month boundary start/end to fetch all schedules across the month
-        const [sY, sM] = input.startDate.split('-').map(Number)
-        const [eY, eM] = input.endDate.split('-').map(Number)
-        const qStart = `${sY}-${String(sM).padStart(2, '0')}-01`
-        const lastDay = new Date(eY, eM, 0).getDate()
-        const qEnd = `${eY}-${String(eM).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
-
-        const existingSchedules = await scheduleService.getSchedulesByDateRange(qStart, qEnd)
-        const retainedScheduleIds = new Set<string>()
+        const { schedules: existingSchedules } = await scheduleService.prepareGeneration(input.startDate, input.endDate, pubId)
         let createdCount = 0
         let updatedCount = 0
+        let retainedCount = 0
 
         for (const slot of customEventSlots) {
-          // Check if schedule already exists for this slot:
-          // Strictly match by exact scheduleId OR by same date, startTime, and owning publicationId
-          const existing = existingSchedules.find(s => 
-            (slot.scheduleId && s.id === slot.scheduleId) ||
-            (s.publicationId && pubId && s.publicationId === pubId && s.date === slot.date && s.startTime === slot.startTime) ||
-            (!s.publicationId && s.date === slot.date && s.startTime === slot.startTime && s.title.toLowerCase() === (slot.title || input.name).toLowerCase())
-          )
+          const slotInput = {
+            ...slot, publicationId: pubId, title: slot.title || input.name || 'Special Mass',
+            category: input.publicationType === 'special_event' ? 'special_event' as const : undefined
+          }
+          const existing = existingSchedules.find(schedule => slot.scheduleId
+            ? schedule.id === slot.scheduleId
+            : schedule.publicationId === pubId && getOccurrenceContext(schedule) === getOccurrenceContext(slotInput))
+
+          if (slot.scheduleId && !existing) throw new Error('A selected schedule is outside this range or no longer exists. Reload before saving.')
 
           if (existing) {
-            retainedScheduleIds.add(existing.id)
+            if (existing.publicationId !== pubId) throw new Error(`Schedule ${existing.id} requires an ownership review. No record was reassigned.`)
+            if (existing.isLocked || existing.status === 'completed' || isHistoricalScheduleOccurrence(existing)) {
+              // Saving publication settings must not rewrite historical occurrences.
+              retainedCount++
+              continue
+            }
             // Update existing schedule location and details
-            await scheduleService.updateSchedule(existing.id, {
-              publicationId: pubId,
+            const updated = await scheduleService.updatePublicationSchedule(pubId!, existing.id, {
               title: slot.title || input.name || existing.title,
               date: slot.date || existing.date,
               startTime: slot.startTime || existing.startTime,
@@ -289,10 +289,13 @@ export const PublicationsTab: React.FC = () => {
               liturgicalColor: slot.liturgicalColor || input.liturgicalColor || '',
               category: input.publicationType === 'special_event' ? 'special_event' : existing.category
             })
-            updatedCount++
+            if (updated) updatedCount++
+            else retainedCount++
           } else {
             // Add new schedule only if it doesn't already exist
-            const newId = await scheduleService.addSchedule({
+            const legacyMatch = existingSchedules.find(schedule => !schedule.publicationId && getOccurrenceContext(schedule) === getOccurrenceContext(slotInput))
+            if (legacyMatch) throw new Error(`Legacy schedule ${legacyMatch.id} needs an ownership review. No record was reassigned.`)
+            const saved = await scheduleService.createGeneratedSchedule({
               publicationId: pubId,
               title: slot.title || input.name || 'Special Mass',
               date: slot.date,
@@ -304,31 +307,18 @@ export const PublicationsTab: React.FC = () => {
               status: 'upcoming',
               assignedMembers: []
             })
-            retainedScheduleIds.add(newId)
-            createdCount++
+            if (saved.created) createdCount++
           }
         }
 
-        // Clean up any removed schedules from Firestore for this publication ONLY if they have NO assigned servers
-        let deletedCount = 0
-        if (selectedPublication && (input.publicationType === 'special_event' || selectedPublication.publicationType === 'special_event')) {
-          const toDelete = existingSchedules.filter(s => 
-            !retainedScheduleIds.has(s.id) && 
-            isScheduleIncludedInPublication(s, selectedPublication) &&
-            (!s.assignedMembers || s.assignedMembers.length === 0)
-          )
-          for (const delSched of toDelete) {
-            await scheduleService.deleteSchedule(delSched.id, 'Publication Sync')
-            deletedCount++
-          }
-        }
+        // Removing a slot from this form never deletes persisted schedules/history.
 
         let msg = 'Publication saved successfully.'
-        if (createdCount > 0 || updatedCount > 0 || deletedCount > 0) {
+        if (createdCount > 0 || updatedCount > 0 || retainedCount > 0) {
           const parts: string[] = []
           if (createdCount > 0) parts.push(`generated ${createdCount} new slot(s)`)
           if (updatedCount > 0) parts.push(`updated ${updatedCount} slot(s)`)
-          if (deletedCount > 0) parts.push(`removed ${deletedCount} deleted slot(s)`)
+          if (retainedCount > 0) parts.push(`retained ${retainedCount} slot(s) without changes`)
           msg = `Saved! ${parts.join(', ')}.`
         }
 
@@ -345,7 +335,7 @@ export const PublicationsTab: React.FC = () => {
     }
 
     // 2. Regular template-based generation
-    if (!selectedPublication && generateSchedules && selectedTemplateIds && pubId) {
+    if (generateSchedules && selectedTemplateIds && pubId) {
       try {
         const activeTemplates = (await recurringService.getTemplates())
           .filter(t => t.active && selectedTemplateIds.includes(t.id))
@@ -358,15 +348,16 @@ export const PublicationsTab: React.FC = () => {
             { publicationId: pubId }
           )
           toast.success(
-            'Publication Created', 
-            `Created successfully! Generated ${report.created} schedule(s) from templates. (Skipped: ${report.skipped}, Duplicates: ${report.duplicates})`
+            selectedPublication ? 'Publication Updated' : 'Publication Created',
+            `Generated ${report.created} schedule(s) from templates. (Skipped: ${report.skipped}, Duplicates: ${report.duplicates})`
           )
+          if (report.validationErrors.length > 0) toast.error('Schedules Need Review', report.validationErrors.join('\n'))
         } else {
-          toast.success('Publication Created', 'Created successfully, but no active templates were found to generate schedules.')
+          toast.success('Publication Saved', 'No active templates were found to generate schedules.')
         }
       } catch (err: any) {
         console.error(err)
-        toast.error('Warning', `Publication created, but failed to generate schedules: ${err.message}`)
+        toast.error('Warning', `Publication saved, but failed to generate schedules: ${err.message}`)
       }
       await loadData()
       return
@@ -410,6 +401,7 @@ export const PublicationsTab: React.FC = () => {
         <div>
           <h2 className="text-xl font-bold text-gray-900">Publications</h2>
           <p className="text-xs text-gray-500">Manage batched schedules for public access.</p>
+          <button type="button" onClick={() => setDuplicateReportOpen(true)} className="mt-2 text-xs font-bold text-indigo-700 hover:underline">Review duplicate schedules</button>
         </div>
         <button
           onClick={() => {
@@ -733,7 +725,9 @@ export const PublicationsTab: React.FC = () => {
                           }
                         },
                         {
-                          label: 'Delete Publication',
+                          label: 'Delete Empty Draft',
+                          disabled: pub.status !== 'draft',
+                          title: 'Publications with schedules or history must be archived instead.',
                           variant: 'danger' as const,
                           icon: (
                             <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1034,7 +1028,9 @@ export const PublicationsTab: React.FC = () => {
                                   }
                                 },
                                 {
-                                  label: 'Delete Publication',
+                                  label: 'Delete Empty Draft',
+                                  disabled: pub.status !== 'draft',
+                                  title: 'Publications with schedules or history must be archived instead.',
                                   variant: 'danger' as const,
                                   icon: (
                                     <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1079,9 +1075,11 @@ export const PublicationsTab: React.FC = () => {
         onConfirm={handleDeleteConfirmed}
         variant="danger"
         title="Delete Publication"
-        message="Are you sure you want to delete this publication? This does not delete any schedules."
+        message="Only an empty future draft can be deleted. Publications with schedules or history must be archived instead. No schedules will be deleted."
         confirmLabel="Delete"
       />
+
+      {duplicateReportOpen && <DuplicateScheduleReportModal onClose={() => setDuplicateReportOpen(false)} />}
 
       <ConfirmModal
         isOpen={!!confirmStatusAction}

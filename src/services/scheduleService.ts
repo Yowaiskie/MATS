@@ -38,6 +38,7 @@ import {
 import { getFullName } from '../utils/member.ts'
 import type { Member } from '../types/member.ts'
 import { SubmissionError } from '../types/submission.ts'
+import { scheduleIntegrityService, type DuplicateScheduleReport } from './scheduleIntegrityService.ts'
 
 const SCHEDULES_COLLECTION = 'schedules'
 const ATTENDANCE_COLLECTION = 'attendance'
@@ -85,6 +86,22 @@ const sortSchedulesChronologically = (schedules: Schedule[]): Schedule[] => {
 }
 
 export const scheduleService = {
+  async prepareGeneration(startDate: string, endDate: string, publicationId?: string) {
+    return scheduleIntegrityService.prepareGeneration(db, startDate, endDate, publicationId)
+  },
+
+  async createGeneratedSchedule(input: ScheduleInput, performedBy = 'System', publicationRevision?: number) {
+    return scheduleIntegrityService.createOccurrence(db, input, performedBy, publicationRevision)
+  },
+
+  async updatePublicationSchedule(publicationId: string, id: string, input: Partial<ScheduleInput>, performedBy = 'System') {
+    return scheduleIntegrityService.updateOccurrence(db, publicationId, id, input, performedBy)
+  },
+
+  async getDuplicateReport(startDate: string, endDate: string, previous?: DuplicateScheduleReport) {
+    return scheduleIntegrityService.getDuplicateReport(db, startDate, endDate, previous)
+  },
+
   /**
    * Retrieves all schedules sorted chronologically by date and startTime.
    */
