@@ -236,7 +236,7 @@ export const AdminMassAssignmentPanel: React.FC<Props> = ({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 sm:pb-32">
       {/* Admin Mode Header Banner */}
       <div className="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-indigo-700/60 rounded-2xl p-4 sm:p-5 text-white shadow-md">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -321,9 +321,9 @@ export const AdminMassAssignmentPanel: React.FC<Props> = ({
 
       {/* Mass Slot Assignment Workspace */}
       {activePattern && (
-        <form onSubmit={handleSaveClick} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
+        <form onSubmit={handleSaveClick} className="bg-white rounded-2xl border border-slate-200/80 shadow-xs">
           {/* Active Pattern Card Header */}
-          <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-t-2xl">
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black text-indigo-600 uppercase tracking-wider">
@@ -407,6 +407,7 @@ export const AdminMassAssignmentPanel: React.FC<Props> = ({
                         placeholder={`Select Server ${idx + 1}...`}
                         allowClear={true}
                         disabled={saving}
+                        placement={idx >= Math.max(2, maxSlots - 2) ? 'top' : 'auto'}
                       />
                     </div>
                     {currentMemberId && (
@@ -436,7 +437,7 @@ export const AdminMassAssignmentPanel: React.FC<Props> = ({
           </div>
 
           {/* Action Footer */}
-          <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-4 sm:p-5 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-b-2xl">
             <div className="text-xs text-slate-500 font-semibold">
               {nonBlankSlots.length} of {maxSlots} slots configured
             </div>

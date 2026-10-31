@@ -13,6 +13,7 @@ import { TutorialTooltip } from '@/components/TutorialTooltip'
 import { useInactivityRedirect } from '@/hooks/useInactivityRedirect'
 import { dashboardService } from '@/services/dashboardService'
 import { useMaintenance } from '@/context/MaintenanceContext'
+import { usePWA } from '@/context/PWAContext'
 import { MaintenanceScreen } from '@/features/maintenance/components/MaintenanceScreen'
 import { BottomNav } from '@/layouts/BottomNav'
 import { useNotificationContext } from '@/context/NotificationContext'
@@ -92,6 +93,7 @@ export const DashboardLayout: React.FC = () => {
   useInactivityRedirect()
   const { user, profile, logout, hasModuleAccess } = useAuth()
   const { isMaintenanceActive, isUserAllowed } = useMaintenance()
+  const { isOffline } = usePWA()
   const location = useLocation()
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(false)
@@ -101,6 +103,7 @@ export const DashboardLayout: React.FC = () => {
   const { unreadExcuseCount } = useNotificationContext()
 
   const isBlocked = isMaintenanceActive && !isUserAllowed(user?.uid, user?.email, profile?.role)
+  const hasTopBanner = isOffline || isMaintenanceActive
 
   const { run, steps, startTutorial, handleJoyrideCallback } = useTutorial()
   const { globalSteps } = useTutorialSteps()
@@ -192,31 +195,41 @@ export const DashboardLayout: React.FC = () => {
         }}
       />
 
-      {/* Offline Alert Banner */}
-      <OfflineBanner />
+      {/* Top Banners Container with Safe-Area Padding for Mobile / Android / iOS */}
+      <div
+        className={`w-full shrink-0 flex flex-col ${hasTopBanner ? 'bg-amber-500' : ''}`}
+        style={{
+          paddingTop: hasTopBanner
+            ? 'env(safe-area-inset-top, 0px)'
+            : '0px'
+        }}
+      >
+        {/* Offline Alert Banner */}
+        <OfflineBanner />
 
-      {/* Maintenance Mode Active Banner for Logged-In Authorized Staff */}
-      {isMaintenanceActive && (
-        <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs border-b border-amber-600">
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950"></span>
-            </span>
-            <span>SYSTEM MAINTENANCE MODE IS ACTIVE</span>
-            <span className="hidden sm:inline font-normal opacity-90">&bull; You are accessing MATS as an authorized user.</span>
+        {/* Maintenance Mode Active Banner for Logged-In Authorized Staff */}
+        {isMaintenanceActive && (
+          <div className="bg-amber-500 text-slate-950 px-4 py-2 text-xs font-bold flex items-center justify-between shadow-xs border-b border-amber-600">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-900 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950"></span>
+              </span>
+              <span>SYSTEM MAINTENANCE MODE IS ACTIVE</span>
+              <span className="hidden sm:inline font-normal opacity-90">&bull; You are accessing MATS as an authorized user.</span>
+            </div>
+            <Link to="/settings" className="underline hover:text-slate-900 text-[11px] font-extrabold shrink-0">
+              Manage Settings &rarr;
+            </Link>
           </div>
-          <Link to="/settings" className="underline hover:text-slate-900 text-[11px] font-extrabold shrink-0">
-            Manage Settings &rarr;
-          </Link>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Top Navbar */}
-      {/* paddingTop: safe-area-inset-top pushes content below Android/iOS status bar (battery, time, etc.) */}
+      {/* paddingTop: safe-area-inset-top pushes content below Android/iOS status bar when no top banner is active */}
       <header
         className="border-b border-gray-200/80 bg-white sticky top-0 z-40 shadow-xs backdrop-blur-md bg-white/95"
-        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        style={{ paddingTop: hasTopBanner ? '0px' : 'env(safe-area-inset-top, 0px)' }}
       >
         <div className="mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <div className="flex items-center space-x-3 sm:space-x-4 min-w-0 pr-2">

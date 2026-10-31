@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react'
 import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
+import type { ScheduleSubmission } from '@/types/submission'
 import { scheduleService } from '@/services/scheduleService'
+import { submissionService } from '@/services/submissionService'
 import { getFullName } from '@/utils/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { 
@@ -21,6 +23,7 @@ interface Props {
   publication: SchedulePublication | null
   member: Member | null
   allEligibleMembers: Member[]
+  submissions?: ScheduleSubmission[]
   onSuccess: () => void
 }
 
@@ -45,6 +48,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   publication,
   member: initialMember,
   allEligibleMembers,
+  submissions: initialSubmissions,
   onSuccess
 }) => {
   const { toast } = useToast()
@@ -52,9 +56,21 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   const [selectedMemberId, setSelectedMemberId] = useState<string>(initialMember?.id || '')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
+  const [activeSubmissions, setActiveSubmissions] = useState<ScheduleSubmission[]>(initialSubmissions || [])
   const [markAsSubmitted, setMarkAsSubmitted] = useState<boolean>(true)
   const [loading, setLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Sync active submissions when passed or fetch if missing
+  useEffect(() => {
+    if (initialSubmissions) {
+      setActiveSubmissions(initialSubmissions)
+    } else if (isOpen && publication?.id) {
+      submissionService.getSubmissionsForPublication(publication.id)
+        .then(setActiveSubmissions)
+        .catch(err => console.error('Failed to load submissions for edit modal:', err))
+    }
+  }, [isOpen, publication?.id, initialSubmissions])
 
   // Effective Date state (defaults to parish today, clamped to publication range)
   const [effectiveDate, setEffectiveDate] = useState<string>(() => {
@@ -160,6 +176,14 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
           pattern.assignedMemberIds.push(memId)
         }
       })
+
+      // Also include servers with provisional submissions for this schedule
+      activeSubmissions.forEach(sub => {
+        if (sub.status === 'rejected') return
+        if (sub.requestedScheduleIds?.includes(s.id) && !pattern.assignedMemberIds.includes(sub.memberId)) {
+          pattern.assignedMemberIds.push(sub.memberId)
+        }
+      })
     })
 
     const allPatterns = Array.from(patternMap.values())
@@ -180,7 +204,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       sundayPatterns: allPatterns.filter(p => p.isSunday),
       weekdayPatterns: allPatterns.filter(p => !p.isSunday)
     }
-  }, [schedules, publication])
+  }, [schedules, publication, activeSubmissions])
 
   // Populate draft selected slots when selected member or schedules change
   useEffect(() => {
@@ -195,11 +219,18 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         initialAssigned.add(s.id)
       }
     })
+
+    // Also include requested schedule IDs from member's provisional or existing submission
+    const memberSub = activeSubmissions.find(sub => sub.memberId === selectedMemberId && sub.status !== 'rejected')
+    if (memberSub?.requestedScheduleIds) {
+      memberSub.requestedScheduleIds.forEach(id => initialAssigned.add(id))
+    }
+
     setSelectedScheduleIds(initialAssigned)
 
-    const isAlreadySubmitted = publication?.submittedMembers?.includes(selectedMemberId) || false
+    const isAlreadySubmitted = publication?.submittedMembers?.includes(selectedMemberId) || Boolean(memberSub)
     setMarkAsSubmitted(isAlreadySubmitted || initialAssigned.size > 0)
-  }, [selectedMemberId, schedules, publication])
+  }, [selectedMemberId, schedules, publication, activeSubmissions])
 
   // Count current draft selections
   const selectedSundayCount = useMemo(() => {

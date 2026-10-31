@@ -10,6 +10,7 @@ export interface RequestedSlotSummary {
   location?: string
   datesCount?: number
   scheduleIds: string[]
+  slotIndex?: number
 }
 
 export interface ScheduleSubmission {
@@ -48,6 +49,7 @@ export type SubmissionErrorCode =
   | 'OVERLAPPING_SCHEDULE'
   | 'QUOTA_EXCEEDED'
   | 'TRANSACTION_FAILED'
+  | 'CONFLICT_DETECTED'
 
 export class SubmissionError extends Error {
   code: SubmissionErrorCode
@@ -63,9 +65,37 @@ export class SubmissionError extends Error {
 
 export interface AdminUserContext {
   uid: string
-  email?: string
+  email?: string | null
   role?: string
   permissions?: { canManageSchedules?: boolean; [key: string]: any }
+}
+
+export interface CycleConflictItem {
+  type: 'CAPACITY_EXCEEDED' | 'RANK_INELIGIBLE' | 'MEMBER_SUSPENDED' | 'TIME_OVERLAP' | 'DUPLICATE_ASSIGNMENT'
+  memberId: string
+  memberName: string
+  scheduleId?: string
+  massTitle?: string
+  date?: string
+  time?: string
+  message: string
+}
+
+export interface CycleFinalizationOptions {
+  effectiveDate?: string // YYYY-MM-DD (defaults to parish current date in Asia/Manila)
+  adminUser?: AdminUserContext
+  firestoreInstance?: any
+  transactionRunner?: <T>(fn: (transaction: any) => Promise<T>) => Promise<T>
+}
+
+export interface CycleFinalizationResult {
+  publicationId: string
+  approvedSubmissionsCount: number
+  updatedSchedulesCount: number
+  preservedHistoricalSchedulesCount: number
+  assignedMembersCount: number
+  effectiveDate: string
+  conflicts?: CycleConflictItem[]
 }
 
 export interface ApproveSubmissionOptions {

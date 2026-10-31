@@ -852,7 +852,10 @@ export const scheduleService = {
 
       // 3b. Update member submission doc if present (preserving 'approved' status)
       if (submission) {
+        const newlySelectedIds = selections.filter(s => s.isSelected).map(s => s.scheduleId)
         transaction.update(subRef, {
+          status: 'approved',
+          requestedScheduleIds: newlySelectedIds,
           effectiveDate,
           reviewedBy: reviewerIdentifier,
           reviewedAt: nowIso,

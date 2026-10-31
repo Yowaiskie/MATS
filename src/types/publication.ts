@@ -42,6 +42,9 @@ export interface SchedulePublication {
   customExcludedKeywords?: string[]
   allowedRanks?: string[]
   submittedMembers?: string[]
+  isCycleFinalized?: boolean
+  cycleFinalizedAt?: string
+  cycleFinalizedBy?: string
   warningAbsenceThreshold?: number
   suspensionAbsenceThreshold?: number
   createdAt: Timestamp

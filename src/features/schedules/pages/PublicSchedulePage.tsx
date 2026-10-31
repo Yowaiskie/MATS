@@ -21,7 +21,9 @@ import {
   getCountdownTimeRemaining,
   type CountdownResult,
   groupSchedulesIntoPatterns,
-  type SchedulePattern
+  type SchedulePattern,
+  checkMemberQuotaStatus,
+  type MemberQuotaStatus
 } from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -172,6 +174,7 @@ export const PublicSchedulePage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [selectedMemberId, setSelectedMemberId] = useState<string>('')
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
+  const [selectedSlotIndexMap, setSelectedSlotIndexMap] = useState<Record<string, number>>({})
   const [nameSearchQuery, setNameSearchQuery] = useState('')
   const [isMemberPickerOpen, setIsMemberPickerOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -279,11 +282,23 @@ export const PublicSchedulePage: React.FC = () => {
   useEffect(() => {
     if (!selectedMemberId) {
       setSelectedScheduleIds(new Set())
+      setSelectedSlotIndexMap({})
       return
     }
     // If the member has an existing pending submission, show their requested slots
     if (memberSubmission) {
       setSelectedScheduleIds(new Set(memberSubmission.requestedScheduleIds))
+      const slotMap: Record<string, number> = {}
+      if (memberSubmission.slotSummaries) {
+        memberSubmission.slotSummaries.forEach(sm => {
+          if (sm.slotIndex !== undefined && sm.scheduleIds) {
+            sm.scheduleIds.forEach(id => {
+              slotMap[id] = sm.slotIndex!
+            })
+          }
+        })
+      }
+      setSelectedSlotIndexMap(slotMap)
       return
     }
     // Otherwise show official assignments (from approved schedules)
@@ -294,14 +309,15 @@ export const PublicSchedulePage: React.FC = () => {
       }
     })
     setSelectedScheduleIds(initial)
+    setSelectedSlotIndexMap({})
   }, [selectedMemberId, publicationSchedules, memberSubmission])
 
   const isSpecialPub = publication?.publicationType === 'special_event' || !!publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
 
-  // Group into patterns using centralized domain utility
+  // Group into patterns using centralized domain utility with provisional submissions included
   const { sundayPatterns, weekdayPatterns, specialPatterns } = useMemo(() => {
-    return groupSchedulesIntoPatterns(publicationSchedules, publication)
-  }, [publicationSchedules, publication])
+    return groupSchedulesIntoPatterns(publicationSchedules, publication, { submissions })
+  }, [publicationSchedules, publication, submissions])
 
   const memberMap = useMemo(() => {
     return new Map(members.map(m => [m.id, getFullName(m)]))
@@ -334,10 +350,19 @@ export const PublicSchedulePage: React.FC = () => {
     return currentMaxAssigned
   }, [specialPatterns, publication])
 
-  const hasSubmitted = useMemo(() => {
-    if (!publication || !selectedMemberId) return false
-    return !!memberSubmission || publication.submittedMembers?.includes(selectedMemberId) || false
-  }, [publication, selectedMemberId, memberSubmission])
+  // Map of quota status for every member (including provisional submissions and official assignments)
+  const memberQuotaStatusMap = useMemo(() => {
+    const map = new Map<string, MemberQuotaStatus>()
+    members.forEach(m => {
+      const status = checkMemberQuotaStatus(m.id, publication, {
+        sundayPatterns,
+        weekdayPatterns,
+        specialPatterns
+      })
+      map.set(m.id, status)
+    })
+    return map
+  }, [members, publication, sundayPatterns, weekdayPatterns, specialPatterns])
 
   const isFinalized = publication?.status === 'archived'
   const isDraft = publication?.status === 'draft'
@@ -353,9 +378,13 @@ export const PublicSchedulePage: React.FC = () => {
 
   const isClosed = isFinalized || isDraft || isDeadlinePassed
 
+  // Only show members in dropdown who have NOT fully occupied their maximum allowed quota
   const availableMembers = useMemo(() => {
-    return members
-  }, [members])
+    return members.filter(m => {
+      const status = memberQuotaStatusMap.get(m.id)
+      return !status?.isFullyMaxed
+    })
+  }, [members, memberQuotaStatusMap])
 
   const filteredAvailableMembers = useMemo(() => {
     const sorted = availableMembers.slice().sort((a, b) => a.lastName.localeCompare(b.lastName))
@@ -366,6 +395,28 @@ export const PublicSchedulePage: React.FC = () => {
       `${m.firstName} ${m.lastName}`.toLowerCase().includes(q)
     )
   }, [availableMembers, nameSearchQuery])
+
+  // Track previously saved schedule IDs for the currently selected member (immutable)
+  const savedScheduleIdsForMember = useMemo(() => {
+    const set = new Set<string>()
+    if (!selectedMemberId) return set
+    if (memberSubmission?.requestedScheduleIds) {
+      memberSubmission.requestedScheduleIds.forEach(id => set.add(id))
+    }
+    publicationSchedules.forEach(s => {
+      if (s.assignedMembers?.includes(selectedMemberId)) {
+        set.add(s.id)
+      }
+    })
+    return set
+  }, [selectedMemberId, memberSubmission, publicationSchedules])
+
+  // Newly selected schedule IDs in the current session (not yet saved in DB)
+  const newlySelectedScheduleIds = useMemo(() => {
+    return Array.from(selectedScheduleIds).filter(id => !savedScheduleIdsForMember.has(id))
+  }, [selectedScheduleIds, savedScheduleIdsForMember])
+
+  const hasSavedSlots = savedScheduleIdsForMember.size > 0
 
   const selectedSundayCount = useMemo(() => {
     return sundayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
@@ -391,14 +442,24 @@ export const PublicSchedulePage: React.FC = () => {
 
   const isSuspended = selectedMember?.status === 'suspended'
 
+  const selectedMemberQuotaStatus = useMemo(() => {
+    if (!selectedMemberId) return null
+    return memberQuotaStatusMap.get(selectedMemberId) || null
+  }, [selectedMemberId, memberQuotaStatusMap])
+
   const { isQuotaMaxed, confirmModalMessage } = useMemo(() => {
     if (isSpecialPub) {
       const isActualSpecialEvent = publication?.publicationType === 'special_event'
       const maxSlots = isActualSpecialEvent
         ? (publication?.maxSpecialPerServer ?? 2)
         : (publication?.maxWeekdaysPerServer ?? 8)
-      const maxed = selectedSpecialCount >= maxSlots
-      const msg = `You have selected ${selectedSpecialCount} schedule slot(s). Once submitted, your selections will be sent to the ministry coordinator for review and approval.`
+      const hasSpecial = specialPatterns.length > 0
+      const maxed = hasSpecial && (selectedSpecialCount >= maxSlots || selectedSpecialCount >= specialPatterns.length)
+
+      const msg = hasSavedSlots
+        ? `You have selected ${newlySelectedScheduleIds.length} additional slot(s). Total: ${selectedSpecialCount} special slot(s). Once submitted, your selections will be saved to the schedule roster.`
+        : `You have selected ${selectedSpecialCount} schedule slot(s). Once submitted, your selections will be saved to the schedule roster.`
+
       return { isQuotaMaxed: maxed, confirmModalMessage: msg }
     }
 
@@ -407,14 +468,23 @@ export const PublicSchedulePage: React.FC = () => {
     const hasSun = sundayPatterns.length > 0
     const hasWk = weekdayPatterns.length > 0
 
-    const sunMaxed = !hasSun || selectedSundayCount >= maxSun
-    const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk
-    const maxed = sunMaxed && wkMaxed
+    const sunMaxed = !hasSun || selectedSundayCount >= maxSun || (hasSun && selectedSundayCount >= sundayPatterns.length)
+    const wkMaxed = !hasWk || selectedWeekdayCount >= maxWk || (hasWk && selectedWeekdayCount >= weekdayPatterns.length)
+    const maxed = (!hasSun && !hasWk) ? false : (sunMaxed && wkMaxed)
 
-    const msg = `You have selected ${selectedSundayCount} Sunday(s) and ${selectedWeekdayCount} Weekday(s). Once submitted, your selections will be sent to the ministry coordinator for review and approval.`
+    const msg = hasSavedSlots
+      ? `You have selected ${newlySelectedScheduleIds.length} additional slot(s). Total: ${selectedSundayCount} Sunday(s) and ${selectedWeekdayCount} Weekday(s). Once submitted, your selections will be saved to the schedule roster.`
+      : `You have selected ${selectedSundayCount} Sunday(s) and ${selectedWeekdayCount} Weekday(s). Once submitted, your selections will be saved to the schedule roster.`
 
     return { isQuotaMaxed: maxed, confirmModalMessage: msg }
-  }, [publication, isSpecialPub, selectedSpecialCount, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount])
+  }, [publication, isSpecialPub, selectedSpecialCount, specialPatterns, sundayPatterns, weekdayPatterns, selectedSundayCount, selectedWeekdayCount, hasSavedSlots, newlySelectedScheduleIds])
+
+  // Member is considered fully completed if their quota is maxed out and no draft selections are uncommitted
+  const isMemberFullyCompleted = Boolean(
+    (isQuotaMaxed || selectedMemberQuotaStatus?.isFullyMaxed) &&
+    hasSavedSlots &&
+    newlySelectedScheduleIds.length === 0
+  )
 
   const isSlotPast = (pattern: SchedulePattern): boolean => {
     if (!pattern.date) return false
@@ -428,7 +498,7 @@ export const PublicSchedulePage: React.FC = () => {
     return slotTime <= currentTime
   }
 
-  const handleCellClick = (patternId: string, category: 'sunday' | 'weekday' | 'special') => {
+  const handleCellClick = (patternId: string, category: 'sunday' | 'weekday' | 'special', targetSlotIndex?: number) => {
     if (isClosed) {
       setLimitModal({
         title: 'Scheduling Closed',
@@ -440,7 +510,12 @@ export const PublicSchedulePage: React.FC = () => {
       })
       return
     }
-    if (hasSubmitted) return
+    if (isMemberFullyCompleted) {
+      const fullMsg = 'You have already completed your maximum schedule quota for this publication.'
+      setMessage({ type: 'error', text: fullMsg })
+      setLimitModal({ title: 'Schedule Completed', message: fullMsg })
+      return
+    }
 
     if (!selectedMemberId) {
       const errText = 'Please select your name first from the selection panel!'
@@ -474,7 +549,9 @@ export const PublicSchedulePage: React.FC = () => {
     }
 
     // Check if member is ALREADY saved in DB for this pattern/schedule slot
-    const isAlreadySavedInDb = pattern.assignedMembers.includes(selectedMemberId)
+    const isAlreadySavedInDb =
+      pattern.scheduleIds.some(id => savedScheduleIdsForMember.has(id)) ||
+      pattern.assignedMembers.includes(selectedMemberId)
     if (isAlreadySavedInDb) {
       const lockMsg = 'This schedule slot is already saved for you and cannot be un-selected.'
       setMessage({ type: 'error', text: lockMsg })
@@ -604,6 +681,23 @@ export const PublicSchedulePage: React.FC = () => {
       }
       return next
     })
+
+    setSelectedSlotIndexMap(prev => {
+      const next = { ...prev }
+      if (isSelected) {
+        delete next[pattern.id]
+        pattern.scheduleIds.forEach(id => delete next[id])
+      } else {
+        const slot = targetSlotIndex !== undefined
+          ? targetSlotIndex
+          : (pattern.assignedMembers.findIndex(m => !m) !== -1 ? pattern.assignedMembers.findIndex(m => !m) : pattern.assignedMembers.length)
+        next[pattern.id] = slot
+        pattern.scheduleIds.forEach(id => {
+          next[id] = slot
+        })
+      }
+      return next
+    })
     setMessage(null)
   }
 
@@ -634,10 +728,12 @@ export const PublicSchedulePage: React.FC = () => {
       return
     }
 
-    if (selectedScheduleIds.size === 0) {
-      const noSelectionMsg = 'Please select at least one schedule slot from the table before saving.'
+    if (newlySelectedScheduleIds.length === 0) {
+      const noSelectionMsg = hasSavedSlots
+        ? 'Please select at least one additional schedule slot from the table before saving.'
+        : 'Please select at least one schedule slot from the table before saving.'
       setMessage({ type: 'error', text: noSelectionMsg })
-      setLimitModal({ title: 'No Schedule Selected', message: noSelectionMsg })
+      setLimitModal({ title: 'No New Schedule Selected', message: noSelectionMsg })
       return
     }
 
@@ -669,15 +765,19 @@ export const PublicSchedulePage: React.FC = () => {
         ? specialPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id)))
         : [...sundayPatterns, ...weekdayPatterns].filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id)))
 
-      const slotSummaries = selectedPatterns.map(p => ({
-        dayOfWeek: p.dayOfWeek,
-        dayName: p.dayName,
-        startTime: p.startTime,
-        title: p.title,
-        location: p.location,
-        datesCount: p.scheduleIds.length,
-        scheduleIds: p.scheduleIds
-      }))
+      const slotSummaries = selectedPatterns.map(p => {
+        const chosenSlot = selectedSlotIndexMap[p.id] ?? selectedSlotIndexMap[p.scheduleIds[0]]
+        return {
+          dayOfWeek: p.dayOfWeek,
+          dayName: p.dayName,
+          startTime: p.startTime,
+          title: p.title,
+          location: p.location,
+          datesCount: p.scheduleIds.length,
+          scheduleIds: p.scheduleIds,
+          ...(chosenSlot !== undefined ? { slotIndex: chosenSlot } : {})
+        }
+      })
 
       const newSubmission = await submissionService.createPendingSubmission(
         {
@@ -698,8 +798,10 @@ export const PublicSchedulePage: React.FC = () => {
       // Add to local state so user immediately sees their submission confirmed
       setSubmissions(prev => [...prev.filter(s => s.memberId !== selectedMemberId), newSubmission])
 
-      const successTitle = 'Submission Received!'
-      const successMsg = `Thank you, ${selectedMember?.firstName || 'Altar Server'}! Your schedule preferences have been submitted for review. Once approved by your ministry coordinator, your official assignments will be confirmed.`
+      const successTitle = isQuotaMaxed ? 'Schedule Completed!' : 'Schedule Saved!'
+      const successMsg = isQuotaMaxed
+        ? `Thank you, ${selectedMember?.firstName || 'Altar Server'}! You have reached your maximum schedule quota. All your selections have been saved to the roster.`
+        : `Thank you, ${selectedMember?.firstName || 'Altar Server'}! Your selected schedule slots have been saved to the roster. You can select additional slots anytime before the deadline.`
 
       setMessage({
         type: 'success',
@@ -847,7 +949,7 @@ export const PublicSchedulePage: React.FC = () => {
             </div>
           </div>
 
-          {selectedMemberId && !hasSubmitted && !isClosed && (
+          {selectedMemberId && !isClosed && (
             <div className={`inline-flex items-center gap-2 self-start sm:self-auto ${category === 'special' ? 'bg-purple-50 border-purple-200/80 text-purple-900' : 'bg-indigo-50 border-indigo-200/80 text-indigo-900'} border px-3 py-1.5 rounded-xl text-xs font-bold`}>
               <span>Your Limit:</span>
               <span className={`px-2 py-0.5 rounded-md font-extrabold ${currentCount >= maxPerServer ? 'bg-amber-100 text-amber-900' : 'bg-white text-indigo-700 shadow-xs'}`}>
@@ -949,8 +1051,10 @@ export const PublicSchedulePage: React.FC = () => {
                             isOtherUserCell = true
                           }
                         } else {
-                          const firstEmptyIndex = savedMemberIds.length
-                          if (rowIndex === firstEmptyIndex) {
+                          const chosenSlot = selectedSlotIndexMap[pattern.id] ?? selectedSlotIndexMap[pattern.scheduleIds[0]]
+                          const targetSlot = chosenSlot !== undefined ? chosenSlot : savedMemberIds.findIndex(m => !m)
+                          const resolvedSlot = targetSlot !== -1 ? targetSlot : savedMemberIds.length
+                          if (rowIndex === resolvedSlot) {
                             displayMemberName = memberMap.get(selectedMemberId) || null
                             isMyCell = true
                           } else if (savedMemberIds[rowIndex]) {
@@ -976,7 +1080,7 @@ export const PublicSchedulePage: React.FC = () => {
                         <td key={pattern.id} className="px-2 sm:px-3 py-2.5 sm:py-3 text-center align-middle">
                           {displayMemberName ? (
                             <div
-                              onClick={() => !isOtherUserCell && !isPast && handleCellClick(pattern.id, category)}
+                              onClick={() => !isOtherUserCell && !isPast && handleCellClick(pattern.id, category, rowIndex)}
                               className={`inline-flex items-center justify-center px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[120px] sm:min-w-[140px] max-w-[145px] sm:max-w-[160px] text-center ${
                                 isPast
                                   ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed opacity-90 shadow-2xs'
@@ -994,9 +1098,9 @@ export const PublicSchedulePage: React.FC = () => {
                             </div>
                           ) : (
                             <div
-                              onClick={() => !isClosed && handleCellClick(pattern.id, category)}
+                              onClick={() => !isClosed && handleCellClick(pattern.id, category, rowIndex)}
                               className={`w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
-                                !isClosed && !hasSubmitted
+                                !isClosed && !isMemberFullyCompleted
                                   ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 active:bg-indigo-100/50'
                                   : 'cursor-not-allowed opacity-50'
                               }`}
@@ -1295,11 +1399,22 @@ export const PublicSchedulePage: React.FC = () => {
                                           SUSPENDED
                                         </span>
                                       )}
-                                      {(submissions.some(s => s.memberId === m.id) || publication?.submittedMembers?.includes(m.id)) && (
-                                        <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
-                                          SUBMITTED
-                                        </span>
-                                      )}
+                                      {(() => {
+                                        const q = memberQuotaStatusMap.get(m.id)
+                                        const hasSaved = Boolean(
+                                          (q && (q.sundayCount > 0 || q.weekdayCount > 0 || q.specialCount > 0)) ||
+                                          submissions.some(s => s.memberId === m.id) ||
+                                          publication?.submittedMembers?.includes(m.id)
+                                        )
+                                        if (!hasSaved) return null
+                                        return (
+                                          <span className="text-[9px] font-black uppercase px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 border border-amber-200">
+                                            {isSpecialPub
+                                              ? `${q?.specialCount ?? 1}/${publication?.maxSpecialPerServer ?? 2} SPECIAL`
+                                              : `${q?.sundayCount ?? 0}/${publication?.maxSundaysPerServer ?? 4} SUN${q?.weekdayCount ? ` · ${q.weekdayCount}/${publication?.maxWeekdaysPerServer ?? 8} WK` : ''}`}
+                                          </span>
+                                        )
+                                      })()}
                                     </div>
                                     {m.order && <div className="text-[10px] text-slate-500 font-medium">{m.order}</div>}
                                   </div>
@@ -1332,12 +1447,37 @@ export const PublicSchedulePage: React.FC = () => {
                 </div>
               )}
 
-              {hasSubmitted ? (
-                <div className="bg-amber-50/80 border border-amber-200 p-3.5 sm:p-4 rounded-2xl text-xs text-amber-900 leading-relaxed shadow-xs">
-                  <strong className="block mb-1 text-amber-950 font-extrabold">
-                    {memberSubmission?.status === 'approved' ? '✓ Schedule Approved' : '⏳ Submission Received (Pending Review)'}
-                  </strong>
-                  Your schedule preferences have already been submitted. To make changes or corrections, please contact your ministry coordinator directly.
+              {isMemberFullyCompleted ? (
+                <div className="bg-emerald-50/80 border border-emerald-200 p-3.5 sm:p-4 rounded-2xl text-xs text-emerald-950 leading-relaxed shadow-xs">
+                  <div className="flex items-center gap-1.5 mb-1 font-extrabold text-emerald-900">
+                    <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Schedule Completed (Max Quota Reached)</span>
+                  </div>
+                  All your schedule slots have been saved to the roster. To make changes or corrections, please contact your ministry coordinator directly.
+                </div>
+              ) : hasSavedSlots ? (
+                <div className="bg-indigo-50/80 border border-indigo-200 p-3.5 sm:p-4 rounded-2xl text-xs text-indigo-950 leading-relaxed shadow-xs space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-extrabold text-indigo-900">
+                    <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>Schedule Saved (Partial)</span>
+                  </div>
+                  <p className="text-[11px] text-indigo-900 leading-relaxed">
+                    Your previously saved slots are locked in the schedule. You have not yet reached your personal limit. Tap open <strong>+</strong> slots in the table to add more, then tap Submit.
+                  </p>
+                  <div className="pt-2 border-t border-indigo-200/60 flex items-center justify-between font-bold text-[11px]">
+                    {isSpecialPub ? (
+                      <span>Special Slots: {selectedSpecialCount}/{publication?.maxSpecialPerServer ?? 2}</span>
+                    ) : (
+                      <>
+                        <span>Sunday: {selectedSundayCount}/{publication?.maxSundaysPerServer ?? 4}</span>
+                        <span>Weekday: {selectedWeekdayCount}/{publication?.maxWeekdaysPerServer ?? 8}</span>
+                      </>
+                    )}
+                  </div>
                 </div>
               ) : (!isSuspended || isSpecialPub) && (
                 isSpecialPub ? (
@@ -1373,9 +1513,16 @@ export const PublicSchedulePage: React.FC = () => {
               {/* Desktop Save Button (hidden on mobile, visible on lg+) */}
               <button
                 type="submit"
-                disabled={submitting || !selectedMemberId || hasSubmitted || isClosed || (isSuspended && !isSpecialPub)}
+                disabled={
+                  submitting ||
+                  !selectedMemberId ||
+                  isClosed ||
+                  (isSuspended && !isSpecialPub) ||
+                  isMemberFullyCompleted ||
+                  newlySelectedScheduleIds.length === 0
+                }
                 className={`hidden lg:flex w-full py-4 font-extrabold text-sm rounded-2xl shadow-lg transition-all items-center justify-center gap-2 mt-4 ${
-                  hasSubmitted || isClosed || (isSuspended && !isSpecialPub)
+                  isMemberFullyCompleted || isClosed || (isSuspended && !isSpecialPub) || newlySelectedScheduleIds.length === 0
                     ? 'bg-slate-100 text-slate-400 cursor-not-allowed shadow-none' 
                     : `${bannerTheme.buttonClass} cursor-pointer disabled:opacity-50`
                 }`}
@@ -1385,15 +1532,21 @@ export const PublicSchedulePage: React.FC = () => {
                     ? 'Submitting...' 
                     : isClosed
                       ? 'Scheduling Closed'
-                      : hasSubmitted
-                        ? 'Schedule Already Submitted'
-                        : isSuspended && !isSpecialPub
-                          ? 'Account Suspended (Cannot Submit)'
-                          : isQuotaMaxed 
-                            ? 'Submit Schedule Preferences' 
-                            : isSpecialPub
-                              ? `Submit Selections (${selectedSpecialCount} special slot(s))`
-                              : `Submit Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
+                      : isSuspended && !isSpecialPub
+                        ? 'Account Suspended (Cannot Submit)'
+                        : isMemberFullyCompleted
+                          ? 'Schedule Completed (Max Quota Reached)'
+                          : newlySelectedScheduleIds.length === 0
+                            ? hasSavedSlots
+                              ? 'Select Additional Slots to Submit'
+                              : 'Select Schedule Slots in Table'
+                            : hasSavedSlots
+                              ? `Submit Additional Slots (+${newlySelectedScheduleIds.length} new)`
+                              : isQuotaMaxed 
+                                ? 'Submit Schedule Preferences' 
+                                : isSpecialPub
+                                  ? `Submit Selections (${selectedSpecialCount} special slot(s))`
+                                  : `Submit Selections (${selectedSundayCount + selectedWeekdayCount} slots)`}
                 </span>
                 <span className="text-base">▹</span>
               </button>
@@ -1529,9 +1682,12 @@ export const PublicSchedulePage: React.FC = () => {
               >
                 <span>Tap to Select Your Name First</span>
               </button>
-            ) : hasSubmitted ? (
-              <div className="w-full text-center py-2 text-xs font-bold text-amber-800 bg-amber-50 rounded-xl border border-amber-200">
-                {memberSubmission?.status === 'approved' ? '✓ Schedule Approved' : '⏳ Submission Received (Pending Review)'}
+            ) : isMemberFullyCompleted ? (
+              <div className="w-full text-center py-2.5 px-3 text-xs font-bold text-emerald-800 bg-emerald-50 rounded-xl border border-emerald-200 flex items-center justify-center gap-1.5">
+                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+                <span>Schedule Completed (Max Quota Reached)</span>
               </div>
             ) : isSuspended && !isSpecialPub ? (
               <div className="w-full text-center py-2 text-xs font-extrabold text-rose-800 bg-rose-50 rounded-xl border border-rose-200">
@@ -1556,10 +1712,10 @@ export const PublicSchedulePage: React.FC = () => {
                 <button
                   type="button"
                   onClick={handleOpenConfirmModal}
-                  disabled={submitting || selectedScheduleIds.size === 0}
+                  disabled={submitting || newlySelectedScheduleIds.length === 0}
                   className={`py-3 px-5 ${bannerTheme.buttonClass} active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-xs shadow-md transition-all shrink-0 flex items-center gap-1.5 cursor-pointer`}
                 >
-                  <span>{submitting ? 'Submitting...' : 'Submit'}</span>
+                  <span>{submitting ? 'Submitting...' : hasSavedSlots ? 'Submit New' : 'Submit'}</span>
                   <span>▹</span>
                 </button>
               </>

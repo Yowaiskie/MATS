@@ -3,9 +3,11 @@ import { publicationService } from '@/services/publicationService'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
+import { submissionService } from '@/services/submissionService'
 import { isMemberEligibleForPublication, isPublicationDeadlinePassed, isHistoricalScheduleOccurrence } from '@/utils/scheduleUtils'
 import { getOccurrenceContext } from '@/utils/scheduleIntegrity'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
+import type { CycleConflictItem } from '@/types/submission'
 import { ConfirmModal } from '@/components/Dialog'
 import { ActionMenu, Pagination } from '@/components'
 import { PublicationFormModal, type CustomEventSlotInput } from './PublicationFormModal'
@@ -13,6 +15,7 @@ import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
 import { DuplicateScheduleReportModal } from './DuplicateScheduleReportModal'
 import { useToast } from '@/context/ToastContext'
+import { useAuth } from '@/features/authentication/AuthContext'
 
 const PAGE_SIZE = 8
 
@@ -23,6 +26,7 @@ export interface PublicationMemberStats {
 
 export const PublicationsTab: React.FC = () => {
   const { toast } = useToast()
+  const { user, profile } = useAuth()
   const [publications, setPublications] = useState<SchedulePublication[]>([])
   const [pubStatsById, setPubStatsById] = useState<Record<string, PublicationMemberStats>>({})
   const [loading, setLoading] = useState(true)
@@ -33,6 +37,10 @@ export const PublicationsTab: React.FC = () => {
   const [selectedPublication, setSelectedPublication] = useState<SchedulePublication | null>(null)
   const [exportPdfPub, setExportPdfPub] = useState<SchedulePublication | null>(null)
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
+  const [confirmCloseSubmissionsPub, setConfirmCloseSubmissionsPub] = useState<SchedulePublication | null>(null)
+  const [cycleFinalizePub, setCycleFinalizePub] = useState<SchedulePublication | null>(null)
+  const [cycleConflicts, setCycleConflicts] = useState<CycleConflictItem[] | null>(null)
+  const [isFinalizingCycle, setIsFinalizingCycle] = useState(false)
   const [confirmStatusAction, setConfirmStatusAction] = useState<{
     pub: SchedulePublication;
     targetStatus: 'draft' | 'published' | 'archived';
@@ -169,6 +177,57 @@ export const PublicationsTab: React.FC = () => {
     }
   }
 
+  const handleCloseSubmissionsConfirmed = async () => {
+    if (!confirmCloseSubmissionsPub) return
+    const pub = confirmCloseSubmissionsPub
+    setConfirmCloseSubmissionsPub(null)
+    setLoading(true)
+    try {
+      await publicationService.closeSubmissionsEarly(pub.id, user?.email || 'Admin')
+      await loadData()
+      toast.success('Submissions Closed', `Submissions for "${pub.name}" are now closed. No new selections will be accepted.`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Error', err.message || 'Failed to close submissions.')
+      setLoading(false)
+    }
+  }
+
+  const handleExecuteCycleFinalize = async () => {
+    if (!cycleFinalizePub) return
+    setIsFinalizingCycle(true)
+    setCycleConflicts(null)
+
+    try {
+      const result = await submissionService.finalizePublicationCycle(cycleFinalizePub.id, {
+        adminUser: {
+          email: user?.email || '',
+          uid: user?.uid || 'admin',
+          role: profile?.role || 'admin',
+          permissions: {
+            canManageSchedules: true
+          }
+        }
+      })
+
+      setCycleFinalizePub(null)
+      toast.success(
+        'Cycle Finalized & Approved',
+        `Approved ${result.approvedSubmissionsCount} submission(s) and committed assignments across ${result.updatedSchedulesCount} future schedule(s).`
+      )
+      await loadData()
+    } catch (err: any) {
+      console.error('Cycle finalization failed:', err)
+      if (err.details?.conflicts) {
+        setCycleConflicts(err.details.conflicts)
+      } else {
+        toast.error('Finalization Failed', err.message || 'Failed to finalize scheduling cycle.')
+      }
+    } finally {
+      setIsFinalizingCycle(false)
+    }
+  }
+
   const handleStatusChange = async (pub: SchedulePublication, newStatus: 'draft' | 'published' | 'archived') => {
     if (pub.status === newStatus) return
 
@@ -177,9 +236,9 @@ export const PublicationsTab: React.FC = () => {
         pub,
         targetStatus: 'archived',
         isLocked: true,
-        title: 'Finalize & Archive Publication',
-        message: `Finalizing and archiving "${pub.name}" will lock all underlying schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from making further selections. Are you sure you want to proceed?`,
-        confirmLabel: 'Yes, Finalize & Lock'
+        title: 'Archive Publication (Lock History)',
+        message: `Archiving "${pub.name}" will lock all underlying schedules in its date range (${pub.startDate} to ${pub.endDate}) for historical preservation and prevent members from making further selections. Are you sure you want to proceed?`,
+        confirmLabel: 'Yes, Archive & Lock'
       })
       return
     }
@@ -529,6 +588,14 @@ export const PublicationsTab: React.FC = () => {
                       </span>
                     )
                   )}
+                  {pub.isCycleFinalized && (
+                    <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase text-indigo-700 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded shadow-2xs">
+                      <svg className="w-2.5 h-2.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Cycle Finalized
+                    </span>
+                  )}
                   {pub.status === 'draft' && (
                     <span className="text-[9px] font-bold text-amber-700">
                       Draft (Hidden)
@@ -536,7 +603,7 @@ export const PublicationsTab: React.FC = () => {
                   )}
                   {pub.status === 'archived' && (
                     <span className="text-[9px] font-bold text-slate-500">
-                      Finalized (Locked)
+                      Archived (Locked)
                     </span>
                   )}
 
@@ -658,11 +725,34 @@ export const PublicationsTab: React.FC = () => {
                           ),
                           onClick: () => handleClearDeadline(pub)
                         }] : []),
-                        ...(pub.status === 'published' ? [{
-                          label: 'Finalize & Lock Schedules',
+                        ...(pub.status === 'published' && !isPublicationDeadlinePassed(pub) ? [{
+                          label: 'Close Submissions (Stop Intake)',
                           variant: 'warning' as const,
                           icon: (
                             <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ),
+                          onClick: () => setConfirmCloseSubmissionsPub(pub)
+                        }] : []),
+                        ...(pub.status === 'published' ? [{
+                          label: 'Apply to Official Schedules',
+                          variant: 'success' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                          ),
+                          onClick: () => {
+                            setCycleConflicts(null)
+                            setCycleFinalizePub(pub)
+                          }
+                        }] : []),
+                        ...(pub.status === 'published' ? [{
+                          label: 'Archive Publication (Lock History)',
+                          variant: 'warning' as const,
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
                               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                             </svg>
@@ -671,9 +761,9 @@ export const PublicationsTab: React.FC = () => {
                             pub,
                             targetStatus: 'archived',
                             isLocked: true,
-                            title: 'Finalize & Lock Schedules',
-                            message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
-                            confirmLabel: 'Finalize & Lock'
+                            title: 'Archive Publication (Lock History)',
+                            message: `Are you sure you want to archive "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) for historical preservation.`,
+                            confirmLabel: 'Archive & Lock'
                           })
                         }] : []),
                         ...(pub.status === 'archived' ? [{
@@ -961,11 +1051,34 @@ export const PublicationsTab: React.FC = () => {
                                   ),
                                   onClick: () => handleClearDeadline(pub)
                                 }] : []),
-                                ...(pub.status === 'published' ? [{
-                                  label: 'Finalize & Lock Schedules',
+                                ...(pub.status === 'published' && !isPublicationDeadlinePassed(pub) ? [{
+                                  label: 'Close Submissions (Stop Intake)',
                                   variant: 'warning' as const,
                                   icon: (
                                     <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => setConfirmCloseSubmissionsPub(pub)
+                                }] : []),
+                                ...(pub.status === 'published' ? [{
+                                  label: 'Apply to Official Schedules',
+                                  variant: 'success' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => {
+                                    setCycleConflicts(null)
+                                    setCycleFinalizePub(pub)
+                                  }
+                                }] : []),
+                                ...(pub.status === 'published' ? [{
+                                  label: 'Archive Publication (Lock History)',
+                                  variant: 'warning' as const,
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                       <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
                                       <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                                     </svg>
@@ -974,9 +1087,9 @@ export const PublicationsTab: React.FC = () => {
                                     pub,
                                     targetStatus: 'archived',
                                     isLocked: true,
-                                    title: 'Finalize & Lock Schedules',
-                                    message: `Are you sure you want to finalize "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) and prevent members from submitting or changing their schedules via the public link.`,
-                                    confirmLabel: 'Finalize & Lock'
+                                    title: 'Archive Publication (Lock History)',
+                                    message: `Are you sure you want to archive "${pub.name}"? This will lock all schedules in its date range (${pub.startDate} to ${pub.endDate}) for historical preservation.`,
+                                    confirmLabel: 'Archive & Lock'
                                   })
                                 }] : []),
                                 ...(pub.status === 'archived' ? [{
@@ -1082,6 +1195,16 @@ export const PublicationsTab: React.FC = () => {
       {duplicateReportOpen && <DuplicateScheduleReportModal onClose={() => setDuplicateReportOpen(false)} />}
 
       <ConfirmModal
+        isOpen={!!confirmCloseSubmissionsPub}
+        onClose={() => setConfirmCloseSubmissionsPub(null)}
+        onConfirm={handleCloseSubmissionsConfirmed}
+        variant="warning"
+        title="Close Submissions Early"
+        message={`Stop accepting new selections for "${confirmCloseSubmissionsPub?.name}"? The public schedule link will be closed immediately. Official schedule assignments will not be modified.`}
+        confirmLabel="Close Submissions"
+      />
+
+      <ConfirmModal
         isOpen={!!confirmStatusAction}
         onClose={() => setConfirmStatusAction(null)}
         onConfirm={handleStatusActionConfirmed}
@@ -1089,6 +1212,87 @@ export const PublicationsTab: React.FC = () => {
         message={confirmStatusAction?.message || ''}
         confirmLabel={confirmStatusAction?.confirmLabel || 'Confirm'}
       />
+
+      {/* Confirmation & Conflict Dialog for Cycle Finalization */}
+      {cycleFinalizePub && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl border border-slate-200 space-y-3 sm:space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 shrink-0">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-900">Apply to Official Schedules</h3>
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-500 mt-0.5">Commit Sign-ups to Mass Schedules</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 space-y-2">
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-slate-500">Publication:</span>
+                <span className="text-slate-900">{cycleFinalizePub.name}</span>
+              </div>
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-slate-500">Date Range:</span>
+                <span className="text-slate-900">{cycleFinalizePub.startDate} to {cycleFinalizePub.endDate}</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Applying will validate server capacities, slot positions, and date boundaries, then commit all sign-up selections directly to official Mass schedules. Past historical occurrences are strictly preserved.
+            </p>
+
+            {/* Conflict Alert Box if validation failed */}
+            {cycleConflicts && cycleConflicts.length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-2 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-xs font-black">
+                    Finalization Aborted: {cycleConflicts.length} Conflict(s) Detected
+                  </span>
+                </div>
+                <p className="text-[10px] text-rose-700">
+                  Zero changes were made. Please resolve the following conflicts before approving:
+                </p>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 text-[11px] bg-white/80 p-2.5 rounded-xl border border-rose-100 divide-y divide-rose-100">
+                  {cycleConflicts.map((c, i) => (
+                    <div key={i} className="pt-1 first:pt-0">
+                      <span className="font-bold text-rose-950">{c.memberName || 'Server'}: </span>
+                      <span className="text-rose-800">{c.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setCycleFinalizePub(null)
+                  setCycleConflicts(null)
+                }}
+                disabled={isFinalizingCycle}
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteCycleFinalize}
+                disabled={isFinalizingCycle}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:px-5 sm:py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-indigo-600/25 active:scale-95 transition cursor-pointer"
+              >
+                <span>{isFinalizingCycle ? 'Applying to Schedules...' : 'Apply to Official Schedules'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <ManageSubmissionsModal
         isOpen={!!manageSubmissionsPub}

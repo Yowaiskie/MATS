@@ -222,6 +222,131 @@ export const isSundayOrAnticipatedMass = (
 }
 
 /**
+ * Determines whether a requested slot summary (which may not contain a specific YYYY-MM-DD date)
+ * represents a Sunday or Anticipated Mass slot based on dayOfWeek, dayName, title, and startTime.
+ */
+export const isSundaySlotSummary = (summary: {
+  dayOfWeek?: number
+  dayName?: string
+  title?: string
+  startTime?: string
+}): boolean => {
+  if (summary.dayOfWeek === 0 || summary.dayName?.toLowerCase() === 'sunday') {
+    return true
+  }
+  const titleLower = (summary.title || '').toLowerCase().trim()
+  if (titleLower.includes('anticipated') || titleLower.includes('sunday')) {
+    return true
+  }
+  if (summary.dayOfWeek === 6 || summary.dayName?.toLowerCase() === 'saturday') {
+    const normTime = summary.startTime ? summary.startTime.trim().slice(0, 5) : ''
+    if (normTime) {
+      const hours = parseInt(normTime.split(':')[0], 10)
+      if (!isNaN(hours) && hours >= 17) return true
+    }
+    if (
+      titleLower.includes('6:00') ||
+      titleLower.includes('6pm') ||
+      titleLower.includes('5:00') ||
+      titleLower.includes('5pm') ||
+      titleLower.includes('evening')
+    ) {
+      return true
+    }
+  }
+  return false
+}
+
+export interface MemberQuotaStatus {
+  sundayCount: number
+  weekdayCount: number
+  specialCount: number
+  maxSundays: number
+  maxWeekdays: number
+  maxSpecial: number
+  isSundayMaxed: boolean
+  isWeekdayMaxed: boolean
+  isSpecialMaxed: boolean
+  isFullyMaxed: boolean
+}
+
+/**
+ * Calculates whether an altar server has reached their quota limits for a publication
+ * based on assigned pattern slots (official schedule assignments and provisional submissions).
+ */
+export const checkMemberQuotaStatus = (
+  memberId: string,
+  publication: Partial<SchedulePublication> | null | undefined,
+  patterns: {
+    sundayPatterns?: SchedulePattern[]
+    weekdayPatterns?: SchedulePattern[]
+    specialPatterns?: SchedulePattern[]
+  }
+): MemberQuotaStatus => {
+  const isSpecialPub =
+    publication?.publicationType === 'special_event' ||
+    Boolean(publication?.enableStreetLocation) ||
+    Boolean(publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
+
+  const sundayPatterns = patterns.sundayPatterns || []
+  const weekdayPatterns = patterns.weekdayPatterns || []
+  const specialPatterns = patterns.specialPatterns || []
+
+  if (isSpecialPub) {
+    const isActualSpecialEvent = publication?.publicationType === 'special_event'
+    const maxSpecial = isActualSpecialEvent
+      ? (publication?.maxSpecialPerServer ?? 2)
+      : (publication?.maxWeekdaysPerServer ?? 8)
+
+    const specialCount = specialPatterns.filter(p => p.assignedMembers?.includes(memberId)).length
+    const hasSpecial = specialPatterns.length > 0
+    const isSpecialMaxed = hasSpecial && (specialCount >= maxSpecial || specialCount >= specialPatterns.length)
+
+    return {
+      sundayCount: 0,
+      weekdayCount: 0,
+      specialCount,
+      maxSundays: 0,
+      maxWeekdays: 0,
+      maxSpecial,
+      isSundayMaxed: true,
+      isWeekdayMaxed: true,
+      isSpecialMaxed,
+      isFullyMaxed: hasSpecial ? isSpecialMaxed : false
+    }
+  }
+
+  const maxSundays = publication?.maxSundaysPerServer ?? 4
+  const maxWeekdays = publication?.maxWeekdaysPerServer ?? 8
+
+  const hasSun = sundayPatterns.length > 0
+  const hasWk = weekdayPatterns.length > 0
+
+  const sundayCount = sundayPatterns.filter(p => p.assignedMembers?.includes(memberId)).length
+  const weekdayCount = weekdayPatterns.filter(p => p.assignedMembers?.includes(memberId)).length
+
+  const isSundayMaxed = !hasSun || sundayCount >= maxSundays || (hasSun && sundayCount >= sundayPatterns.length)
+  const isWeekdayMaxed = !hasWk || weekdayCount >= maxWeekdays || (hasWk && weekdayCount >= weekdayPatterns.length)
+
+  const isFullyMaxed = (!hasSun && !hasWk)
+    ? false
+    : isSundayMaxed && isWeekdayMaxed
+
+  return {
+    sundayCount,
+    weekdayCount,
+    specialCount: 0,
+    maxSundays,
+    maxWeekdays,
+    maxSpecial: 0,
+    isSundayMaxed,
+    isWeekdayMaxed,
+    isSpecialMaxed: true,
+    isFullyMaxed
+  }
+}
+
+/**
  * Determines whether a schedule represents a special mass / event (e.g. Fiesta, Wedding, Funeral, Baccalaureate, Nativity, Solemnity, etc.)
  * that is not part of the standard recurring Sunday/Weekday service schedule.
  */
@@ -917,6 +1042,78 @@ export interface GroupedPublicationPatterns {
 
 export interface GroupSchedulesOptions {
   activeTemplates?: ScheduleTemplate[]
+  submissions?: Array<{
+    memberId: string
+    status: 'pending' | 'approved' | 'rejected'
+    requestedScheduleIds: string[]
+    slotSummaries?: Array<{
+      scheduleIds?: string[]
+      slotIndex?: number
+      [key: string]: any
+    }>
+  }>
+}
+
+function applyProvisionalSubmissionsToPatterns(
+  patterns: SchedulePattern[],
+  submissions?: Array<{
+    memberId: string
+    status: 'pending' | 'approved' | 'rejected'
+    requestedScheduleIds: string[]
+    slotSummaries?: Array<{
+      scheduleIds?: string[]
+      slotIndex?: number
+      [key: string]: any
+    }>
+  }>
+) {
+  if (!submissions || submissions.length === 0) return
+
+  const activeSubmissions = submissions.filter(
+    s => s.status === 'pending' || s.status === 'approved'
+  )
+  if (activeSubmissions.length === 0) return
+
+  patterns.forEach(pattern => {
+    const patternSchedSet = new Set(pattern.scheduleIds)
+    const currentMembers = [...pattern.assignedMembers]
+
+    for (const sub of activeSubmissions) {
+      const isRequested = sub.requestedScheduleIds?.some(id => patternSchedSet.has(id))
+      if (!isRequested) continue
+      if (currentMembers.includes(sub.memberId)) continue
+
+      const summary = sub.slotSummaries?.find(sm =>
+        sm.scheduleIds?.some(id => patternSchedSet.has(id))
+      )
+      const slotIdx = summary?.slotIndex
+
+      if (slotIdx !== undefined && slotIdx >= 0) {
+        while (currentMembers.length <= slotIdx) {
+          currentMembers.push('')
+        }
+        if (!currentMembers[slotIdx]) {
+          currentMembers[slotIdx] = sub.memberId
+        } else {
+          const firstOpen = currentMembers.findIndex(m => !m)
+          if (firstOpen !== -1) {
+            currentMembers[firstOpen] = sub.memberId
+          } else {
+            currentMembers.push(sub.memberId)
+          }
+        }
+      } else {
+        const firstOpen = currentMembers.findIndex(m => !m)
+        if (firstOpen !== -1) {
+          currentMembers[firstOpen] = sub.memberId
+        } else {
+          currentMembers.push(sub.memberId)
+        }
+      }
+    }
+
+    pattern.assignedMembers = currentMembers
+  })
 }
 
 /**
@@ -986,10 +1183,12 @@ export const groupSchedulesIntoPatterns = (
       }
     })
 
+    const specials = Array.from(patternMap.values())
+    applyProvisionalSubmissionsToPatterns(specials, options?.submissions)
     return {
       sundayPatterns: [],
       weekdayPatterns: [],
-      specialPatterns: Array.from(patternMap.values())
+      specialPatterns: specials
     }
   }
 
@@ -1139,12 +1338,20 @@ export const groupSchedulesIntoPatterns = (
     })
   }
 
+  const sundays = sortPatterns(Array.from(sundayMap.values()))
+  const weekdays = sortPatterns(Array.from(weekdayMap.values()))
+  const specials = Array.from(specialMap.values()).sort((a, b) => {
+    if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date)
+    return a.startTime.localeCompare(b.startTime)
+  })
+
+  applyProvisionalSubmissionsToPatterns(sundays, options?.submissions)
+  applyProvisionalSubmissionsToPatterns(weekdays, options?.submissions)
+  applyProvisionalSubmissionsToPatterns(specials, options?.submissions)
+
   return {
-    sundayPatterns: sortPatterns(Array.from(sundayMap.values())),
-    weekdayPatterns: sortPatterns(Array.from(weekdayMap.values())),
-    specialPatterns: Array.from(specialMap.values()).sort((a, b) => {
-      if (a.date && b.date && a.date !== b.date) return a.date.localeCompare(b.date)
-      return a.startTime.localeCompare(b.startTime)
-    })
+    sundayPatterns: sundays,
+    weekdayPatterns: weekdays,
+    specialPatterns: specials
   }
 }

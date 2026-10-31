@@ -6,6 +6,8 @@ import {
   query,
   where,
   setDoc,
+  updateDoc,
+  deleteDoc,
   runTransaction,
   serverTimestamp,
   type Firestore,
@@ -20,6 +22,9 @@ import {
   type ApprovalResult,
   type RejectionResult,
   type AdminUserContext,
+  type CycleConflictItem,
+  type CycleFinalizationOptions,
+  type CycleFinalizationResult,
   SubmissionError
 } from '../types/submission.ts'
 import type { SchedulePublication } from '../types/publication.ts'
@@ -30,11 +35,13 @@ import {
   isPublicationDeadlinePassed,
   isScheduleIncludedInPublication,
   isSundayOrAnticipatedMass,
+  isSundaySlotSummary,
   isSpecialEventOrService,
   isHistoricalScheduleOccurrence,
   isTimeOverlapping,
   getParishTodayDate
 } from '../utils/scheduleUtils.ts'
+import { getFullName } from '../utils/member.ts'
 
 export const SUBMISSIONS_COLLECTION = 'scheduleSubmissions'
 
@@ -77,6 +84,13 @@ export interface SubmissionValidationContext {
  * Pure application-layer validation of submission input against business rules.
  */
 
+function doesSnapshotExist(snap: any): boolean {
+  if (!snap) return false
+  if (typeof snap.exists === 'function') return snap.exists()
+  if ('exists' in snap) return Boolean(snap.exists)
+  return true
+}
+
 function getDocumentRef(firestoreInstance: any, collectionPath: string, docId: string): any {
   if (firestoreInstance && typeof firestoreInstance.doc === 'function') {
     return firestoreInstance.doc(collectionPath, docId);
@@ -98,6 +112,22 @@ async function setDocument(firestoreInstance: any, collectionPath: string, docId
   }
   const docRef = getDocumentRef(firestoreInstance, collectionPath, docId);
   return setDoc(docRef, data);
+}
+
+async function deleteDocument(firestoreInstance: any, collectionPath: string, docId: string): Promise<void> {
+  if (firestoreInstance && typeof firestoreInstance.deleteDoc === 'function') {
+    return firestoreInstance.deleteDoc(collectionPath, docId);
+  }
+  const docRef = getDocumentRef(firestoreInstance, collectionPath, docId);
+  return deleteDoc(docRef);
+}
+
+async function updateDocument(firestoreInstance: any, collectionPath: string, docId: string, data: any): Promise<void> {
+  if (firestoreInstance && typeof firestoreInstance.updateDoc === 'function') {
+    return firestoreInstance.updateDoc(collectionPath, docId, data);
+  }
+  const docRef = getDocumentRef(firestoreInstance, collectionPath, docId);
+  return updateDoc(docRef, data);
 }
 
 function verifyAdminPermissions(adminUser?: AdminUserContext): void {
@@ -232,10 +262,11 @@ export const submissionService = {
   ): Promise<ScheduleSubmission | null> {
     const firestoreInstance = await getEffectiveDb(db)
     const submissionId = getSubmissionId(publicationId, memberId)
-    const docRef = getDocumentRef(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId)
-    const docSnap = await getDoc(docRef)
-    if (!docSnap.exists()) return null
-    return { id: docSnap.id, ...(docSnap.data() || {}) } as ScheduleSubmission
+    const docSnap = await getDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId)
+    if (!docSnap) return null
+    if (typeof docSnap.exists === 'function' && !docSnap.exists()) return null
+    const data = typeof docSnap.data === 'function' ? docSnap.data() : docSnap
+    return { id: submissionId, ...(data || {}) } as ScheduleSubmission
   },
 
   /**
@@ -258,10 +289,73 @@ export const submissionService = {
     db?: Firestore
   ): Promise<ScheduleSubmission[]> {
     const firestoreInstance = await getEffectiveDb(db)
+    const anyDb = firestoreInstance as any
+    if (anyDb && typeof anyDb.queryDocs === 'function') {
+      return anyDb.queryDocs(SUBMISSIONS_COLLECTION, 'publicationId', publicationId)
+    }
     const ref = collection(firestoreInstance, SUBMISSIONS_COLLECTION)
     const q = query(ref, where('publicationId', '==', publicationId))
     const snapshot = await getDocs(q)
     return snapshot.docs.map(d => ({ id: d.id, ...(d.data() || {}) })) as ScheduleSubmission[]
+  },
+
+  /**
+   * Resets schedule submissions for specified members in a publication.
+   *
+   * Depending on the scope:
+   * - 'all': Completely deletes the submission document in scheduleSubmissions.
+   * - 'sunday': Removes Sunday/Anticipated Mass slots from slotSummaries. If no slots remain, deletes the submission. Otherwise updates it.
+   * - 'weekday': Removes Weekday Mass slots from slotSummaries. If no slots remain, deletes the submission. Otherwise updates it.
+   */
+  async resetSubmissionsForMembers(
+    publicationId: string,
+    memberIds: string[],
+    scope: 'all' | 'sunday' | 'weekday' = 'all',
+    db?: Firestore
+  ): Promise<void> {
+    if (!publicationId || !memberIds || memberIds.length === 0) return
+    const firestoreInstance = await getEffectiveDb(db)
+
+    await Promise.all(
+      memberIds.map(async (memberId) => {
+        const submissionId = getSubmissionId(publicationId, memberId)
+        const snap = await getDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId)
+        const exists = doesSnapshotExist(snap)
+        if (!exists) return
+
+        const data = typeof snap.data === 'function' ? snap.data() : snap
+
+        if (scope === 'all') {
+          await deleteDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId)
+          return
+        }
+
+        const currentSlotSummaries: RequestedSlotSummary[] = data?.slotSummaries || []
+        const remainingSlotSummaries = currentSlotSummaries.filter((s) => {
+          const isSun = isSundaySlotSummary(s)
+          if (scope === 'sunday') {
+            return !isSun
+          }
+          if (scope === 'weekday') {
+            return isSun
+          }
+          return false
+        })
+
+        if (remainingSlotSummaries.length === 0) {
+          await deleteDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId)
+        } else {
+          const remainingScheduleIds = Array.from(
+            new Set(remainingSlotSummaries.flatMap((s) => s.scheduleIds || []))
+          )
+          await updateDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId, {
+            slotSummaries: remainingSlotSummaries,
+            requestedScheduleIds: remainingScheduleIds,
+            updatedAt: serverTimestamp()
+          })
+        }
+      })
+    )
   },
 
   /**
@@ -288,10 +382,31 @@ export const submissionService = {
 
     // Check if submission already exists (Deterministic check)
     const existingSnap = await getDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId)
-    if (existingSnap && existingSnap.exists()) {
-      throw new Error(
-        'A schedule submission has already been received for this altar server. If you need to make changes, please contact your ministry coordinator.'
-      )
+    const exists = doesSnapshotExist(existingSnap)
+    let existingData: any = null
+
+    if (exists) {
+      existingData = typeof existingSnap.data === 'function' ? existingSnap.data() : existingSnap
+      if (existingData?.status === 'approved') {
+        throw new Error(
+          'This scheduling cycle has already been approved and finalized. To request schedule adjustments, please contact your ministry coordinator.'
+        )
+      }
+
+      // Check that previously saved requested schedule IDs are preserved (cannot drop saved slots)
+      const prevIds: string[] = existingData?.requestedScheduleIds || []
+      const hasAllPrev = prevIds.every(id => input.requestedScheduleIds.includes(id))
+      if (!hasAllPrev) {
+        throw new Error('Previously saved schedule slots cannot be removed or modified.')
+      }
+
+      // Check if any new schedule slots are being added
+      const newIds = input.requestedScheduleIds.filter(id => !prevIds.includes(id))
+      if (newIds.length === 0) {
+        throw new Error(
+          'A schedule submission has already been received for this altar server. If you need to make changes, please contact your ministry coordinator.'
+        )
+      }
     }
 
     // Resolve publication if not provided
@@ -343,8 +458,33 @@ export const submissionService = {
       ...(summary.dayName !== undefined ? { dayName: summary.dayName } : {}),
       ...(summary.title !== undefined ? { title: summary.title } : {}),
       ...(summary.location !== undefined ? { location: summary.location } : {}),
-      ...(summary.datesCount !== undefined ? { datesCount: summary.datesCount } : {})
+      ...(summary.datesCount !== undefined ? { datesCount: summary.datesCount } : {}),
+      ...(summary.slotIndex !== undefined ? { slotIndex: summary.slotIndex } : {})
     }))
+
+    if (exists) {
+      const submissionData = {
+        ...existingData,
+        id: submissionId,
+        publicationId: input.publicationId,
+        memberId: input.memberId,
+        memberName: memberNameClean,
+        memberRank: input.memberRank || member.rank || existingData.memberRank || '',
+        status: 'pending' as const,
+        requestedScheduleIds: input.requestedScheduleIds,
+        slotSummaries,
+        submittedAt: nowIso,
+        updatedAt: serverTimestamp()
+      }
+
+      await updateDocument(firestoreInstance, SUBMISSIONS_COLLECTION, submissionId, submissionData)
+
+      return {
+        ...submissionData,
+        createdAt: existingData.createdAt || nowIso,
+        updatedAt: nowIso
+      } as unknown as ScheduleSubmission
+    }
 
     const submissionData = {
       id: submissionId,
@@ -684,5 +824,332 @@ export const submissionService = {
         reason: options?.reason
       }
     })
+  },
+
+  /**
+   * Finalizes and approves the entire scheduling cycle for a publication atomically via runTransaction.
+   *
+   * Validations and Invariants:
+   * 1. Authorization: Requires canManageSchedules permission or admin role.
+   * 2. Transaction reads first: Publication, all pending submissions, target schedules, and member records.
+   * 3. Slicing: Historical, finalized, or locked occurrences prior to effectiveDate are strictly preserved.
+   * 4. Member validation: Active status, rank eligibility, non-suspension on regular publications.
+   * 5. Slot capacity & ordering: Preserves exact slotIndex selected by each server; checks max servers limit.
+   * 6. Cross-schedule same-day overlap conflict checking across the parish.
+   * 7. Zero partial writes: If ANY conflict is detected, aborts transaction completely and reports the exact conflicts.
+   * 8. Atomic Commit: Updates future schedules, marks pending submissions approved, updates publication.submittedMembers and isCycleFinalized.
+   * 9. Post-commit audit logging.
+   */
+  async finalizePublicationCycle(
+    publicationId: string,
+    options: CycleFinalizationOptions = {}
+  ): Promise<CycleFinalizationResult> {
+    verifyAdminPermissions(options.adminUser)
+
+    const firestoreInstance = await getEffectiveDb(options.firestoreInstance)
+    const effectiveDate = options.effectiveDate || getParishTodayDate()
+    const reviewerIdentifier = options.adminUser?.email || options.adminUser?.uid || 'Admin'
+
+    // Step 1: Pre-fetch outside transaction to discover document IDs
+    const pubDocRef = getDocumentRef(firestoreInstance, 'schedulePublications', publicationId)
+    let prePub: SchedulePublication | null = null
+    let preSchedules: Schedule[] = []
+    let allPublicationSubs: ScheduleSubmission[] = []
+
+    if (typeof (firestoreInstance as any).queryDocs === 'function') {
+      const pubData = (firestoreInstance as any).getDoc('schedulePublications', publicationId)
+      if (pubData) {
+        prePub = { id: publicationId, ...pubData } as SchedulePublication
+      }
+      preSchedules = (firestoreInstance as any).queryDocs('schedules', 'publicationId', publicationId)
+      allPublicationSubs = (firestoreInstance as any).queryDocs(SUBMISSIONS_COLLECTION, 'publicationId', publicationId)
+    } else {
+      const pubDocSnap = await getDoc(pubDocRef)
+      if (doesSnapshotExist(pubDocSnap)) {
+        prePub = { id: pubDocSnap.id, ...(pubDocSnap.data() || {}) } as SchedulePublication
+      }
+
+      // Pre-fetch schedules for this publication
+      const schedRef = collection(firestoreInstance, 'schedules')
+      const schedQuery = query(schedRef, where('publicationId', '==', publicationId))
+      const schedSnap = await getDocs(schedQuery)
+      preSchedules = schedSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })) as Schedule[]
+
+      // Pre-fetch pending submissions for this publication
+      const subRef = collection(firestoreInstance, SUBMISSIONS_COLLECTION)
+      const subQuery = query(subRef, where('publicationId', '==', publicationId))
+      const subSnap = await getDocs(subQuery)
+      allPublicationSubs = subSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })) as ScheduleSubmission[]
+    }
+
+    if (!prePub) {
+      throw new SubmissionError('NOT_FOUND', `Publication '${publicationId}' not found.`)
+    }
+    if (prePub.status === 'archived') {
+      throw new SubmissionError('PUBLICATION_CLOSED', 'Cannot approve or finalize an archived publication.')
+    }
+    const pendingSubs = allPublicationSubs.filter(s => s.status === 'pending')
+
+    // Discover all unique member IDs involved
+    const involvedMemberIds = new Set<string>()
+    preSchedules.forEach(s => (s.assignedMembers || []).forEach(mId => involvedMemberIds.add(mId)))
+    pendingSubs.forEach(s => involvedMemberIds.add(s.memberId))
+
+    const executeTransaction = options.transactionRunner || ((fn: any) => runTransaction(firestoreInstance, fn))
+
+    const txResult = await executeTransaction(async (transaction: Transaction) => {
+      // 1. TRANSACTION READS (All reads must precede writes)
+      const pubSnap = await transaction.get(pubDocRef)
+      if (!doesSnapshotExist(pubSnap)) {
+        throw new SubmissionError('NOT_FOUND', `Publication '${publicationId}' not found.`)
+      }
+      const publication = { id: pubSnap.id, ...(pubSnap.data() || {}) } as SchedulePublication
+
+      if (publication.status === 'archived') {
+        throw new SubmissionError('PUBLICATION_CLOSED', 'Cannot approve or finalize an archived publication.')
+      }
+
+      // Read each pending submission inside transaction
+      const transactionalPendingSubs: ScheduleSubmission[] = []
+      for (const sub of pendingSubs) {
+        const sRef = getDocumentRef(firestoreInstance, SUBMISSIONS_COLLECTION, sub.id)
+        const sSnap = await transaction.get(sRef)
+        if (doesSnapshotExist(sSnap)) {
+          const sData = { id: sSnap.id, ...(sSnap.data() || {}) } as ScheduleSubmission
+          if (sData.status === 'pending') {
+            transactionalPendingSubs.push(sData)
+          }
+        }
+      }
+
+      // Read each member inside transaction
+      const memberMap = new Map<string, Member>()
+      for (const memId of involvedMemberIds) {
+        const mRef = getDocumentRef(firestoreInstance, 'members', memId)
+        const mSnap = await transaction.get(mRef)
+        if (doesSnapshotExist(mSnap)) {
+          memberMap.set(memId, { id: mSnap.id, ...(mSnap.data() || {}) } as Member)
+        }
+      }
+
+      // Read each schedule inside transaction
+      const schedulesMap = new Map<string, Schedule>()
+      for (const sched of preSchedules) {
+        const scRef = getDocumentRef(firestoreInstance, 'schedules', sched.id)
+        const scSnap = await transaction.get(scRef)
+        if (doesSnapshotExist(scSnap)) {
+          schedulesMap.set(sched.id, { id: scSnap.id, ...(scSnap.data() || {}) } as Schedule)
+        }
+      }
+
+      // 2. VALIDATIONS & CONFLICT DETECTION
+      const isSpecialPub =
+        publication.publicationType === 'special_event' ||
+        !!publication.enableStreetLocation ||
+        (publication.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
+
+      const conflicts: CycleConflictItem[] = []
+
+      // Check each member's rank eligibility & active status
+      for (const sub of transactionalPendingSubs) {
+        const member = memberMap.get(sub.memberId)
+        if (!member) {
+          conflicts.push({
+            type: 'MEMBER_SUSPENDED',
+            memberId: sub.memberId,
+            memberName: sub.memberName,
+            message: `Member record not found for '${sub.memberName}'.`
+          })
+          continue
+        }
+
+        if (!isMemberEligibleForPublication(member, publication, true)) {
+          conflicts.push({
+            type: 'RANK_INELIGIBLE',
+            memberId: member.id,
+            memberName: getFullName(member),
+            message: `Server '${getFullName(member)}' (${member.rank || 'No rank'}) is ineligible for publication '${publication.name}'.`
+          })
+        }
+
+        if (member.status === 'suspended' && !isSpecialPub) {
+          conflicts.push({
+            type: 'MEMBER_SUSPENDED',
+            memberId: member.id,
+            memberName: getFullName(member),
+            message: `Server '${getFullName(member)}' is suspended and cannot serve on regular Masses.`
+          })
+        }
+      }
+
+      // 3. SLICE SCHEDULES AND BUILD TARGET ROSTERS
+      const futureSchedulesToUpdate = new Map<string, string[]>()
+      let preservedHistoricalCount = 0
+
+      for (const [schedId, sched] of schedulesMap.entries()) {
+        if (isHistoricalScheduleOccurrence(sched, effectiveDate, 'Asia/Manila')) {
+          preservedHistoricalCount++
+          continue
+        }
+
+        // Start with existing assigned members
+        const existingList = [...(sched.assignedMembers || [])]
+        const matchingSubs = transactionalPendingSubs
+          .filter(sub => (sub.requestedScheduleIds || []).includes(schedId))
+          .sort((a, b) => (a.submittedAt || '').localeCompare(b.submittedAt || ''))
+
+        const nextList = [...existingList]
+        const maxSlotCapacity = sched.category === 'special_event' || isSpecialPub
+          ? (publication.maxServersPerSpecialSlot ?? 6)
+          : isSundayOrAnticipatedMass(sched.title, sched.date, sched.startTime)
+          ? (publication.maxServersPerSundaySlot ?? 5)
+          : (publication.maxServersPerWeekdaySlot ?? 5)
+
+        for (const sub of matchingSubs) {
+          if (nextList.includes(sub.memberId)) continue
+
+          const summary = (sub.slotSummaries || []).find(s => (s.scheduleIds || []).includes(schedId))
+          const targetIdx = summary?.slotIndex
+
+          if (targetIdx !== undefined && targetIdx >= 0 && targetIdx < maxSlotCapacity) {
+            if (!nextList[targetIdx]) {
+              while (nextList.length <= targetIdx) nextList.push('')
+              nextList[targetIdx] = sub.memberId
+            } else {
+              const occupiedBy = memberMap.get(nextList[targetIdx])
+              conflicts.push({
+                type: 'CAPACITY_EXCEEDED',
+                memberId: sub.memberId,
+                memberName: sub.memberName,
+                scheduleId: sched.id,
+                massTitle: sched.title,
+                date: sched.date,
+                time: sched.startTime,
+                message: `Slot conflict: Server ${targetIdx + 1} for ${sched.title} on ${sched.date} is already assigned to ${occupiedBy ? getFullName(occupiedBy) : 'another server'}.`
+              })
+              continue
+            }
+          } else {
+            const cleanCount = nextList.filter(Boolean).length
+            if (cleanCount >= maxSlotCapacity) {
+              conflicts.push({
+                type: 'CAPACITY_EXCEEDED',
+                memberId: sub.memberId,
+                memberName: sub.memberName,
+                scheduleId: sched.id,
+                massTitle: sched.title,
+                date: sched.date,
+                time: sched.startTime,
+                message: `Mass slot capacity reached: ${sched.title} on ${sched.date} (${cleanCount}/${maxSlotCapacity} servers).`
+              })
+              continue
+            }
+            nextList.push(sub.memberId)
+          }
+        }
+
+        const cleanedRoster = nextList.filter(Boolean)
+        const uniqueRoster = Array.from(new Set(cleanedRoster))
+        if (uniqueRoster.length !== cleanedRoster.length) {
+          conflicts.push({
+            type: 'DUPLICATE_ASSIGNMENT',
+            memberId: '',
+            memberName: '',
+            scheduleId: sched.id,
+            massTitle: sched.title,
+            date: sched.date,
+            message: `Duplicate server assignment detected in ${sched.title} on ${sched.date}.`
+          })
+        }
+
+        futureSchedulesToUpdate.set(schedId, uniqueRoster)
+      }
+
+      // 4. CHECK CROSS-SCHEDULE SAME-DAY TIME OVERLAPS
+      for (const [schedId, assignedList] of futureSchedulesToUpdate.entries()) {
+        const schedA = schedulesMap.get(schedId)!
+        for (const memId of assignedList) {
+          for (const [otherId, otherAssigned] of futureSchedulesToUpdate.entries()) {
+            if (otherId === schedId) continue
+            if (!otherAssigned.includes(memId)) continue
+            const schedB = schedulesMap.get(otherId)!
+            if (schedA.date === schedB.date && isTimeOverlapping(schedA.startTime, schedA.endTime, schedB.startTime, schedB.endTime)) {
+              const mem = memberMap.get(memId)
+              conflicts.push({
+                type: 'TIME_OVERLAP',
+                memberId: memId,
+                memberName: mem ? getFullName(mem) : memId,
+                date: schedA.date,
+                message: `Time overlap conflict: ${mem ? getFullName(mem) : memId} is scheduled for both "${schedA.title}" (${schedA.startTime}) and "${schedB.title}" (${schedB.startTime}) on ${schedA.date}.`
+              })
+            }
+          }
+        }
+      }
+
+      // 5. ABORT ON ANY CONFLICT (Requirement #5)
+      if (conflicts.length > 0) {
+        const summaryMessages = conflicts.map(c => c.message).join(' | ')
+        throw new SubmissionError(
+          'CONFLICT_DETECTED',
+          `Cannot approve or finalize scheduling cycle due to ${conflicts.length} conflict(s): ${summaryMessages}`,
+          { conflicts }
+        )
+      }
+
+      // 6. TRANSACTION WRITES (Atomic Commit)
+      for (const [schedId, finalRoster] of futureSchedulesToUpdate.entries()) {
+        const scRef = getDocumentRef(firestoreInstance, 'schedules', schedId)
+        transaction.update(scRef, {
+          assignedMembers: finalRoster,
+          updatedAt: serverTimestamp()
+        })
+      }
+
+      const approvedMemberIds: string[] = []
+      const nowIso = new Date().toISOString()
+      for (const sub of transactionalPendingSubs) {
+        const subRef = getDocumentRef(firestoreInstance, SUBMISSIONS_COLLECTION, sub.id)
+        transaction.update(subRef, {
+          status: 'approved',
+          reviewedBy: reviewerIdentifier,
+          reviewedAt: nowIso,
+          effectiveDate,
+          updatedAt: serverTimestamp()
+        })
+        approvedMemberIds.push(sub.memberId)
+      }
+
+      const existingSubmitted = new Set(publication.submittedMembers || [])
+      approvedMemberIds.forEach(id => existingSubmitted.add(id))
+
+      transaction.update(pubDocRef, {
+        isCycleFinalized: true,
+        cycleFinalizedAt: nowIso,
+        cycleFinalizedBy: reviewerIdentifier,
+        submittedMembers: Array.from(existingSubmitted),
+        updatedAt: serverTimestamp()
+      })
+
+      return {
+        publicationId,
+        approvedSubmissionsCount: transactionalPendingSubs.length,
+        updatedSchedulesCount: futureSchedulesToUpdate.size,
+        preservedHistoricalSchedulesCount: preservedHistoricalCount,
+        assignedMembersCount: approvedMemberIds.length,
+        effectiveDate
+      }
+    })
+
+    // Post-commit audit log
+    await safeLogAudit(
+      'SCHEDULE_CYCLE_FINALIZED',
+      'schedule',
+      `Admin finalized and approved scheduling cycle for publication '${prePub.name}' (${txResult.approvedSubmissionsCount} submissions approved, ${txResult.updatedSchedulesCount} future schedules committed, ${txResult.preservedHistoricalSchedulesCount} historical preserved)`,
+      reviewerIdentifier,
+      txResult
+    )
+
+    return txResult
   }
 }
