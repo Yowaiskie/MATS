@@ -937,6 +937,29 @@ export const isOfficialRegularMassSlot = (dayOfWeek: number, startTime: string):
   )
 }
 
+const CANONICAL_WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+
+const DAY_OF_WEEK_ALIASES: Record<string, string> = {
+  '0': 'sunday', sun: 'sunday', sunday: 'sunday', linggo: 'sunday',
+  '1': 'monday', mon: 'monday', monday: 'monday', lunes: 'monday',
+  '2': 'tuesday', tue: 'tuesday', tues: 'tuesday', tuesday: 'tuesday', martes: 'tuesday',
+  '3': 'wednesday', wed: 'wednesday', weds: 'wednesday', wednesday: 'wednesday', miyerkules: 'wednesday',
+  '4': 'thursday', thu: 'thursday', thur: 'thursday', thurs: 'thursday', thursday: 'thursday', huwebes: 'thursday',
+  '5': 'friday', fri: 'friday', friday: 'friday', biyernes: 'friday',
+  '6': 'saturday', sat: 'saturday', saturday: 'saturday', sabado: 'saturday'
+}
+
+/**
+ * Normalizes a day-of-week name, abbreviation, or numeric index (0-6) to a lowercase canonical weekday string.
+ */
+export const normalizeDayOfWeek = (day: string | number | undefined | null): string => {
+  if (typeof day === 'number') {
+    return CANONICAL_WEEKDAYS[day] || ''
+  }
+  const clean = String(day ?? '').trim().toLowerCase().replace(/\.$/, '')
+  return DAY_OF_WEEK_ALIASES[clean] || clean
+}
+
 /**
  * Returns the current date in YYYY-MM-DD format within the parish timezone (default: Asia/Manila).
  */
@@ -1272,7 +1295,7 @@ export const groupSchedulesIntoPatterns = (
       const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
       const matchedTemplate = options.activeTemplates.find(t => {
         if (s.templateId && t.id === s.templateId) return true
-        const tDow = dayNames.indexOf(t.dayOfWeek.toLowerCase().trim())
+        const tDow = dayNames.indexOf(normalizeDayOfWeek(t.dayOfWeek))
         return tDow === dayOfWeek && (t.startTime || '').trim().slice(0, 5) === normTime
       })
       if (matchedTemplate && matchedTemplate.active !== false) {

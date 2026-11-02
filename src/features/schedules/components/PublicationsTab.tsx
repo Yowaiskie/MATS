@@ -14,6 +14,7 @@ import { PublicationFormModal, type CustomEventSlotInput } from './PublicationFo
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
 import { DuplicateScheduleReportModal } from './DuplicateScheduleReportModal'
+import { TemplateManagerModal } from './TemplateManagerModal'
 import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/features/authentication/AuthContext'
 
@@ -24,7 +25,11 @@ export interface PublicationMemberStats {
   total: number
 }
 
-export const PublicationsTab: React.FC = () => {
+interface PublicationsTabProps {
+  onSchedulesChanged?: () => void
+}
+
+export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesChanged }) => {
   const { toast } = useToast()
   const { user, profile } = useAuth()
   const [publications, setPublications] = useState<SchedulePublication[]>([])
@@ -50,6 +55,7 @@ export const PublicationsTab: React.FC = () => {
     confirmLabel: string;
   } | null>(null)
   const [manageSubmissionsPub, setManageSubmissionsPub] = useState<SchedulePublication | null>(null)
+  const [templateGenPub, setTemplateGenPub] = useState<SchedulePublication | null>(null)
 
   const loadData = async () => {
     setLoading(true)
@@ -216,6 +222,7 @@ export const PublicationsTab: React.FC = () => {
         `Approved ${result.approvedSubmissionsCount} submission(s) and committed assignments across ${result.updatedSchedulesCount} future schedule(s).`
       )
       await loadData()
+      onSchedulesChanged?.()
     } catch (err: any) {
       console.error('Cycle finalization failed:', err)
       if (err.details?.conflicts) {
@@ -283,6 +290,7 @@ export const PublicationsTab: React.FC = () => {
       }
       if (isLocked !== false) await publicationService.updatePublication(pub.id, { status: targetStatus })
       await loadData()
+      onSchedulesChanged?.()
       toast.success(
         targetStatus === 'archived' ? 'Publication Finalized' : 'Publication Updated',
         isLocked !== undefined
@@ -390,6 +398,7 @@ export const PublicationsTab: React.FC = () => {
         toast.error('Warning', `Publication saved, but some schedule slots failed to process: ${err.message}`)
       }
       await loadData()
+      onSchedulesChanged?.()
       return
     }
 
@@ -397,7 +406,7 @@ export const PublicationsTab: React.FC = () => {
     if (generateSchedules && selectedTemplateIds && pubId) {
       try {
         const activeTemplates = (await recurringService.getTemplates())
-          .filter(t => t.active && selectedTemplateIds.includes(t.id))
+          .filter(t => t.active !== false && selectedTemplateIds.includes(t.id))
           
         if (activeTemplates.length > 0) {
           const report = await recurringService.generateSchedules(
@@ -419,10 +428,12 @@ export const PublicationsTab: React.FC = () => {
         toast.error('Warning', `Publication saved, but failed to generate schedules: ${err.message}`)
       }
       await loadData()
+      onSchedulesChanged?.()
       return
     }
 
     await loadData()
+    onSchedulesChanged?.()
     toast.success('Success', 'Publication saved successfully.')
   }
 
@@ -785,6 +796,15 @@ export const PublicationsTab: React.FC = () => {
                             confirmLabel: 'Unfinalize & Unlock'
                           })
                         }] : []),
+                        ...(pub.status !== 'archived' && pub.publicationType !== 'special_event' ? [{
+                          label: 'Generate Schedules from Templates',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                            </svg>
+                          ),
+                          onClick: () => setTemplateGenPub(pub)
+                        }] : []),
                         {
                           label: 'Manage Submissions / Auto-Assign',
                           icon: (
@@ -1111,6 +1131,15 @@ export const PublicationsTab: React.FC = () => {
                                     confirmLabel: 'Unfinalize & Unlock'
                                   })
                                 }] : []),
+                                ...(pub.status !== 'archived' && pub.publicationType !== 'special_event' ? [{
+                                  label: 'Generate Schedules from Templates',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => setTemplateGenPub(pub)
+                                }] : []),
                                 {
                                   label: 'Manage Submissions / Auto-Assign',
                                   icon: (
@@ -1301,6 +1330,7 @@ export const PublicationsTab: React.FC = () => {
         onSuccess={() => {
           setManageSubmissionsPub(null)
           loadData()
+          onSchedulesChanged?.()
         }}
       />
 
@@ -1308,6 +1338,18 @@ export const PublicationsTab: React.FC = () => {
         isOpen={!!exportPdfPub}
         onClose={() => setExportPdfPub(null)}
         publication={exportPdfPub}
+      />
+
+      <TemplateManagerModal
+        isOpen={!!templateGenPub}
+        onClose={() => setTemplateGenPub(null)}
+        initialPublicationId={templateGenPub?.id}
+        initialStartDate={templateGenPub?.startDate}
+        initialEndDate={templateGenPub?.endDate}
+        onGenerateSuccess={async () => {
+          await loadData()
+          onSchedulesChanged?.()
+        }}
       />
     </div>
   )

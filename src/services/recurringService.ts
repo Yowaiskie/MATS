@@ -13,7 +13,15 @@ import type { Member } from '@/types/member'
 import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
 import type { ScheduleInput } from '@/types/schedule'
 import { GenerationContextChangedError, getOccurrenceContext, getOccurrenceKey, validateScheduleRange } from '../utils/scheduleIntegrity.ts'
-import { isTimeOverlapping, OFFICIAL_REGULAR_MASS_SLOTS, isOfficialRegularMassSlot } from '@/utils/scheduleUtils'
+import {
+  isTimeOverlapping,
+  OFFICIAL_REGULAR_MASS_SLOTS,
+  isOfficialRegularMassSlot,
+  isHolyHourSchedule,
+  isMeetingSchedule,
+  isSundayOrAnticipatedMass,
+  normalizeDayOfWeek
+} from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { scheduleService } from './scheduleService'
 import { memberService } from './memberService'
@@ -21,6 +29,19 @@ import { settingsService } from './settingsService'
 import { orderRotationService } from './orderRotationService'
 
 const TEMPLATES_COLLECTION = 'scheduleTemplates'
+
+function normalizeTemplateTime24(timeStr?: string): string {
+  if (!timeStr) return ''
+  const clean = timeStr.trim().toUpperCase()
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/)
+  if (!match) return timeStr.trim().slice(0, 5)
+  let h = parseInt(match[1], 10)
+  const m = match[2]
+  const ampm = match[3]
+  if (ampm === 'PM' && h < 12) h += 12
+  if (ampm === 'AM' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${m}`
+}
 
 // Helper for fuzzy string matching (typo tolerance)
 function getLevenshteinDistance(a: string, b: string): number {
@@ -63,10 +84,14 @@ export const recurringService = {
   async getTemplates(): Promise<ScheduleTemplate[]> {
     const ref = collection(db, TEMPLATES_COLLECTION)
     const snapshot = await getDocs(ref)
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ScheduleTemplate[]
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data()
+      return {
+        id: docSnap.id,
+        ...data,
+        active: data.active !== false
+      }
+    }) as ScheduleTemplate[]
   },
 
   /**
@@ -316,27 +341,36 @@ export const recurringService = {
       const currentWeekday = weekdays[d.getDay()]
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-      // Check templates matching this day of week (case-insensitive)
+      // Check templates matching this day of week (normalized for full names, abbreviations, and indices)
       const matchingTemplates = templates.filter(t => 
-        (t.active === undefined || t.active === true) && 
-        t.dayOfWeek.toLowerCase().trim() === currentWeekday.toLowerCase().trim()
+        t.active !== false && 
+        normalizeDayOfWeek(t.dayOfWeek) === currentWeekday.toLowerCase()
       )
 
       for (const temp of matchingTemplates) {
+        const normStartTime = normalizeTemplateTime24(temp.startTime) || '08:00'
         // Fallback for endTime if not explicitly set
-        let slotEndTime = temp.endTime
-        if (!slotEndTime || temp.startTime >= slotEndTime) {
-          const [h, m] = temp.startTime.split(':').map(Number)
-          const nextH = (h + 1) % 24
-          slotEndTime = `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
+        let slotEndTime = normalizeTemplateTime24(temp.endTime)
+        if (!slotEndTime || normStartTime >= slotEndTime) {
+          const [h, m] = normStartTime.split(':').map(Number)
+          const nextH = ((Number.isNaN(h) ? 8 : h) + 1) % 24
+          slotEndTime = `${String(nextH).padStart(2, '0')}:${String(Number.isNaN(m) ? 0 : m).padStart(2, '0')}`
         }
+
+        const category: ScheduleCategoryKey = isHolyHourSchedule(temp.title)
+          ? 'holy_hour'
+          : isMeetingSchedule(temp.title)
+          ? 'meeting'
+          : (d.getDay() === 0 || isSundayOrAnticipatedMass(temp.title, dateStr, normStartTime))
+          ? 'mass_sunday'
+          : 'mass_weekday'
 
         const occurrence: ScheduleInput = {
           publicationId: options?.publicationId,
           templateId: temp.id,
           title: temp.title,
-          category: ((d.getDay() === 0 || (d.getDay() === 6 && temp.startTime >= '18:00')) ? 'mass_sunday' : 'mass_weekday') as ScheduleCategoryKey,
-          date: dateStr, startTime: temp.startTime, endTime: slotEndTime,
+          category,
+          date: dateStr, startTime: normStartTime, endTime: slotEndTime,
           location: temp.location || '', status: 'upcoming'
         }
         // Same context only: Special Masses/other locations are independent.
@@ -423,8 +457,8 @@ export const recurringService = {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
 
     active.forEach(t => {
-      const dow = dayNames.indexOf(t.dayOfWeek.toLowerCase().trim())
-      const normTime = (t.startTime || '').trim().slice(0, 5)
+      const dow = dayNames.indexOf(normalizeDayOfWeek(t.dayOfWeek))
+      const normTime = normalizeTemplateTime24(t.startTime)
       if (dow >= 0 && isOfficialRegularMassSlot(dow, normTime)) {
         matchedSlots.add(`${dow}-${normTime}`)
       } else {

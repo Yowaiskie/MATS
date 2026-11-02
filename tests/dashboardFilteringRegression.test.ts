@@ -2,6 +2,7 @@ import { test } from 'node:test'
 import assert from 'node:assert'
 import { publicationService } from '../src/services/publicationService.ts'
 import { dashboardService } from '../src/services/dashboardService.ts'
+import { getParishTodayDate } from '../src/utils/scheduleUtils.ts'
 import type { SchedulePublication } from '../src/types/publication.ts'
 import type { Schedule } from '../src/types/schedule.ts'
 import type { Member } from '../src/types/member.ts'
@@ -246,8 +247,9 @@ test('Dashboard & Publication Selection Regression Test Suite', async (t) => {
       getSchedules: async () => []
     })
 
-    assert.ok(capturedStartDate?.startsWith('2026-10-'), 'Evaluation start date should be in October 2026')
-    assert.ok(capturedEndDate?.startsWith('2026-10-'), 'Evaluation end date should be in October 2026')
+    const currentMonthPrefix = `${getParishTodayDate().slice(0, 7)}-`
+    assert.ok(capturedStartDate?.startsWith(currentMonthPrefix), `Evaluation start date should be in current parish month (${currentMonthPrefix})`)
+    assert.ok(capturedEndDate?.startsWith(currentMonthPrefix), `Evaluation end date should be in current parish month (${currentMonthPrefix})`)
     assert.strictEqual(dashboardData.stats.warningMembersCount, 1)
     assert.strictEqual(dashboardData.stats.userOrderWarningCount, 1)
     assert.strictEqual(dashboardData.stats.suspendedMembersCount, 1)

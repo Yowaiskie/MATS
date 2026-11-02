@@ -48,16 +48,38 @@ function integrityTransaction<T>(db: Firestore, callback: (transaction: Transact
 export async function readIntegrityRange(db: Firestore, path: string, startDate: string, endDate: string): Promise<Array<DocumentData & { id: string }>> {
   validateScheduleRange(startDate, endDate)
   const memory = memoryDb(db)
-  const docs = memory ? memory.collection(path).docs.filter(snapshot => {
-    const data = snapshot.data()!
-    return path === 'schedules'
-      ? data.date >= startDate && data.date <= endDate
-      : data.endDate >= startDate && data.startDate <= endDate
-  }) : (await getDocsFromServer(query(collection(db, path),
-    ...(path === 'schedules'
-      ? [where('date', '>=', startDate), where('date', '<=', endDate)]
-      : [where('endDate', '>=', startDate), where('startDate', '<=', endDate)]),
-    limit(MAX_RANGE_RECORDS + 1)))).docs
+  let docs
+  if (memory) {
+    docs = memory.collection(path).docs.filter(snapshot => {
+      const data = snapshot.data()!
+      return path === 'schedules'
+        ? data.date >= startDate && data.date <= endDate
+        : data.endDate >= startDate && data.startDate <= endDate
+    })
+  } else {
+    try {
+      docs = (await getDocsFromServer(query(collection(db, path),
+        ...(path === 'schedules'
+          ? [where('date', '>=', startDate), where('date', '<=', endDate)]
+          : [where('endDate', '>=', startDate), where('startDate', '<=', endDate)]),
+        limit(MAX_RANGE_RECORDS + 1)))).docs
+    } catch (err: unknown) {
+      const errorObj = err as { code?: string; message?: string }
+      if (path === 'schedulePublications' && (errorObj?.code === 'failed-precondition' || String(errorObj?.message || '').toLowerCase().includes('index'))) {
+        const singleQueryDocs = (await getDocsFromServer(query(
+          collection(db, path),
+          where('endDate', '>=', startDate),
+          limit(MAX_RANGE_RECORDS + 1)
+        ))).docs
+        docs = singleQueryDocs.filter(snapshot => {
+          const data = snapshot.data() as { startDate?: string } | undefined
+          return Boolean(data && data.startDate && data.startDate <= endDate)
+        })
+      } else {
+        throw err
+      }
+    }
+  }
   if (docs.length > MAX_RANGE_RECORDS) throw new Error('Too many records in this range. Narrow the dates before continuing.')
   return docs.map(snapshot => ({ ...snapshot.data(), id: snapshot.id }))
 }

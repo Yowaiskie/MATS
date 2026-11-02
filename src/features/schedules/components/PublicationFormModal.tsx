@@ -6,7 +6,7 @@ import type { ScheduleTemplate } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isScheduleIncludedInPublication, isOfficialRegularMassSlot } from '@/utils/scheduleUtils'
+import { isScheduleIncludedInPublication, isOfficialRegularMassSlot, normalizeDayOfWeek } from '@/utils/scheduleUtils'
 import { CustomSelect, Button } from '@/components'
 
 const STATUS_OPTIONS = [
@@ -652,13 +652,13 @@ export const PublicationFormModal: React.FC<Props> = ({
       const loadTemplates = async () => {
         try {
           const fetched = await recurringService.getTemplates()
-          const active = fetched.filter(t => t.active)
+          const active = fetched.filter(t => t.active !== false)
           setTemplates(active)
           
           // Pre-select the 14 official Regular Mass templates by default
           const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
           const officialIds = active.filter(t => {
-            const dow = dayNames.indexOf(t.dayOfWeek.toLowerCase().trim())
+            const dow = dayNames.indexOf(normalizeDayOfWeek(t.dayOfWeek))
             const normTime = (t.startTime || '').trim().slice(0, 5)
             return dow >= 0 && isOfficialRegularMassSlot(dow, normTime)
           }).map(t => t.id)

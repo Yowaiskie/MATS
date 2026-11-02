@@ -14,7 +14,7 @@ function harness() {
   const queries: Array<{ path: string; constraints: Constraint[] }> = []
   let retries = 0
   let serial = 0
-  const faults = { auditWritesDenied: false }
+  const faults = { auditWritesDenied: false, publicationIndexMissing: false }
   const db = { app: { name: 'memory-only' } }
   const seed = (key: string, data: Data) => {
     records.set(key, structuredClone(data))
@@ -36,10 +36,16 @@ function harness() {
     limit: (value: number): Constraint => ({ value, kind: 'limit' }),
     orderBy: (field: string): Constraint => ({ field, value: undefined, kind: 'order' }),
     query: (reference: { path: string }, ...constraints: Constraint[]) => ({ ...reference, constraints }),
-    getDocsFromServer: async (request: { path: string; constraints: Constraint[] }) => {
-      queries.push(request)
+    getDocsFromServer: async (request: { path: string; constraints?: Constraint[] }) => {
+      const constraints = request.constraints ?? []
+      if (faults.publicationIndexMissing && request.path === 'schedulePublications' && constraints.filter(c => c.kind === 'where').length > 1) {
+        const error = new Error('The query requires an index. You can create it here: https://console.firebase.google.com/...')
+        ;(error as any).code = 'failed-precondition'
+        throw error
+      }
+      queries.push({ path: request.path, constraints })
       let found = [...records.entries()].filter(([key]) => key.startsWith(`${request.path}/`))
-      for (const constraint of request.constraints) {
+      for (const constraint of constraints) {
         if (constraint.kind === 'where') found = found.filter(([, data]) => {
           const actual = constraint.field!.split('.').reduce<unknown>((value, field) => (value as Data | undefined)?.[field], data) as string
           const expected = constraint.value as string
@@ -387,4 +393,100 @@ test('simultaneous standalone occurrence and publication creation resolve withou
   if (createdPublication.status !== 'fulfilled') return
   await h.recurring.generateSchedules(occurrence.date, occurrence.date, [template], { publicationId: createdPublication.value })
   assert.equal([...h.records.keys()].filter(key => key.startsWith('schedules/')).length, 1)
+})
+
+test('template generation matches abbreviated day names, Tagalog weekdays, and numeric day indices when targeting an active publication', async () => {
+  const h = harness()
+  h.seed('schedulePublications/pub', publication({ status: 'published' }))
+  const report = await h.recurring.generateSchedules('2099-11-01', '2099-11-07', [
+    { ...template, id: 'sun-abbr', title: 'Sunday Mass', dayOfWeek: 'Sun', startTime: '06:00', endTime: '07:00' },
+    { ...template, id: 'mon-tl', title: 'Morning Mass', dayOfWeek: 'Lunes', startTime: '6:00', endTime: '7:00' },
+    { ...template, id: 'wed-num', title: 'Evening Mass', dayOfWeek: '3', startTime: '18:00', endTime: '19:00' },
+    { ...template, id: 'sat-abbr', title: 'Anticipated Mass', dayOfWeek: 'Sat.', startTime: '18:00', endTime: '19:00' }
+  ], { publicationId: 'pub', autoRotateOrderGroups: false })
+
+  assert.equal(report.created, 4)
+  assert.equal(report.validationErrors.length, 0)
+  const createdDocs = [...h.records.entries()]
+    .filter(([key]) => key.startsWith('schedules/'))
+    .map(([, data]) => data)
+  assert.equal(createdDocs.length, 4)
+  assert.ok(createdDocs.every(doc => doc.publicationId === 'pub'))
+  assert.ok(createdDocs.some(doc => doc.date === '2099-11-02' && doc.startTime === '06:00'))
+})
+
+test('templates with undefined active status generate by default while explicit active: false templates are skipped', async () => {
+  const h = harness()
+  h.seed('schedulePublications/pub', publication({ status: 'published' }))
+  h.seed('scheduleTemplates/legacy-active', {
+    name: 'Legacy Wednesday',
+    title: 'Wednesday Mass',
+    dayOfWeek: 'Wed',
+    startTime: '06:00',
+    endTime: '07:00'
+  })
+  h.seed('scheduleTemplates/explicit-off', {
+    name: 'Disabled Wednesday',
+    title: 'Wednesday Mass',
+    dayOfWeek: 'Wednesday',
+    startTime: '18:00',
+    endTime: '19:00',
+    active: false
+  })
+
+  const loadedTemplates = await h.recurring.getTemplates()
+  const legacyLoaded = loadedTemplates.find(t => t.id === 'legacy-active')
+  const disabledLoaded = loadedTemplates.find(t => t.id === 'explicit-off')
+  assert.equal(legacyLoaded?.active, true)
+  assert.equal(disabledLoaded?.active, false)
+
+  const report = await h.recurring.generateSchedules('2099-11-04', '2099-11-04', [
+    { ...template, id: 'implicit-active', startTime: '06:00', endTime: '07:00', active: undefined as unknown as boolean },
+    { ...template, id: 'explicit-inactive', startTime: '18:00', endTime: '19:00', active: false }
+  ], { publicationId: 'pub', autoRotateOrderGroups: false })
+
+  assert.equal(report.created, 1)
+  const createdDocs = [...h.records.entries()]
+    .filter(([key]) => key.startsWith('schedules/'))
+    .map(([, data]) => data)
+  assert.equal(createdDocs.length, 1)
+  assert.equal(createdDocs[0].startTime, '06:00')
+})
+
+test('template generation categorizes Holy Hour, Meetings, Saturday anticipated Mass, custom Sunday Mass, and Weekday Mass accurately', async () => {
+  const h = harness()
+  h.seed('schedulePublications/pub', publication({ status: 'published' }))
+  const report = await h.recurring.generateSchedules('2099-11-01', '2099-11-07', [
+    { ...template, id: 'sun-custom', title: 'Community Mass', dayOfWeek: 'Sunday', startTime: '08:00', endTime: '09:00' },
+    { ...template, id: 'sat-anticipated', title: 'Anticipated Mass', dayOfWeek: 'Saturday', startTime: '17:00', endTime: '18:00' },
+    { ...template, id: 'thu-holy-hour', title: 'Holy Hour Adoration', dayOfWeek: 'Thursday', startTime: '19:00', endTime: '20:00' },
+    { ...template, id: 'sat-meeting', title: 'Monthly General Meeting', dayOfWeek: 'Saturday', startTime: '14:00', endTime: '15:00' },
+    { ...template, id: 'wed-weekday', title: 'Morning Mass', dayOfWeek: 'Wednesday', startTime: '06:00', endTime: '07:00' }
+  ], { publicationId: 'pub', autoRotateOrderGroups: false })
+
+  assert.equal(report.created, 5)
+  const docsByTitle = new Map(
+    [...h.records.entries()]
+      .filter(([key]) => key.startsWith('schedules/'))
+      .map(([, data]) => [String(data.title), data])
+  )
+  assert.equal(docsByTitle.get('Community Mass')?.category, 'mass_sunday')
+  assert.equal(docsByTitle.get('Anticipated Mass')?.category, 'mass_sunday')
+  assert.equal(docsByTitle.get('Holy Hour Adoration')?.category, 'holy_hour')
+  assert.equal(docsByTitle.get('Monthly General Meeting')?.category, 'meeting')
+  assert.equal(docsByTitle.get('Morning Mass')?.category, 'mass_weekday')
+})
+
+test('readIntegrityRange publication queries gracefully fallback to single-range query when composite index is missing or building', async () => {
+  const h = harness()
+  h.seed('schedulePublications/pub', publication({ status: 'published', startDate: '2099-11-01', endDate: '2099-11-30' }))
+  h.faults.publicationIndexMissing = true
+
+  const report = await h.recurring.generateSchedules('2099-11-04', '2099-11-04', [template], { publicationId: 'pub' })
+  assert.equal(report.created, 1)
+  assert.equal(report.validationErrors.length, 0)
+
+  // Verify that a fallback query with only 1 where clause was issued
+  const pubQueries = h.queries.filter(q => q.path === 'schedulePublications')
+  assert.ok(pubQueries.some(q => q.constraints.filter(c => c.kind === 'where').length === 1))
 })

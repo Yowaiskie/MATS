@@ -1,10 +1,35 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { scheduleService } from '../src/services/scheduleService.ts';
+import { getParishTodayDate } from '../src/utils/scheduleUtils.ts';
 import { SubmissionError } from '../src/types/submission.ts';
 import type { SchedulePublication } from '../src/types/publication.ts';
 import type { Member } from '../src/types/member.ts';
 import type { Schedule } from '../src/types/schedule.ts';
+
+const addDaysToYmd = (ymd: string, deltaDays: number): string => {
+  const [y, m, d] = ymd.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d + deltaDays));
+  return dt.toISOString().slice(0, 10);
+};
+
+const nextSundayAtLeastDaysAhead = (ymd: string, minDaysAhead: number): string => {
+  const candidate = addDaysToYmd(ymd, minDaysAhead);
+  const [y, m, d] = candidate.split('-').map(Number);
+  const dow = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  const offsetToSunday = (7 - dow) % 7;
+  return addDaysToYmd(candidate, offsetToSunday);
+};
+
+// Dynamic dates relative to current parish date so tests stay deterministic as calendar dates advance
+const TODAY_YMD = getParishTodayDate();
+const PAST_START = addDaysToYmd(TODAY_YMD, -30);
+const PAST_DATE_1 = addDaysToYmd(TODAY_YMD, -15);
+const FUTURE_START = nextSundayAtLeastDaysAhead(TODAY_YMD, 7);
+const FUTURE_DATE_1 = FUTURE_START;
+const FUTURE_DATE_2 = addDaysToYmd(FUTURE_START, 7);
+const FUTURE_DATE_3 = addDaysToYmd(FUTURE_START, 14);
+const FUTURE_END = addDaysToYmd(FUTURE_START, 60);
 
 // In-memory document store simulating Firestore with atomic transaction semantics
 class MockFirestoreStore {
@@ -92,11 +117,11 @@ class MockFirestoreStore {
 
 // Test fixtures
 const createFixturePublication = (overrides: Partial<SchedulePublication> = {}): SchedulePublication => ({
-  id: 'pub_nov_dec_2026',
-  name: 'November - December 2026 Regular Schedule',
+  id: 'pub_regular_cycle',
+  name: 'Upcoming Bi-Monthly Regular Schedule',
   publicationType: 'regular_cycle',
-  startDate: '2026-11-01',
-  endDate: '2026-12-31',
+  startDate: FUTURE_START,
+  endDate: FUTURE_END,
   status: 'published',
   maxServersPerSundaySlot: 5,
   maxServersPerWeekdaySlot: 5,
@@ -118,7 +143,7 @@ const createFixtureMember = (id: string, overrides: Partial<Member> = {}): Membe
 
 const createFixtureSchedule = (id: string, date: string, overrides: Partial<Schedule> = {}): Schedule => ({
   id,
-  publicationId: 'pub_nov_dec_2026',
+  publicationId: 'pub_regular_cycle',
   title: 'Sunday Mass',
   date,
   startTime: '06:00',
@@ -134,7 +159,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const pub = createFixturePublication();
     store.setDoc('schedulePublications', pub.id, pub);
 
-    const sched = createFixtureSchedule('sched_nov_1', '2026-11-01');
+    const sched = createFixtureSchedule('sched_1', FUTURE_DATE_1);
     store.setDoc('schedules', sched.id, sched);
 
     const mem = createFixtureMember('mem_1');
@@ -148,7 +173,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
           [sched.id],
           [mem.id],
           {
-            effectiveDate: '2026-11-01',
+            effectiveDate: FUTURE_START,
             adminUser: {
               uid: 'user_anonymous',
               role: 'member',
@@ -172,10 +197,10 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const pub = createFixturePublication();
     store.setDoc('schedulePublications', pub.id, pub);
 
-    // 3 recurring Sunday occurrences
-    const sched1 = createFixtureSchedule('sched_nov_1', '2026-11-01');
-    const sched2 = createFixtureSchedule('sched_nov_8', '2026-11-08');
-    const sched3 = createFixtureSchedule('sched_nov_15', '2026-11-15');
+    // 3 recurring future occurrences
+    const sched1 = createFixtureSchedule('sched_1', FUTURE_DATE_1);
+    const sched2 = createFixtureSchedule('sched_2', FUTURE_DATE_2);
+    const sched3 = createFixtureSchedule('sched_3', FUTURE_DATE_3);
     store.setDoc('schedules', sched1.id, sched1);
     store.setDoc('schedules', sched2.id, sched2);
     store.setDoc('schedules', sched3.id, sched3);
@@ -192,7 +217,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
       [sched1.id, sched2.id, sched3.id],
       [m1.id, m2.id, m3.id],
       {
-        effectiveDate: '2026-11-01',
+        effectiveDate: FUTURE_START,
         adminUser: {
           uid: 'admin_1',
           role: 'admin',
@@ -227,7 +252,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const pub = createFixturePublication();
     store.setDoc('schedulePublications', pub.id, pub);
 
-    const sched = createFixtureSchedule('sched_nov_1', '2026-11-01');
+    const sched = createFixtureSchedule('sched_1', FUTURE_DATE_1);
     store.setDoc('schedules', sched.id, sched);
 
     const m1 = createFixtureMember('mem_1');
@@ -240,7 +265,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
           [sched.id],
           ['mem_1', 'mem_1'], // Duplicate
           {
-            effectiveDate: '2026-11-01',
+            effectiveDate: FUTURE_START,
             adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
             firestoreInstance: store.getMockFirestore(),
             transactionRunner: store.createTransactionRunner()
@@ -258,20 +283,20 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
 
   await t.test('4. Historical and finalized preservation: Past or locked schedules are NOT modified', async () => {
     const store = new MockFirestoreStore();
-    const pub = createFixturePublication({ startDate: '2026-10-01', endDate: '2026-11-30' });
+    const pub = createFixturePublication({ startDate: PAST_START, endDate: FUTURE_END });
     store.setDoc('schedulePublications', pub.id, pub);
 
-    // Sched 1 is past (Oct 15) with original members
-    const pastSched = createFixtureSchedule('sched_past', '2026-10-15', {
+    // Sched 1 is past with original members
+    const pastSched = createFixtureSchedule('sched_past', PAST_DATE_1, {
       assignedMembers: ['mem_original_1', 'mem_original_2']
     });
     // Sched 2 is locked/finalized
-    const lockedSched = createFixtureSchedule('sched_locked', '2026-11-15', {
+    const lockedSched = createFixtureSchedule('sched_locked', FUTURE_DATE_2, {
       assignedMembers: ['mem_original_locked'],
       status: 'finalized'
     });
-    // Sched 3 is future (Nov 20)
-    const futureSched = createFixtureSchedule('sched_future', '2026-11-20', {
+    // Sched 3 is future
+    const futureSched = createFixtureSchedule('sched_future', FUTURE_DATE_3, {
       assignedMembers: ['mem_old']
     });
 
@@ -284,13 +309,12 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     store.setDoc('members', mNew1.id, mNew1);
     store.setDoc('members', mNew2.id, mNew2);
 
-    // Set effective date to Nov 1, 2026
     const result = await scheduleService.adminAssignMembersToMassPattern(
       pub.id,
       [pastSched.id, lockedSched.id, futureSched.id],
       [mNew1.id, mNew2.id],
       {
-        effectiveDate: '2026-11-01',
+        effectiveDate: FUTURE_START,
         adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
         firestoreInstance: store.getMockFirestore(),
         transactionRunner: store.createTransactionRunner()
@@ -318,7 +342,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const pub = createFixturePublication({ maxServersPerSundaySlot: 2 });
     store.setDoc('schedulePublications', pub.id, pub);
 
-    const sched = createFixtureSchedule('sched_nov_1', '2026-11-01');
+    const sched = createFixtureSchedule('sched_1', FUTURE_DATE_1);
     store.setDoc('schedules', sched.id, sched);
 
     const m1 = createFixtureMember('mem_1');
@@ -335,7 +359,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
           [sched.id],
           ['mem_1', 'mem_2', 'mem_3'], // 3 members > limit of 2
           {
-            effectiveDate: '2026-11-01',
+            effectiveDate: FUTURE_START,
             adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
             firestoreInstance: store.getMockFirestore(),
             transactionRunner: store.createTransactionRunner()
@@ -356,7 +380,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const pub = createFixturePublication({ publicationType: 'regular_cycle' });
     store.setDoc('schedulePublications', pub.id, pub);
 
-    const sched = createFixtureSchedule('sched_nov_1', '2026-11-01');
+    const sched = createFixtureSchedule('sched_1', FUTURE_DATE_1);
     store.setDoc('schedules', sched.id, sched);
 
     const suspendedMember = createFixtureMember('mem_susp', { status: 'suspended' });
@@ -369,7 +393,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
           [sched.id],
           ['mem_susp'],
           {
-            effectiveDate: '2026-11-01',
+            effectiveDate: FUTURE_START,
             adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
             firestoreInstance: store.getMockFirestore(),
             transactionRunner: store.createTransactionRunner()
@@ -391,7 +415,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     store.setDoc('schedulePublications', pubA.id, pubA);
 
     // Schedule belongs to pub_B
-    const foreignSched = createFixtureSchedule('sched_other', '2026-11-01', { publicationId: 'pub_B' });
+    const foreignSched = createFixtureSchedule('sched_other', FUTURE_DATE_1, { publicationId: 'pub_B' });
     store.setDoc('schedules', foreignSched.id, foreignSched);
 
     const m1 = createFixtureMember('mem_1');
@@ -404,7 +428,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
           [foreignSched.id],
           ['mem_1'],
           {
-            effectiveDate: '2026-11-01',
+            effectiveDate: FUTURE_START,
             adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
             firestoreInstance: store.getMockFirestore(),
             transactionRunner: store.createTransactionRunner()
@@ -425,7 +449,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const archivedPub = createFixturePublication({ status: 'archived' });
     store.setDoc('schedulePublications', archivedPub.id, archivedPub);
 
-    const sched = createFixtureSchedule('sched_nov_1', '2026-11-01');
+    const sched = createFixtureSchedule('sched_1', FUTURE_DATE_1);
     store.setDoc('schedules', sched.id, sched);
 
     const m1 = createFixtureMember('mem_1');
@@ -438,7 +462,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
           [sched.id],
           ['mem_1'],
           {
-            effectiveDate: '2026-11-01',
+            effectiveDate: FUTURE_START,
             adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
             firestoreInstance: store.getMockFirestore(),
             transactionRunner: store.createTransactionRunner()
@@ -458,7 +482,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
     const pub = createFixturePublication();
     store.setDoc('schedulePublications', pub.id, pub);
 
-    const sched = createFixtureSchedule('sched_nov_1', '2026-11-01', {
+    const sched = createFixtureSchedule('sched_1', FUTURE_DATE_1, {
       assignedMembers: ['mem_1', 'mem_2']
     });
     store.setDoc('schedules', sched.id, sched);
@@ -468,7 +492,7 @@ test('Admin Mass Scheduling Mode Suite', async (t) => {
       [sched.id],
       [], // Empty
       {
-        effectiveDate: '2026-11-01',
+        effectiveDate: FUTURE_START,
         adminUser: { uid: 'admin_1', role: 'admin', permissions: { canManageSchedules: true } },
         firestoreInstance: store.getMockFirestore(),
         transactionRunner: store.createTransactionRunner()

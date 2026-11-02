@@ -870,7 +870,7 @@ export const SchedulesPage: React.FC = () => {
       </div>
 
       {activeTab === 'publications' ? (
-        <PublicationsTab />
+        <PublicationsTab onSchedulesChanged={() => { loadData(false) }} />
       ) : (
         <>
       {/* Filters bar */}
