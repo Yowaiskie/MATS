@@ -1,8 +1,9 @@
 import React from 'react'
 
-interface PaginationProps {
+export interface PaginationProps {
   currentPage: number
-  totalItems: number
+  totalItems?: number
+  totalPages?: number
   pageSize?: number
   onPageChange: (page: number) => void
   className?: string
@@ -11,23 +12,27 @@ interface PaginationProps {
 export const Pagination: React.FC<PaginationProps> = ({
   currentPage,
   totalItems,
+  totalPages,
   pageSize = 10,
   onPageChange,
   className = '',
 }) => {
-  const totalPages = Math.ceil(totalItems / pageSize)
+  const calculatedTotalPages = totalPages !== undefined
+    ? totalPages
+    : (totalItems !== undefined ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1)
 
-  if (totalItems === 0 || totalPages <= 1) return null
+  const hasItems = totalItems !== undefined
+  if ((hasItems && totalItems === 0) || calculatedTotalPages <= 1) return null
 
   const startItem = (currentPage - 1) * pageSize + 1
-  const endItem = Math.min(currentPage * pageSize, totalItems)
+  const endItem = hasItems ? Math.min(currentPage * pageSize, totalItems) : currentPage * pageSize
 
   const handlePrev = () => {
     if (currentPage > 1) onPageChange(currentPage - 1)
   }
 
   const handleNext = () => {
-    if (currentPage < totalPages) onPageChange(currentPage + 1)
+    if (currentPage < calculatedTotalPages) onPageChange(currentPage + 1)
   }
 
   // Generate page numbers
@@ -35,21 +40,21 @@ export const Pagination: React.FC<PaginationProps> = ({
     const pages: (number | string)[] = []
     const maxVisible = 5
 
-    if (totalPages <= maxVisible) {
-      for (let i = 1; i <= totalPages; i++) pages.push(i)
+    if (calculatedTotalPages <= maxVisible) {
+      for (let i = 1; i <= calculatedTotalPages; i++) pages.push(i)
     } else {
       pages.push(1)
       if (currentPage > 3) pages.push('...')
 
       const start = Math.max(2, currentPage - 1)
-      const end = Math.min(totalPages - 1, currentPage + 1)
+      const end = Math.min(calculatedTotalPages - 1, currentPage + 1)
 
       for (let i = start; i <= end; i++) {
         if (!pages.includes(i)) pages.push(i)
       }
 
-      if (currentPage < totalPages - 2) pages.push('...')
-      pages.push(totalPages)
+      if (currentPage < calculatedTotalPages - 2) pages.push('...')
+      pages.push(calculatedTotalPages)
     }
 
     return pages
@@ -58,9 +63,18 @@ export const Pagination: React.FC<PaginationProps> = ({
   return (
     <div className={`flex flex-col sm:flex-row items-center justify-between gap-3 px-5 py-3.5 bg-slate-50/50 border-t border-slate-200/80 text-xs text-slate-500 font-sans select-none rounded-b-2xl ${className}`}>
       <div>
-        Showing <span className="font-extrabold text-slate-900">{startItem}</span> to{' '}
-        <span className="font-extrabold text-slate-900">{endItem}</span> of{' '}
-        <span className="font-extrabold text-slate-900">{totalItems}</span> entries
+        {hasItems ? (
+          <>
+            Showing <span className="font-extrabold text-slate-900">{startItem}</span> to{' '}
+            <span className="font-extrabold text-slate-900">{endItem}</span> of{' '}
+            <span className="font-extrabold text-slate-900">{totalItems}</span> entries
+          </>
+        ) : (
+          <>
+            Showing Page <span className="font-extrabold text-slate-900">{currentPage}</span> of{' '}
+            <span className="font-extrabold text-slate-900">{calculatedTotalPages}</span>
+          </>
+        )}
       </div>
 
       <div className="flex items-center space-x-1.5">
@@ -94,7 +108,7 @@ export const Pagination: React.FC<PaginationProps> = ({
 
         <button
           onClick={handleNext}
-          disabled={currentPage >= totalPages}
+          disabled={currentPage >= calculatedTotalPages}
           className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition-all shadow-2xs cursor-pointer"
         >
           Next

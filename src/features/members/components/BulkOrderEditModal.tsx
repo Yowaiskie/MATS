@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { ORDER_GROUPS, ORDER_COLORS, formatMemberOrders } from '@/types/member'
 
@@ -77,7 +78,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-4">
           {error && (
             <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3.5 text-xs text-rose-800 font-bold animate-fade-in">
               {error}
@@ -87,7 +88,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
           <div>
             <div className="flex items-center justify-between mb-1.5">
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500">
-                Select Order Groups (Pwedeng 2 o higit pa)
+                Select Order Groups (Can select 2 or more)
               </label>
               {(selectedOrders.length > 0 || customOrder.trim()) && (
                 <button
@@ -151,7 +152,7 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
             This action will update the order of all <strong className="font-mono font-black">{selectedCount}</strong> selected member(s) to <strong className="font-extrabold text-indigo-700">{computedOrderPreview || 'Unassigned (No Order)'}</strong>.
           </div>
 
-          <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 [&>button]:w-full [&>button]:sm:w-auto">
             <button
               type="button"
               onClick={onClose}
@@ -162,13 +163,13 @@ export const BulkOrderEditModal: React.FC<BulkOrderEditModalProps> = ({
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-xs font-black text-white hover:bg-indigo-700 transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               disabled={loading}
             >
               {loading ? 'Updating...' : `Apply to ${selectedCount} Members`}
             </button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

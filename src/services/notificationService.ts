@@ -12,7 +12,8 @@ import {
   onSnapshot,
   arrayUnion,
   updateDoc,
-  serverTimestamp
+  serverTimestamp,
+  where
 } from 'firebase/firestore'
 import type { AppNotification, PushNotificationProgress, AssignedServerAccount } from '@/types/notification'
 import type { UserProfile } from '@/types/auth'
@@ -31,6 +32,7 @@ export interface SendAttendanceReminderOptions {
   scheduleIds?: string[]
   targetAudienceType?: 'assigned_accounts_only' | 'all_officers' | 'custom_members'
   customMemberIds?: string[]
+  additionalUserIds?: string[]
   customMessage?: string
   performedBy?: string
 }
@@ -99,9 +101,16 @@ export const isUserMatchedWithServer = (
     ].filter(c => c && c.length >= 2)
 
     for (const uN of userNames) {
+      const uNAlpha = uN.replace(/[^a-z0-9]/g, '')
       // Direct string match
       for (const cand of candidates) {
-        if (cand && (uN === cand || uN.replace(/[,.]/g, '') === cand.replace(/[,.]/g, ''))) {
+        if (!cand) continue
+        const candAlpha = cand.replace(/[^a-z0-9]/g, '')
+        if (
+          uN === cand ||
+          uN.replace(/[,.]/g, '') === cand.replace(/[,.]/g, '') ||
+          (uNAlpha.length >= 3 && candAlpha.length >= 3 && (uNAlpha === candAlpha || (uNAlpha.length >= 4 && candAlpha.includes(uNAlpha))))
+        ) {
           return true
         }
       }
@@ -125,8 +134,14 @@ export const isUserMatchedWithServer = (
 
   // If mId itself is a name string (e.g. "Kyle Doe" or "Doe, Kyle")
   if (cleanMid && cleanMid.length >= 3) {
+    const cleanMidAlpha = cleanMid.replace(/[^a-z0-9]/g, '')
     for (const uN of userNames) {
-      if (uN === cleanMid || uN.replace(/[,.]/g, '') === cleanMid.replace(/[,.]/g, '')) {
+      const uNAlpha = uN.replace(/[^a-z0-9]/g, '')
+      if (
+        uN === cleanMid ||
+        uN.replace(/[,.]/g, '') === cleanMid.replace(/[,.]/g, '') ||
+        (uNAlpha.length >= 3 && cleanMidAlpha.length >= 3 && uNAlpha === cleanMidAlpha)
+      ) {
         return true
       }
     }
@@ -183,12 +198,26 @@ class NotificationService {
     const day = String(now.getDate()).padStart(2, '0')
     const todayStr = `${year}-${month}-${day}`
 
+    // Bound the evaluation window to the last 14 days up to today to avoid full database table scans
+    const pastBoundaryDate = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000)
+    const pYear = pastBoundaryDate.getFullYear()
+    const pMonth = String(pastBoundaryDate.getMonth() + 1).padStart(2, '0')
+    const pDay = String(pastBoundaryDate.getDate()).padStart(2, '0')
+    const startDateStr = `${pYear}-${pMonth}-${pDay}`
+
     const hours = String(now.getHours()).padStart(2, '0')
     const minutes = String(now.getMinutes()).padStart(2, '0')
     const currentTimeStr = `${hours}:${minutes}`
 
+    const schedulesRef = collection(db, 'schedules')
+    const schedulesQuery = query(
+      schedulesRef,
+      where('date', '>=', startDateStr),
+      where('date', '<=', todayStr)
+    )
+
     const [schedulesSnap, sessionsSnap, usersSnap, membersSnap] = await Promise.all([
-      getDocs(collection(db, 'schedules')),
+      getDocs(schedulesQuery),
       getDocs(collection(db, 'attendanceSessions')),
       getDocs(collection(db, USERS_COLLECTION)),
       getDocs(collection(db, 'members'))
@@ -619,6 +648,44 @@ class NotificationService {
   }
 
   /**
+   * Dispatch an excuse request notification to officers and administrators
+   */
+  async sendExcuseRequestNotification(data: {
+    excuseId: string
+    trackingNumber: string
+    memberName: string
+    reason: string
+    scheduleCount: number
+    memberId: string
+    performedBy?: string
+  }): Promise<string> {
+    const notifRef = doc(collection(db, NOTIFICATIONS_COLLECTION))
+    const serverName = data.memberName || 'Altar Server'
+    const scheduleCountStr = `${data.scheduleCount} schedule${data.scheduleCount > 1 ? 's' : ''}`
+    const reasonSnippet = data.reason ? ` Reason: ${data.reason.length > 80 ? data.reason.substring(0, 80) + '...' : data.reason}` : ''
+
+    const payload: AppNotification = {
+      id: notifRef.id,
+      type: 'excuse_request',
+      title: `Excuse Request: ${serverName}`,
+      message: `${serverName} has submitted an excuse request for ${scheduleCountStr}.${reasonSnippet}`,
+      priority: 'important',
+      targetAudience: 'officers',
+      excuseId: data.excuseId,
+      memberId: data.memberId,
+      actionUrl: '/excuses',
+      actionLabel: 'Review Excuse',
+      createdBy: data.performedBy || 'Public Portal',
+      createdByName: serverName,
+      createdAt: serverTimestamp(),
+      readBy: []
+    }
+
+    await setDoc(notifRef, payload)
+    return notifRef.id
+  }
+
+  /**
    * Remind assigned servers for a single untaken schedule
    */
   async remindSingleSchedule(
@@ -840,6 +907,33 @@ class NotificationService {
       console.warn('Could not fetch users/members for reminder mapping:', e)
     }
 
+    // Pre-resolve additional user target IDs (e.g. Secretary, Coordinators, Admins)
+    const additionalTargetIdsSet = new Set<string>()
+    if (opts.additionalUserIds && opts.additionalUserIds.length > 0) {
+      const additionalKeySet = new Set(opts.additionalUserIds.map(k => String(k).toLowerCase().trim()))
+      usersList.forEach(u => {
+        const uMemberId = u.memberId ? String(u.memberId).toLowerCase().trim() : ''
+        const uUid = (u.uid || u.id || '').toLowerCase().trim()
+        const uEmail = u.email ? String(u.email).toLowerCase().trim() : ''
+
+        if (
+          (uUid && additionalKeySet.has(uUid)) ||
+          (uMemberId && additionalKeySet.has(uMemberId)) ||
+          (uEmail && additionalKeySet.has(uEmail))
+        ) {
+          if (u.uid || u.id) additionalTargetIdsSet.add(u.uid || u.id)
+          if (u.memberId) additionalTargetIdsSet.add(String(u.memberId).trim())
+          if (u.email) additionalTargetIdsSet.add(u.email.toLowerCase().trim())
+        }
+      })
+      // Also add raw additional IDs passed in
+      opts.additionalUserIds.forEach(k => {
+        if (k && String(k).trim()) {
+          additionalTargetIdsSet.add(String(k).trim())
+        }
+      })
+    }
+
     // 4. Create targeted attendance reminder notification for each pending schedule
     let totalReminded = 0
     let totalOfficers = 0
@@ -873,12 +967,16 @@ class NotificationService {
         })
       }
 
-      // If no targeted users are assigned to THIS schedule and not broadcasting to all officers, skip this schedule
-      if (opts.targetAudienceType !== 'all_officers' && targetUsersForThisSchedule.length === 0) {
+      // If no targeted users are assigned to THIS schedule AND no additional recipients exist, skip this schedule (unless all_officers)
+      if (
+        opts.targetAudienceType !== 'all_officers' &&
+        targetUsersForThisSchedule.length === 0 &&
+        additionalTargetIdsSet.size === 0
+      ) {
         continue
       }
 
-      // Build target IDs strictly for users assigned to THIS schedule
+      // Build target IDs for users assigned to THIS schedule + additional target users (e.g. Secretary)
       const targetIdsSet = new Set<string>()
       targetUsersForThisSchedule.forEach(u => {
         const uMemberId = u.memberId ? String(u.memberId).trim() : ''
@@ -889,6 +987,9 @@ class NotificationService {
         if (uMemberId) targetIdsSet.add(uMemberId)
         if (uEmail) targetIdsSet.add(uEmail)
       })
+
+      // Merge additional targeted accounts
+      additionalTargetIdsSet.forEach(id => targetIdsSet.add(id))
 
       const targetIds = Array.from(targetIdsSet)
 
@@ -922,7 +1023,8 @@ class NotificationService {
 
       await setDoc(notifRef, reminderPayload)
       totalReminded++
-      totalOfficers += targetUsersForThisSchedule.length > 0 ? targetUsersForThisSchedule.length : 1
+      const totalRecipientsCount = Math.max(1, targetUsersForThisSchedule.length + (opts.additionalUserIds?.length || 0))
+      totalOfficers += totalRecipientsCount
 
       const percent = Math.round(40 + ((i + 1) / pendingSchedules.length) * 55)
       onProgress?.({
@@ -975,11 +1077,9 @@ class NotificationService {
       limit(30)
     )
 
-    return onSnapshot(q, (snapshot) => {
-      const allNotifs = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      } as AppNotification)).sort((a, b) => {
+    const sources = new Map<string, AppNotification[]>()
+    const publish = () => {
+      const allNotifs = [...new Map([...sources.values()].flat().map(n => [n.id, n])).values()].sort((a, b) => {
         const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : (a.createdAt ? new Date(a.createdAt).getTime() : Date.now())
         const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : (b.createdAt ? new Date(b.createdAt).getTime() : Date.now())
         return timeB - timeA
@@ -1012,7 +1112,13 @@ class NotificationService {
           return false
         }
 
-        // 3. Broadcasts and system alerts
+        // 3. Excuse requests (sent to admins, coordinators, and officers with excuse module access)
+        if (n.type === 'excuse_request') {
+          if (isAdminOrCoordinator || userRole === 'order_leader' || userRole === 'head_sacristan' || userRole === 'officer') return true
+          return isDirectTarget
+        }
+
+        // 4. Broadcasts and system alerts
         if (n.targetAudience === 'all') return true
         if (n.targetAudience === 'admins' && isAdminOrCoordinator) return true
         if (n.targetAudience === 'officers') {
@@ -1026,6 +1132,7 @@ class NotificationService {
       // Automatically post new incoming notifications to the Device Notification Drawer / Status Bar
       const nowMs = Date.now()
       relevant.forEach((notif) => {
+        if (notif.deliveryMode === 'in_app_only') return
         const isUnread = !notif.readBy || !notif.readBy.includes(_userId)
 
         // Calculate creation age
@@ -1051,8 +1158,10 @@ class NotificationService {
 
           // Formulate alert title with visual indicator
           let displayTitle = notif.title
-          if (notif.type === 'admin_broadcast') {
-            const prefix = notif.priority === 'urgent' ? '🚨 [URGENT]' : (notif.priority === 'important' ? '📢 [ANNOUNCEMENT]' : 'ℹ️ [INFO]')
+          if (notif.type === 'excuse_request') {
+            displayTitle = `[EXCUSE] ${notif.title}`
+          } else if (notif.type === 'admin_broadcast') {
+            const prefix = notif.priority === 'urgent' ? '[URGENT]' : (notif.priority === 'important' ? '[ANNOUNCEMENT]' : '[INFO]')
             displayTitle = `${prefix} ${notif.title}`
           }
 
@@ -1072,7 +1181,17 @@ class NotificationService {
       })
 
       callback(relevant)
-    })
+    }
+    const receive = (source: string, snapshot: import('firebase/firestore').QuerySnapshot) => {
+      sources.set(source, snapshot.docs.map(d => ({ ...d.data(), id: d.id }) as AppNotification))
+      publish()
+    }
+    const unsubscribeGlobal = onSnapshot(q, snapshot => receive('global', snapshot), error => console.warn('Notification feed failed:', error))
+    const targets = [...new Set([_userId, memberId, emailClean].filter((id): id is string => !!id))]
+    const unsubscribeTargeted = targets.length ? onSnapshot(query(
+      collection(db, NOTIFICATIONS_COLLECTION), where('targetMemberIds', 'array-contains-any', targets), orderBy('createdAt', 'desc'), limit(100)
+    ), snapshot => receive('targeted', snapshot), error => console.warn('Targeted notification feed failed:', error)) : () => {}
+    return () => { unsubscribeGlobal(); unsubscribeTargeted() }
   }
 
   /**

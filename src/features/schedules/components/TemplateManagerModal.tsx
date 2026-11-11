@@ -1,8 +1,23 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
+import type { SchedulePublication } from '@/types/publication'
 import { recurringService } from '@/services/recurringService'
+import { publicationService } from '@/services/publicationService'
+import { getParishTodayDate } from '@/utils/scheduleUtils'
 import { ConfirmModal } from '@/components/Dialog'
-import { CustomSelect } from '@/components'
+import { CustomSelect, DatePicker } from '@/components'
+
+const STANDALONE_TARGET_VALUE = '__standalone__'
+
+interface GenerationReportSummary {
+  created: number
+  skipped: number
+  duplicates: number
+  validationErrors: string[]
+  publicationName?: string
+}
 
 const formatTime12 = (timeStr: string) => {
   if (!timeStr) return ''
@@ -20,14 +35,22 @@ interface TemplateManagerModalProps {
   isOpen: boolean
   onClose: () => void
   onGenerateSuccess: () => Promise<void>
+  initialPublicationId?: string
+  initialStartDate?: string
+  initialEndDate?: string
 }
 
 export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   isOpen,
   onClose,
   onGenerateSuccess,
+  initialPublicationId,
+  initialStartDate,
+  initialEndDate,
 }) => {
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
+  const [regularPublications, setRegularPublications] = useState<SchedulePublication[]>([])
+  const [selectedPublicationId, setSelectedPublicationId] = useState<string>('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
@@ -52,24 +75,44 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
   const [genStartDate, setGenStartDate] = useState('')
   const [genEndDate, setGenEndDate] = useState('')
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
-  const [generationReport, setGenerationReport] = useState<any | null>(null)
+  const [generationReport, setGenerationReport] = useState<GenerationReportSummary | null>(null)
+  const [autoRotateOrders, setAutoRotateOrders] = useState(true)
+  const [generatorStartingGroup, setGeneratorStartingGroup] = useState('Order of San Pedro')
 
   // Confirm delete dialog state
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
     if (isOpen) {
-      loadTemplates()
+      loadTemplates(true)
     }
-  }, [isOpen])
+  }, [isOpen, initialPublicationId, initialStartDate, initialEndDate])
 
-  const loadTemplates = async () => {
+  const loadTemplates = async (initializeFromProps = false) => {
     setLoading(true)
     setError(null)
     try {
-      const data = await recurringService.getTemplates()
+      const [data, pubs] = await Promise.all([
+        recurringService.getTemplates(),
+        publicationService.getPublications().catch(() => [] as SchedulePublication[])
+      ])
+      const activeRegPubs = pubs.filter(
+        p => p.status !== 'archived' && p.publicationType !== 'special_event'
+      )
       setTemplates(data)
-    } catch (err: any) {
+      setRegularPublications(activeRegPubs)
+
+      if (initializeFromProps && (initialPublicationId || initialStartDate || initialEndDate)) {
+        const matched = initialPublicationId
+          ? activeRegPubs.find(p => p.id === initialPublicationId)
+          : undefined
+        setSelectedPublicationId(matched ? matched.id : (initialPublicationId || ''))
+        setGenStartDate(initialStartDate || matched?.startDate || '')
+        setGenEndDate(initialEndDate || matched?.endDate || '')
+        setSelectedTemplateIds(data.filter(t => t.active !== false).map(t => t.id))
+        setMode('generate')
+      }
+    } catch (err: unknown) {
       console.error(err)
       setError('Failed to load schedule templates.')
     } finally {
@@ -108,7 +151,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setDayOfWeek(t.dayOfWeek)
     setSelectedDays([t.dayOfWeek])
     setTimeSlots([{ id: t.id, startTime: t.startTime, endTime: t.endTime }])
-    setActive(t.active)
+    setActive(t.active !== false)
     setEditingTemplate(t)
     setMode('edit')
   }
@@ -215,12 +258,73 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     }
   }
 
+  const findDefaultRegularPublication = (pubs: SchedulePublication[]): SchedulePublication | undefined => {
+    const today = getParishTodayDate()
+    return (
+      pubs.find(p => p.status === 'published' && p.startDate <= today && p.endDate >= today) ||
+      pubs.find(p => p.startDate <= today && p.endDate >= today) ||
+      pubs.find(p => p.endDate >= today)
+    )
+  }
+
   const handleOpenGenerate = () => {
-    setGenStartDate('')
-    setGenEndDate('')
-    // Pre-select active templates
-    setSelectedTemplateIds(templates.filter(t => t.active).map(t => t.id))
+    setError(null)
+    setSuccessMsg(null)
+    setSelectedTemplateIds(templates.filter(t => t.active !== false).map(t => t.id))
+    const defaultPub = findDefaultRegularPublication(regularPublications)
+    if (defaultPub) {
+      setSelectedPublicationId(defaultPub.id)
+      setGenStartDate(defaultPub.startDate)
+      setGenEndDate(defaultPub.endDate)
+    } else {
+      setSelectedPublicationId('')
+      setGenStartDate('')
+      setGenEndDate('')
+    }
     setMode('generate')
+  }
+
+  const handleDateRangeUpdate = (nextStart: string, nextEnd: string, clampToSingleOverlap = false) => {
+    setError(null)
+    let resolvedStart = nextStart
+    let resolvedEnd = nextEnd
+
+    if (resolvedStart && resolvedEnd && resolvedStart <= resolvedEnd) {
+      const overlapping = regularPublications.filter(
+        p => p.startDate <= resolvedEnd && p.endDate >= resolvedStart
+      )
+      if (overlapping.length === 1) {
+        const pub = overlapping[0]
+        setSelectedPublicationId(pub.id)
+        if (clampToSingleOverlap) {
+          if (resolvedStart < pub.startDate) resolvedStart = pub.startDate
+          if (resolvedEnd > pub.endDate) resolvedEnd = pub.endDate
+        }
+      } else if (overlapping.length === 0) {
+        setSelectedPublicationId('')
+      } else if (!overlapping.some(p => p.id === selectedPublicationId)) {
+        setSelectedPublicationId(overlapping[0].id)
+      }
+    }
+
+    setGenStartDate(resolvedStart)
+    setGenEndDate(resolvedEnd)
+  }
+
+  const handlePublicationSelectChange = (value: string) => {
+    setError(null)
+    if (!value || value === STANDALONE_TARGET_VALUE) {
+      setSelectedPublicationId('')
+      return
+    }
+    setSelectedPublicationId(value)
+    const pub = regularPublications.find(p => p.id === value)
+    if (pub) {
+      if (!genStartDate || !genEndDate || genStartDate < pub.startDate || genEndDate > pub.endDate) {
+        setGenStartDate(pub.startDate)
+        setGenEndDate(pub.endDate)
+      }
+    }
   }
 
   const handleDeleteTemplate = (id: string) => {
@@ -238,7 +342,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       await recurringService.deleteTemplate(id)
       setSuccessMsg('Template deleted successfully.')
       await loadTemplates()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
       setError('Failed to delete template.')
     } finally {
@@ -250,9 +354,9 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setError(null)
     setSuccessMsg(null)
     try {
-      await recurringService.updateTemplate(t.id, { active: !t.active })
+      await recurringService.updateTemplate(t.id, { active: !(t.active !== false) })
       await loadTemplates()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
       setError('Failed to toggle template status.')
     }
@@ -273,8 +377,31 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
       setError('Start Date must be before or equal to End Date.')
       return
     }
-    if (selectedTemplateIds.length === 0) {
-      setError('Please select at least one template to generate.')
+    const selectedTemplates = templates.filter(
+      t => t.active !== false && selectedTemplateIds.includes(t.id)
+    )
+    if (selectedTemplates.length === 0) {
+      setError('Please select at least one active template to generate schedules.')
+      return
+    }
+
+    const overlapping = regularPublications.filter(
+      p => p.startDate <= genEndDate && p.endDate >= genStartDate
+    )
+    let effectivePubId = selectedPublicationId
+    if (!effectivePubId && overlapping.length === 1) {
+      effectivePubId = overlapping[0].id
+      setSelectedPublicationId(effectivePubId)
+    } else if (!effectivePubId && overlapping.length > 1) {
+      setError('Selected date range spans multiple regular publications. Select a Target Publication or narrow the date range.')
+      return
+    }
+
+    const targetPub = effectivePubId
+      ? regularPublications.find(p => p.id === effectivePubId)
+      : undefined
+    if (targetPub && (genStartDate < targetPub.startDate || genEndDate > targetPub.endDate)) {
+      setError(`Generation range must stay within "${targetPub.name}" (${targetPub.startDate} to ${targetPub.endDate}). Click "Use Publication Dates" to adjust.`)
       return
     }
 
@@ -283,18 +410,25 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setSuccessMsg(null)
 
     try {
-      const selectedTemplates = templates.filter(t => selectedTemplateIds.includes(t.id))
       const report = await recurringService.generateSchedules(
         genStartDate,
         genEndDate,
-        selectedTemplates
+        selectedTemplates,
+        {
+          autoRotateOrderGroups: autoRotateOrders,
+          startingGroup: generatorStartingGroup,
+          ...(effectivePubId ? { publicationId: effectivePubId } : {})
+        }
       )
-      setGenerationReport(report)
+      setGenerationReport({
+        ...report,
+        publicationName: targetPub?.name
+      })
       setMode('report')
       await onGenerateSuccess()
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err)
-      setError(err.message || 'Failed to generate schedules.')
+      setError(err instanceof Error ? err.message : 'Failed to generate schedules.')
     } finally {
       setLoading(false)
     }
@@ -306,6 +440,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
     setError(null)
     setSuccessMsg(null)
     setGenerationReport(null)
+    setSelectedPublicationId('')
     onClose()
   }
 
@@ -446,7 +581,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                           ? 'Weekdays (M-F)'
                           : uniqueDays.join(', ')
 
-                      const activeCount = sortedItems.filter(i => i.active).length
+                      const activeCount = sortedItems.filter(i => i.active !== false).length
                       const isExpanded = expandedCategory === groupKey
 
                       return (
@@ -517,7 +652,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                                   <div
                                     key={t.id}
                                     className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 transition-colors ${
-                                      t.active ? 'bg-gray-50/70 border-gray-200' : 'bg-gray-50/30 border-gray-100 opacity-60'
+                                      t.active !== false ? 'bg-gray-50/70 border-gray-200' : 'bg-gray-50/30 border-gray-100 opacity-60'
                                     }`}
                                   >
                                     {/* Left: Day Badge, Time Badge, Assigned count */}
@@ -542,12 +677,12 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                                           handleToggleActive(t)
                                         }}
                                         className={`px-2 py-0.5 rounded-md text-[9px] font-bold uppercase border cursor-pointer ${
-                                          t.active 
+                                          t.active !== false
                                             ? 'bg-green-50 border-green-200 text-green-700' 
                                             : 'bg-gray-100 border-gray-200 text-gray-500'
                                         }`}
                                       >
-                                        {t.active ? 'Active' : 'Off'}
+                                        {t.active !== false ? 'Active' : 'Off'}
                                       </button>
 
                                       <button
@@ -587,7 +722,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
 
           {/* Form Mode (Create/Edit) */}
           {(mode === 'create' || mode === 'edit') && (
-            <form onSubmit={handleSaveTemplate} className="space-y-4">
+            <ValidatedForm onSubmit={handleSaveTemplate} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Template Name (Optional when creating multiple slots) */}
                 <div className="flex flex-col space-y-1">
@@ -606,7 +741,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 {/* Schedule Title */}
                 <div className="flex flex-col space-y-1">
                   <label className="text-[10px] font-bold uppercase tracking-wider text-gray-400">Schedule Title *</label>
-                  <input
+                  <FormInput
                     type="text"
                     required
                     value={title}
@@ -731,7 +866,7 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                       <div className="flex-1 flex items-center gap-2">
                         <div className="flex-1 flex flex-col space-y-0.5">
                           <span className="text-[9px] font-bold text-gray-400 uppercase">Start Time</span>
-                          <input
+                          <FormInput
                             type="time"
                             required
                             value={slot.startTime}
@@ -759,207 +894,332 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               </div>
 
               {/* Form Buttons */}
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100 bg-white">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100 bg-white">
                 <button
                   type="button"
                   onClick={() => setMode('list')}
-                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm animate-none"
+                  className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm animate-none"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  className="w-full sm:w-auto rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   {loading ? 'Saving...' : 'Save Template'}
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           )}
           
           {/* Generate Mode */}
-          {mode === 'generate' && (
-            <div className="space-y-5">
-              <div>
-                <h4 className="text-sm font-bold text-gray-900">Generate Schedules from Templates</h4>
-                <p className="text-xs text-gray-500 mt-0.5">Bulk-generate recurring mass schedules into your active calendar for a specific date range.</p>
-              </div>
+          {mode === 'generate' && (() => {
+            const selectedPublication = selectedPublicationId
+              ? regularPublications.find(p => p.id === selectedPublicationId)
+              : undefined
+            const isOutOfPublicationBounds = !!(
+              selectedPublication &&
+              genStartDate &&
+              genEndDate &&
+              (genStartDate < selectedPublication.startDate || genEndDate > selectedPublication.endDate)
+            )
+            const activeSelectedCount = templates.filter(
+              t => t.active !== false && selectedTemplateIds.includes(t.id)
+            ).length
 
-              {/* Date Range Selection + Quick Month Presets */}
-              <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-800">1. Select Target Date Range</span>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const now = new Date()
-                        const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
-                        const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
-                        const formatYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-                        setGenStartDate(formatYMD(firstDay))
-                        setGenEndDate(formatYMD(lastDay))
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer transition-colors"
-                    >
-                      This Month
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const now = new Date()
-                        const firstDay = new Date(now.getFullYear(), now.getMonth() + 1, 1)
-                        const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0)
-                        const formatYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-                        setGenStartDate(formatYMD(firstDay))
-                        setGenEndDate(formatYMD(lastDay))
-                      }}
-                      className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer transition-colors"
-                    >
-                      Next Month
-                    </button>
-                  </div>
+            return (
+              <div className="space-y-5">
+                <div>
+                  <h4 className="text-sm font-bold text-gray-900">Generate Schedules from Templates</h4>
+                  <p className="text-xs text-gray-500 mt-0.5">Bulk-generate recurring mass schedules into your active calendar for a specific date range.</p>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex flex-col space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Start Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={genStartDate}
-                      onChange={(e) => setGenStartDate(e.target.value)}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:border-blue-500 shadow-2xs"
+                {/* Target Publication Selection */}
+                {regularPublications.length > 0 && (
+                  <div className="p-4 rounded-xl border border-blue-100 bg-blue-50/40 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <span className="text-xs font-bold text-slate-900 block">Target Publication Cycle</span>
+                        <p className="text-[11px] text-slate-600 mt-0.5">
+                          Link generated schedules to the active regular publication covering your selected dates.
+                        </p>
+                      </div>
+                      {selectedPublication && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-bold uppercase bg-blue-100 text-blue-800 border border-blue-200">
+                          {selectedPublication.status}
+                        </span>
+                      )}
+                    </div>
+                    <CustomSelect
+                      value={selectedPublicationId || STANDALONE_TARGET_VALUE}
+                      onChange={(e) => handlePublicationSelectChange(e.target.value)}
+                      options={[
+                        ...regularPublications.map(pub => ({
+                          value: pub.id,
+                          label: `${pub.name} (${pub.startDate} to ${pub.endDate}) [${pub.status.toUpperCase()}]`
+                        })),
+                        {
+                          value: STANDALONE_TARGET_VALUE,
+                          label: 'Standalone Calendar (Dates outside Regular Publications)'
+                        }
+                      ]}
+                      className="!h-9 text-xs bg-white border-blue-200"
                     />
                   </div>
+                )}
 
-                  <div className="flex flex-col space-y-1">
-                    <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">End Date</label>
-                    <input
-                      type="date"
-                      required
-                      value={genEndDate}
-                      onChange={(e) => setGenEndDate(e.target.value)}
-                      className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-gray-800 focus:outline-none focus:border-blue-500 shadow-2xs"
-                    />
+                {/* Date Range Selection + Quick Month Presets */}
+                <div className="p-4 rounded-xl border border-gray-200 bg-gray-50/50 space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold text-gray-800">1. Select Target Date Range</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {selectedPublication && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setError(null)
+                            setGenStartDate(selectedPublication.startDate)
+                            setGenEndDate(selectedPublication.endDate)
+                          }}
+                          className="px-2.5 py-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 rounded-md cursor-pointer transition-colors"
+                        >
+                          Publication Range
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date()
+                          const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+                          const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+                          const formatYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                          handleDateRangeUpdate(formatYMD(firstDay), formatYMD(lastDay), true)
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer transition-colors"
+                      >
+                        This Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const now = new Date()
+                          const firstDay = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+                          const lastDay = new Date(now.getFullYear(), now.getMonth() + 2, 0)
+                          const formatYMD = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+                          handleDateRangeUpdate(formatYMD(firstDay), formatYMD(lastDay), true)
+                        }}
+                        className="px-2.5 py-1 text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-md cursor-pointer transition-colors"
+                      >
+                        Next Month
+                      </button>
+                    </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Templates Selector Grouped cleanly by Category */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-gray-800">2. Select Templates to Include ({selectedTemplateIds.length} selected)</span>
-                  <div className="space-x-2">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTemplateIds(templates.map(t => t.id))}
-                      className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
-                    >
-                      Select All
-                    </button>
-                    <span className="text-gray-300">•</span>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTemplateIds([])}
-                      className="text-[11px] font-semibold text-gray-500 hover:text-gray-700 cursor-pointer"
-                    >
-                      Deselect All
-                    </button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">Start Date</label>
+                      <DatePicker
+                        value={genStartDate}
+                        onChange={(val) => handleDateRangeUpdate(val, genEndDate)}
+                        placeholder="Select start date"
+                        size="dense"
+                      />
+                    </div>
+
+                    <div className="flex flex-col space-y-1">
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-gray-500">End Date</label>
+                      <DatePicker
+                        value={genEndDate}
+                        onChange={(val) => handleDateRangeUpdate(genStartDate, val)}
+                        placeholder="Select end date"
+                        size="dense"
+                      />
+                    </div>
                   </div>
-                </div>
 
-                <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-xl p-3 bg-white space-y-3 shadow-2xs">
-                  {templates.length === 0 ? (
-                    <div className="text-xs text-gray-400 italic p-2 text-center">No schedule templates available.</div>
-                  ) : (
-                    (() => {
-                      const groups: Record<string, ScheduleTemplate[]> = {}
-                      templates.forEach(t => {
-                        const key = t.title.trim()
-                        if (!groups[key]) groups[key] = []
-                        groups[key].push(t)
-                      })
-
-                      const dayOrder: Record<string, number> = {
-                        'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
-                        'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
-                      }
-
-                      return Object.entries(groups).map(([categoryTitle, items]) => {
-                        const sortedItems = [...items].sort((a, b) => {
-                          const dayA = dayOrder[a.dayOfWeek] ?? 7
-                          const dayB = dayOrder[b.dayOfWeek] ?? 7
-                          if (dayA !== dayB) return dayA - dayB
-                          return a.startTime.localeCompare(b.startTime)
-                        })
-
-                        return (
-                          <div key={categoryTitle} className="space-y-1.5 border-b border-gray-100 last:border-0 pb-2.5 last:pb-0">
-                            <div className="text-xs font-bold text-gray-900 bg-gray-50/80 px-2.5 py-1 rounded-md border border-gray-200/60 flex items-center justify-between">
-                              <span>{categoryTitle}</span>
-                              <span className="text-[10px] text-gray-500 font-semibold">{sortedItems.length} slot(s)</span>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-1">
-                              {sortedItems.map((t) => {
-                                const isSelected = selectedTemplateIds.includes(t.id)
-                                return (
-                                  <label
-                                    key={t.id}
-                                    className={`flex items-center gap-2 text-xs p-2 rounded-lg border cursor-pointer select-none transition-all ${
-                                      isSelected 
-                                        ? 'border-blue-300 bg-blue-50/40 text-blue-900 font-semibold shadow-2xs' 
-                                        : 'border-gray-100 bg-white hover:bg-gray-50 text-gray-600'
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isSelected}
-                                      onChange={() => toggleTemplateSelection(t.id)}
-                                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                                    />
-                                    <div className="flex-1 flex items-center justify-between min-w-0">
-                                      <span className="truncate">{t.dayOfWeek} • {formatTime12(t.startTime)}</span>
-                                      <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold uppercase shrink-0 ${
-                                        t.active ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-400'
-                                      }`}>
-                                        {t.active ? 'Active' : 'Off'}
-                                      </span>
-                                    </div>
-                                  </label>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )
-                      })
-                    })()
+                  {isOutOfPublicationBounds && selectedPublication && (
+                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5 flex items-center justify-between gap-2 flex-wrap text-xs text-amber-900">
+                      <span className="font-medium">
+                        Selected dates extend outside <strong>{selectedPublication.name}</strong> ({selectedPublication.startDate} to {selectedPublication.endDate}).
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setError(null)
+                          setGenStartDate(selectedPublication.startDate)
+                          setGenEndDate(selectedPublication.endDate)
+                        }}
+                        className="px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white text-[11px] font-bold cursor-pointer shrink-0 transition-colors"
+                      >
+                        Use Publication Dates
+                      </button>
+                    </div>
                   )}
                 </div>
-              </div>
 
-              {/* Action buttons */}
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-gray-100 bg-white">
-                <button
-                  type="button"
-                  onClick={() => setMode('list')}
-                  className="rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
-                >
-                  Back
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRunGenerator}
-                  disabled={loading || selectedTemplateIds.length === 0 || !genStartDate || !genEndDate}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
-                >
-                  {loading ? 'Generating...' : 'Generate Schedules'}
-                </button>
+                {/* Order Groups Auto-Rotation Section */}
+                <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50/40 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5">
+                      <input
+                        type="checkbox"
+                        id="gen-auto-rotate-orders"
+                        checked={autoRotateOrders}
+                        onChange={(e) => setAutoRotateOrders(e.target.checked)}
+                        className="h-4 w-4 mt-0.5 rounded border-indigo-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                      />
+                      <div>
+                        <label htmlFor="gen-auto-rotate-orders" className="text-xs font-black text-indigo-950 cursor-pointer block">
+                          Auto-Assign Order Groups Rotation
+                        </label>
+                        <p className="text-[11px] font-medium text-indigo-700/80 mt-0.5">
+                          Automatically assign servers from rotating Order Groups for Holy Hour and Baptism schedules in continuous sequence: San Pedro → San Juan → Santiago → San Andres.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {autoRotateOrders && (
+                    <div className="pt-2 border-t border-indigo-100/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <label className="text-[11px] font-bold text-indigo-900 shrink-0">Starting Order Group for first date:</label>
+                      <div className="w-full sm:w-64">
+                        <CustomSelect
+                          value={generatorStartingGroup}
+                          onChange={(e) => setGeneratorStartingGroup(e.target.value)}
+                          options={[
+                            { value: 'Order of San Pedro', label: 'Order of San Pedro' },
+                            { value: 'Order of San Juan', label: 'Order of San Juan' },
+                            { value: 'Order of San Tiago', label: 'Order of San Tiago (Santiago)' },
+                            { value: 'Order of San Andres', label: 'Order of San Andres' }
+                          ]}
+                          className="!h-8 text-xs bg-white border-indigo-200"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Templates Selector Grouped cleanly by Category */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-gray-800">2. Select Templates to Include ({activeSelectedCount} selected)</span>
+                    <div className="space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTemplateIds(templates.filter(t => t.active !== false).map(t => t.id))}
+                        className="text-[11px] font-semibold text-blue-600 hover:text-blue-700 cursor-pointer"
+                      >
+                        Select All
+                      </button>
+                      <span className="text-gray-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedTemplateIds([])}
+                        className="text-[11px] font-semibold text-gray-500 hover:text-gray-700 cursor-pointer"
+                      >
+                        Deselect All
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="max-h-64 overflow-y-auto border border-gray-200 rounded-xl p-3 bg-white space-y-3 shadow-2xs">
+                    {templates.length === 0 ? (
+                      <div className="text-xs text-gray-400 italic p-2 text-center">No schedule templates available.</div>
+                    ) : (
+                      (() => {
+                        const groups: Record<string, ScheduleTemplate[]> = {}
+                        templates.forEach(t => {
+                          const key = t.title.trim()
+                          if (!groups[key]) groups[key] = []
+                          groups[key].push(t)
+                        })
+
+                        const dayOrder: Record<string, number> = {
+                          'Monday': 0, 'Tuesday': 1, 'Wednesday': 2,
+                          'Thursday': 3, 'Friday': 4, 'Saturday': 5, 'Sunday': 6
+                        }
+
+                        return Object.entries(groups).map(([categoryTitle, items]) => {
+                          const sortedItems = [...items].sort((a, b) => {
+                            const dayA = dayOrder[a.dayOfWeek] ?? 7
+                            const dayB = dayOrder[b.dayOfWeek] ?? 7
+                            if (dayA !== dayB) return dayA - dayB
+                            return a.startTime.localeCompare(b.startTime)
+                          })
+
+                          return (
+                            <div key={categoryTitle} className="space-y-1.5 border-b border-gray-100 last:border-0 pb-2.5 last:pb-0">
+                              <div className="text-xs font-bold text-gray-900 bg-gray-50/80 px-2.5 py-1 rounded-md border border-gray-200/60 flex items-center justify-between">
+                                <span>{categoryTitle}</span>
+                                <span className="text-[10px] text-gray-500 font-semibold">{sortedItems.length} slot(s)</span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pl-1">
+                                {sortedItems.map((t) => {
+                                  const isActive = t.active !== false
+                                  const isSelected = isActive && selectedTemplateIds.includes(t.id)
+                                  return (
+                                    <label
+                                      key={t.id}
+                                      className={`flex items-center gap-2 text-xs p-2 rounded-lg border select-none transition-all ${
+                                        !isActive
+                                          ? 'border-gray-100 bg-gray-50/40 text-gray-400 opacity-60 cursor-not-allowed'
+                                          : isSelected
+                                            ? 'border-blue-300 bg-blue-50/40 text-blue-900 font-semibold shadow-2xs cursor-pointer'
+                                            : 'border-gray-100 bg-white hover:bg-gray-50 text-gray-600 cursor-pointer'
+                                      }`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        disabled={!isActive}
+                                        onChange={() => {
+                                          if (isActive) toggleTemplateSelection(t.id)
+                                        }}
+                                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed cursor-pointer"
+                                      />
+                                      <div className="flex-1 flex items-center justify-between min-w-0">
+                                        <span className="truncate">{t.dayOfWeek} • {formatTime12(t.startTime)}</span>
+                                        <span className={`px-1.5 py-0.2 rounded text-[8px] font-bold uppercase shrink-0 ${
+                                          isActive ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-100 text-gray-400'
+                                        }`}>
+                                          {isActive ? 'Active' : 'Off'}
+                                        </span>
+                                      </div>
+                                    </label>
+                                  )
+                                })}
+                              </div>
+                            </div>
+                          )
+                        })
+                      })()
+                    )}
+                  </div>
+                </div>
+
+                {/* Action buttons */}
+                <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100 bg-white">
+                  <button
+                    type="button"
+                    onClick={() => setMode('list')}
+                    className="w-full sm:w-auto rounded-lg border border-gray-200 bg-white hover:bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-700 hover:text-gray-900 transition-colors cursor-pointer shadow-sm"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRunGenerator}
+                    disabled={loading || activeSelectedCount === 0 || !genStartDate || !genEndDate}
+                    className="w-full sm:w-auto rounded-lg bg-blue-600 hover:bg-blue-500 disabled:opacity-50 px-4.5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  >
+                    {loading ? 'Generating...' : 'Generate Schedules'}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )
+          })()}
 
           {/* Audit Report Mode */}
           {mode === 'report' && generationReport && (
@@ -974,10 +1234,17 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
                 <div>
                   <h4 className="text-sm font-bold text-emerald-900">Generation Complete</h4>
                   <p className="text-xs text-emerald-700 font-medium mt-0.5">
-                    Recurring schedules have been successfully processed for your selected date range.
+                    Recurring schedules have been successfully processed for {genStartDate} to {genEndDate}
+                    {generationReport.publicationName ? ` (${generationReport.publicationName})` : ''}.
                   </p>
                 </div>
               </div>
+
+              {generationReport.created === 0 && generationReport.duplicates === 0 && generationReport.skipped === 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900 font-medium">
+                  No template occurrences matched the weekdays between {genStartDate} and {genEndDate}. Verify your selected templates are marked Active and match at least one day in that range.
+                </div>
+              )}
 
               {/* Stats Grid */}
               <div className="space-y-2">
@@ -1021,11 +1288,17 @@ export const TemplateManagerModal: React.FC<TemplateManagerModalProps> = ({
               )}
 
               {/* Action */}
-              <div className="flex justify-end pt-3 border-t border-gray-100">
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-gray-100">
                 <button
                   type="button"
-                  onClick={() => setMode('list')}
-                  className="rounded-lg bg-blue-600 hover:bg-blue-500 px-5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
+                  onClick={() => {
+                    if (initialPublicationId) {
+                      handleClose()
+                    } else {
+                      setMode('list')
+                    }
+                  }}
+                  className="w-full sm:w-auto rounded-lg bg-blue-600 hover:bg-blue-500 px-5 py-2 text-xs font-bold text-white transition-colors cursor-pointer shadow-sm"
                 >
                   Done
                 </button>

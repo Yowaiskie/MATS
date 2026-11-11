@@ -142,6 +142,20 @@ export const eventFinanceService = {
     )
   },
 
+  async restoreEventIncome(id: string, eventId: string, _uid: string, name: string): Promise<void> {
+    await updateDoc(doc(db, INCOMES_COL, id), {
+      isArchived: false,
+      updatedAt: serverTimestamp()
+    })
+    await auditService.logAction(
+      'EVENT_INCOME_UPDATE',
+      'events',
+      `Restored event income ${id}`,
+      name,
+      { eventId, incomeId: id }
+    )
+  },
+
   async getEventExpenses(eventId: string): Promise<EventExpense[]> {
     const q = query(
       collection(db, EXPENSES_COL),
@@ -351,6 +365,32 @@ export const eventFinanceService = {
       'EVENT_EXPENSE_DELETE',
       'events',
       `Permanently deleted event expense ${id}`,
+      name,
+      { eventId, expenseId: id }
+    )
+  },
+
+  async restoreEventExpense(id: string, eventId: string, _uid: string, name: string): Promise<void> {
+    const expenseRef = doc(db, EXPENSES_COL, id)
+    const expenseDoc = await getDoc(expenseRef)
+
+    await updateDoc(expenseRef, {
+      isArchived: false,
+      updatedAt: serverTimestamp()
+    })
+
+    if (expenseDoc.exists() && expenseDoc.data().mainFinanceExpenseId) {
+      const mainExpenseRef = doc(db, 'financeExpenses', expenseDoc.data().mainFinanceExpenseId)
+      await updateDoc(mainExpenseRef, {
+        isArchived: false,
+        updatedAt: serverTimestamp()
+      })
+    }
+
+    await auditService.logAction(
+      'EVENT_EXPENSE_UPDATE',
+      'events',
+      `Restored event expense ${id}`,
       name,
       { eventId, expenseId: id }
     )

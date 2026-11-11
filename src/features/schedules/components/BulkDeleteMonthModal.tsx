@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState } from 'react'
 import { scheduleService } from '@/services/scheduleService'
 import { useAuth } from '@/features/authentication/AuthContext'
@@ -119,7 +120,7 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Select Month
             </label>
-            <input
+            <FormInput
               type="month"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
@@ -185,11 +186,12 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
           </div>
         )}
 
-        <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100">
           <Button
             type="button"
             variant="secondary"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={handleClose}
             disabled={loading}
           >
@@ -199,6 +201,7 @@ export const BulkDeleteMonthModal: React.FC<BulkDeleteMonthModalProps> = ({
             type="button"
             variant="danger"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={handleDelete}
             disabled={!selectedMonth || loading}
           >

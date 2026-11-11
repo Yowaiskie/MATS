@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getOrderBadgeStyle } from '@/types/member'
@@ -16,9 +17,12 @@ import {
 import { qualificationService } from '@/services/qualificationService'
 import { settingsService } from '@/services/settingsService'
 import { getFullName } from '@/utils/member'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
-import { ActionMenu, FilterDropdown } from '@/components'
+import { ConfirmModal } from '@/components/Dialog'
+import { ActionMenu, FilterDropdown, DatePicker, Pagination } from '@/components'
 import { QualificationsExportModal } from './QualificationsExportModal'
+import { useToast } from '@/context/ToastContext'
+
+const PAGE_SIZE = 15
 
 interface QualificationsTabProps {
   members: Member[]
@@ -40,6 +44,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   onDateChange,
   canExport = true
 }) => {
+  const { toast } = useToast()
   // Preset state
   const [presets, setPresets] = useState<QualificationPreset[]>(DEFAULT_QUALIFICATION_PRESETS)
   const [selectedPresetId, setSelectedPresetId] = useState<string>('preset-annual-renewal')
@@ -56,6 +61,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   const [statusFilter, setStatusFilter] = useState<'all' | 'qualified' | 'deficient'>('all')
   const [selectedOrder, setSelectedOrder] = useState<string>('all')
   const [selectedMemberModal, setSelectedMemberModal] = useState<MemberQualificationResult | null>(null)
+  const [currentPage, setCurrentPage] = useState(1)
 
   // Modals state
   const [showExportModal, setShowExportModal] = useState(false)
@@ -67,9 +73,6 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   const [presetNameInput, setPresetNameInput] = useState('')
   const [presetDescInput, setPresetDescInput] = useState('')
   const [isSavingPreset, setIsSavingPreset] = useState(false)
-
-  // Alerts
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'info' | 'error' | 'success' } | null>(null)
 
   // Close dropdowns on click outside
   useEffect(() => {
@@ -169,17 +172,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       )
       await settingsService.saveQualificationPresets(updatedPresets)
       setPresets(updatedPresets)
-      setAlertModal({
-        title: 'Preset Updated',
-        message: `Qualification rules for "${activePreset.name}" have been updated successfully.`,
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Updated',
+        `Qualification rules for "${activePreset.name}" have been updated successfully.`
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Update Failed',
-        message: err.message || 'Failed to update preset rules.',
-        variant: 'error'
-      })
+      toast.error(
+        'Update Failed',
+        err.message || 'Failed to update preset rules.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -196,11 +197,10 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   // Save edited preset info (name & description)
   const handleSaveEditPresetInfo = async () => {
     if (!presetNameInput.trim()) {
-      setAlertModal({
-        title: 'Preset Name Required',
-        message: 'Please enter a name for the criteria preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Preset Name Required',
+        'Please enter a name for the criteria preset.'
+      )
       return
     }
 
@@ -219,17 +219,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       await settingsService.saveQualificationPresets(updatedPresets)
       setPresets(updatedPresets)
       setShowEditPresetModal(false)
-      setAlertModal({
-        title: 'Preset Updated',
-        message: 'Preset details have been saved successfully.',
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Updated',
+        'Preset details have been saved successfully.'
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Save Failed',
-        message: err.message || 'Failed to save preset details.',
-        variant: 'error'
-      })
+      toast.error(
+        'Save Failed',
+        err.message || 'Failed to save preset details.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -239,11 +237,10 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   const handleDeletePreset = async () => {
     if (!activePreset) return
     if (presets.length <= 1) {
-      setAlertModal({
-        title: 'Cannot Delete',
-        message: 'You must have at least one criteria preset available.',
-        variant: 'error'
-      })
+      toast.error(
+        'Cannot Delete',
+        'You must have at least one criteria preset available.'
+      )
       return
     }
 
@@ -256,17 +253,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       setSelectedPresetId(fallback.id)
       setActiveRules(fallback.rules)
       setShowDeleteConfirmModal(false)
-      setAlertModal({
-        title: 'Preset Deleted',
-        message: `Preset "${activePreset.name}" has been removed.`,
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Deleted',
+        `Preset "${activePreset.name}" has been removed.`
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Delete Failed',
-        message: err.message || 'Failed to delete preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Delete Failed',
+        err.message || 'Failed to delete preset.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -275,11 +270,10 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
   // Save active rules as a new preset
   const handleSaveNewCustomPreset = async () => {
     if (!presetNameInput.trim()) {
-      setAlertModal({
-        title: 'Preset Name Required',
-        message: 'Please enter a name for this criteria preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Preset Name Required',
+        'Please enter a name for this criteria preset.'
+      )
       return
     }
 
@@ -300,17 +294,15 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       setShowSavePresetModal(false)
       setPresetNameInput('')
       setPresetDescInput('')
-      setAlertModal({
-        title: 'Preset Saved',
-        message: `Criteria preset "${newPreset.name}" has been created successfully.`,
-        variant: 'success'
-      })
+      toast.success(
+        'Preset Saved',
+        `Criteria preset "${newPreset.name}" has been created successfully.`
+      )
     } catch (err: any) {
-      setAlertModal({
-        title: 'Save Failed',
-        message: err.message || 'Failed to save preset.',
-        variant: 'error'
-      })
+      toast.error(
+        'Save Failed',
+        err.message || 'Failed to save preset.'
+      )
     } finally {
       setIsSavingPreset(false)
     }
@@ -340,6 +332,25 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
       return matchesSearch && matchesStatus
     })
   }, [evaluationResults, searchQuery, statusFilter])
+
+  // Reset pagination when filters, order, dates, or criteria rules change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, statusFilter, selectedOrder, startDate, endDate, activeRules])
+
+  // Paginated evaluation results for matrix table
+  const paginatedResults = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredResults.slice(start, start + PAGE_SIZE)
+  }, [filteredResults, currentPage])
+
+  // Keep currentPage within valid bounds
+  useEffect(() => {
+    const maxPage = Math.max(1, Math.ceil(filteredResults.length / PAGE_SIZE))
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [filteredResults.length, currentPage])
 
   // Aggregate Metrics
   const metrics = useMemo(() => {
@@ -596,24 +607,27 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
             </span>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-[9px] font-bold text-slate-500">From</label>
-                <input
-                  type="date"
+                <label className="block text-[9px] font-bold text-slate-500 mb-1">From</label>
+                <DatePicker
                   value={startDate}
-                  onChange={e => onDateChange(e.target.value, endDate)}
-                  className="w-full text-xs font-bold p-2 border border-slate-200 rounded-xl bg-white focus:border-indigo-500 outline-none"
+                  onChange={val => onDateChange(val, endDate)}
+                  maxDate={endDate || undefined}
+                  size="dense"
+                  placeholder="From date"
                 />
               </div>
               <div>
-                <label className="block text-[9px] font-bold text-slate-500">To</label>
-                <input
-                  type="date"
+                <label className="block text-[9px] font-bold text-slate-500 mb-1">To</label>
+                <DatePicker
                   value={endDate}
-                  onChange={e => onDateChange(startDate, e.target.value)}
-                  className="w-full text-xs font-bold p-2 border border-slate-200 rounded-xl bg-white focus:border-indigo-500 outline-none"
+                  onChange={val => onDateChange(startDate, val)}
+                  minDate={startDate || undefined}
+                  size="dense"
+                  placeholder="To date"
                 />
               </div>
             </div>
+
           </div>
 
           {/* Active Rules Badges */}
@@ -684,7 +698,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                     {/* Clean Clamped Type-in Input */}
                     <div className="flex items-center gap-1 bg-indigo-50/70 border border-indigo-200/80 rounded-lg px-2 py-0.5">
                       <span className="text-indigo-600 font-black text-[11px]">Min</span>
-                      <input
+                      <FormInput
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
@@ -855,7 +869,8 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
 
       {/* ── 4. EVALUATION ROSTER TABLE ─────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-200/80 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-200 bg-slate-50/70 text-[10px] font-black uppercase tracking-wider text-slate-500">
@@ -878,7 +893,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredResults.map((row, idx) => {
+                paginatedResults.map((row, idx) => {
                   const ogf = row.categoryStats['formation']
                   const mtg = row.categoryStats['meeting']
                   const sun = row.categoryStats['mass_sunday']
@@ -890,7 +905,7 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                       className="hover:bg-slate-50/80 transition-colors cursor-pointer"
                     >
                       <td className="py-3 px-4 text-slate-400 text-[11px] font-bold">
-                        {idx + 1}
+                        {(currentPage - 1) * PAGE_SIZE + idx + 1}
                       </td>
 
                       <td className="py-3 px-4 font-black text-slate-900">
@@ -993,9 +1008,14 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
                             e.stopPropagation()
                             setSelectedMemberModal(row)
                           }}
-                          className="px-2.5 py-1 text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors cursor-pointer"
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition shadow-2xs cursor-pointer"
+                          title="View Category Details"
                         >
-                          Breakdown →
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span>Details</span>
                         </button>
                       </td>
                     </tr>
@@ -1005,6 +1025,151 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
             </tbody>
           </table>
         </div>
+
+        {/* Mobile Card List View */}
+        <div className="block md:hidden divide-y divide-slate-100 bg-white">
+          {filteredResults.length === 0 ? (
+            <div className="py-12 text-center text-slate-400 italic font-medium px-4">
+              No altar servers matched the selected criteria filters.
+            </div>
+          ) : (
+            paginatedResults.map((row, idx) => {
+              const ogf = row.categoryStats['formation']
+              const mtg = row.categoryStats['meeting']
+              const sun = row.categoryStats['mass_sunday']
+              const rankNum = (currentPage - 1) * PAGE_SIZE + idx + 1
+
+              return (
+                <div
+                  key={row.member.id}
+                  onClick={() => setSelectedMemberModal(row)}
+                  className="p-4 hover:bg-slate-50/80 transition-colors cursor-pointer space-y-3"
+                >
+                  {/* Top Row: # Rank number, Name, Rank & Order badge, Status Badge */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <span className="text-slate-400 text-xs font-bold shrink-0 mt-0.5">
+                        #{rankNum}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-sm font-black text-slate-900 truncate">
+                            {getFullName(row.member)}
+                          </span>
+                          {row.member.status === 'suspended' && (
+                            <span className="text-[9px] font-extrabold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200">
+                              SUSPENDED
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                          <span className="text-[10px] font-bold text-slate-600">
+                            {row.member.rank || 'Altar Server'}
+                          </span>
+                          {row.member.order && (
+                            <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold border ${getOrderBadgeStyle(row.member.order)}`}>
+                              {row.member.order}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Overall Qualification Status Badge */}
+                    <div className="shrink-0 text-right">
+                      {row.isQualified ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-xl text-[10px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          QUALIFIED
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-xl text-[10px] font-black bg-rose-50 text-rose-700 border border-rose-200">
+                          DEFICIENT ({row.passedRulesCount}/{row.totalRulesCount})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Mini Progress Pills: OGF, Meetings, Sundays */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Formation (OGF) */}
+                    <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 text-center">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">OGF</div>
+                      {ogf && ogf.totalHeld > 0 ? (
+                        <>
+                          <div className={`text-xs font-black ${ogf.meetsRule ? 'text-purple-700' : 'text-rose-600'}`}>
+                            {ogf.rate.toFixed(0)}%
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-bold">{ogf.present}/{ogf.totalHeld}</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-300 font-bold">-</div>
+                      )}
+                    </div>
+
+                    {/* Meetings */}
+                    <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 text-center">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Meetings</div>
+                      {mtg && mtg.totalHeld > 0 ? (
+                        <>
+                          <div className={`text-xs font-black ${mtg.meetsRule ? 'text-blue-700' : 'text-rose-600'}`}>
+                            {mtg.rate.toFixed(0)}%
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-bold">{mtg.present}/{mtg.totalHeld}</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-300 font-bold">-</div>
+                      )}
+                    </div>
+
+                    {/* Sunday Masses */}
+                    <div className="bg-slate-50/80 rounded-xl p-2 border border-slate-200/60 text-center">
+                      <div className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400">Sundays</div>
+                      {sun && sun.totalHeld > 0 ? (
+                        <>
+                          <div className={`text-xs font-black ${sun.meetsRule ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {sun.rate.toFixed(0)}%
+                          </div>
+                          <div className="text-[9px] text-slate-400 font-bold">{sun.present} att.</div>
+                        </>
+                      ) : (
+                        <div className="text-xs text-slate-300 font-bold">-</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Footer: Overall rate and Details action */}
+                  <div className="flex items-center justify-between pt-1 border-t border-slate-100 text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[11px] font-bold text-slate-500">Overall Rate:</span>
+                      <span className="font-black text-slate-900">{row.overallRate.toFixed(1)}%</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedMemberModal(row)
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 hover:text-indigo-700 border border-indigo-100 transition shadow-2xs cursor-pointer"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <span>Details</span>
+                    </button>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        <Pagination
+          currentPage={currentPage}
+          totalItems={filteredResults.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setCurrentPage}
+        />
       </div>
 
       {/* ── 5. MEMBER DETAIL BREAKDOWN MODAL ────────────────────────── */}
@@ -1222,17 +1387,6 @@ export const QualificationsTab: React.FC<QualificationsTabProps> = ({
           dateRange={{ start: startDate, end: endDate }}
           presetName={activePreset?.name}
           activeRules={activeRules}
-        />
-      )}
-
-      {/* ── 10. ALERT MODAL ───────────────────────────────────────────── */}
-      {alertModal && (
-        <AlertModal
-          isOpen={!!alertModal}
-          title={alertModal.title}
-          message={alertModal.message}
-          variant={alertModal.variant || 'info'}
-          onClose={() => setAlertModal(null)}
         />
       )}
     </div>

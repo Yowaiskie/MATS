@@ -7,6 +7,9 @@ import { getScheduleStatus, formatScheduleDateWithDay } from '@/utils/scheduleUt
 import { getFullName } from '@/utils/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { attendanceService } from '@/services/attendanceService'
+import { settingsService, DEFAULT_REPORT_TEMPLATE } from '@/services/settingsService'
+import { generateCommunityReport } from '@/utils/communityReport'
+import { useToast } from '@/context/ToastContext'
 
 interface ScheduleDetailsModalProps {
   isOpen: boolean
@@ -30,9 +33,57 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
   attendanceState = 'none',
 }) => {
   const { isAdmin, canAction } = useAuth()
+  const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageSchedules')
   const [loadingAttendance, setLoadingAttendance] = useState(false)
   const [records, setRecords] = useState<AttendanceRecord[]>([])
+  const [copied, setCopied] = useState(false)
+
+  const handleCopyCommunityReport = async () => {
+    if (!schedule) return
+    try {
+      const template = await settingsService.getReportTemplate()
+      const effectiveTemplate = template?.trim() ? template : DEFAULT_REPORT_TEMPLATE
+
+      // Assigned altar servers
+      const assignedList = activeMembers.filter((m) =>
+        (schedule.assignedMembers || []).includes(m.id)
+      )
+
+      // Other servers (attended or marked in session but not in default schedule.assignedMembers)
+      const otherMemberIds = records.filter((r) => r.isOtherServer).map((r) => r.memberId)
+      const otherList = activeMembers.filter((m) =>
+        otherMemberIds.includes(m.id) && !(schedule.assignedMembers || []).includes(m.id)
+      )
+
+      // Build formState map from session attendance records
+      const formState: Record<string, { status: any; remarks: string }> = {}
+      records.forEach((r) => {
+        if (r.memberId) {
+          formState[r.memberId] = {
+            status: r.status,
+            remarks: r.remarks || '',
+          }
+        }
+      })
+
+      const reportText = generateCommunityReport(
+        effectiveTemplate,
+        schedule,
+        assignedList,
+        formState,
+        otherList
+      )
+
+      await navigator.clipboard.writeText(reportText)
+      setCopied(true)
+      toast.success('Report Copied', 'Community attendance report copied to clipboard.')
+      setTimeout(() => setCopied(false), 2500)
+    } catch (err) {
+      console.error('Failed to copy community report:', err)
+      toast.error('Copy Failed', 'Could not copy report to clipboard.')
+    }
+  }
 
   useEffect(() => {
     if (!isOpen || !schedule) return
@@ -185,11 +236,26 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
             </div>
             <div className="flex flex-wrap items-center gap-3 text-xs font-bold text-slate-600 pt-1">
               <span className="inline-flex items-center gap-1.5">
-                📅 {formatHeaderDate(schedule.date)}
+                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span>{formatHeaderDate(schedule.date)}</span>
               </span>
               <span className="inline-flex items-center gap-1.5 text-indigo-600 font-mono">
-                🕒 {formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}
+                <svg className="w-3.5 h-3.5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{formatTime12(schedule.startTime)} - {formatTime12(schedule.endTime)}</span>
               </span>
+              {schedule.location && (
+                <span className="inline-flex items-center gap-1.5 text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-lg text-xs font-bold">
+                  <svg className="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <span>Street / Venue: {schedule.location}</span>
+                </span>
+              )}
             </div>
           </div>
 
@@ -259,13 +325,35 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-between pt-4 border-t border-gray-100 mt-4 flex-wrap gap-2 bg-white">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between pt-4 border-t border-gray-100 mt-4 gap-2.5 sm:gap-2 bg-white [&>div]:w-full [&>div]:sm:w-auto">
+          <div className="flex flex-wrap items-center gap-2 [&>button]:w-full [&>button]:sm:w-auto">
+            <button
+              type="button"
+              onClick={handleCopyCommunityReport}
+              className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 px-3.5 py-2 text-xs font-bold text-indigo-700 transition-colors cursor-pointer shadow-2xs"
+              title="Copy formatted community attendance report to clipboard"
+            >
+              {copied ? (
+                <>
+                  <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-emerald-700">Copied!</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3.5 h-3.5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>Copy Report</span>
+                </>
+              )}
+            </button>
             {canManage && (
               <>
                 <button
                   onClick={handleEditClick}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3.5 py-2 text-xs font-bold text-blue-700 transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3.5 py-2 text-xs font-bold text-blue-700 transition-colors cursor-pointer shadow-2xs"
                 >
                   <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -274,7 +362,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
                 </button>
                 <button
                   onClick={handleDeleteClick}
-                  className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 px-3.5 py-2 text-xs font-bold text-rose-700 transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/70 hover:bg-rose-100 px-3.5 py-2 text-xs font-bold text-rose-700 transition-colors cursor-pointer shadow-2xs"
                 >
                   <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -285,11 +373,11 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
             )}
           </div>
           
-          <div className="flex items-center space-x-2">
+          <div className="flex flex-col-reverse sm:flex-row items-center gap-2 [&>button]:w-full [&>button]:sm:w-auto [&>a]:w-full [&>a]:sm:w-auto">
             {canManage && (
               <button
                 onClick={handleManageClick}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 px-3.5 py-2 text-xs font-bold text-purple-700 transition-colors cursor-pointer shadow-2xs"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/70 hover:bg-purple-100 px-3.5 py-2 text-xs font-bold text-purple-700 transition-colors cursor-pointer shadow-2xs"
               >
                 <svg className="w-3.5 h-3.5 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
@@ -299,7 +387,7 @@ export const ScheduleDetailsModal: React.FC<ScheduleDetailsModalProps> = ({
             )}
             <Link
               to={`/attendance?scheduleId=${schedule.id}`}
-              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition-colors text-center cursor-pointer shadow-md ${
+              className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-xs font-bold text-white transition-colors text-center cursor-pointer shadow-md ${
                 attendanceState === 'finalized'
                   ? 'bg-slate-700 hover:bg-slate-800 shadow-slate-700/20'
                   : 'bg-indigo-600 hover:bg-indigo-700 shadow-indigo-600/25'

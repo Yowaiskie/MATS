@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useId } from 'react'
 
 export interface CurrencyInputProps {
   value: string | number
@@ -27,6 +27,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
   id = 'currency-input',
   autoFocus = false,
 }) => {
+  const errorId = useId()
   // Format formatted string with commas
   const formatCommaString = (val: string | number): string => {
     if (val === '' || val === undefined || val === null) return ''
@@ -78,6 +79,8 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
         </span>
         <input
           id={id}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           type="text"
           value={displayValue}
           onChange={handleChange}
@@ -93,7 +96,7 @@ export const CurrencyInput: React.FC<CurrencyInputProps> = ({
       </div>
 
       {error ? (
-        <p className="text-xs text-rose-600 font-medium">{error}</p>
+        <p id={errorId} className="text-xs text-rose-600 font-medium">{error}</p>
       ) : helperText ? (
         <p className="text-[11px] text-slate-500 font-medium">{helperText}</p>
       ) : null}

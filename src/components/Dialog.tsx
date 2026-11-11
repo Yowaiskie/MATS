@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from './Button'
@@ -105,10 +107,11 @@ export const AlertModal: React.FC<AlertModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3">
           <Button
             variant={btnVariant}
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onClose}
             autoFocus
           >
@@ -209,10 +212,11 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="mt-6 flex items-center justify-end gap-2.5">
+        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3">
           <Button
             variant="secondary"
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={loading}
           >
@@ -221,6 +225,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <Button
             variant={btnVariant}
             size="dense"
+            className="w-full sm:w-auto"
             onClick={onConfirm}
             loading={loading}
             loadingText="Processing..."
@@ -305,12 +310,12 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
           <h3 id="password-confirm-title" className="text-base font-black text-slate-900 tracking-tight">{title}</h3>
           <p className="mt-1.5 text-xs font-medium text-slate-600 leading-relaxed">{message}</p>
         </div>
-        <form onSubmit={handleSubmit} className="mt-4 space-y-3">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-3">
           <div>
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Enter Password to Continue
             </label>
-            <input
+            <FormInput
               type="password"
               autoFocus
               required
@@ -321,11 +326,12 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
             />
           </div>
           {error && <p className="text-xs font-bold text-rose-600">{error}</p>}
-          <div className="mt-6 flex items-center justify-end gap-2.5 pt-2">
+          <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-2">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
               disabled={loading}
             >
@@ -335,6 +341,7 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
               type="submit"
               variant="danger"
               size="dense"
+              className="w-full sm:w-auto"
               disabled={!password}
               loading={loading}
               loadingText="Verifying..."
@@ -342,7 +349,7 @@ export const PasswordConfirmModal: React.FC<PasswordConfirmModalProps> = ({
               {confirmLabel}
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>,
     document.body

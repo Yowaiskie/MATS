@@ -7,7 +7,7 @@ import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
 import { publicationService } from '@/services/publicationService'
 import { auditService } from '@/services/auditService'
-import { isSundayOrAnticipatedMass, isTimeOverlapping, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isTimeOverlapping, isMemberEligibleForPublication, isSpecialEventOrService, getRankLimitForSlot } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 
 export interface MemberAssignmentSummary {
@@ -46,13 +46,10 @@ export const autoAssignService = {
     const allMembers = await memberService.getMembers()
     const activeEligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, publication))
 
-    // 2. Fetch all schedules in the publication's date range
-    const schedules = await scheduleService.getSchedulesByDateRange(
-      publication.startDate,
-      publication.endDate
-    )
+    // 2. Fetch publication's isolated schedules
+    const schedules = await scheduleService.getSchedulesForPublication(publication)
     const activeSchedules = schedules.filter(
-      s => s.status !== 'cancelled' && !s.isLocked && isScheduleIncludedInPublication(s, publication)
+      s => s.status !== 'cancelled' && !s.isLocked
     )
 
     // 3. Determine candidates to assign
@@ -126,8 +123,39 @@ export const autoAssignService = {
       return arr
     }
 
-    // Shuffled candidate members to randomize distribution
-    const shuffledCandidates = shuffle(candidateMembers)
+    // Helper to interleave candidates by rank for fair distribution across slots
+    const prepareCandidates = (membersList: Member[]): Member[] => {
+      const byRank = new Map<string, Member[]>()
+      membersList.forEach(m => {
+        const r = (m.rank || 'Other').trim()
+        if (!byRank.has(r)) byRank.set(r, [])
+        byRank.get(r)!.push(m)
+      })
+
+      // Shuffle each rank bucket
+      byRank.forEach((list, k) => {
+        byRank.set(k, shuffle(list))
+      })
+
+      const interleaved: Member[] = []
+      let hasMore = true
+      while (hasMore) {
+        hasMore = false
+        byRank.forEach(list => {
+          if (list.length > 0) {
+            interleaved.push(list.shift()!)
+            hasMore = true
+          }
+        })
+      }
+      return interleaved
+    }
+
+    // Interleaved and shuffled candidates
+    const shuffledCandidates = prepareCandidates(candidateMembers)
+
+    // Member map for quick lookup
+    const allMemberMap = new Map(allMembers.map(m => [m.id, m]))
 
     // Categorize and sort schedules by date & time, then distribute
     const sundaySchedules = activeSchedules.filter(s => isSundayOrAnticipatedMass(s.title, s.date, s.startTime))
@@ -139,15 +167,32 @@ export const autoAssignService = {
       const maxSlots = isSunday ? maxServersSunday : maxServersWeekday
       const currentAssigned = scheduleAssignments.get(schedule.id) || []
 
-      // 1. Capacity check
+      // 1. Total slot capacity check
       if (currentAssigned.length >= maxSlots) return false
-      // 2. Already in this schedule
+
+      // 2. Rank Quota check (if enabled)
+      if (publication.enableRankQuotas && member.rank) {
+        const isSpecial = isSpecialEventOrService(schedule)
+        const rankLimit = getRankLimitForSlot(publication, member.rank, isSunday, isSpecial)
+        if (rankLimit !== undefined) {
+          const currentRankCount = currentAssigned.filter(id => {
+            const m = allMemberMap.get(id)
+            return m?.rank?.toLowerCase().trim() === member.rank?.toLowerCase().trim()
+          }).length
+
+          if (currentRankCount >= rankLimit) {
+            return false
+          }
+        }
+      }
+
+      // 3. Already in this schedule
       if (currentAssigned.includes(member.id)) return false
-      // 3. Member quota limit
+      // 4. Member personal quota limit
       if (isSunday && load.sundays >= maxSundaysPerServer) return false
       if (!isSunday && load.weekdays >= maxWeekdaysPerServer) return false
 
-      // 4. Same-day overlap check
+      // 5. Same-day overlap check
       const sameDaySchedules = activeSchedules.filter(other => 
         other.date === schedule.date && 
         other.id !== schedule.id && 

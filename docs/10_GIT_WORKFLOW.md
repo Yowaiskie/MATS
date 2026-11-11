@@ -64,6 +64,12 @@ Every feature must be developed in its own branch.
 
 Delete feature branches after merging.
 
+## AI Harness & Spec-Driven Branch Isolation
+
+* One branch per run: Always switch to a dedicated feature branch (`feature/<name>` or `fix/<name>`) before initiating `/do` or spec-driven generation.
+* Never mix spec runs or agent modifications across uncommitted working branches.
+* Verify branch status (`git status`) prior to generating code.
+
 ---
 
 # Commit Message Format

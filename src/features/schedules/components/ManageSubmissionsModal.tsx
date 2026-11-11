@@ -2,12 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react'
 import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
+import type { ScheduleSubmission, CycleConflictItem } from '@/types/submission'
 import { publicationService } from '@/services/publicationService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
+import { submissionService } from '@/services/submissionService'
 import { autoAssignService, type AutoAssignResult } from '@/services/autoAssignService'
-import { isSundayOrAnticipatedMass, formatTime12Hour, isScheduleIncludedInPublication, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isSundaySlotSummary, isBaptismSchedule, formatTime12Hour, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
+import { useAuth } from '@/features/authentication/AuthContext'
 import { AdminEditMemberScheduleModal } from './AdminEditMemberScheduleModal'
 
 interface ManageSubmissionsModalProps {
@@ -17,7 +20,7 @@ interface ManageSubmissionsModalProps {
   onSuccess: () => void
 }
 
-type FilterTab = 'all' | 'submitted' | 'unsubmitted'
+type FilterTab = 'all' | 'provisional' | 'submitted' | 'unsubmitted'
 
 export interface GroupedMemberSlot {
   key: string
@@ -28,6 +31,8 @@ export interface GroupedMemberSlot {
   title: string
   isSunday: boolean
   datesCount: number
+  slotIndex?: number
+  isProvisional?: boolean
 }
 
 interface MemberWithScheduleStatus {
@@ -39,6 +44,8 @@ interface MemberWithScheduleStatus {
   weekdaysCount: number
   assignedScheduleIds: string[]
   groupedSlots: GroupedMemberSlot[]
+  submission?: ScheduleSubmission | null
+  isProvisional?: boolean
 }
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -46,11 +53,17 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   isOpen,
   onClose,
-  publication,
+  publication: propPublication,
   onSuccess
 }) => {
+  const { user, profile } = useAuth()
+  const [livePublication, setLivePublication] = useState<SchedulePublication | null>(propPublication)
+  const publication = livePublication || propPublication
+
+  const [allRawMembers, setAllRawMembers] = useState<Member[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [submissions, setSubmissions] = useState<ScheduleSubmission[]>([])
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [expandedMemberIds, setExpandedMemberIds] = useState<Set<string>>(new Set())
   const [filterTab, setFilterTab] = useState<FilterTab>('all')
@@ -58,6 +71,15 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    setLivePublication(propPublication)
+  }, [propPublication])
+
+  // Cycle Finalization State
+  const [showCycleFinalizeConfirm, setShowCycleFinalizeConfirm] = useState(false)
+  const [cycleConflicts, setCycleConflicts] = useState<CycleConflictItem[] | null>(null)
+  const [isFinalizingCycle, setIsFinalizingCycle] = useState(false)
 
   // Direct Member Schedule Edit State
   const [editingMember, setEditingMember] = useState<Member | null>(null)
@@ -80,16 +102,24 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
     setIsLoading(true)
     setMessage(null)
     try {
-      const [allMembers, schedList] = await Promise.all([
+      const [allMembers, validSchedules, pubSubmissions] = await Promise.all([
         memberService.getMembers(),
-        scheduleService.getSchedulesByDateRange(publication.startDate, publication.endDate)
+        scheduleService.getSchedulesForPublication(publication),
+        submissionService.getSubmissionsForPublication(publication.id)
       ])
 
-      // Eligible altar servers based on publication's allowed ranks
-      const eligible = allMembers.filter(m => isMemberEligibleForPublication(m, publication))
+      setAllRawMembers(allMembers)
+      const subMemberIdSet = new Set((pubSubmissions || []).map(s => s.memberId))
+      const schedMemberIdSet = new Set(validSchedules.flatMap(s => s.assignedMembers || []))
+      const eligible = allMembers.filter(m => 
+        isMemberEligibleForPublication(m, publication, true) ||
+        subMemberIdSet.has(m.id) ||
+        schedMemberIdSet.has(m.id)
+      )
 
       setMembers(eligible)
-      setSchedules(schedList.filter(s => isScheduleIncludedInPublication(s, publication)))
+      setSchedules(validSchedules)
+      setSubmissions(pubSubmissions || [])
     } catch (err) {
       console.error('Failed to load submissions and schedules:', err)
       setMessage({ type: 'error', text: 'Failed to load member and schedule data.' })
@@ -99,21 +129,69 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   }
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && propPublication) {
       setSelectedIds(new Set())
       setExpandedMemberIds(new Set())
       setAutoAssignResult(null)
       setShowAutoAssignConfirm(false)
+      setShowCycleFinalizeConfirm(false)
+      setCycleConflicts(null)
       setAutoAssignMode('both')
       setAssignTargetScope('all_unsubmitted')
       loadData()
     }
-  }, [isOpen, publication])
+  }, [isOpen, propPublication?.id])
+
+  // Real-time Firestore subscriptions while modal is open
+  useEffect(() => {
+    if (!isOpen || !propPublication?.id) return
+
+    const unsubPub = publicationService.subscribeToPublication(
+      propPublication.id,
+      (updatedPub) => {
+        if (updatedPub) setLivePublication(updatedPub)
+      }
+    )
+
+    const unsubSubs = submissionService.subscribeToPublicationSubmissions(
+      propPublication.id,
+      (liveSubs) => {
+        setSubmissions(liveSubs || [])
+      }
+    )
+
+    const unsubScheds = scheduleService.subscribeToPublicationSchedules(
+      propPublication,
+      (liveScheds) => {
+        setSchedules(liveScheds)
+      }
+    )
+
+    return () => {
+      unsubPub()
+      unsubSubs()
+      unsubScheds()
+    }
+  }, [isOpen, propPublication?.id, propPublication?.startDate, propPublication?.endDate])
+
+  // Keep eligible members list updated when live submissions or schedules change
+  useEffect(() => {
+    if (!publication || allRawMembers.length === 0) return
+    const subMemberIdSet = new Set(submissions.map(s => s.memberId))
+    const schedMemberIdSet = new Set(schedules.flatMap(s => s.assignedMembers || []))
+    const eligible = allRawMembers.filter(m =>
+      isMemberEligibleForPublication(m, publication, true) ||
+      subMemberIdSet.has(m.id) ||
+      schedMemberIdSet.has(m.id)
+    )
+    setMembers(eligible)
+  }, [publication, allRawMembers, submissions, schedules])
 
   // Compute stats and statuses for each member (grouped by Day of Week & Time)
   const membersWithStatus = useMemo<MemberWithScheduleStatus[]>(() => {
     if (!publication) return []
     const submittedSet = new Set(publication.submittedMembers || [])
+    const pendingSubsMap = new Map(submissions.filter(s => s.status === 'pending').map(s => [s.memberId, s]))
 
     return members.map(member => {
       let sundaysCount = 0
@@ -124,6 +202,10 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
       schedules.forEach(s => {
         if (s.assignedMembers?.includes(member.id)) {
           assignedIds.push(s.id)
+          if (isBaptismSchedule(s)) {
+            // Sacramental Baptisms are managed by Order Rotation and do not count towards Mass quotas
+            return
+          }
           const isSun = isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
           if (isSun) {
             sundaysCount++
@@ -135,7 +217,8 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
           const [y, m, d] = s.date.split('-').map(Number)
           const dayOfWeek = new Date(y, m - 1, d).getDay()
           const dayName = DAY_NAMES[dayOfWeek]
-          const key = `${dayOfWeek}-${s.startTime}-${s.title}`
+          const normTime = (s.startTime || '').trim().slice(0, 5)
+          const key = `${dayOfWeek}-${normTime}-${s.title}`
 
           if (!slotsMap.has(key)) {
             slotsMap.set(key, {
@@ -155,15 +238,56 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         }
       })
 
+      const pendingSub = pendingSubsMap.get(member.id)
+      const isProvisional = Boolean(pendingSub)
+
+      // If member has provisional submission, populate their requested slots in the drawer
+      if (pendingSub?.slotSummaries && pendingSub.slotSummaries.length > 0) {
+        pendingSub.slotSummaries.forEach(sm => {
+          if (isBaptismSchedule(sm)) {
+            return
+          }
+          const smDow = sm.dayOfWeek ?? 0
+          const smNormTime = (sm.startTime || '00:00').trim().slice(0, 5)
+          const slotKey = `${smDow}-${smNormTime}-${sm.title || 'Mass'}`
+          const isSun = isSundaySlotSummary(sm)
+
+          if (!slotsMap.has(slotKey)) {
+            if (isSun) {
+              sundaysCount += (sm.datesCount || sm.scheduleIds?.length || 1)
+            } else {
+              weekdaysCount += (sm.datesCount || sm.scheduleIds?.length || 1)
+            }
+            slotsMap.set(slotKey, {
+              key: slotKey,
+              dayName: DAY_NAMES[smDow],
+              dayOfWeek: smDow,
+              startTime: sm.startTime || '00:00',
+              formattedTime: formatTime12Hour(sm.startTime || '00:00'),
+              title: sm.title || 'Mass',
+              isSunday: isSun,
+              datesCount: sm.datesCount || sm.scheduleIds?.length || 1,
+              slotIndex: sm.slotIndex,
+              isProvisional: true
+            })
+          } else {
+            const existing = slotsMap.get(slotKey)!
+            if (existing.slotIndex === undefined && sm.slotIndex !== undefined) {
+              existing.slotIndex = sm.slotIndex
+            }
+          }
+        })
+      }
+
       // Sort grouped slots by day of week, then start time
       const groupedSlots = Array.from(slotsMap.values()).sort((a, b) => {
         if (a.dayOfWeek !== b.dayOfWeek) return a.dayOfWeek - b.dayOfWeek
         return a.startTime.localeCompare(b.startTime)
       })
 
-      const totalSchedules = assignedIds.length
-      const isSubmitted = submittedSet.has(member.id)
-      const hasSchedule = totalSchedules > 0
+      const totalSchedules = assignedIds.length > 0 ? assignedIds.length : (pendingSub?.requestedScheduleIds?.length || 0)
+      const isSubmitted = submittedSet.has(member.id) || isProvisional
+      const hasSchedule = assignedIds.length > 0 || isProvisional
 
       return {
         member,
@@ -173,10 +297,12 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         sundaysCount,
         weekdaysCount,
         assignedScheduleIds: assignedIds,
-        groupedSlots
+        groupedSlots,
+        submission: pendingSub || null,
+        isProvisional
       }
     })
-  }, [members, schedules, publication])
+  }, [members, schedules, publication, submissions])
 
   // Deadline calculation
   const deadlineInfo = useMemo(() => {
@@ -201,6 +327,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   const filteredMembers = useMemo(() => {
     return membersWithStatus.filter(item => {
       // Tab filter
+      if (filterTab === 'provisional' && !item.isProvisional) return false
       if (filterTab === 'submitted' && !item.isSubmitted && !item.hasSchedule) return false
       if (filterTab === 'unsubmitted' && (item.isSubmitted || item.hasSchedule)) return false
 
@@ -222,6 +349,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   // Quick stats
   const stats = useMemo(() => {
     const total = membersWithStatus.length
+    const provisional = membersWithStatus.filter(m => m.isProvisional).length
     const withScheduleOrSubmitted = membersWithStatus.filter(m => m.isSubmitted || m.hasSchedule).length
     const unsubmitted = membersWithStatus.filter(m => !m.isSubmitted && !m.hasSchedule).length
     
@@ -236,7 +364,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
       if (curr < cap) openSlots += (cap - curr)
     })
 
-    return { total, withScheduleOrSubmitted, unsubmitted, openSlots }
+    return { total, provisional, withScheduleOrSubmitted, unsubmitted, openSlots }
   }, [membersWithStatus, schedules, publication])
 
   // Selected members categorized into With Schedule vs Pending
@@ -247,6 +375,10 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   const selectedPendingMembers = useMemo(() => {
     return membersWithStatus.filter(m => selectedIds.has(m.member.id) && !m.hasSchedule && !m.isSubmitted)
   }, [membersWithStatus, selectedIds])
+
+  const pendingSubmissionsCount = useMemo(() => {
+    return submissions.filter(s => s.status === 'pending').length
+  }, [submissions])
 
   if (!isOpen || !publication) return null
 
@@ -308,10 +440,18 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         publication.endDate, 
         ids, 
         resetScope,
-        'Coordinator'
+        'Coordinator',
+        publication
+      )
+
+      // 2. Clear provisional / submitted choices from scheduleSubmissions
+      await submissionService.resetSubmissionsForMembers(
+        publication.id,
+        ids,
+        resetScope
       )
       
-      // 2. Remove from publication submissions if requested
+      // 3. Remove from publication submissions if requested
       if (resetUnlockSubmission) {
         await publicationService.resetMembersSubmission(publication.id, ids)
       }
@@ -358,6 +498,46 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
     }
   }
 
+  const handleExecuteCycleFinalize = async () => {
+    if (!publication) return
+    setIsFinalizingCycle(true)
+    setCycleConflicts(null)
+    setMessage(null)
+
+    try {
+      const result = await submissionService.finalizePublicationCycle(publication.id, {
+        adminUser: {
+          email: user?.email || '',
+          uid: user?.uid || 'admin',
+          role: profile?.role || 'admin',
+          permissions: {
+            canManageSchedules: true
+          }
+        }
+      })
+
+      setShowCycleFinalizeConfirm(false)
+      setMessage({
+        type: 'success',
+        text: `Successfully applied! Approved ${result.approvedSubmissionsCount} sign-up(s) and committed assignments across ${result.updatedSchedulesCount} official Mass schedule(s).`
+      })
+      await loadData()
+      onSuccess()
+    } catch (err: any) {
+      console.error('Cycle finalization failed:', err)
+      if (err.details?.conflicts) {
+        setCycleConflicts(err.details.conflicts)
+      } else {
+        setMessage({
+          type: 'error',
+          text: err.message || 'Failed to finalize scheduling cycle.'
+        })
+      }
+    } finally {
+      setIsFinalizingCycle(false)
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white rounded-3xl w-full max-w-3xl shadow-2xl overflow-hidden flex flex-col max-h-[88vh] sm:max-h-[90vh] border border-slate-200/80 animate-in fade-in zoom-in-95 duration-150">
@@ -385,18 +565,65 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
               </p>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
-            className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={loadData}
+              disabled={isLoading}
+              className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none"
+              title="Refresh submissions"
+            >
+              <svg className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+            <button 
+              onClick={onClose} 
+              className="text-slate-400 hover:text-slate-600 p-1.5 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer focus:outline-none"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Content Body */}
         <div className="p-3 sm:p-6 overflow-y-auto flex-1 space-y-3 sm:space-y-4">
+
+          {/* Cycle Finalization Status Banner */}
+          {publication.isCycleFinalized ? (
+            <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border bg-emerald-50/90 border-emerald-200 text-emerald-900 flex items-center gap-2 text-[11px] sm:text-xs font-bold">
+              <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span>
+                Schedule finalized. Official assignments are committed to Mass schedules.
+              </span>
+            </div>
+          ) : pendingSubmissionsCount > 0 ? (
+            <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border bg-amber-50/90 border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 text-[11px] sm:text-xs font-bold">
+              <div className="flex items-center gap-2">
+                <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                <span>
+                  {pendingSubmissionsCount} member sign-up(s) ready to be applied to official schedules.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setCycleConflicts(null)
+                  setShowCycleFinalizeConfirm(true)
+                }}
+                className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[11px] sm:text-xs font-black shadow-xs cursor-pointer whitespace-nowrap active:scale-95 transition-all self-end sm:self-auto inline-flex items-center gap-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Apply to Official Schedules</span>
+              </button>
+            </div>
+          ) : null}
           
           {/* Deadline Alert Banner */}
           {deadlineInfo.hasDeadline && (
@@ -420,27 +647,34 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                     setAssignTargetScope(selectedIds.size > 0 ? 'selected_only' : 'all_unsubmitted')
                     setShowAutoAssignConfirm(true)
                   }}
-                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black shadow-xs cursor-pointer whitespace-nowrap active:scale-95 transition-all self-end sm:self-auto"
+                  className="px-2.5 py-1 sm:px-3 sm:py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-black shadow-xs cursor-pointer whitespace-nowrap active:scale-95 transition-all self-end sm:self-auto inline-flex items-center gap-1.5"
                 >
-                  🎲 Auto-Assign ({stats.unsubmitted})
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span>Auto-Assign ({stats.unsubmitted})</span>
                 </button>
               )}
             </div>
           )}
 
           {/* Quick Stats Grid: Compact on mobile */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 sm:gap-3">
             <div className="p-2 sm:p-3.5 bg-slate-50 border border-slate-200/80 rounded-xl sm:rounded-2xl text-center sm:text-left">
               <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block truncate">Total</span>
               <div className="text-sm sm:text-xl font-black text-slate-800 mt-0.5">{stats.total}</div>
+            </div>
+            <div className="p-2 sm:p-3.5 bg-amber-50/70 border border-amber-200/80 rounded-xl sm:rounded-2xl text-center sm:text-left">
+              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-amber-700 block truncate">Sign-ups</span>
+              <div className="text-sm sm:text-xl font-black text-amber-700 mt-0.5">{stats.provisional}</div>
             </div>
             <div className="p-2 sm:p-3.5 bg-emerald-50/60 border border-emerald-200/70 rounded-xl sm:rounded-2xl text-center sm:text-left">
               <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-emerald-600 block truncate">With Sched</span>
               <div className="text-sm sm:text-xl font-black text-emerald-700 mt-0.5">{stats.withScheduleOrSubmitted}</div>
             </div>
-            <div className="p-2 sm:p-3.5 bg-amber-50/60 border border-amber-200/70 rounded-xl sm:rounded-2xl text-center sm:text-left">
-              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-amber-600 block truncate">Pending</span>
-              <div className="text-sm sm:text-xl font-black text-amber-700 mt-0.5">{stats.unsubmitted}</div>
+            <div className="p-2 sm:p-3.5 bg-slate-100/70 border border-slate-200/80 rounded-xl sm:rounded-2xl text-center sm:text-left">
+              <span className="text-[9px] sm:text-[10px] font-extrabold uppercase tracking-wider text-slate-500 block truncate">Unsubmitted</span>
+              <div className="text-sm sm:text-xl font-black text-slate-700 mt-0.5">{stats.unsubmitted}</div>
             </div>
           </div>
 
@@ -455,7 +689,11 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
             <div className="p-4 rounded-2xl bg-indigo-50/90 border border-indigo-200 text-indigo-900 space-y-2.5 animate-fade-in">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <span className="p-1 rounded-lg bg-indigo-600 text-white text-xs">✓</span>
+                  <span className="p-1 rounded-lg bg-indigo-600 text-white text-xs">
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  </span>
                   <span className="text-xs font-black">
                     Auto-Assignment Complete: Assigned {autoAssignResult.assignedMembersCount} member(s) across unfilled slots!
                   </span>
@@ -504,6 +742,17 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
               </button>
               <button
                 type="button"
+                onClick={() => setFilterTab('provisional')}
+                className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer text-[11px] sm:text-xs whitespace-nowrap ${
+                  filterTab === 'provisional'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'text-amber-800 hover:text-amber-950'
+                }`}
+              >
+                Sign-ups ({stats.provisional})
+              </button>
+              <button
+                type="button"
                 onClick={() => setFilterTab('submitted')}
                 className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer text-[11px] sm:text-xs whitespace-nowrap ${
                   filterTab === 'submitted'
@@ -518,11 +767,11 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                 onClick={() => setFilterTab('unsubmitted')}
                 className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg transition-all cursor-pointer text-[11px] sm:text-xs whitespace-nowrap ${
                   filterTab === 'unsubmitted'
-                    ? 'bg-amber-500 text-white shadow-2xs'
-                    : 'text-amber-700 hover:text-amber-900'
+                    ? 'bg-slate-700 text-white shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Pending ({stats.unsubmitted})
+                Unsubmitted ({stats.unsubmitted})
               </button>
             </div>
 
@@ -630,11 +879,21 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                             </div>
                             <div className="text-[10px] text-slate-400 font-semibold mt-0.5 flex items-center gap-1.5 flex-wrap">
                               <span>{item.member.order || 'Altar Server'}</span>
-                              {item.hasSchedule && (
-                                <span className="text-slate-500 font-bold">
-                                  • {slotsCount} {slotsCount === 1 ? 'Slot' : 'Slots'} ({item.sundaysCount} Sun, {item.weekdaysCount} Wk)
+                              {item.isProvisional ? (
+                                <span className="text-amber-700 font-bold">
+                                  • {slotsCount} {slotsCount === 1 ? 'Slot' : 'Slots'} (Sign-up)
                                 </span>
-                              )}
+                              ) : item.hasSchedule ? (
+                                <span className="text-slate-500 font-bold">
+                                  • {slotsCount} {slotsCount === 1 ? 'Slot' : 'Slots'} {
+                                    publication.publicationType === 'special_event' 
+                                      ? '(Special Event)' 
+                                      : publication.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1 
+                                        ? `(${publication.includedDaysOfWeek[0]})` 
+                                        : `(${item.sundaysCount} Sun, ${item.weekdaysCount} Wk)`
+                                  }
+                                </span>
+                              ) : null}
                             </div>
                           </div>
                         </div>
@@ -658,7 +917,29 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                             <span>Edit Sched</span>
                           </button>
 
-                          {item.hasSchedule ? (
+                          {item.isProvisional ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleExpandMember(item.member.id)}
+                              className={`inline-flex items-center gap-1 sm:gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-lg sm:rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer border shadow-2xs ${
+                                isExpanded
+                                  ? 'bg-amber-600 text-white border-amber-600 shadow-amber-600/20'
+                                  : 'bg-amber-50 hover:bg-amber-100 text-amber-800 border-amber-300'
+                              }`}
+                              title="Click to view mass slots selected by this member"
+                            >
+                              <span>Selected ({slotsCount})</span>
+                              <svg 
+                                className={`w-3.5 h-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180 text-white' : 'text-amber-700'}`} 
+                                fill="none" 
+                                viewBox="0 0 24 24" 
+                                stroke="currentColor" 
+                                strokeWidth={2.5}
+                              >
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </button>
+                          ) : item.hasSchedule ? (
                             <button
                               type="button"
                               onClick={() => toggleExpandMember(item.member.id)}
@@ -681,8 +962,8 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                               </svg>
                             </button>
                           ) : (
-                            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase bg-amber-50 text-amber-700 border border-amber-200">
-                              Pending
+                            <span className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl text-[9px] sm:text-[10px] font-black uppercase bg-slate-100 text-slate-500 border border-slate-200">
+                              Unsubmitted
                             </span>
                           )}
                         </div>
@@ -692,36 +973,60 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                       {isExpanded && item.hasSchedule && (
                         <div className="bg-slate-50/90 border-t border-slate-200/60 p-2.5 sm:p-3.5 pl-8 sm:pl-10 pr-3 sm:pr-4 space-y-2 animate-fade-in">
                           <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] sm:text-[10px] font-black uppercase text-slate-400 tracking-wider">
-                            <span>Mass Schedule Slots for {item.member.firstName}</span>
+                            <span>
+                              {item.isProvisional ? 'Selected Mass Slots' : publication.publicationType === 'special_event' ? 'Event Schedule Slots' : 'Mass Schedule Slots'} for {item.member.firstName}
+                            </span>
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              {item.sundaysCount > 0 && (
+                              {publication.publicationType === 'special_event' ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenResetSingle(item.member.id, 'sunday')}
-                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
-                                  title="Reset only Sunday & Anticipated mass slots for this member"
+                                  onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                  title="Reset all special occasion event slots for this member"
                                 >
-                                  Reset Sundays ({item.sundaysCount})
+                                  Reset Event Slots ({item.totalSchedules})
                                 </button>
-                              )}
-                              {item.weekdaysCount > 0 && (
+                              ) : publication.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1 ? (
                                 <button
                                   type="button"
-                                  onClick={() => handleOpenResetSingle(item.member.id, 'weekday')}
-                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
-                                  title="Reset only Weekday mass slots for this member"
+                                  onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                  className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                  title={`Reset ${publication.includedDaysOfWeek[0]} mass slots for this member`}
                                 >
-                                  Reset Weekdays ({item.weekdaysCount})
+                                  Reset {publication.includedDaysOfWeek[0]} Slots ({item.totalSchedules})
                                 </button>
+                              ) : (
+                                <>
+                                  {item.sundaysCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenResetSingle(item.member.id, 'sunday')}
+                                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors cursor-pointer"
+                                      title="Reset only Sunday & Anticipated mass slots for this member"
+                                    >
+                                      Reset Sundays ({item.sundaysCount})
+                                    </button>
+                                  )}
+                                  {item.weekdaysCount > 0 && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenResetSingle(item.member.id, 'weekday')}
+                                      className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors cursor-pointer"
+                                      title="Reset only Weekday mass slots for this member"
+                                    >
+                                      Reset Weekdays ({item.weekdaysCount})
+                                    </button>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenResetSingle(item.member.id, 'all')}
+                                    className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
+                                    title="Reset all schedule slots for this member"
+                                  >
+                                    Reset All
+                                  </button>
+                                </>
                               )}
-                              <button
-                                type="button"
-                                onClick={() => handleOpenResetSingle(item.member.id, 'all')}
-                                className="px-2 py-0.5 rounded-lg text-[10px] font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-colors cursor-pointer"
-                                title="Reset all schedule slots for this member"
-                              >
-                                Reset All
-                              </button>
                               <button
                                 type="button"
                                 onClick={() => {
@@ -753,9 +1058,17 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                                   </div>
                                 </div>
                                 <span className={`px-1.5 py-0.2 rounded text-[8px] sm:text-[9px] font-extrabold uppercase shrink-0 ${
-                                  slot.isSunday ? 'bg-indigo-50 text-indigo-700 border border-indigo-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                                  slot.isProvisional
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                    : slot.isSunday
+                                      ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                                      : 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                                 }`}>
-                                  {slot.isSunday ? 'Sunday' : 'Weekday'}
+                                  {slot.isProvisional
+                                    ? (slot.slotIndex !== undefined ? `Server ${slot.slotIndex + 1}` : 'Selected')
+                                    : slot.isSunday
+                                      ? 'Sunday'
+                                      : 'Weekday'}
                                 </span>
                               </div>
                             ))}
@@ -771,7 +1084,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-2 sm:gap-3 shrink-0">
+        <div className="px-3 py-2.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-slate-50/70 flex flex-col-reverse sm:flex-row justify-between items-stretch sm:items-center gap-2.5 sm:gap-3 shrink-0">
           <div className="text-[11px] sm:text-xs font-bold text-slate-500 text-center sm:text-left">
             {selectedIds.size > 0 ? (
               <span className="flex items-center justify-center sm:justify-start gap-1.5 sm:gap-2 flex-wrap">
@@ -779,27 +1092,44 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                 <span>•</span>
                 <span className="text-emerald-700 font-semibold">{selectedMembersWithSchedule.length} with sched</span>
                 <span>•</span>
-                <span className="text-amber-700 font-semibold">{selectedPendingMembers.length} pending</span>
+                <span className="text-slate-600 font-semibold">{selectedPendingMembers.length} unsubmitted</span>
               </span>
             ) : (
               'Select members to reset or auto-assign'
             )}
           </div>
 
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 sm:flex-none px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer text-center"
+              className="w-full sm:w-auto px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:text-slate-900 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition-all cursor-pointer text-center"
             >
               Close
             </button>
+
+            {pendingSubmissionsCount > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCycleConflicts(null)
+                  setShowCycleFinalizeConfirm(true)
+                }}
+                disabled={isSubmitting || isFinalizingCycle}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-indigo-600/25 cursor-pointer text-center"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>Apply to Official Schedules ({pendingSubmissionsCount})</span>
+              </button>
+            )}
             
             <button
               type="button"
               onClick={handleOpenResetBulk}
               disabled={isSubmitting || selectedMembersWithSchedule.length === 0}
-              className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer text-center"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-xl transition-all shadow-md shadow-rose-600/20 cursor-pointer text-center"
               title={selectedMembersWithSchedule.length === 0 ? 'Only members who have existing schedules can be reset.' : 'Reset schedule for selected members'}
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -864,8 +1194,11 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
             {assignTargetScope === 'selected_only' && (
               <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
                 {selectedIds.size === 0 ? (
-                  <p className="text-amber-700 font-semibold text-[11px] text-center">
-                    ⚠️ No members selected in the table. Please check members first or switch to &quot;All Unsubmitted&quot;.
+                  <p className="text-amber-700 font-semibold text-[11px] text-center flex items-center justify-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <span>No members selected in the table. Please check members first or switch to &quot;All Unsubmitted&quot;.</span>
                   </p>
                 ) : (
                   <div className="space-y-1">
@@ -941,6 +1274,11 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                   <li>Max {publication.maxWeekdaysPerServer ?? 8} Weekdays / server quota</li>
                 )}
                 <li>Slot capacities ({publication.maxServersPerSundaySlot ?? 5} Sunday, {publication.maxServersPerWeekdaySlot ?? 5} Weekday)</li>
+                {publication.enableRankQuotas && (
+                  <li>
+                    Rank allotment enforced: Max {publication.rankSlotQuotas?.Chevaliers ?? 2} Chevaliers, Max {publication.rankSlotQuotas?.Paladins ?? 3} Paladins per slot
+                  </li>
+                )}
                 <li>No same-day overlapping time conflicts</li>
               </ul>
             </div>
@@ -992,65 +1330,101 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
                 Select Which Slots to Reset:
               </label>
               <div className="grid grid-cols-1 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setResetScope('all')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    resetScope === 'all'
-                      ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-black">All Schedules (Sundays & Weekdays)</span>
-                    <span className="text-[10px] text-slate-400 block font-medium">Remove all mass assignments within this publication</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    resetScope === 'all' ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
-                  }`}>
-                    {resetScope === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                </button>
+                {publication.publicationType === 'special_event' ? (
+                  <button
+                    type="button"
+                    onClick={() => setResetScope('all')}
+                    className="p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <span className="block text-xs font-black">All Special Occasion Event Slots</span>
+                      <span className="text-[10px] text-slate-500 block font-medium">
+                        Remove all event assignments for selected members within this special publication
+                      </span>
+                    </div>
+                    <span className="w-4 h-4 rounded-full border-2 border-rose-600 bg-rose-600 flex items-center justify-center shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </span>
+                  </button>
+                ) : publication.includedDaysOfWeek && publication.includedDaysOfWeek.length === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => setResetScope('all')}
+                    className="p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs"
+                  >
+                    <div className="space-y-0.5">
+                      <span className="block text-xs font-black">All {publication.includedDaysOfWeek[0]} Mass Slots</span>
+                      <span className="text-[10px] text-slate-500 block font-medium">
+                        Remove all {publication.includedDaysOfWeek[0]} mass assignments for selected members within this publication
+                      </span>
+                    </div>
+                    <span className="w-4 h-4 rounded-full border-2 border-rose-600 bg-rose-600 flex items-center justify-center shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white" />
+                    </span>
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setResetScope('all')}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                        resetScope === 'all'
+                          ? 'bg-rose-50 border-rose-500 text-rose-950 ring-2 ring-rose-500/20 font-black shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-black">All Schedules (Sundays & Weekdays)</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Remove all mass assignments within this publication</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        resetScope === 'all' ? 'border-rose-600 bg-rose-600' : 'border-slate-300'
+                      }`}>
+                        {resetScope === 'all' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setResetScope('sunday')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    resetScope === 'sunday'
-                      ? 'bg-indigo-50 border-indigo-600 text-indigo-950 ring-2 ring-indigo-500/20 font-black shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-black">Sundays Only</span>
-                    <span className="text-[10px] text-slate-400 block font-medium">Remove Sunday & Anticipated mass slots (keep weekdays)</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    resetScope === 'sunday' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'
-                  }`}>
-                    {resetScope === 'sunday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetScope('sunday')}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                        resetScope === 'sunday'
+                          ? 'bg-indigo-50 border-indigo-600 text-indigo-950 ring-2 ring-indigo-500/20 font-black shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-black">Sundays Only</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Remove Sunday & Anticipated mass slots (keep weekdays)</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        resetScope === 'sunday' ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300'
+                      }`}>
+                        {resetScope === 'sunday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
 
-                <button
-                  type="button"
-                  onClick={() => setResetScope('weekday')}
-                  className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
-                    resetScope === 'weekday'
-                      ? 'bg-emerald-50 border-emerald-600 text-emerald-950 ring-2 ring-emerald-500/20 font-black shadow-xs'
-                      : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
-                  }`}
-                >
-                  <div className="space-y-0.5">
-                    <span className="block text-xs font-black">Weekdays Only</span>
-                    <span className="text-[10px] text-slate-400 block font-medium">Remove Monday–Saturday mass slots (keep Sundays)</span>
-                  </div>
-                  <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                    resetScope === 'weekday' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
-                  }`}>
-                    {resetScope === 'weekday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                  </span>
-                </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetScope('weekday')}
+                      className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between ${
+                        resetScope === 'weekday'
+                          ? 'bg-emerald-50 border-emerald-600 text-emerald-950 ring-2 ring-emerald-500/20 font-black shadow-xs'
+                          : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold'
+                      }`}
+                    >
+                      <div className="space-y-0.5">
+                        <span className="block text-xs font-black">Weekdays Only</span>
+                        <span className="text-[10px] text-slate-400 block font-medium">Remove Monday–Saturday mass slots (keep Sundays)</span>
+                      </div>
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                        resetScope === 'weekday' ? 'border-emerald-600 bg-emerald-600' : 'border-slate-300'
+                      }`}>
+                        {resetScope === 'weekday' && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </span>
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -1086,6 +1460,91 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         </div>
       )}
 
+      {/* Confirmation & Conflict Dialog for Cycle Finalization */}
+      {showCycleFinalizeConfirm && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-2 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 max-w-lg w-full shadow-2xl border border-slate-200 space-y-3 sm:space-y-4 max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 sm:p-3 rounded-xl sm:rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-600 shrink-0">
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm sm:text-base font-black text-slate-900">Apply to Official Schedules</h3>
+                <p className="text-[10px] sm:text-xs font-semibold text-slate-500 mt-0.5">Commit Sign-ups to Mass Schedules</p>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 text-xs text-slate-700 space-y-2">
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-slate-500">Publication:</span>
+                <span className="text-slate-900">{publication.name}</span>
+              </div>
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-slate-500">Date Range:</span>
+                <span className="text-slate-900">{publication.startDate} to {publication.endDate}</span>
+              </div>
+              <div className="flex justify-between items-center font-bold">
+                <span className="text-slate-500">Sign-ups to Apply:</span>
+                <span className="text-indigo-600 font-black">{pendingSubmissionsCount} server(s)</span>
+              </div>
+            </div>
+
+            <p className="text-[11px] text-slate-600 leading-relaxed">
+              Applying will validate server capacities, slot positions, and date boundaries, then commit all sign-up selections directly to official Mass schedules. Historical occurrences before today are preserved.
+            </p>
+
+            {/* Conflict Alert Box if validation failed */}
+            {cycleConflicts && cycleConflicts.length > 0 && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 space-y-2 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-rose-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-xs font-black">
+                    Finalization Aborted: {cycleConflicts.length} Conflict(s) Detected
+                  </span>
+                </div>
+                <p className="text-[10px] text-rose-700">
+                  Zero changes were made. Please resolve the following conflicts before approving:
+                </p>
+                <div className="max-h-40 overflow-y-auto space-y-1.5 text-[11px] bg-white/80 p-2.5 rounded-xl border border-rose-100 divide-y divide-rose-100">
+                  {cycleConflicts.map((c, i) => (
+                    <div key={i} className="pt-1 first:pt-0">
+                      <span className="font-bold text-rose-950">{c.memberName || 'Server'}: </span>
+                      <span className="text-rose-800">{c.message}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCycleFinalizeConfirm(false)
+                  setCycleConflicts(null)
+                }}
+                disabled={isFinalizingCycle}
+                className="px-3.5 py-1.5 sm:px-4 sm:py-2 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-xl transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteCycleFinalize}
+                disabled={isFinalizingCycle || pendingSubmissionsCount === 0}
+                className="inline-flex items-center gap-1.5 px-4 py-1.5 sm:px-5 sm:py-2 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-md shadow-indigo-600/25 active:scale-95 transition cursor-pointer"
+              >
+                <span>{isFinalizingCycle ? 'Applying to Schedules...' : 'Apply to Official Schedules'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Direct Member Schedule Editor Modal */}
       {isEditScheduleModalOpen && (
         <AdminEditMemberScheduleModal
@@ -1094,6 +1553,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
           publication={publication}
           member={editingMember}
           allEligibleMembers={members}
+          submissions={submissions}
           onSuccess={() => {
             loadData()
             onSuccess()

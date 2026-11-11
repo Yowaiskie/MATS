@@ -11,19 +11,22 @@ import { ScheduleDetailsModal } from '../components/ScheduleDetailsModal'
 import { TemplateManagerModal } from '../components/TemplateManagerModal'
 import { PublicationsTab } from '../components/PublicationsTab'
 import { BulkDeleteMonthModal } from '../components/BulkDeleteMonthModal'
+import { BulkFinalizeAttendanceModal } from '../components/BulkFinalizeAttendanceModal'
+import { useNotificationContext } from '@/context/NotificationContext'
 import { SchedulePdfExportModal } from '../components/SchedulePdfExportModal'
 import { RemindAttendanceModal } from '@/components/RemindAttendanceModal'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { AutoAssignRotationModal } from '../components/AutoAssignRotationModal'
+import { ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
-import { Loading } from '@/components/Loading'
-import { FilterDropdown } from '@/components'
-import type { Schedule, ScheduleInput } from '@/types/schedule'
+import { Button, FilterDropdown, DatePicker, ActionMenu, Loading } from '@/components'
 import type { Member } from '@/types/member'
+import type { Schedule, ScheduleInput } from '@/types/schedule'
 import type { AttendanceSession, ScheduleAttendanceState } from '@/types/attendance'
 import { attendanceService } from '@/services/attendanceService'
 import { getScheduleStatus, isSpecialEventOrService } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useToast } from '@/context/ToastContext'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 
 const PAGE_SIZE = 12
 const SCHEDULE_FILTERS_STORAGE_KEY = 'mats_schedules_filter_state'
@@ -132,6 +135,8 @@ export const SchedulesPage: React.FC = () => {
   const { profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
   const canManage = isAdmin || canAction('canManageSchedules')
+  const canFinalize = isAdmin || canAction('canFinalizeAttendance')
+  const { refreshUntaken } = useNotificationContext()
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [initialFilters] = useState<SavedScheduleFilters>(() => getInitialFilterState(searchParams))
@@ -139,7 +144,6 @@ export const SchedulesPage: React.FC = () => {
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [activeMembers, setActiveMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const [activeTab, setActiveTab] = useState<'schedules' | 'publications'>(initialFilters.activeTab || 'schedules')
 
@@ -180,10 +184,13 @@ export const SchedulesPage: React.FC = () => {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false)
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [bulkDeleteMonthOpen, setBulkDeleteMonthOpen] = useState(false)
+  const [bulkFinalizeOpen, setBulkFinalizeOpen] = useState(false)
+  const [bulkFinalizeScheduleIds, setBulkFinalizeScheduleIds] = useState<string[] | undefined>(undefined)
 
   // Modals state
   const [formOpen, setFormOpen] = useState(false)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
+  const [autoAssignOpen, setAutoAssignOpen] = useState(false)
   const [detailsOpen, setDetailsOpen] = useState(false)
   const [templatesOpen, setTemplatesOpen] = useState(false)
   const [exportPdfOpen, setExportPdfOpen] = useState(false)
@@ -194,14 +201,12 @@ export const SchedulesPage: React.FC = () => {
 
   // Dialog state
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
-  const [alertModal, setAlertModal] = useState<{ title: string; message: string; variant?: 'success' | 'error' | 'warning' | 'info' } | null>(null)
 
   // Remind Attendance Messenger Modal state
   const [remindAttendanceOpen, setRemindAttendanceOpen] = useState(false)
 
   const loadData = async (showSpinner = true, targetMonthDate?: Date) => {
     if (showSpinner) setLoading(true)
-    setError(null)
     try {
       let scheduleData: Schedule[] = []
       if (dateFilterMode === 'range' && startDateFilter && endDateFilter) {
@@ -228,9 +233,10 @@ export const SchedulesPage: React.FC = () => {
       setAllMembersProfiles(memberData)
       setActiveMembers(memberData.filter(m => m.status === 'active' || m.status === 'suspended'))
       setAttendanceSessions(sessionsData)
+      nativeWidgetService.syncUpcomingMassesWidget(scheduleData, memberData, profile).catch(() => {})
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load schedule or member records.')
+      toast.error('Load Error', 'Failed to load schedule or member records.')
     } finally {
       if (showSpinner) setLoading(false)
     }
@@ -407,14 +413,14 @@ export const SchedulesPage: React.FC = () => {
           await scheduleService.assignMembers(s.id, assignedIds, actor)
         }
         
-        setAlertModal({
-          title: 'Bulk Assignment Successful',
-          message: `Successfully applied assignments to ${matchingSchedules.length} "${sourceSchedule.title}" schedules in this month.`,
-          variant: 'success'
-        })
+        toast.success(
+          'Bulk Assignment Successful',
+          `Successfully applied assignments to ${matchingSchedules.length} "${sourceSchedule.title}" schedules in this month.`
+        )
       }
     } else {
       await scheduleService.assignMembers(scheduleId, assignedIds, actor)
+      toast.success('Assignments Saved', 'Member assignments updated successfully.')
     }
     
     await loadData(false)
@@ -435,7 +441,7 @@ export const SchedulesPage: React.FC = () => {
 
   const handleSelectAll = () => {
     // Selects / deselects ALL filtered schedules across every page
-    if (selectedIds.size === filteredSchedules.length) {
+    if (filteredSchedules.every(schedule => selectedIds.has(schedule.id))) {
       setSelectedIds(new Set())
     } else {
       setSelectedIds(new Set(filteredSchedules.map(s => s.id)))
@@ -453,14 +459,16 @@ export const SchedulesPage: React.FC = () => {
       await loadData(false)
 
       if (skippedIds.length > 0) {
-        setAlertModal({
-          title: 'Partial Deletion',
-          message: `${deletedCount} schedule(s) deleted. ${skippedIds.length} schedule(s) could not be deleted because they have attendance records.`,
-        })
+        toast.warning(
+          'Partial Deletion',
+          `${deletedCount} schedule(s) deleted. ${skippedIds.length} schedule(s) could not be deleted because they have attendance records.`
+        )
+      } else {
+        toast.success('Bulk Delete Complete', `${deletedCount} schedule(s) deleted.`)
       }
     } catch (err: any) {
       console.error(err)
-      setAlertModal({ title: 'Bulk Delete Failed', message: err.message || 'Failed to delete selected schedules.' })
+      toast.error('Bulk Delete Failed', err.message || 'Failed to delete selected schedules.')
     } finally {
       setBulkDeleting(false)
     }
@@ -468,8 +476,40 @@ export const SchedulesPage: React.FC = () => {
 
   const handleToggleLock = async (s: Schedule) => {
     try {
-      const nextLocked = !s.isLocked
-      await scheduleService.toggleLockSchedule(s.id, nextLocked, profile?.email || 'Admin')
+      const session = attendanceSessions.find((sess) => sess.scheduleId === s.id)
+      const isCurrentlyLocked = !!s.isLocked || !!session?.locked
+      const nextLocked = !isCurrentlyLocked
+      const actor = profile?.email || 'Admin'
+
+      if (nextLocked) {
+        const assignedIds = s.assignedMembers || []
+        if (assignedIds.length > 0) {
+          if (!session) {
+            setBulkFinalizeScheduleIds([s.id])
+            setBulkFinalizeOpen(true)
+            return
+          }
+          const existingRecords = await attendanceService.getAttendanceForSession(session.id)
+          const recordedMemberIds = new Set(existingRecords.filter((r) => !!r.status).map((r) => r.memberId))
+          const hasUnmarked = assignedIds.some((id) => !recordedMemberIds.has(id))
+          if (hasUnmarked) {
+            setBulkFinalizeScheduleIds([s.id])
+            setBulkFinalizeOpen(true)
+            return
+          }
+        }
+        const targetSession = session || (await attendanceService.getOrCreateSession(s.id))
+        await Promise.all([
+          scheduleService.toggleLockSchedule(s.id, true, actor),
+          attendanceService.setSessionLockState(targetSession.id, true, actor, s.title),
+        ])
+      } else {
+        await Promise.all([
+          scheduleService.toggleLockSchedule(s.id, false, actor),
+          ...(session ? [attendanceService.setSessionLockState(session.id, false, actor, s.title)] : []),
+        ])
+      }
+      await refreshUntaken()
       await loadData(false)
       if (nextLocked) {
         toast.success('Schedule Locked', `Schedule "${s.title}" has been finalized & locked.`)
@@ -509,6 +549,8 @@ export const SchedulesPage: React.FC = () => {
   }, [schedules, dateFilterMode, dateFilter, startDateFilter, endDateFilter])
 
   const getAttendanceState = (scheduleId: string, status: string, _scheduleObj?: Schedule): ScheduleAttendanceState => {
+    const resolvedSchedule = _scheduleObj || schedules.find((s) => s.id === scheduleId)
+    if (resolvedSchedule?.isLocked) return 'finalized'
     if (status === 'upcoming' || status === 'cancelled') return 'none'
     const session = attendanceSessions.find((sess) => sess.scheduleId === scheduleId)
     if (!session) return 'untaken'
@@ -580,18 +622,19 @@ export const SchedulesPage: React.FC = () => {
   const safePage = Math.min(currentPage, totalPages)
   const currentPageItems = filteredSchedules.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
-  const allFilteredSelected = filteredSchedules.length > 0 && selectedIds.size === filteredSchedules.length
+  const allFilteredSelected = filteredSchedules.length > 0 && filteredSchedules.every(schedule => selectedIds.has(schedule.id))
+  const filteredSelectionKey = filteredSchedules.map(schedule => schedule.id).sort().join(',')
+  useEffect(() => {
+    const visibleIds = new Set(filteredSelectionKey ? filteredSelectionKey.split(',') : [])
+    setSelectedIds(previous => {
+      const next = new Set([...previous].filter(id => visibleIds.has(id)))
+      return next.size === previous.size ? previous : next
+    })
+  }, [filteredSelectionKey])
   const someSelected = selectedIds.size > 0
 
-  if (loading) {
-    return (
-      <div className="py-24 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
-        <Loading variant="spinner" label="Loading Schedules..." />
-      </div>
-    )
-  }
-
   return (
+
     <div className="space-y-6 pb-8">
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -640,6 +683,24 @@ export const SchedulesPage: React.FC = () => {
         <div className="flex items-center gap-2.5 flex-wrap w-full sm:w-auto">
           {activeTab === 'schedules' && (
             <>
+              {canFinalize && (
+                <Button
+                  variant="primary"
+                  size="dense"
+                  disabled={loading}
+                  onClick={() => {
+                    setBulkFinalizeScheduleIds(undefined)
+                    setBulkFinalizeOpen(true)
+                  }}
+                  icon={
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                    </svg>
+                  }
+                >
+                  Bulk Finalize
+                </Button>
+              )}
               {/* Segmented View Mode Toggle */}
               <div className="flex border border-gray-200 bg-white rounded-xl p-1 shadow-2xs">
                 <button
@@ -672,56 +733,129 @@ export const SchedulesPage: React.FC = () => {
 
               {canManage && (
                 <>
-                  <button
-                    onClick={() => setRemindAttendanceOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-800 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Bumuo at kopyahin ang paalala sa Messenger para sa mga hindi pa nate-take na attendance"
-                  >
-                    <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    <span>Remind Untaken</span>
-                  </button>
+                  {/* Mobile Action Menu Dropdown (< 640px) */}
+                  <div className="sm:hidden">
+                    <ActionMenu
+                      triggerVariant="button"
+                      triggerLabel="Actions"
+                      size="sm"
+                      align="right"
+                      items={[
+                        {
+                          label: 'Remind Untaken',
+                          icon: (
+                            <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                            </svg>
+                          ),
+                          onClick: () => setRemindAttendanceOpen(true)
+                        },
+                        {
+                          label: 'Auto-Assign Rotation',
+                          icon: (
+                            <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                            </svg>
+                          ),
+                          onClick: () => setAutoAssignOpen(true)
+                        },
+                        {
+                          label: 'Templates',
+                          icon: (
+                            <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                            </svg>
+                          ),
+                          onClick: () => setTemplatesOpen(true)
+                        },
+                        {
+                          label: 'Export PDF',
+                          icon: (
+                            <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          ),
+                          onClick: () => setExportPdfOpen(true)
+                        },
+                        {
+                          label: 'Bulk Delete Month',
+                          variant: 'danger',
+                          icon: (
+                            <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          ),
+                          onClick: () => setBulkDeleteMonthOpen(true)
+                        }
+                      ]}
+                    />
+                  </div>
 
-                  <button
-                    onClick={() => setTemplatesOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                  >
-                    <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
-                    </svg>
-                    <span>Templates</span>
-                  </button>
+                  {/* Desktop Secondary Action Buttons (>= 640px) */}
+                  <div className="hidden sm:flex items-center gap-2.5 flex-wrap">
+                    <button
+                      onClick={() => setRemindAttendanceOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50/80 hover:bg-amber-100 text-amber-800 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Generate and copy reminder for untaken attendance"
+                    >
+                      <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      <span>Remind Untaken</span>
+                    </button>
 
-                  <button
-                    onClick={() => setExportPdfOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Export Month Schedule as PDF (Long Landscape)"
-                  >
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
-                    <span>Export PDF</span>
-                  </button>
+                    <button
+                      onClick={() => setAutoAssignOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Auto-assign rotating Order Groups (San Pedro → San Juan → Santiago → San Andres) for Holy Hour and Binyag schedules"
+                    >
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>Auto-Assign Rotation</span>
+                    </button>
 
-                  <button
-                    onClick={() => setBulkDeleteMonthOpen(true)}
-                    className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
-                    title="Delete all schedules for a specific month"
-                  >
-                    <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                    <span>Bulk Delete Month</span>
-                  </button>
+                    <button
+                      onClick={() => setTemplatesOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-purple-200 bg-purple-50/60 hover:bg-purple-100 text-purple-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                    >
+                      <svg className="w-4 h-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+                      </svg>
+                      <span>Templates</span>
+                    </button>
 
+                    <button
+                      onClick={() => setExportPdfOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50/70 hover:bg-emerald-100 text-emerald-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Export Month Schedule as PDF (Long Landscape)"
+                    >
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <span>Export PDF</span>
+                    </button>
+
+                    <button
+                      onClick={() => setBulkDeleteMonthOpen(true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-rose-200 bg-rose-50/60 hover:bg-rose-100 text-rose-700 px-3.5 py-2 text-xs font-bold transition-all cursor-pointer shadow-2xs"
+                      title="Delete all schedules for a specific month"
+                    >
+                      <svg className="w-4 h-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Bulk Delete Month</span>
+                    </button>
+                  </div>
+
+                  {/* Prominent Create Schedule Button */}
                   <button
                     onClick={() => {
                       setSelectedSchedule(null)
                       setSelectedDate('')
                       setFormOpen(true)
                     }}
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all w-full sm:w-auto cursor-pointer shadow-md shadow-blue-600/20"
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 text-xs font-bold transition-all flex-1 sm:flex-initial cursor-pointer shadow-md shadow-blue-600/20"
                   >
                     <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -736,7 +870,7 @@ export const SchedulesPage: React.FC = () => {
       </div>
 
       {activeTab === 'publications' ? (
-        <PublicationsTab />
+        <PublicationsTab onSchedulesChanged={() => { loadData(false) }} />
       ) : (
         <>
       {/* Filters bar */}
@@ -796,22 +930,23 @@ export const SchedulesPage: React.FC = () => {
           </div>
 
           {dateFilterMode === 'single' ? (
-            <div className="flex gap-1.5">
-              <input
+            <div className="flex gap-1.5 items-center">
+              <DatePicker
                 id="filter-date"
-                type="date"
                 value={dateFilter}
-                onChange={(e) => handleDateFilterChange(e.target.value)}
-                className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
+                onChange={handleDateFilterChange}
+                placeholder="Select date"
+                className="flex-1"
+                showTodayButton={true}
               />
               <button
                 type="button"
                 onClick={() => {
                   const today = new Date()
                   setSelectedMonthDate(today)
-                  setDateFilter(getTodayString())
+                  handleDateFilterChange(getTodayString())
                 }}
-                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[36px] shadow-2xs"
+                className="shrink-0 inline-flex items-center gap-1 rounded-xl border border-blue-200 bg-blue-50/70 hover:bg-blue-100 px-3 py-1.5 text-xs font-bold text-blue-700 transition-colors cursor-pointer min-h-[40px] shadow-2xs"
               >
                 <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -822,20 +957,22 @@ export const SchedulesPage: React.FC = () => {
           ) : (
             <div className="space-y-1.5">
               <div className="flex items-center gap-1.5">
-                <input
-                  type="date"
+                <DatePicker
                   value={startDateFilter}
-                  onChange={(e) => setStartDateFilter(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-                  title="Start Date (From)"
+                  onChange={val => setStartDateFilter(val)}
+                  maxDate={endDateFilter || undefined}
+                  placeholder="Start date"
+                  className="flex-1"
+                  size="dense"
                 />
                 <span className="text-xs font-bold text-gray-400 shrink-0">to</span>
-                <input
-                  type="date"
+                <DatePicker
                   value={endDateFilter}
-                  onChange={(e) => setEndDateFilter(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-shadow duration-150"
-                  title="End Date (To)"
+                  onChange={val => setEndDateFilter(val)}
+                  minDate={startDateFilter || undefined}
+                  placeholder="End date"
+                  className="flex-1"
+                  size="dense"
                 />
               </div>
               <div className="flex items-center gap-1 flex-wrap">
@@ -875,6 +1012,7 @@ export const SchedulesPage: React.FC = () => {
               </div>
             </div>
           )}
+
         </div>
 
         {/* Time / Schedule filter */}
@@ -956,11 +1094,11 @@ export const SchedulesPage: React.FC = () => {
 
       {/* Main Grid content */}
       {loading ? (
-        <div className="py-16 flex flex-col items-center justify-center space-y-3 bg-white rounded-xl border border-gray-205 shadow-sm">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
-          <span className="text-xs text-gray-500">Loading schedules...</span>
+        <div className="py-20 bg-white rounded-2xl border border-slate-200/80 shadow-2xs">
+          <Loading variant="spinner" label="Loading Schedules..." />
         </div>
       ) : viewMode === 'calendar' ? (
+
         <CalendarView
           schedules={filteredSchedules}
           currentDate={selectedMonthDate}
@@ -980,8 +1118,8 @@ export const SchedulesPage: React.FC = () => {
       ) : filteredSchedules.length > 0 ? (
         <>
           {/* Bulk actions toolbar */}
-          {canManage && (
-            <div className="flex items-center justify-between gap-3 px-1">
+          {(canManage || canFinalize) && (
+            <div className="flex flex-wrap items-center justify-between gap-3 px-1">
               <div className="flex items-center gap-2.5 flex-wrap">
                 {/* Bulk select toggle */}
                 <button
@@ -1021,7 +1159,7 @@ export const SchedulesPage: React.FC = () => {
               </div>
 
               {/* Bulk delete button */}
-              {bulkSelectMode && selectedIds.size > 0 && (
+              {canManage && bulkSelectMode && selectedIds.size > 0 && (
                 <button
                   onClick={() => setBulkDeleteOpen(true)}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 px-3.5 py-1.5 text-xs font-bold text-white transition-all cursor-pointer shadow-md shadow-rose-600/20"
@@ -1175,6 +1313,19 @@ export const SchedulesPage: React.FC = () => {
       />
 
       {/* Bulk Delete Confirm Dialog */}
+      {bulkFinalizeOpen && (
+        <BulkFinalizeAttendanceModal
+          scheduleIds={bulkFinalizeScheduleIds}
+          onClose={() => {
+            setBulkFinalizeOpen(false)
+            setBulkFinalizeScheduleIds(undefined)
+          }}
+          onCompleted={async () => {
+            await loadData(false)
+            await refreshUntaken()
+          }}
+        />
+      )}
       <ConfirmModal
         isOpen={bulkDeleteOpen}
         onClose={() => setBulkDeleteOpen(false)}
@@ -1186,24 +1337,25 @@ export const SchedulesPage: React.FC = () => {
         loading={bulkDeleting}
       />
 
-      {/* Alert Dialog */}
-      <AlertModal
-        isOpen={!!alertModal || !!error}
-        onClose={() => {
-          setAlertModal(null)
-          setError(null)
-        }}
-        variant={alertModal?.variant ?? (error ? 'error' : 'error')}
-        title={alertModal?.title ?? 'Error'}
-        message={alertModal?.message ?? error ?? ''}
-      />
-
       {/* Remind Attendance Messenger Modal */}
       <RemindAttendanceModal
         isOpen={remindAttendanceOpen}
         onClose={() => setRemindAttendanceOpen(false)}
       />
+
+      {/* Order Groups Automatic Rotation Assigner Modal */}
+      <AutoAssignRotationModal
+        isOpen={autoAssignOpen}
+        onClose={() => setAutoAssignOpen(false)}
+        schedules={schedules}
+        activeMembers={activeMembers}
+        defaultMonthStr={`${selectedMonthDate.getFullYear()}-${String(selectedMonthDate.getMonth() + 1).padStart(2, '0')}`}
+        onSuccess={async () => {
+          await loadData(false)
+        }}
+      />
       </>
+
       )}
     </div>
   )

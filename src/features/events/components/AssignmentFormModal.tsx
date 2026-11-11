@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { memberService } from '@/services/memberService'
@@ -205,7 +207,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
             </div>
           )}
 
-          <form id="assignmentForm" onSubmit={handleSave} className="space-y-4">
+          <ValidatedForm id="assignmentForm" onSubmit={handleSave} className="space-y-4">
             <div>
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
@@ -298,7 +300,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
 
             <div>
               <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Event Role Name *</label>
-              <input
+              <FormInput
                 type="text"
                 required
                 value={roleInput}
@@ -339,7 +341,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
                 <span className="text-[11px]">Sub-Leader</span>
               </label>
             </div>
-          </form>
+          </ValidatedForm>
 
           {!editItem && (
             <div className="mt-6 pt-4 border-t border-slate-100">
@@ -361,10 +363,11 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
           )}
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex justify-end gap-2.5 bg-white sticky bottom-0">
+        <div className="p-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 bg-white sticky bottom-0">
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={loading}
           >
@@ -374,6 +377,7 @@ export const AssignmentFormModal: React.FC<Props> = ({ isOpen, onClose, onSaved,
             type="submit"
             form="assignmentForm"
             variant="primary"
+            className="w-full sm:w-auto"
             loading={loading}
           >
             {editItem ? 'Save Changes' : `Assign ${selectedMemberIds.length > 0 ? selectedMemberIds.length : ''} Members`}

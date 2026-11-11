@@ -71,6 +71,8 @@ export interface EventTask {
   updatedAt: any;
   isArchived: boolean;
   unreadByAssignee?: boolean;
+  notificationDeliveryKeys?: string[];
+  notificationVersion?: number;
 }
 
 export interface EventChecklistItem {

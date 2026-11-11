@@ -29,7 +29,7 @@ export const NotificationActions: React.FC = () => {
         type="button"
         onClick={() => setIsRemindModalOpen(true)}
         className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200/80 transition-all shadow-2xs cursor-pointer text-xs font-bold focus:outline-none"
-        title="Bumuo at kopyahin ang paalala para sa mga hindi pa nate-take na attendance"
+        title="Generate and copy reminder for untaken attendance"
       >
         <ClockAlertIcon className="w-3.5 h-3.5 text-amber-600" />
         <span className="hidden sm:inline">Remind Untaken</span>

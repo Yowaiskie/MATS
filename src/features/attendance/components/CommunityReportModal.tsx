@@ -73,7 +73,7 @@ export const CommunityReportModal: React.FC<CommunityReportModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0 [&>button]:w-full [&>button]:sm:w-auto">
           <Button
             type="button"
             variant="secondary"

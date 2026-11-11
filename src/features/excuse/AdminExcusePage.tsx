@@ -6,16 +6,19 @@ import type { ExcuseRequest } from '@/types/excuse'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import { ReviewExcuseModal } from './ReviewExcuseModal'
+import { FileMemberExcuseModal } from './FileMemberExcuseModal'
+import { CollapsibleScheduleList } from './CollapsibleScheduleList'
 import { ConfirmModal, PasswordConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
 import { Button } from '@/components/Button'
 import { QuickFilterPills } from '@/components/QuickFilterPills'
 import { StatusBadge } from '@/components/StatusBadge'
+import { ActionMenu, type ActionMenuItem } from '@/components'
 import { EmptyState } from '@/components/EmptyState'
 import { useToast } from '@/context/ToastContext'
-import { formatTime12Hour } from '@/utils/scheduleUtils'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useNotificationContext } from '@/context/NotificationContext'
 import { authService } from '@/services/authService'
 
 const PAGE_SIZE = 10
@@ -23,12 +26,14 @@ const PAGE_SIZE = 10
 export const AdminExcusePage: React.FC = () => {
   const { user, profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
+  const { notifications, markAsRead, markAllExcusesAsRead } = useNotificationContext()
   const [requests, setRequests] = useState<ExcuseRequest[]>([])
   const [membersMap, setMembersMap] = useState<Map<string, Member>>(new Map())
   const [schedulesMap, setSchedulesMap] = useState<Map<string, Schedule>>(new Map())
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
   const [selectedRequest, setSelectedRequest] = useState<ExcuseRequest | null>(null)
+  const [fileExcuseModalOpen, setFileExcuseModalOpen] = useState(false)
   
   // Archiving & Deleting states
   const [archiveConfirm, setArchiveConfirm] = useState<{ id: string; name: string } | null>(null)
@@ -41,7 +46,11 @@ export const AdminExcusePage: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Permissions
+  // Order Leader scoping & Permissions
+  const isOrderLeader = profile?.role === 'order_leader' || (Boolean(profile?.assignedOrder) && !isAdmin)
+  const assignedOrder = isOrderLeader ? profile?.assignedOrder : undefined
+
+  const canApprove = isAdmin || canAction('canApproveExcuses')
   const canReview = isAdmin || canAction('canReviewExcuses') || canAction('canApproveExcuses')
   const canDelete = isAdmin || canAction('canDeleteExcuses')
 
@@ -75,8 +84,29 @@ export const AdminExcusePage: React.FC = () => {
     loadData()
   }, [])
 
+  // Automatically mark all unread excuse_request notifications and pending excuses as read when viewing the page
+  useEffect(() => {
+    if (!user?.uid) return
+    markAllExcusesAsRead()
+    const unreadExcuseNotifs = notifications.filter(
+      n => n.type === 'excuse_request' && (!n.readBy || !n.readBy.includes(user.uid))
+    )
+    if (unreadExcuseNotifs.length > 0) {
+      unreadExcuseNotifs.forEach(n => {
+        markAsRead(n.id).catch(() => {})
+      })
+    }
+  }, [notifications, user?.uid, markAsRead, markAllExcusesAsRead])
+
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
+      // Order Leader Scope filter
+      if (assignedOrder) {
+        const member = membersMap.get(req.memberId)
+        const memberOrder = member?.order || req.memberOrder
+        if (memberOrder !== assignedOrder) return false
+      }
+
       // Archive vs Active filter
       if (showArchived) {
         if (!req.isArchived) return false
@@ -97,7 +127,7 @@ export const AdminExcusePage: React.FC = () => {
 
       return true
     })
-  }, [requests, showArchived, statusFilter, searchQuery, membersMap])
+  }, [requests, assignedOrder, showArchived, statusFilter, searchQuery, membersMap])
 
   const paginatedRequests = filteredRequests.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE)
 
@@ -109,31 +139,57 @@ export const AdminExcusePage: React.FC = () => {
     return req.memberName || `Server #${req.memberId.substring(0, 8)}`
   }
 
-  const renderScheduleBadge = (scheduleId: string) => {
-    const sched = schedulesMap.get(scheduleId)
-    if (!sched) {
-      return (
-        <span key={scheduleId} className="inline-block text-[11px] text-slate-500 italic bg-slate-100 px-2 py-0.5 rounded">
-          Schedule #{scheduleId.substring(0, 8)}
-        </span>
-      )
+  const getArchivedActions = (req: ExcuseRequest): ActionMenuItem[] => {
+    const actions: ActionMenuItem[] = [
+      {
+        id: 'view',
+        label: 'View Details',
+        variant: 'default',
+        onClick: () => setSelectedRequest(req),
+        icon: (
+          <svg className="h-4 w-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        ),
+      },
+    ]
+
+    if (canDelete) {
+      actions.push({
+        id: 'restore',
+        label: 'Restore Request',
+        variant: 'success',
+        onClick: () => setRestoreConfirm({ 
+          id: req.id!, 
+          name: getMemberDisplayName(req) 
+        }),
+        icon: (
+          <svg className="h-4 w-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        ),
+      })
     }
 
-    const timeStr = sched.startTime ? (
-      sched.endTime 
-        ? `${formatTime12Hour(sched.startTime)} - ${formatTime12Hour(sched.endTime)}` 
-        : formatTime12Hour(sched.startTime)
-    ) : ''
+    if (isAdmin) {
+      actions.push({
+        id: 'hard_delete',
+        label: 'Hard Delete',
+        variant: 'danger',
+        onClick: () => setDeleteConfirm({ 
+          id: req.id!, 
+          name: getMemberDisplayName(req) 
+        }),
+        icon: (
+          <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        ),
+      })
+    }
 
-    return (
-      <div key={scheduleId} className="text-xs bg-slate-50 p-2 rounded-xl border border-slate-200/80 space-y-0.5">
-        <div className="font-bold text-slate-900 leading-tight">{sched.title || 'Church Service'}</div>
-        <div className="text-[11px] text-indigo-600 font-semibold flex items-center gap-1">
-          <span>{sched.date}</span>
-          {timeStr && <span>• {timeStr}</span>}
-        </div>
-      </div>
-    )
+    return actions
   }
 
   return (
@@ -142,9 +198,21 @@ export const AdminExcusePage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Excuse Requests Review</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Review, approve, reject, or archive altar server excuse submissions.</p>
+          <p className="text-sm font-medium text-slate-500 mt-1">Review, approve, reject, or file altar server excuse submissions.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button 
+            variant="primary"
+            size="dense"
+            onClick={() => setFileExcuseModalOpen(true)}
+            icon={
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            }
+          >
+            + File Member Excuse
+          </Button>
           <Button 
             variant="secondary"
             size="dense"
@@ -163,6 +231,21 @@ export const AdminExcusePage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Order Leader Scope Banner */}
+      {assignedOrder && (
+        <div className="p-3.5 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 animate-pulse" />
+            <span className="font-black text-indigo-950">
+              Order Leader Scope: <span className="underline">{assignedOrder}</span>
+            </span>
+          </div>
+          <span className="text-[10px] font-extrabold uppercase px-2.5 py-0.5 bg-indigo-100 text-indigo-700 rounded-lg">
+            Filtered to Your Order
+          </span>
+        </div>
+      )}
 
       {/* Modern Swipeable Segmented Navigation Bar */}
       <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center justify-between gap-2">
@@ -241,7 +324,7 @@ export const AdminExcusePage: React.FC = () => {
         </div>
       </div>
 
-      {/* Requests Table */}
+      {/* Main Container */}
       <div className="bg-white rounded-2xl shadow-2xs border border-slate-200/80 overflow-hidden">
         {loading ? (
           <div className="py-16">
@@ -254,7 +337,8 @@ export const AdminExcusePage: React.FC = () => {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View (hidden on mobile, visible on md and up) */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50/90 border-b border-slate-200/80 text-[11px] uppercase text-slate-400 font-black tracking-wider whitespace-nowrap">
                   <tr>
@@ -287,6 +371,11 @@ export const AdminExcusePage: React.FC = () => {
                                 {member.rank}
                               </span>
                             )}
+                            {req.submittedByOfficer && (
+                              <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[10px] font-bold border border-purple-200" title={`Officer: ${req.submittedByName || 'Officer'}`}>
+                                Filed by {req.submittedByName || 'Officer'}
+                              </span>
+                            )}
                             {req.isArchived && (
                               <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded text-[10px] font-bold border border-amber-200">
                                 Archived
@@ -295,18 +384,21 @@ export const AdminExcusePage: React.FC = () => {
                           </div>
                         </td>
 
-                        {/* Schedules Requested */}
-                        <td className="px-5 py-4 align-top min-w-[240px]">
-                          <div className="space-y-1.5">
-                            {req.schedules?.map(sId => renderScheduleBadge(sId))}
-                          </div>
+                        {/* Schedules Requested with Collapsible List */}
+                        <td className="px-5 py-4 align-top min-w-[240px] max-w-sm">
+                          <CollapsibleScheduleList
+                            scheduleIds={req.schedules || []}
+                            schedulesMap={schedulesMap}
+                            maxInitialDisplay={2}
+                            compact
+                          />
                         </td>
 
-                        {/* Reason */}
-                        <td className="px-5 py-4 align-top max-w-xs">
-                          <p className="text-xs text-slate-700 line-clamp-2 leading-relaxed bg-slate-50 p-2 rounded-xl border border-slate-200/60">
+                        {/* Reason with non-clipped wrapping */}
+                        <td className="px-5 py-4 align-top min-w-[200px] max-w-xs">
+                          <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/60 break-words whitespace-pre-wrap">
                             {req.reason}
-                          </p>
+                          </div>
                         </td>
 
                         {/* Status */}
@@ -316,126 +408,194 @@ export const AdminExcusePage: React.FC = () => {
 
                         {/* Actions */}
                         <td className="px-5 py-4 align-top text-right whitespace-nowrap">
-                          <div className="flex items-center justify-end gap-2">
-                            {/* Review/View Button for active items */}
-                            {!req.isArchived && (
-                              req.status === 'pending' && canReview ? (
-                                <Button 
-                                  variant="primary"
-                                  size="xs"
+                          {req.isArchived ? (
+                            <div className="flex justify-end">
+                              <ActionMenu
+                                items={getArchivedActions(req)}
+                                triggerVariant="meatball"
+                                size="sm"
+                                align="right"
+                                direction="auto"
+                                ariaLabel={`Actions for ${getMemberDisplayName(req)}`}
+                              />
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-1.5">
+                              {req.status === 'pending' && canReview ? (
+                                <button
+                                  type="button"
                                   onClick={() => setSelectedRequest(req)}
-                                  icon={
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                  }
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-blue-50/80 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200/80 cursor-pointer"
                                 >
-                                  Review
-                                </Button>
+                                  <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  <span>Review</span>
+                                </button>
                               ) : (
-                                <Button 
-                                  variant="secondary"
-                                  size="xs"
+                                <button
+                                  type="button"
                                   onClick={() => setSelectedRequest(req)}
-                                  title={req.status === 'approved' ? 'View approved excuse details (Locked)' : 'View excuse details'}
-                                  icon={
-                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                    </svg>
-                                  }
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-800 border-slate-200/80 cursor-pointer"
                                 >
-                                  View
-                                </Button>
-                              )
-                            )}
-
-                            {/* Archive Button (Soft Delete) for active items */}
-                            {!req.isArchived && canDelete && (
-                              <Button 
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setArchiveConfirm({ 
-                                  id: req.id!, 
-                                  name: getMemberDisplayName(req) 
-                                })}
-                                title="Archive (Soft Delete) this excuse request"
-                                className="text-amber-700 hover:text-amber-800 border-amber-200 bg-amber-50/50 hover:bg-amber-100"
-                                icon={
-                                  <svg className="w-3.5 h-3.5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                  <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                   </svg>
-                                }
-                              >
-                                Archive
-                              </Button>
-                            )}
+                                  <span>View</span>
+                                </button>
+                              )}
 
-                            {/* View Button for archived items */}
-                            {req.isArchived && (
-                              <Button 
-                                variant="secondary"
-                                size="xs"
-                                onClick={() => setSelectedRequest(req)}
-                                title="View details of this archived excuse request"
-                                icon={
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => setArchiveConfirm({ 
+                                    id: req.id!, 
+                                    name: getMemberDisplayName(req) 
+                                  })}
+                                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-amber-50/80 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border-amber-200/80 cursor-pointer"
+                                >
+                                  <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
                                   </svg>
-                                }
-                              >
-                                View
-                              </Button>
-                            )}
-
-                            {/* Restore Button for archived items */}
-                            {req.isArchived && canDelete && (
-                              <Button 
-                                variant="primary"
-                                size="xs"
-                                onClick={() => setRestoreConfirm({ 
-                                  id: req.id!, 
-                                  name: getMemberDisplayName(req) 
-                                })}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                                icon={
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                  </svg>
-                                }
-                              >
-                                Restore
-                              </Button>
-                            )}
-
-                            {/* Permanent Hard Delete Button for Admins only in Archived tab */}
-                            {req.isArchived && isAdmin && (
-                              <Button 
-                                variant="danger"
-                                size="xs"
-                                onClick={() => setDeleteConfirm({ 
-                                  id: req.id!, 
-                                  name: getMemberDisplayName(req) 
-                                })}
-                                title="Permanently delete from database"
-                                icon={
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                }
-                              >
-                                Hard Delete
-                              </Button>
-                            )}
-                          </div>
+                                  <span>Archive</span>
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </td>
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Card List View (visible on mobile < md, hidden on desktop) */}
+            <div className="block md:hidden divide-y divide-slate-100">
+              {paginatedRequests.map(req => {
+                const member = membersMap.get(req.memberId)
+
+                return (
+                  <div key={req.id || Math.random().toString()} className="p-4 space-y-3.5">
+                    {/* Card Top Row: Name & Status */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="font-extrabold text-slate-900 text-sm">
+                          {getMemberDisplayName(req)}
+                        </div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-1 flex-wrap">
+                          {member?.order && (
+                            <span className="px-1.5 py-0.2 bg-blue-50 text-blue-700 rounded text-[10px] font-bold border border-blue-100">
+                              {member.order}
+                            </span>
+                          )}
+                          {member?.rank && (
+                            <span className="px-1.5 py-0.2 bg-slate-100 text-slate-600 rounded text-[10px] font-bold">
+                              {member.rank}
+                            </span>
+                          )}
+                          {req.submittedByOfficer && (
+                            <span className="px-1.5 py-0.2 bg-purple-50 text-purple-700 rounded text-[10px] font-bold border border-purple-200" title={`Officer: ${req.submittedByName || 'Officer'}`}>
+                              Filed by {req.submittedByName || 'Officer'}
+                            </span>
+                          )}
+                          {req.isArchived && (
+                            <span className="px-1.5 py-0.2 bg-amber-50 text-amber-700 rounded text-[10px] font-bold border border-amber-200">
+                              Archived
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <StatusBadge status={req.status} size="sm" />
+                    </div>
+
+                    {/* Requested Schedules */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                        Requested Schedules ({req.schedules?.length || 0})
+                      </span>
+                      <CollapsibleScheduleList
+                        scheduleIds={req.schedules || []}
+                        schedulesMap={schedulesMap}
+                        maxInitialDisplay={2}
+                        compact
+                      />
+                    </div>
+
+                    {/* Reason - Full readable wrapping on mobile */}
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider block">
+                        Reason
+                      </span>
+                      <div className="text-xs text-slate-800 font-medium leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200/60 break-words whitespace-pre-wrap">
+                        {req.reason}
+                      </div>
+                    </div>
+
+                    {/* Mobile Action Buttons */}
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-100 flex-wrap">
+                      {req.isArchived ? (
+                        <div className="flex justify-end w-full">
+                          <ActionMenu
+                            items={getArchivedActions(req)}
+                            triggerVariant="meatball"
+                            size="sm"
+                            align="right"
+                            direction="auto"
+                            ariaLabel={`Actions for ${getMemberDisplayName(req)}`}
+                          />
+                        </div>
+                      ) : (
+                        <>
+                          {req.status === 'pending' && canReview ? (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRequest(req)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-blue-50/80 hover:bg-blue-100 text-blue-700 hover:text-blue-800 border-blue-200/80 cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              <span>Review</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedRequest(req)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-slate-50/80 hover:bg-slate-100 text-slate-700 hover:text-slate-800 border-slate-200/80 cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              <span>View</span>
+                            </button>
+                          )}
+
+                          {canDelete && (
+                            <button
+                              type="button"
+                              onClick={() => setArchiveConfirm({ 
+                                id: req.id!, 
+                                name: getMemberDisplayName(req) 
+                              })}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs bg-amber-50/80 hover:bg-amber-100 text-amber-700 hover:text-amber-800 border-amber-200/80 cursor-pointer"
+                            >
+                              <svg className="w-3.5 h-3.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                              </svg>
+                              <span>Archive</span>
+                            </button>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
             </div>
 
             <Pagination
@@ -544,6 +704,17 @@ export const AdminExcusePage: React.FC = () => {
         title="Permanently Delete Excuse Request"
         message={`Are you sure you want to permanently delete the excuse request for ${deleteConfirm?.name}? This action cannot be undone. Please enter your password to confirm.`}
         confirmLabel="Delete Permanently"
+      />
+
+      {/* File Member Excuse Modal */}
+      <FileMemberExcuseModal
+        isOpen={fileExcuseModalOpen}
+        onClose={() => setFileExcuseModalOpen(false)}
+        members={Array.from(membersMap.values())}
+        schedules={Array.from(schedulesMap.values())}
+        onSuccess={loadData}
+        defaultOrderScope={assignedOrder}
+        canDirectlyApprove={canApprove}
       />
     </div>
   )

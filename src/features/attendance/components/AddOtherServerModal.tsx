@@ -1,3 +1,4 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import type { Member } from '@/types/member'
 import { getFullName } from '@/utils/member'
@@ -105,7 +106,7 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="mt-4 flex-1 flex flex-col overflow-hidden text-xs">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 flex-1 flex flex-col overflow-hidden text-xs">
           {/* Search Box */}
           <div className="relative">
             <input
@@ -156,11 +157,11 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-between pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
-            <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+            <span className="text-[10px] text-indigo-600 font-black uppercase tracking-wider bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100 self-start sm:self-auto">
               {selectedIds.length} Selected
             </span>
-            <div className="flex items-center space-x-2">
+            <div className="flex flex-col-reverse sm:flex-row items-center gap-2.5 sm:gap-2 w-full sm:w-auto [&>button]:w-full [&>button]:sm:w-auto">
               <Button
                 type="button"
                 variant="secondary"
@@ -179,7 +180,7 @@ export const AddOtherServerModal: React.FC<AddOtherServerModalProps> = ({
               </Button>
             </div>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

@@ -2,9 +2,18 @@ import React, { useState, useEffect, useMemo } from 'react'
 import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
+import type { ScheduleSubmission } from '@/types/submission'
 import { scheduleService } from '@/services/scheduleService'
+import { submissionService } from '@/services/submissionService'
 import { getFullName } from '@/utils/member'
-import { formatTime12Hour, isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
+import { useAuth } from '@/features/authentication/AuthContext'
+import { 
+  formatTime12Hour, 
+  isSundayOrAnticipatedMass, 
+  getSlotRankBreakdown, 
+  isHistoricalScheduleOccurrence, 
+  getParishTodayDate 
+} from '@/utils/scheduleUtils'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import { Button, useToast } from '@/components'
 
@@ -14,6 +23,7 @@ interface Props {
   publication: SchedulePublication | null
   member: Member | null
   allEligibleMembers: Member[]
+  submissions?: ScheduleSubmission[]
   onSuccess: () => void
 }
 
@@ -24,6 +34,7 @@ interface ScheduleSlotPattern {
   startTime: string
   formattedTime: string
   title: string
+  location?: string
   isSunday: boolean
   scheduleIds: string[]
   assignedMemberIds: string[]
@@ -37,15 +48,53 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   publication,
   member: initialMember,
   allEligibleMembers,
+  submissions: initialSubmissions,
   onSuccess
 }) => {
   const { toast } = useToast()
+  const { user, profile } = useAuth()
   const [selectedMemberId, setSelectedMemberId] = useState<string>(initialMember?.id || '')
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
+  const [activeSubmissions, setActiveSubmissions] = useState<ScheduleSubmission[]>(initialSubmissions || [])
   const [markAsSubmitted, setMarkAsSubmitted] = useState<boolean>(true)
   const [loading, setLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+
+  // Sync active submissions when passed or fetch if missing
+  useEffect(() => {
+    if (initialSubmissions) {
+      setActiveSubmissions(initialSubmissions)
+    } else if (isOpen && publication?.id) {
+      submissionService.getSubmissionsForPublication(publication.id)
+        .then(setActiveSubmissions)
+        .catch(err => console.error('Failed to load submissions for edit modal:', err))
+    }
+  }, [isOpen, publication?.id, initialSubmissions])
+
+  // Effective Date state (defaults to parish today, clamped to publication range)
+  const [effectiveDate, setEffectiveDate] = useState<string>(() => {
+    const today = getParishTodayDate()
+    if (publication) {
+      if (today < publication.startDate) return publication.startDate
+      if (today > publication.endDate) return publication.endDate
+    }
+    return today
+  })
+
+  // Synchronize effectiveDate with publication boundaries if publication changes
+  useEffect(() => {
+    if (publication) {
+      const today = getParishTodayDate()
+      if (today < publication.startDate) {
+        setEffectiveDate(publication.startDate)
+      } else if (today > publication.endDate) {
+        setEffectiveDate(publication.endDate)
+      } else {
+        setEffectiveDate(today)
+      }
+    }
+  }, [publication])
 
   // Sync selected member when initialMember changes
   useEffect(() => {
@@ -65,8 +114,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
     if (!publication) return
     setLoading(true)
     try {
-      const schedList = await scheduleService.getSchedulesByDateRange(publication.startDate, publication.endDate)
-      const valid = schedList.filter(s => isScheduleIncludedInPublication(s, publication))
+      const valid = await scheduleService.getSchedulesForPublication(publication)
       setSchedules(valid)
     } catch (err: any) {
       console.error('Failed to load schedules for editing:', err)
@@ -100,7 +148,10 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       const dayOfWeek = new Date(y, m - 1, d).getDay()
       const dayName = DAY_NAMES[dayOfWeek]
       const isSun = isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
-      const patternId = `${dayOfWeek}-${s.startTime}-${s.title}`
+      const isEventMode = publication?.publicationType === 'special_event' || !!publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
+      const patternId = isEventMode 
+        ? `${dayOfWeek}-${s.startTime}-${s.title}-${s.location || ''}`
+        : `${dayOfWeek}-${s.startTime}`
 
       if (!patternMap.has(patternId)) {
         patternMap.set(patternId, {
@@ -110,6 +161,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
           startTime: s.startTime,
           formattedTime: formatTime12Hour(s.startTime),
           title: s.title,
+          location: s.location,
           isSunday: isSun,
           scheduleIds: [],
           assignedMemberIds: []
@@ -122,6 +174,14 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       s.assignedMembers?.forEach(memId => {
         if (!pattern.assignedMemberIds.includes(memId)) {
           pattern.assignedMemberIds.push(memId)
+        }
+      })
+
+      // Also include servers with provisional submissions for this schedule
+      activeSubmissions.forEach(sub => {
+        if (sub.status === 'rejected') return
+        if (sub.requestedScheduleIds?.includes(s.id) && !pattern.assignedMemberIds.includes(sub.memberId)) {
+          pattern.assignedMemberIds.push(sub.memberId)
         }
       })
     })
@@ -144,7 +204,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
       sundayPatterns: allPatterns.filter(p => p.isSunday),
       weekdayPatterns: allPatterns.filter(p => !p.isSunday)
     }
-  }, [schedules, publication])
+  }, [schedules, publication, activeSubmissions])
 
   // Populate draft selected slots when selected member or schedules change
   useEffect(() => {
@@ -159,11 +219,18 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         initialAssigned.add(s.id)
       }
     })
+
+    // Also include requested schedule IDs from member's provisional or existing submission
+    const memberSub = activeSubmissions.find(sub => sub.memberId === selectedMemberId && sub.status !== 'rejected')
+    if (memberSub?.requestedScheduleIds) {
+      memberSub.requestedScheduleIds.forEach(id => initialAssigned.add(id))
+    }
+
     setSelectedScheduleIds(initialAssigned)
 
-    const isAlreadySubmitted = publication?.submittedMembers?.includes(selectedMemberId) || false
+    const isAlreadySubmitted = publication?.submittedMembers?.includes(selectedMemberId) || Boolean(memberSub)
     setMarkAsSubmitted(isAlreadySubmitted || initialAssigned.size > 0)
-  }, [selectedMemberId, schedules, publication])
+  }, [selectedMemberId, schedules, publication, activeSubmissions])
 
   // Count current draft selections
   const selectedSundayCount = useMemo(() => {
@@ -173,6 +240,36 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
   const selectedWeekdayCount = useMemo(() => {
     return weekdayPatterns.filter(p => p.scheduleIds.some(id => selectedScheduleIds.has(id))).length
   }, [weekdayPatterns, selectedScheduleIds])
+
+  // Occurrence statistics: Historical Preserved vs Future to Update
+  const occurrenceStats = useMemo(() => {
+    if (!schedules.length || !selectedMemberId) {
+      return { preservedHistoricalCount: 0, targetFutureCount: 0, totalFutureAvailable: 0 }
+    }
+
+    let preservedHistoricalCount = 0
+    let targetFutureCount = 0
+    let totalFutureAvailable = 0
+
+    schedules.forEach(s => {
+      const isHist = isHistoricalScheduleOccurrence(s, effectiveDate)
+      const isAssigned = s.assignedMembers?.includes(selectedMemberId)
+      const isSelected = selectedScheduleIds.has(s.id)
+
+      if (isHist) {
+        if (isAssigned) {
+          preservedHistoricalCount++
+        }
+      } else {
+        totalFutureAvailable++
+        if (isSelected) {
+          targetFutureCount++
+        }
+      }
+    })
+
+    return { preservedHistoricalCount, targetFutureCount, totalFutureAvailable }
+  }, [schedules, selectedMemberId, effectiveDate, selectedScheduleIds])
 
   if (!isOpen || !publication) return null
 
@@ -221,15 +318,27 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         isSelected: selectedScheduleIds.has(s.id)
       }))
 
-      await scheduleService.adminUpdateMemberPublicationSchedules(
+      const result = await scheduleService.adminUpdateMemberPublicationSchedulesEffectiveDated(
         publication.id,
         selectedMemberId,
         selections,
-        markAsSubmitted,
-        'Admin'
+        {
+          effectiveDate,
+          markAsSubmitted,
+          adminUser: {
+            uid: user?.uid || profile?.uid || 'Admin',
+            email: user?.email || undefined,
+            role: profile?.role || 'admin',
+            permissions: { canManageSchedules: true }
+          }
+        }
       )
 
-      toast.success(`Schedule successfully updated for ${currentMember ? getFullName(currentMember) : 'member'}.`)
+      toast.success(
+        `Schedule updated for ${currentMember ? getFullName(currentMember) : 'member'}. ` +
+        `(${result.updatedFutureSchedulesCount} future occurrences updated, ` +
+        `${result.preservedHistoricalSchedulesCount} historical occurrences preserved)`
+      )
 
       onSuccess()
       onClose()
@@ -282,6 +391,15 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
             <div className="text-[11px] text-slate-500 font-semibold mt-0.5 truncate">
               {pattern.title}
             </div>
+            {pattern.location && (
+              <div className="inline-flex items-center gap-1 px-1.5 py-0.5 mt-0.5 rounded bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-bold truncate max-w-full">
+                <svg className="w-2.5 h-2.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="truncate">{pattern.location}</span>
+              </div>
+            )}
           </div>
 
           {/* Checkbox badge */}
@@ -300,13 +418,32 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         <div className="pt-2 border-t border-slate-100/90 flex flex-col gap-1.5 text-[10px]">
           <div className="flex items-center justify-between font-bold">
             <span className="text-slate-400">Assigned Servers:</span>
-            <span className={`px-1.5 py-0.2 rounded-md font-extrabold ${
-              totalCount >= maxCapacity
-                ? 'bg-amber-100 text-amber-900'
-                : 'bg-slate-100 text-slate-700'
-            }`}>
-              {totalCount} / {maxCapacity} {totalCount >= maxCapacity && '(Full)'}
-            </span>
+            <div className="flex items-center gap-1.5">
+              {publication?.enableRankQuotas && (
+                <div className="flex items-center gap-1">
+                  {getSlotRankBreakdown(pattern.assignedMemberIds, allEligibleMembers, publication, pattern.isSunday, false).items.map(item => (
+                    <span
+                      key={item.rank}
+                      className={`px-1.5 py-0.2 rounded text-[9px] font-bold ${
+                        item.isFull
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : 'bg-slate-100 text-slate-600 border border-slate-200'
+                      }`}
+                      title={`${item.rank}: ${item.current} / ${item.limit !== undefined ? item.limit : '∞'}`}
+                    >
+                      {item.rank.slice(0, 4)}: {item.current}/{item.limit !== undefined ? item.limit : '∞'}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <span className={`px-1.5 py-0.2 rounded-md font-extrabold ${
+                totalCount >= maxCapacity
+                  ? 'bg-amber-100 text-amber-900'
+                  : 'bg-slate-100 text-slate-700'
+              }`}>
+                {totalCount} / {maxCapacity} {totalCount >= maxCapacity && '(Full)'}
+              </span>
+            </div>
           </div>
 
           {/* Assigned names preview */}
@@ -451,6 +588,50 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* Effective Date & Historical Preservation Banner */}
+        <div className="px-4 py-3 sm:px-6 bg-indigo-50/50 border-b border-indigo-100 flex flex-col md:flex-row md:items-center justify-between gap-3 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-xl shrink-0">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <label htmlFor="effective-date-input" className="text-xs font-black text-slate-800">
+                  Effective Date:
+                </label>
+                <input
+                  id="effective-date-input"
+                  type="date"
+                  value={effectiveDate}
+                  min={publication.startDate}
+                  max={publication.endDate}
+                  onChange={(e) => setEffectiveDate(e.target.value)}
+                  className="px-2.5 py-1 text-xs font-bold rounded-lg border border-indigo-200 bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow-2xs cursor-pointer"
+                />
+              </div>
+              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                Occurrences before this date, locked schedules, or finalized sessions remain unchanged.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-center flex-wrap">
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-100/80 border border-emerald-200 text-emerald-800 text-xs font-extrabold shadow-2xs" title="Occurrences that will be assigned or modified from the effective date onward">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              Future to Update: {occurrenceStats.targetFutureCount}
+            </span>
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-100/80 border border-amber-200 text-amber-900 text-xs font-extrabold shadow-2xs" title="Past, locked, or finalized occurrences that are preserved intact">
+              <span className="w-2 h-2 rounded-full bg-amber-500" />
+              Historical Preserved: {occurrenceStats.preservedHistoricalCount}
+            </span>
+          </div>
+        </div>
+
         {/* Content Body: Slot Selection */}
         <div className="p-4 sm:p-6 overflow-y-auto flex-1 space-y-6">
           {loading ? (
@@ -538,7 +719,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Footer */}
-        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-white flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
+        <div className="px-5 py-3.5 sm:px-6 sm:py-4 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0">
           <label className="flex items-center gap-2.5 cursor-pointer text-xs font-bold text-slate-700">
             <input
               type="checkbox"
@@ -549,11 +730,12 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
             <span>Mark as Submitted / Finalized in Publication</span>
           </label>
 
-          <div className="flex items-center justify-end gap-2.5">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
             >
               Cancel
@@ -562,6 +744,7 @@ export const AdminEditMemberScheduleModal: React.FC<Props> = ({
               type="button"
               variant="primary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={handleSave}
               loading={isSaving}
               disabled={loading || !selectedMemberId}

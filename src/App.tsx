@@ -8,6 +8,7 @@ import { ProtectedRoute, PublicRoute } from '@/features/authentication/component
 import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
+import { DashboardRedesignLabPage } from '@/features/dashboard/pages/DashboardRedesignLabPage'
 import { MembersPage } from '@/features/members/pages/MembersPage'
 import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
 import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
@@ -25,17 +26,21 @@ import { EventsPage } from '@/features/events/pages/EventsPage'
 import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
 import { InventoryPage } from '@/features/inventory/pages/InventoryPage'
 import { DesignSystemShowcasePage } from '@/features/preview/DesignSystemShowcasePage'
+import { LoginPageShowcasePage } from '@/features/preview/LoginPageShowcasePage'
+import { BulkFinalizeShowcasePage } from '@/features/preview/BulkFinalizeShowcasePage'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { ToastProvider } from '@/context/ToastContext'
 import { NotificationProvider } from '@/context/NotificationContext'
 import { useEffect } from 'react'
 import { initializeNativeBridge } from '@/utils/nativeAppBridge'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 import { useNavigate } from 'react-router-dom'
 
 function NativeBridgeInit() {
   const navigate = useNavigate()
   useEffect(() => {
     const cleanup = initializeNativeBridge((path) => navigate(path))
+    nativeWidgetService.syncUpcomingMassesWidget().catch(() => {})
     return cleanup
   }, [navigate])
   return null
@@ -54,6 +59,8 @@ function App() {
                   <Routes>
                 {/* Design System Preview Route (Phase 1 Preview) */}
                 <Route path="/design-system-preview" element={<DesignSystemShowcasePage />} />
+                <Route path="/login-preview" element={<LoginPageShowcasePage />} />
+                <Route path="/bulk-finalize-preview" element={<BulkFinalizeShowcasePage />} />
 
                 {/* Public Login Route */}
                 <Route 
@@ -112,6 +119,7 @@ function App() {
               }
             >
               <Route path="/" element={<DashboardOverview />} />
+              <Route path="/dashboard-preview" element={<DashboardRedesignLabPage />} />
               
               <Route 
                 path="/members" 

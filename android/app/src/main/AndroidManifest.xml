@@ -33,6 +33,38 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"></meta-data>
         </provider>
+
+        <!-- Mass Schedule Home Screen App Widget (4x2 Multi-Mass) -->
+        <receiver
+            android:name=".MassScheduleWidgetProvider"
+            android:label="@string/widget_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/mass_schedule_widget_info" />
+        </receiver>
+
+        <!-- Compact Next Mass Home Screen App Widget (2x2 Compact) -->
+        <receiver
+            android:name=".CompactMassWidgetProvider"
+            android:label="@string/compact_widget_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/compact_mass_widget_info" />
+        </receiver>
+
+        <!-- RemoteViews Service for Scrollable Compact 2x2 Widget -->
+        <service
+            android:name=".CompactWidgetService"
+            android:permission="android.permission.BIND_REMOTEVIEWS"
+            android:exported="false" />
     </application>
 
     <!-- Permissions -->

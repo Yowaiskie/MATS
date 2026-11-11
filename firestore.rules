@@ -54,6 +54,20 @@ service cloud.firestore {
       return val is bool;
     }
 
+    function isPublicationOpenForSubmission(pubData) {
+      return pubData.status == 'published' && (
+        (
+          (!('submissionDeadline' in pubData) || pubData.submissionDeadline == null || pubData.submissionDeadline == '') &&
+          (!('submissionDeadlineMs' in pubData) || pubData.submissionDeadlineMs == null)
+        ) ||
+        (
+          'submissionDeadlineMs' in pubData &&
+          pubData.submissionDeadlineMs is int &&
+          request.time.toMillis() < pubData.submissionDeadlineMs
+        )
+      );
+    }
+
     // ==========================================
     // Collection Rules & Validations
     // ==========================================
@@ -85,12 +99,25 @@ service cloud.firestore {
       allow read: if true; // Public excuse form lists members
       allow write: if isSuperAdmin() || hasPermission('canManageMembers');
     }
+
+    // renewalCycles collection
+    match /renewalCycles/{cycleId} {
+      allow read: if true;
+      allow create, update: if isSuperAdmin() || hasPermission('canManageMembers');
+      allow delete: if isSuperAdmin();
+    }
+
+    // renewalMemberships collection
+    match /renewalMemberships/{membershipId} {
+      allow read: if true;
+      allow create, update, delete: if isSuperAdmin() || hasPermission('canManageMembers');
+    }
     
-    // schedules collection
+    // schedules collection (Official Liturgical Rosters)
     match /schedules/{scheduleId} {
       allow read: if true;
-      allow create, delete: if hasPermission('canManageSchedules');
-      allow update: if true; // Allows unauthenticated public self-service schedule response
+      // Zero public write access. Only authenticated admins with canManageSchedules can write.
+      allow create, update, delete: if hasPermission('canManageSchedules');
     }
     
     // attendanceSessions collection
@@ -131,8 +158,30 @@ service cloud.firestore {
     // schedulePublications collection
     match /schedulePublications/{pubId} {
       allow read: if true;
-      allow create, delete: if hasPermission('canManageSchedules');
-      allow update: if true; // Allows unauthenticated public submission tracking
+      // Zero public write access. Only authenticated admins with canManageSchedules can write.
+      allow create, update, delete: if hasPermission('canManageSchedules');
+    }
+
+    // scheduleSubmissions collection (Pending Public Intake)
+    match /scheduleSubmissions/{submissionId} {
+      allow read: if true;
+      
+      // Public intake: anonymous clients can only create a pending submission
+      // Must use deterministic document ID: {publicationId}_{memberId}
+      allow create: if (
+        submissionId == request.resource.data.publicationId + '_' + request.resource.data.memberId &&
+        request.resource.data.status == 'pending' &&
+        isValidString(request.resource.data.publicationId, 1, 100) &&
+        isValidString(request.resource.data.memberId, 1, 100) &&
+        (!('memberName' in request.resource.data) || isValidString(request.resource.data.memberName, 1, 150)) &&
+        request.resource.data.requestedScheduleIds is list &&
+        request.resource.data.requestedScheduleIds.size() <= 50 &&
+        exists(/databases/$(database)/documents/schedulePublications/$(request.resource.data.publicationId)) &&
+        isPublicationOpenForSubmission(get(/databases/$(database)/documents/schedulePublications/$(request.resource.data.publicationId)).data)
+      );
+
+      // Only authorized administrators can update (approve / reject) or delete submissions
+      allow update, delete: if hasPermission('canManageSchedules');
     }
 
     // counters collection
@@ -241,6 +290,76 @@ service cloud.firestore {
                get(/databases/$(database)/documents/events/$(eventId)).data.get('headUid', '') == request.auth.uid ||
                get(/databases/$(database)/documents/events/$(eventId)).data.get('createdByUid', '') == request.auth.uid
              );
+    }
+
+    // Event requirements: authenticated reads follow existing Events collections.
+    // Editing is limited to event managers and the event head/creator.
+    function canManageEventRequirements(eventId) {
+      return isAuthenticated() &&
+        exists(/databases/$(database)/documents/events/$(eventId)) &&
+        (hasPermission('canManageEvents') || isEventHeadOrCreator(eventId));
+    }
+
+    function validRequirementRanks(ranks) {
+      return ranks is list && ranks.size() <= 3 &&
+        ranks.toSet().size() == ranks.size() &&
+        ranks.hasOnly(['Chevaliers', 'Paladins', 'Squires']);
+    }
+
+    function validRequirementSettings(data, eventId) {
+      return data.keys().hasOnly(['eventId', 'selectedRanks', 'updatedByUid', 'updatedAt']) &&
+        data.eventId == eventId && validRequirementRanks(data.selectedRanks) &&
+        data.selectedRanks.size() > 0 && data.updatedByUid == request.auth.uid &&
+        data.updatedAt == request.time;
+    }
+
+    match /eventRequirementSettings/{eventId} {
+      allow read: if isAuthenticated();
+      allow create, update: if canManageEventRequirements(eventId) &&
+        validRequirementSettings(request.resource.data, eventId);
+      allow delete: if canManageEventRequirements(eventId);
+    }
+
+    function validEventRequirement(data) {
+      return data.keys().hasOnly(['eventId', 'title', 'description', 'targetRanks', 'isArchived', 'createdByUid', 'createdAt', 'updatedAt']) &&
+        isValidString(data.eventId, 1, 1500) &&
+        isValidString(data.title, 1, 150) && isValidString(data.description, 0, 2000) &&
+        validRequirementRanks(data.targetRanks) && data.isArchived is bool &&
+        data.createdByUid is string && data.createdAt is timestamp && data.updatedAt == request.time;
+    }
+
+    match /eventRequirements/{requirementId} {
+      allow read: if isAuthenticated();
+      allow create: if validEventRequirement(request.resource.data) &&
+        canManageEventRequirements(request.resource.data.eventId) &&
+        request.resource.data.createdByUid == request.auth.uid &&
+        request.resource.data.createdAt == request.time && request.resource.data.isArchived == false;
+      allow update: if validEventRequirement(request.resource.data) &&
+        canManageEventRequirements(resource.data.eventId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'description', 'targetRanks', 'isArchived', 'updatedAt']);
+      allow delete: if canManageEventRequirements(resource.data.eventId);
+    }
+
+    function validRequirementCheck(data, checkId) {
+      let requirement = get(/databases/$(database)/documents/eventRequirements/$(data.requirementId)).data;
+      let member = get(/databases/$(database)/documents/members/$(data.memberId)).data;
+      let settings = get(/databases/$(database)/documents/eventRequirementSettings/$(data.eventId)).data;
+      return data.keys().hasOnly(['eventId', 'requirementId', 'memberId', 'completed', 'updatedByUid', 'updatedAt']) &&
+        checkId == data.requirementId + '_' + data.memberId &&
+        requirement.eventId == data.eventId && !requirement.isArchived &&
+        member.status != 'archived' && member.rank in settings.selectedRanks &&
+        (requirement.targetRanks.size() == 0 || member.rank in requirement.targetRanks) &&
+        data.completed is bool && data.updatedByUid == request.auth.uid && data.updatedAt == request.time;
+    }
+
+    match /eventRequirementChecks/{checkId} {
+      allow read: if isAuthenticated();
+      allow create: if canManageEventRequirements(request.resource.data.eventId) &&
+        validRequirementCheck(request.resource.data, checkId);
+      allow update: if canManageEventRequirements(resource.data.eventId) &&
+        validRequirementCheck(request.resource.data, checkId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['completed', 'updatedByUid', 'updatedAt']);
+      allow delete: if canManageEventRequirements(resource.data.eventId);
     }
 
     // ==========================================
@@ -401,7 +520,8 @@ service cloud.firestore {
     // ==========================================
     match /notifications/{notificationId} {
       allow read: if isAuthenticated();
-      allow create, delete: if isSuperAdmin() || 
+      allow create: if true; // Allows public portal excuse request alerts and system broadcast creation
+      allow delete: if isSuperAdmin() || 
                               hasPermission('canBroadcast') || 
                               hasPermission('canManageSchedules') || 
                               hasPermission('canTakeAttendance');

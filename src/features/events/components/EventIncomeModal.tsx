@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { MemberCombobox } from '@/components/MemberCombobox'
@@ -196,7 +198,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
       }
       maxWidth="2xl"
     >
-      <form onSubmit={handleSubmit} className="space-y-5 p-1">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-5 p-1">
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-bold animate-fade-in">
             {error}
@@ -215,7 +217,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Date *</label>
-            <input
+            <FormInput
               type="date"
               required
               value={date}
@@ -227,7 +229,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Received From *</label>
-          <input
+          <FormInput
             type="text"
             required
             maxLength={100}
@@ -251,7 +253,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Fund Allocation (Optional)</label>
-          <input
+          <FormInput
             type="text"
             list="allocations-list"
             maxLength={50}
@@ -330,7 +332,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
         {categoryId === 'new' && (
           <div className="animate-in fade-in slide-in-from-top-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-blue-600 mb-1.5">New Category Name *</label>
-            <input
+            <FormInput
               type="text"
               required
               maxLength={50}
@@ -345,7 +347,7 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-700 mb-1.5">Description (Optional)</label>
-          <textarea
+          <FormTextarea
             rows={2}
             maxLength={500}
             value={description}
@@ -355,10 +357,11 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
           />
         </div>
 
-        <div className="mt-8 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
+        <div className="mt-8 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={submitting}
           >
@@ -367,13 +370,14 @@ export const EventIncomeModal: React.FC<Props> = ({ isOpen, onClose, eventId, on
           <Button
             type="submit"
             variant="primary"
+            className="w-full sm:w-auto"
             loading={submitting}
             loadingText={editItem ? 'Updating...' : 'Saving...'}
           >
             {editItem ? 'Update Income' : 'Save Income'}
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
     </Modal>
   )
 }

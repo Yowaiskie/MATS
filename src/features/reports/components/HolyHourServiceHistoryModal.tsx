@@ -149,7 +149,7 @@ export const HolyHourServiceHistoryModal: React.FC<Props> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="flex justify-end pt-2 border-t border-slate-100">
+        <div className="flex flex-col sm:flex-row sm:justify-end pt-2 border-t border-slate-100 [&>button]:w-full [&>button]:sm:w-auto">
           <Button
             type="button"
             variant="secondary"

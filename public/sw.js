@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mats-static-v6';
+const CACHE_NAME = 'mats-static-v7';
 
 // Static assets to pre-cache on install (with correct /favicon/ subdirectory paths)
 const PRECACHE_ASSETS = [

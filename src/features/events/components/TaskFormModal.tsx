@@ -1,9 +1,12 @@
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { eventTaskService } from '@/services/eventTaskService'
 import { eventAssignmentService } from '@/services/eventAssignmentService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { ConfirmModal, MemberSearchDropdown, CustomSelect, Button, useToast } from '@/components'
+import { ConfirmModal, MemberSearchDropdown, Button, useToast } from '@/components'
 import type { EventTask, Priority, TaskStatus, EventAssignment } from '@/types/event'
+import { TaskDetailsFields } from '@/features/events/components/TaskDetailsFields'
+import { isOwnEventTask } from '@/utils/eventTaskNotifications'
 
 interface TaskFormModalProps {
   isOpen: boolean
@@ -13,20 +16,6 @@ interface TaskFormModalProps {
   existingTask?: EventTask
   isHeadOrCreator?: boolean
 }
-
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: 'Not Started', label: 'To Do' },
-  { value: 'In Progress', label: 'In Progress' },
-  { value: 'Waiting', label: 'Waiting' },
-  { value: 'Completed', label: 'Completed' }
-]
-
-const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
-  { value: 'Low', label: 'Low' },
-  { value: 'Medium', label: 'Medium' },
-  { value: 'High', label: 'High' },
-  { value: 'Critical', label: 'Critical' }
-]
 
 export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, onSaved, eventId, existingTask, isHeadOrCreator }) => {
   const { profile, canAction } = useAuth()
@@ -43,7 +32,10 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
   const [startDate, setStartDate] = useState(existingTask?.startDate || '')
   const [dueDate, setDueDate] = useState(existingTask?.dueDate || '')
   const [assignedMemberName, setAssignedMemberName] = useState(existingTask?.assignedMemberName || '')
+  const [assignedMemberUid, setAssignedMemberUid] = useState(existingTask?.assignedMemberUid || '')
   const [assignments, setAssignments] = useState<EventAssignment[]>([])
+  const assigneeOptions = [...new Map(assignments.map(a => [a.memberUid, { id: a.memberUid, name: a.memberName, subtitle: a.eventRoleName || undefined }])).values()]
+  if (assignedMemberUid && assignedMemberName && !assigneeOptions.some(option => option.id === assignedMemberUid)) assigneeOptions.push({ id: assignedMemberUid, name: assignedMemberName, subtitle: undefined })
   
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -58,10 +50,11 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
       setStartDate(existingTask?.startDate || '')
       setDueDate(existingTask?.dueDate || '')
       setAssignedMemberName(existingTask?.assignedMemberName || '')
+      setAssignedMemberUid(existingTask?.assignedMemberUid || '')
       setError(null)
       
       // Clear unread status if it's assigned to the current user
-      if (existingTask && existingTask.unreadByAssignee && existingTask.assignedMemberName === profile?.displayName) {
+      if (existingTask && existingTask.unreadByAssignee && isOwnEventTask(existingTask, profile)) {
         eventTaskService.updateTask(existingTask.id, { unreadByAssignee: false }, profile?.email || 'System').catch(err => {
           console.error('Failed to mark task as read:', err)
         })
@@ -73,9 +66,13 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
     if (isOpen && eventId) {
       eventAssignmentService.getAssignmentsByEventId(eventId).then(data => {
         setAssignments(data)
+        if (!existingTask?.assignedMemberUid && existingTask?.assignedMemberName) {
+          const matches = [...new Set(data.filter(a => a.memberName === existingTask.assignedMemberName).map(a => a.memberUid))]
+          if (matches.length === 1) setAssignedMemberUid(matches[0])
+        }
       }).catch(err => console.error(err))
     }
-  }, [isOpen, eventId])
+  }, [isOpen, eventId, existingTask])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -96,7 +93,8 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           status,
           startDate: startDate || null,
           dueDate: dueDate || null,
-          assignedMemberName: assignedMemberName || null
+          assignedMemberName: assignedMemberName || null,
+          assignedMemberUid: assignedMemberUid || null
         }, profile?.email || 'System')
         toast.success('Task Updated', 'Event task updated successfully.')
       } else {
@@ -107,7 +105,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
           priority,
           status,
           dueDate,
-          assignedMemberUid: null,
+          assignedMemberUid: assignedMemberUid || null,
           assignedMemberName: assignedMemberName || null,
           assignedRoleId: null,
           assignedRoleName: null,
@@ -176,90 +174,60 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
         </div>
 
         <div className="p-6 overflow-y-auto">
-          <form id="taskForm" onSubmit={handleSubmit} className="space-y-4">
+          <ValidatedForm id="taskForm" onSubmit={handleSubmit} className="space-y-4">
             {error && (
               <div className="bg-rose-50 text-rose-800 p-3.5 rounded-2xl text-xs font-bold border border-rose-200 animate-fade-in">
                 {error}
               </div>
             )}
 
-            <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Task Title *</label>
-              <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" placeholder="e.g. Coordinate venue setup and logistics" required />
-            </div>
-
-            <div>
-              <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-              <textarea value={description} onChange={(e) => setDescription(e.target.value)} disabled={!canEdit || submitting} rows={3} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all resize-none disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" placeholder="Task details and instructions..." />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <CustomSelect
-                  label="Status"
-                  id="task-status-select"
-                  options={STATUS_OPTIONS}
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                  disabled={!canEdit || submitting}
-                />
-              </div>
-              <div>
-                <CustomSelect
-                  label="Priority"
-                  id="task-priority-select"
-                  options={PRIORITY_OPTIONS}
-                  value={priority}
-                  onChange={(e) => setPriority(e.target.value as Priority)}
-                  disabled={!canEdit || submitting}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Start Date</label>
-                <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" />
-              </div>
-              <div>
-                <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider mb-1">Due Date</label>
-                <input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} disabled={!canEdit || submitting} className="block w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-xs font-bold text-slate-900 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none transition-all disabled:bg-slate-50 disabled:text-slate-400 shadow-2xs" />
-              </div>
-            </div>
+            <TaskDetailsFields
+              title={title}
+              description={description}
+              status={status}
+              priority={priority}
+              startDate={startDate}
+              dueDate={dueDate}
+              canEdit={canEdit}
+              submitting={submitting}
+              onTitleChange={setTitle}
+              onDescriptionChange={setDescription}
+              onStatusChange={setStatus}
+              onPriorityChange={setPriority}
+              onStartDateChange={setStartDate}
+              onDueDateChange={setDueDate}
+            />
 
             <div>
               <div className="flex justify-between items-center mb-1">
                 <label className="block text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">Assign To</label>
                 {canEdit && profile?.displayName && (
-                  <button type="button" onClick={() => setAssignedMemberName(profile.displayName!)} className="text-[10px] text-indigo-600 font-extrabold hover:text-indigo-800 cursor-pointer">
+                  <button type="button" onClick={() => { setAssignedMemberName(profile.displayName!); setAssignedMemberUid(profile.memberId || profile.uid) }} className="text-[10px] text-indigo-600 font-extrabold hover:text-indigo-800 cursor-pointer">
                     Assign to me
                   </button>
                 )}
               </div>
               <MemberSearchDropdown
-                options={assignments.map(a => ({
-                  id: a.id,
-                  name: a.memberName,
-                  subtitle: a.eventRoleName || undefined
-                }))}
-                value={assignedMemberName}
-                mode="name"
+                options={assigneeOptions}
+                value={assignedMemberUid}
+                mode="id"
                 disabled={!canEdit || submitting}
                 title="Assign Team Member"
                 placeholder="-- Unassigned --"
-                onChange={(val: string) => setAssignedMemberName(val)}
+                onChange={(val: string) => { setAssignedMemberUid(val); setAssignedMemberName(assignments.find(a => a.memberUid === val)?.memberName || '') }}
               />
             </div>
-          </form>
+          </ValidatedForm>
         </div>
         
-        <div className="p-4 border-t border-slate-100 flex justify-between gap-2 bg-white sticky bottom-0">
+        <div className="p-4 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 bg-white sticky bottom-0">
           <div>
             {existingTask && (isHeadOrCreator || canAction('canDeleteTasks')) && (
               <Button
                 type="button"
                 variant="danger"
                 size="dense"
+                className="w-full sm:w-auto"
                 onClick={() => setShowDeleteConfirm(true)}
                 disabled={submitting}
               >
@@ -267,11 +235,12 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
               </Button>
             )}
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={onClose}
               disabled={submitting}
             >
@@ -283,6 +252,7 @@ export const TaskFormModal: React.FC<TaskFormModalProps> = ({ isOpen, onClose, o
                 form="taskForm"
                 variant="primary"
                 size="dense"
+                className="w-full sm:w-auto"
                 loading={submitting}
               >
                 Save Task

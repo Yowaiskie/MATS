@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
 import { recurringService } from '@/services/recurringService'
@@ -281,7 +282,7 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
                 <p className="text-[11px] text-gray-500">
                   Select which month's active schedules to update with the assigned servers from your CSV file.
                 </p>
-                <input
+                <FormInput
                   type="month"
                   value={targetMonth}
                   onChange={(e) => setTargetMonth(e.target.value)}
@@ -479,35 +480,35 @@ export const CSVImporterModal: React.FC<CSVImporterModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end pt-3 border-t border-slate-100 mt-4 gap-2.5 bg-white sticky bottom-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end pt-3 border-t border-slate-100 mt-4 gap-2.5 sm:gap-3 bg-white sticky bottom-0">
           {!extractedSlots.length && !importReport ? (
             <>
-              <button onClick={handleClose} className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs">
+              <button onClick={handleClose} className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs">
                 Cancel
               </button>
               <button
                 onClick={() => parseCSV(csvText, manualMemberMap)}
                 disabled={parsing || !csvText.trim()}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               >
                 {parsing ? 'Parsing...' : 'Extract Servers'}
               </button>
             </>
           ) : extractedSlots.length > 0 && !importReport ? (
             <>
-              <button onClick={() => setExtractedSlots([])} className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs">
+              <button onClick={() => setExtractedSlots([])} className="w-full sm:w-auto rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 transition-all cursor-pointer shadow-2xs">
                 Back
               </button>
               <button
                 onClick={handleConfirmImport}
                 disabled={importing || selectedSlotKeys.length === 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
               >
                 {importing ? 'Importing...' : `Confirm & Apply Servers (${selectedSlotKeys.length})`}
               </button>
             </>
           ) : (
-            <button onClick={handleClose} className="rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95">
+            <button onClick={handleClose} className="w-full sm:w-auto rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95">
               Done
             </button>
           )}

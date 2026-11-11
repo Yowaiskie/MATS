@@ -25,13 +25,18 @@ const DashboardSkeleton = () => (
     {/* Main Content Skeleton */}
     <div className="flex-1 flex flex-col min-w-0">
       {/* Header Skeleton */}
-      <div className="h-16 border-b border-slate-200 bg-white/80 backdrop-blur-md flex items-center px-4 sm:px-6 lg:px-8 justify-between shrink-0">
+      <div
+        className="border-b border-slate-200 bg-white/80 backdrop-blur-md shrink-0"
+        style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+      >
+        <div className="h-16 flex items-center px-4 sm:px-6 lg:px-8 justify-between">
         <div className="sm:hidden h-9 w-9 bg-slate-200 rounded-lg animate-pulse" />
         <div className="flex items-center space-x-4 ml-auto">
           <div className="h-9 w-9 bg-slate-200 rounded-lg animate-pulse" />
           <div className="h-9 w-9 bg-slate-200 rounded-full animate-pulse" />
         </div>
       </div>
+        </div>
       {/* Body Skeleton */}
       <div className="p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -56,7 +61,13 @@ const DashboardSkeleton = () => (
 )
 
 const LoginSkeleton = () => (
-  <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8 py-12 relative overflow-hidden">
+  <div
+    className="flex min-h-screen items-center justify-center bg-slate-50 px-4 sm:px-6 lg:px-8 py-12 relative overflow-hidden"
+    style={{
+      paddingTop: 'calc(env(safe-area-inset-top, 0px) + 3rem)',
+      paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 3rem)',
+    }}
+  >
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       <div className="absolute -top-[25%] -right-[10%] w-[70%] h-[70%] rounded-full bg-slate-200/50 blur-3xl" />
       <div className="absolute -bottom-[25%] -left-[10%] w-[70%] h-[70%] rounded-full bg-slate-200/50 blur-3xl" />

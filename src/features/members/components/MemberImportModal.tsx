@@ -432,7 +432,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
         </div>
 
         {/* Actions Footer */}
-        <div className="flex items-center justify-end space-x-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+        <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0 [&>button]:w-full [&>button]:sm:w-auto">
           <button
             type="button"
             onClick={handleClose}
@@ -444,7 +444,7 @@ export const MemberImportModal: React.FC<MemberImportModalProps> = ({
           <button
             type="button"
             onClick={handleImportSubmit}
-            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-5 py-2.5 text-xs font-black text-white transition-all disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 active:scale-95"
             disabled={importing || previewRows.length === 0 || validCount === 0}
           >
             {importing ? 'Importing...' : `Import (${validCount} Valid Rows)`}

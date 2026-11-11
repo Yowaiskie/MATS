@@ -20,6 +20,7 @@ interface MemberSearchDropdownProps {
   allowClear?: boolean
   formatDisplayName?: (m: Member) => string
   mode?: 'id' | 'name' // whether value represents member.id or member full name
+  placement?: 'auto' | 'top' | 'bottom'
 }
 
 export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
@@ -33,11 +34,34 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
   className = '',
   allowClear = true,
   formatDisplayName,
-  mode = 'id'
+  mode = 'id',
+  placement = 'auto'
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [calculatedPlacement, setCalculatedPlacement] = useState<'top' | 'bottom'>(() => {
+    return placement === 'top' ? 'top' : 'bottom'
+  })
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Calculate dynamic placement based on available vertical space
+  const updatePlacement = () => {
+    if (placement === 'top' || placement === 'bottom') {
+      setCalculatedPlacement(placement)
+      return
+    }
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+    const spaceBelow = viewportHeight - rect.bottom
+    const spaceAbove = rect.top
+    // Dropdown panel height is up to ~320px
+    if (spaceBelow < 320 && spaceAbove > spaceBelow) {
+      setCalculatedPlacement('top')
+    } else {
+      setCalculatedPlacement('bottom')
+    }
+  }
 
   // Normalize options
   const normalizedOptions = useMemo<MemberOptionItem[]>(() => {
@@ -97,6 +121,29 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
     }
   }, [isOpen])
 
+  // Reposition on resize/scroll while open
+  useEffect(() => {
+    if (!isOpen) return
+    updatePlacement()
+    window.addEventListener('resize', updatePlacement)
+    window.addEventListener('scroll', updatePlacement, true)
+    return () => {
+      window.removeEventListener('resize', updatePlacement)
+      window.removeEventListener('scroll', updatePlacement, true)
+    }
+  }, [isOpen, placement])
+
+  const handleToggle = () => {
+    if (disabled) return
+    if (!isOpen) {
+      updatePlacement()
+      setIsOpen(true)
+      setSearchQuery('')
+    } else {
+      setIsOpen(false)
+    }
+  }
+
   const handleSelect = (item: MemberOptionItem) => {
     const returnValue = mode === 'id' ? item.id : item.name
     onChange(returnValue, item)
@@ -112,16 +159,12 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
   }
 
   return (
-    <div ref={containerRef} className={`relative ${className}`}>
+    <div ref={containerRef} className={`relative ${isOpen ? 'z-50' : 'z-0'} ${className}`}>
       {/* TRIGGER BUTTON (Always in document flow) */}
       <button
         type="button"
         disabled={disabled}
-        onClick={() => {
-          if (disabled) return
-          setIsOpen(!isOpen)
-          setSearchQuery('')
-        }}
+        onClick={handleToggle}
         className={`w-full p-2.5 sm:p-3 border rounded-2xl flex items-center justify-between text-left transition-all cursor-pointer ${
           disabled ? 'opacity-50 cursor-not-allowed bg-slate-50 border-slate-200' : ''
         } ${
@@ -149,9 +192,11 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
                 <span
                   onClick={handleClear}
                   title="Clear selection"
-                  className="text-[10px] font-bold text-slate-400 hover:text-rose-600 px-1.5 py-0.5 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                  className="text-[10px] font-bold text-slate-400 hover:text-rose-600 p-1 rounded-lg hover:bg-rose-50 transition cursor-pointer flex items-center justify-center"
                 >
-                  ✕
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </span>
               )}
               <span className="text-[10px] font-extrabold text-indigo-600 bg-white px-2.5 py-1 rounded-xl border border-indigo-200 shadow-xs">
@@ -164,22 +209,38 @@ export const MemberSearchDropdown: React.FC<MemberSearchDropdownProps> = ({
             <span className="text-xs font-bold text-slate-400 truncate">
               {placeholder}
             </span>
-            <span className={`text-xs text-slate-400 font-bold shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`}>▼</span>
+            <svg
+              className={`w-3.5 h-3.5 text-slate-400 shrink-0 ml-1 transition-transform duration-200 ${isOpen ? 'rotate-180 text-indigo-600' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
           </div>
         )}
       </button>
 
       {/* FLOATING EXPANDED SEARCH & PICKER PANEL */}
       {isOpen && (
-        <div className="absolute left-0 right-0 top-full mt-1.5 min-w-[280px] p-3.5 sm:p-4 bg-white border-2 border-indigo-600 rounded-2xl shadow-2xl space-y-2.5 z-50 animate-in fade-in zoom-in-95 duration-150">
+        <div
+          className={`absolute left-0 right-0 min-w-[280px] p-3.5 sm:p-4 bg-white border-2 border-indigo-600 rounded-2xl shadow-2xl space-y-2.5 z-50 animate-in fade-in zoom-in-95 duration-150 ${
+            calculatedPlacement === 'top'
+              ? 'bottom-full mb-1.5 origin-bottom'
+              : 'top-full mt-1.5 origin-top'
+          }`}
+        >
           <div className="flex items-center justify-between border-b border-slate-100 pb-2">
             <span className="text-xs font-black text-slate-900">{title}</span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md cursor-pointer"
+              className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer"
             >
-              Close ✕
+              <span>Close</span>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
 

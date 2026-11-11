@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignatureConfig'
@@ -223,7 +224,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-600 mb-1">
                 Report Date
               </label>
-              <input
+              <FormInput
                 type="date"
                 value={docDate}
                 onChange={e => setDocDate(e.target.value)}
@@ -418,7 +419,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                 <span>Table Row Spacing</span>
                 <span className="text-indigo-600 font-mono font-bold">{tablePadding.toFixed(1)} mm</span>
               </div>
-              <input
+              <FormInput
                 type="range"
                 min="1.0"
                 max="3.6"
@@ -441,7 +442,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                 <span>Space Between Sections</span>
                 <span className="text-indigo-600 font-mono font-bold">{sectionSpacing.toFixed(1)} mm</span>
               </div>
-              <input
+              <FormInput
                 type="range"
                 min="2.0"
                 max="15.0"
@@ -464,7 +465,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
                 <span>Signature Space</span>
                 <span className="text-indigo-600 font-mono font-bold">{signatureTopMargin.toFixed(1)} mm</span>
               </div>
-              <input
+              <FormInput
                 type="range"
                 min="4.0"
                 max="24.0"
@@ -491,7 +492,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
         />
 
         {/* Modal Actions */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-3 sticky bottom-0 bg-white">
+        <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 sticky bottom-0 bg-white [&>button]:w-full [&>button]:sm:w-auto">
           <button
             type="button"
             onClick={onClose}
@@ -504,7 +505,7 @@ export const LiquidationExportModal: React.FC<LiquidationExportModalProps> = ({
             type="button"
             onClick={handleDownload}
             disabled={isGenerating}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition cursor-pointer"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-xs font-black text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-xl shadow-md shadow-indigo-500/20 active:scale-95 transition cursor-pointer"
           >
             {isGenerating ? (
               <>

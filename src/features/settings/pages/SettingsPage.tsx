@@ -7,7 +7,7 @@ import {
 } from '@/services/settingsService'
 import { generateCommunityReport } from '@/utils/communityReport'
 import { generateUntakenScheduleReminderText } from '@/utils/untakenScheduleReport'
-import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { ConfirmModal } from '@/components/Dialog'
 import { Button, useToast } from '@/components'
 import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
@@ -15,6 +15,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 import { ReminderTemplateEditor } from '../components/ReminderTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
+import { OrderRotationSettingsCard } from '../components/OrderRotationSettingsCard'
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
 
@@ -31,10 +32,10 @@ const mockSchedule: Schedule = {
 }
 
 const mockAssignedMembers: Member[] = [
-  { id: 'm-1', firstName: 'Michael', lastName: 'Camarador', rank: 'Knight', status: 'active', createdAt: '', updatedAt: '' },
-  { id: 'm-2', firstName: 'Lance', lastName: 'Caoili', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' },
-  { id: 'm-3', firstName: 'Patrick', lastName: 'Jacobo', rank: 'Acolyte', status: 'active', createdAt: '', updatedAt: '' },
-  { id: 'm-6', firstName: 'Juan', lastName: 'Dela Cruz', rank: 'Squires', status: 'active', createdAt: '', updatedAt: '' }
+  { id: 'm-1', firstName: 'Michael', lastName: 'Camarador', rank: 'Knight', order: 'Order of San Pedro', status: 'active', createdAt: '', updatedAt: '' },
+  { id: 'm-2', firstName: 'Lance', lastName: 'Caoili', rank: 'Acolyte', order: 'Order of San Pedro', status: 'active', createdAt: '', updatedAt: '' },
+  { id: 'm-3', firstName: 'Patrick', lastName: 'Jacobo', rank: 'Acolyte', order: 'Order of San Pedro', status: 'active', createdAt: '', updatedAt: '' },
+  { id: 'm-6', firstName: 'Juan', lastName: 'Dela Cruz', rank: 'Squires', order: 'Squires', status: 'active', createdAt: '', updatedAt: '' }
 ]
 
 const mockFormState = {
@@ -74,11 +75,17 @@ const mockUntakenSchedules: Schedule[] = [
   }
 ]
 
-type TabId = 'policy' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
+type TabId = 'policy' | 'order_rotation' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const ArrowPathIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
   </svg>
 )
 
@@ -118,6 +125,7 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
+  { id: 'order_rotation', label: 'Order Rotation', icon: <ArrowPathIcon className="w-4 h-4" /> },
   { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
   { id: 'reminder_template', label: 'Reminder Template', icon: <BellIcon className="w-4 h-4" /> },
   { id: 'signatures', label: 'Signature Presets', icon: <SignatureIcon className="w-4 h-4" /> },
@@ -144,11 +152,9 @@ export const SettingsPage: React.FC = () => {
   const [copiedReminder, setCopiedReminder] = useState(false)
 
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
 
   const loadTemplates = async () => {
     setLoading(true)
-    setError(null)
     try {
       const [reportTpl, reminderTpl] = await Promise.all([
         settingsService.getReportTemplate(),
@@ -160,7 +166,7 @@ export const SettingsPage: React.FC = () => {
       setOriginalReminderTemplate(reminderTpl)
     } catch (err) {
       console.error(err)
-      setError('Failed to load system templates.')
+      toast.error('Failed to load system templates.')
     } finally {
       setLoading(false)
     }
@@ -173,14 +179,13 @@ export const SettingsPage: React.FC = () => {
   // Save Report Template
   const handleSaveReportTemplate = async () => {
     setSaving(true)
-    setError(null)
     try {
       await settingsService.saveReportTemplate(template, profile?.email || 'Admin')
       setOriginalTemplate(template)
       toast.success('Report template settings successfully saved!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to save report template.')
+      toast.error(err.message || 'Failed to save report template.')
     } finally {
       setSaving(false)
     }
@@ -189,14 +194,13 @@ export const SettingsPage: React.FC = () => {
   // Save Reminder Template
   const handleSaveReminderTemplate = async () => {
     setSavingReminder(true)
-    setError(null)
     try {
       await settingsService.saveReminderTemplate(reminderTemplate, profile?.email || 'Admin')
       setOriginalReminderTemplate(reminderTemplate)
       toast.success('Reminder template settings successfully saved!')
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to save reminder template.')
+      toast.error(err.message || 'Failed to save reminder template.')
     } finally {
       setSavingReminder(false)
     }
@@ -278,21 +282,28 @@ export const SettingsPage: React.FC = () => {
           {activeTab === 'policy' && (
             <PolicySettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
+            />
+          )}
+
+          {activeTab === 'order_rotation' && (
+            <OrderRotationSettingsCard
+              onNotifySuccess={(msg) => toast.success(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
           {activeTab === 'signatures' && (
             <SignatureSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
           {activeTab === 'maintenance' && (
             <MaintenanceSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
-              onNotifyError={(msg) => setError(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
             />
           )}
 
@@ -425,14 +436,6 @@ export const SettingsPage: React.FC = () => {
         title="Restore Default Reminder Template"
         message="Are you sure you want to restore the default pending attendance reminder template? Any unsaved edits will be discarded."
         confirmLabel="Restore Default"
-      />
-
-      <AlertModal
-        isOpen={!!error}
-        onClose={() => setError(null)}
-        variant="error"
-        title="Error"
-        message={error ?? ''}
       />
     </div>
   )

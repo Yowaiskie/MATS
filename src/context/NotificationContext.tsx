@@ -3,18 +3,28 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { notificationService, type UntakenScheduleInfo } from '@/services/notificationService'
 import type { AppNotification } from '@/types/notification'
 import type { Schedule } from '@/types/schedule'
+import type { ExcuseRequest } from '@/types/excuse'
+import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { db } from '@/firebase/config'
+import { eventTaskNotificationService, type PersonalEventTask } from '@/services/eventTaskNotificationService'
+import { getTaskReminderStage, isActiveEventTask } from '@/utils/eventTaskNotifications'
 
 interface NotificationContextType {
   notifications: AppNotification[]
+  pendingExcuses: ExcuseRequest[]
   untakenSchedules: UntakenScheduleInfo[]
   relevantUntakenSchedules: UntakenScheduleInfo[]
   unreadCount: number
+  unreadExcuseCount: number
   untakenCount: number
   unreadUntakenCount: number
   readUntakenIds: string[]
+  readExcuseIds: string[]
   loading: boolean
   markAsRead: (notificationId: string) => Promise<void>
   markUntakenAsRead: (scheduleId: string) => void
+  markExcuseAsRead: (excuseId: string) => void
+  markAllExcusesAsRead: () => void
   markAllAsRead: () => Promise<void>
   deleteNotification: (notificationId: string) => Promise<void>
   clearAllNotifications: () => Promise<void>
@@ -25,12 +35,16 @@ interface NotificationContextType {
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
 
 const IDLE_DISCONNECT_MS = 5 * 60 * 1000 // 5 minutes in background
-const UNTAKEN_CHECK_INTERVAL_MS = 60 * 1000 // Check every 60 seconds for newly passed mass times
+const UNTAKEN_CHECK_INTERVAL_MS = 15 * 60 * 1000 // Check every 15 minutes while active tab to save Firestore quota
 
 export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user, profile, isAdmin, canAction } = useAuth()
-  const [notifications, setNotifications] = useState<AppNotification[]>([])
+  const { user, profile, isAdmin, canAction, hasModuleAccess } = useAuth()
+  const [storedNotifications, setNotifications] = useState<AppNotification[]>([])
+  const [personalTasks, setPersonalTasks] = useState<PersonalEventTask[]>([])
+  const [reminderNow, setReminderNow] = useState(() => new Date())
+  const [pendingExcuses, setPendingExcuses] = useState<ExcuseRequest[]>([])
   const [untakenSchedules, setUntakenSchedules] = useState<UntakenScheduleInfo[]>([])
+  
   const [readUntakenIds, setReadUntakenIds] = useState<string[]>(() => {
     try {
       const key = user?.uid ? `mats_read_untaken_ids_${user.uid}` : 'mats_read_untaken_ids'
@@ -40,25 +54,43 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return []
     }
   })
+
+  const [readExcuseIds, setReadExcuseIds] = useState<string[]>(() => {
+    try {
+      const key = user?.uid ? `mats_read_excuse_ids_${user.uid}` : 'mats_read_excuse_ids'
+      const stored = localStorage.getItem(key)
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
   const [loading, setLoading] = useState<boolean>(true)
 
   const unsubscribeRef = useRef<(() => void) | null>(null)
+  const excuseUnsubscribeRef = useRef<(() => void) | null>(null)
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const periodicTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isMountedRef = useRef<boolean>(true)
 
-  // Sync readUntakenIds on user switch
+  // Sync stored read IDs on user switch
   useEffect(() => {
     if (!user?.uid) {
       setReadUntakenIds([])
+      setReadExcuseIds([])
       return
     }
     try {
-      const key = `mats_read_untaken_ids_${user.uid}`
-      const stored = localStorage.getItem(key)
-      setReadUntakenIds(stored ? JSON.parse(stored) : [])
+      const keyUntaken = `mats_read_untaken_ids_${user.uid}`
+      const storedUntaken = localStorage.getItem(keyUntaken)
+      setReadUntakenIds(storedUntaken ? JSON.parse(storedUntaken) : [])
+
+      const keyExcuse = `mats_read_excuse_ids_${user.uid}`
+      const storedExcuse = localStorage.getItem(keyExcuse)
+      setReadExcuseIds(storedExcuse ? JSON.parse(storedExcuse) : [])
     } catch {
       setReadUntakenIds([])
+      setReadExcuseIds([])
     }
   }, [user?.uid])
 
@@ -66,8 +98,67 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
   const profileRef = useRef(profile)
   profileRef.current = profile
 
+  const canReviewExcuses = isAdmin || profile?.role === 'coordinator' || profile?.role === 'admin' || profile?.role === 'order_leader' || canAction('canReviewExcuses') || canAction('canApproveExcuses') || hasModuleAccess('excuses')
+  const canViewEvents = hasModuleAccess('events')
+
+  useEffect(() => {
+    if (!profile?.uid || !canViewEvents) { setPersonalTasks([]); return }
+    let disposed = false
+    let unsubscribe: (() => void) | null = null
+    let currentTasks: PersonalEventTask[] = []
+    let checking = false
+    const evaluate = async () => {
+      if (disposed || checking || document.visibilityState !== 'visible' || !navigator.onLine) return
+      checking = true
+      const now = new Date()
+      setReminderNow(now)
+      try {
+        for (const item of currentTasks) {
+          if (disposed) break
+          if (isActiveEventTask(item.task, item.event) && getTaskReminderStage(item.task.dueDate, now)) {
+            try { await eventTaskNotificationService.deliverReminder(item, now) }
+            catch (error) { console.warn('Event task reminder check failed:', error) }
+          }
+        }
+      }
+      finally { checking = false }
+    }
+    const connect = () => {
+      if (disposed || document.visibilityState !== 'visible' || unsubscribe) return
+      unsubscribe = eventTaskNotificationService.subscribeToPersonalTasks(profile, items => {
+        if (disposed) return
+        currentTasks = items
+        setPersonalTasks(items)
+        void evaluate()
+      })
+    }
+    const visibility = () => {
+      if (document.visibilityState === 'visible') { connect(); void evaluate() }
+      else { unsubscribe?.(); unsubscribe = null }
+    }
+    connect()
+    const timer = setInterval(() => { void evaluate() }, 60_000)
+    document.addEventListener('visibilitychange', visibility)
+    window.addEventListener('online', visibility)
+    return () => {
+      disposed = true
+      unsubscribe?.()
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', visibility)
+      window.removeEventListener('online', visibility)
+    }
+  }, [profile?.uid, profile?.role, profile?.memberId, profile?.displayName, profile?.memberName, canViewEvents])
+
+  const notifications = storedNotifications.filter(notification => {
+    if (notification.type !== 'event_task_reminder') return true
+    const item = personalTasks.find(entry => entry.task.id === notification.taskId && entry.task.eventId === notification.eventId)
+    return !!item && isActiveEventTask(item.task, item.event) && notification.targetMemberIds?.includes(item.recipient) && notification.dueDate === item.task.dueDate && (notification.taskNotificationVersion ?? 0) === (item.task.notificationVersion ?? 0) && notification.reminderStage === getTaskReminderStage(item.task.dueDate, reminderNow)
+  })
+
   const refreshUntaken = useCallback(async () => {
     if (!user?.uid) return
+    // Prevent fetching when tab is backgrounded / idle
+    if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return
     try {
       const data = await notificationService.getUntakenSchedules()
       if (isMountedRef.current) {
@@ -90,7 +181,11 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     refreshUntaken()
-    periodicTimerRef.current = setInterval(refreshUntaken, UNTAKEN_CHECK_INTERVAL_MS)
+    periodicTimerRef.current = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        refreshUntaken()
+      }
+    }, UNTAKEN_CHECK_INTERVAL_MS)
 
     return () => {
       if (periodicTimerRef.current) {
@@ -100,7 +195,63 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [user?.uid, refreshUntaken])
 
-  // Manage single persistent Firestore subscription per login session
+  // Real-time listener for pending excuse submissions
+  useEffect(() => {
+    if (!user?.uid || !canReviewExcuses) {
+      setPendingExcuses([])
+      if (excuseUnsubscribeRef.current) {
+        excuseUnsubscribeRef.current()
+        excuseUnsubscribeRef.current = null
+      }
+      return
+    }
+
+    const excuseQuery = query(
+      collection(db, 'excuseRequests'),
+      where('status', '==', 'pending')
+    )
+
+    const unsubExcuse = onSnapshot(excuseQuery, (snapshot) => {
+      if (!isMountedRef.current) return
+      const list = snapshot.docs
+        .map(d => ({ id: d.id, ...d.data() } as ExcuseRequest))
+        .filter(e => !e.isArchived)
+
+      setPendingExcuses(list)
+
+      // Post local device notification for new pending excuses
+      list.forEach((excuse) => {
+        if (!excuse.id) return
+        const isNotified = notificationService.hasBeenNotified(`excuse-${excuse.id}`)
+        if (!isNotified) {
+          notificationService.markNotified(`excuse-${excuse.id}`)
+          const serverName = excuse.memberName || 'Altar Server'
+          const scheduleCount = excuse.schedules?.length || 1
+          const reasonSnippet = excuse.reason ? ` Reason: ${excuse.reason.length > 70 ? excuse.reason.substring(0, 70) + '...' : excuse.reason}` : ''
+
+          notificationService.showLocalNotification(`[EXCUSE] Excuse Request: ${serverName}`, {
+            body: `${serverName} has submitted an excuse request for ${scheduleCount} schedule(s).${reasonSnippet}`,
+            tag: `mats-excuse-doc-${excuse.id}`,
+            renotify: true,
+            data: { url: '/excuses' }
+          })
+        }
+      })
+    }, (err) => {
+      console.warn('Excuse requests subscription warning:', err)
+    })
+
+    excuseUnsubscribeRef.current = unsubExcuse
+
+    return () => {
+      if (excuseUnsubscribeRef.current) {
+        excuseUnsubscribeRef.current()
+        excuseUnsubscribeRef.current = null
+      }
+    }
+  }, [user?.uid, canReviewExcuses])
+
+  // Manage persistent Firestore subscription for general notifications
   useEffect(() => {
     isMountedRef.current = true
     if (!user?.uid) {
@@ -114,6 +265,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
 
     setLoading(true)
+    setNotifications([])
     const currentRole = profileRef.current?.role || 'user'
     const currentMemberId = profileRef.current?.memberId
     const currentEmail = user.email
@@ -135,6 +287,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         refreshUntaken()
+        if (!unsubscribeRef.current) unsubscribeRef.current = notificationService.subscribeToUserNotifications(
+          user.uid, profileRef.current?.role || 'user', profileRef.current?.memberId, user.email,
+          list => { if (isMountedRef.current) { setNotifications(list); setLoading(false) } }
+        )
         if (idleTimerRef.current) {
           clearTimeout(idleTimerRef.current)
           idleTimerRef.current = null
@@ -167,7 +323,7 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange)
     }
-  }, [user?.uid, refreshUntaken])
+  }, [user?.uid, profile?.role, profile?.memberId, user?.email, refreshUntaken])
 
   // Compute role-based relevant untaken schedules
   const canManageAttendance = isAdmin || profile?.role === 'coordinator' || canAction('canTakeAttendance') || canAction('canManageSchedules')
@@ -184,7 +340,6 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     if (memberId && assigned.includes(memberId)) return true
     if (uid && assigned.includes(uid)) return true
     
-    // Check matched account IDs
     return item.assignedAccounts.some(
       (a) => (memberId && a.memberId === memberId) || (uid && a.userId === uid) || (email && a.email?.toLowerCase().trim() === email)
     )
@@ -195,11 +350,17 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     (item) => !readUntakenIds.includes(item.schedule.id)
   ).length
 
+  // Calculate unread excuse count
+  const unreadExcuseCount = canReviewExcuses
+    ? pendingExcuses.filter(e => e.id && !readExcuseIds.includes(e.id)).length
+    : 0
+
   const unreadDirectCount = user?.uid
     ? notifications.filter((n) => !n.readBy || !n.readBy.includes(user.uid)).length
     : 0
 
-  const unreadCount = unreadDirectCount
+  // Total unread count for the notification bell badge
+  const unreadCount = unreadDirectCount + unreadExcuseCount
 
   const markUntakenAsRead = useCallback((scheduleId: string) => {
     if (!scheduleId || !user?.uid) return
@@ -214,6 +375,37 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       return updated
     })
   }, [user?.uid])
+
+  const markExcuseAsRead = useCallback((excuseId: string) => {
+    if (!excuseId || !user?.uid) return
+    setReadExcuseIds((prev) => {
+      if (prev.includes(excuseId)) return prev
+      const updated = [...prev, excuseId]
+      try {
+        localStorage.setItem(`mats_read_excuse_ids_${user.uid}`, JSON.stringify(updated))
+      } catch (e) {
+        console.warn('Failed to save read excuse ID:', e)
+      }
+      return updated
+    })
+  }, [user?.uid])
+
+  const markAllExcusesAsRead = useCallback(() => {
+    if (!user?.uid) return
+    const currentExcuseIds = pendingExcuses.map(e => e.id).filter(Boolean) as string[]
+    if (currentExcuseIds.length > 0) {
+      setReadExcuseIds((prev) => {
+        const set = new Set([...prev, ...currentExcuseIds])
+        const updated = Array.from(set)
+        try {
+          localStorage.setItem(`mats_read_excuse_ids_${user.uid}`, JSON.stringify(updated))
+        } catch (e) {
+          console.warn('Failed to save read excuse IDs:', e)
+        }
+        return updated
+      })
+    }
+  }, [user?.uid, pendingExcuses])
 
   const markAsRead = async (notificationId: string) => {
     if (!user?.uid || !notificationId) return
@@ -246,7 +438,10 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       })
     }
 
-    // 2. Mark direct unread notifications as read
+    // 2. Mark all pending excuses as read locally
+    markAllExcusesAsRead()
+
+    // 3. Mark direct unread notifications as read
     const unreadIds = notifications
       .filter((n) => !n.readBy || !n.readBy.includes(user.uid))
       .map((n) => n.id)
@@ -295,15 +490,20 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
 
   const value: NotificationContextType = {
     notifications,
+    pendingExcuses,
     untakenSchedules,
     relevantUntakenSchedules,
     unreadCount,
+    unreadExcuseCount,
     untakenCount,
     unreadUntakenCount,
     readUntakenIds,
+    readExcuseIds,
     loading,
     markAsRead,
     markUntakenAsRead,
+    markExcuseAsRead,
+    markAllExcusesAsRead,
     markAllAsRead,
     deleteNotification,
     clearAllNotifications,
@@ -325,4 +525,3 @@ export function useNotificationContext(): NotificationContextType {
   }
   return context
 }
-

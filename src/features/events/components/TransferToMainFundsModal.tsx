@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { Modal } from '@/components/Modal'
 import { ConfirmModal } from '@/components/Dialog'
@@ -150,7 +152,7 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <ValidatedForm onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3.5 rounded-2xl text-xs font-bold animate-fade-in">
             {error}
@@ -187,7 +189,7 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
 
         <div>
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-700 mb-1">Date *</label>
-          <input
+          <FormInput
             type="date"
             required
             value={date}
@@ -198,7 +200,7 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
 
         <div>
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-700 mb-1">Remarks (Optional)</label>
-          <textarea
+          <FormTextarea
             rows={2}
             maxLength={250}
             value={remarks}
@@ -208,10 +210,11 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
           />
         </div>
 
-        <div className="mt-8 flex justify-end gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
+        <div className="mt-8 flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 sticky bottom-0 bg-white">
           <Button
             type="button"
             variant="secondary"
+            className="w-full sm:w-auto"
             onClick={onClose}
             disabled={submitting}
           >
@@ -220,13 +223,14 @@ export const TransferToMainFundsModal: React.FC<Props> = ({
           <Button
             type="submit"
             variant="primary"
+            className="w-full sm:w-auto"
             loading={submitting}
             loadingText="Transferring..."
           >
             Transfer to Main Funds
           </Button>
         </div>
-      </form>
+      </ValidatedForm>
 
       <ConfirmModal
         isOpen={isConfirmOpen}

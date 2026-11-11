@@ -464,12 +464,12 @@ export const MemberExportModal: React.FC<MemberExportModalProps> = ({
         )}
 
         {/* Footer Actions */}
-        <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-3 sticky bottom-0 bg-white">
+        <div className="pt-3 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 sticky bottom-0 bg-white">
           <div className="text-[11px] font-bold text-slate-500">
             Ready to export <span className="text-slate-900 font-black">{exportMembers.length}</span> records ({format.toUpperCase()})
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col-reverse sm:flex-row items-center gap-2 w-full sm:w-auto [&>button]:w-full [&>button]:sm:w-auto">
             <Button
               type="button"
               variant="secondary"

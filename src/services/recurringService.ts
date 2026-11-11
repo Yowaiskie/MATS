@@ -10,11 +10,39 @@ import {
 import { db } from '@/firebase/config'
 import type { ScheduleTemplate, ScheduleTemplateInput } from '@/types/schedule'
 import type { Member } from '@/types/member'
-import { isTimeOverlapping } from '@/utils/scheduleUtils'
+import type { ScheduleCategoryKey } from '@/types/attendanceCategory'
+import type { ScheduleInput } from '@/types/schedule'
+import { GenerationContextChangedError, getOccurrenceContext, getOccurrenceKey, validateScheduleRange } from '../utils/scheduleIntegrity.ts'
+import {
+  isTimeOverlapping,
+  OFFICIAL_REGULAR_MASS_SLOTS,
+  isOfficialRegularMassSlot,
+  isHolyHourSchedule,
+  isMeetingSchedule,
+  isBaptismSchedule,
+  isSundayOrAnticipatedMass,
+  normalizeDayOfWeek
+} from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { scheduleService } from './scheduleService'
+import { memberService } from './memberService'
+import { settingsService } from './settingsService'
+import { orderRotationService } from './orderRotationService'
 
 const TEMPLATES_COLLECTION = 'scheduleTemplates'
+
+function normalizeTemplateTime24(timeStr?: string): string {
+  if (!timeStr) return ''
+  const clean = timeStr.trim().toUpperCase()
+  const match = clean.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)?$/)
+  if (!match) return timeStr.trim().slice(0, 5)
+  let h = parseInt(match[1], 10)
+  const m = match[2]
+  const ampm = match[3]
+  if (ampm === 'PM' && h < 12) h += 12
+  if (ampm === 'AM' && h === 12) h = 0
+  return `${String(h).padStart(2, '0')}:${m}`
+}
 
 // Helper for fuzzy string matching (typo tolerance)
 function getLevenshteinDistance(a: string, b: string): number {
@@ -57,10 +85,14 @@ export const recurringService = {
   async getTemplates(): Promise<ScheduleTemplate[]> {
     const ref = collection(db, TEMPLATES_COLLECTION)
     const snapshot = await getDocs(ref)
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data()
-    })) as ScheduleTemplate[]
+    return snapshot.docs.map(docSnap => {
+      const data = docSnap.data()
+      return {
+        id: docSnap.id,
+        ...data,
+        active: data.active !== false
+      }
+    }) as ScheduleTemplate[]
   },
 
   /**
@@ -249,7 +281,12 @@ export const recurringService = {
   async generateSchedules(
     startDate: string,
     endDate: string,
-    templates: ScheduleTemplate[]
+    templates: ScheduleTemplate[],
+    options?: {
+      autoRotateOrderGroups?: boolean
+      startingGroup?: string
+      publicationId?: string
+    }
   ): Promise<{ created: number; skipped: number; duplicates: number; validationErrors: string[] }> {
     const result = {
       created: 0,
@@ -258,13 +295,38 @@ export const recurringService = {
       validationErrors: [] as string[]
     }
 
-    if (startDate > endDate) {
-      result.validationErrors.push('Start Date must be before or equal to End Date.')
-      return result
+    validateScheduleRange(startDate, endDate)
+
+    // One bounded server range query, shared across all template iterations.
+    const generation = await scheduleService.prepareGeneration(startDate, endDate, options?.publicationId)
+    const existingSchedules = generation.schedules
+
+    // Load rotation settings & members if autoRotateOrderGroups is enabled
+    const rotationSettings = options?.autoRotateOrderGroups ? await settingsService.getOrderRotationSettings() : null
+    let allMembers: Member[] = []
+    let rotationStartIndex = 0
+    const trackRotationIndices: Record<string, number> = {}
+
+    if (options?.autoRotateOrderGroups && rotationSettings) {
+      try {
+        allMembers = await memberService.getMembers(true)
+        const sequence = rotationSettings.rotationSequence && rotationSettings.rotationSequence.length > 0
+          ? rotationSettings.rotationSequence
+          : ['Order of San Pedro', 'Order of San Juan', 'Order of San Tiago', 'Order of San Andres']
+
+        if (options.startingGroup) {
+          const normStart = orderRotationService.normalizeOrderName(options.startingGroup)
+          const foundIdx = sequence.findIndex(g => orderRotationService.normalizeOrderName(g) === normStart)
+          if (foundIdx !== -1) {
+            rotationStartIndex = foundIdx
+          }
+        }
+      } catch (err) {
+        console.warn('Failed to load members for order rotation during generation:', err)
+      }
     }
 
-    // Load all existing schedules to check for duplicate entries and assignment conflicts in memory
-    const existingSchedules = await scheduleService.getSchedules()
+    // Keep the bounded snapshot in memory to detect legacy random-ID records too.
 
     // Parse date bounds cleanly avoiding UTC timezone offsets
     const [sY, sM, sD] = startDate.split('-').map(Number)
@@ -280,54 +342,93 @@ export const recurringService = {
       const currentWeekday = weekdays[d.getDay()]
       const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-      // Check templates matching this day of week (case-insensitive)
+      // Check templates matching this day of week (normalized for full names, abbreviations, and indices)
       const matchingTemplates = templates.filter(t => 
-        (t.active === undefined || t.active === true) && 
-        t.dayOfWeek.toLowerCase().trim() === currentWeekday.toLowerCase().trim()
+        t.active !== false && 
+        normalizeDayOfWeek(t.dayOfWeek) === currentWeekday.toLowerCase()
       )
 
       for (const temp of matchingTemplates) {
+        const normStartTime = normalizeTemplateTime24(temp.startTime) || '08:00'
         // Fallback for endTime if not explicitly set
-        let slotEndTime = temp.endTime
-        if (!slotEndTime || temp.startTime >= slotEndTime) {
-          const [h, m] = temp.startTime.split(':').map(Number)
-          const nextH = (h + 1) % 24
-          slotEndTime = `${String(nextH).padStart(2, '0')}:${String(m || 0).padStart(2, '0')}`
+        let slotEndTime = normalizeTemplateTime24(temp.endTime)
+        if (!slotEndTime || normStartTime >= slotEndTime) {
+          const [h, m] = normStartTime.split(':').map(Number)
+          const nextH = ((Number.isNaN(h) ? 8 : h) + 1) % 24
+          slotEndTime = `${String(nextH).padStart(2, '0')}:${String(Number.isNaN(m) ? 0 : m).padStart(2, '0')}`
         }
 
-        // 2. Duplicate schedule check (same title, date, startTime)
-        const isDuplicate = existingSchedules.some(s => 
-          s.title.toLowerCase() === temp.title.toLowerCase() &&
-          s.date === dateStr &&
-          s.startTime === temp.startTime
-        )
+        const isBaptism = isBaptismSchedule(temp)
+        const category: ScheduleCategoryKey = isHolyHourSchedule(temp.title)
+          ? 'holy_hour'
+          : isMeetingSchedule(temp.title)
+          ? 'meeting'
+          : isBaptism
+          ? 'other'
+          : (d.getDay() === 0 || isSundayOrAnticipatedMass(temp.title, dateStr, normStartTime))
+          ? 'mass_sunday'
+          : 'mass_weekday'
+
+        const occurrence: ScheduleInput = {
+          publicationId: isBaptism ? undefined : options?.publicationId,
+          templateId: temp.id,
+          title: temp.title,
+          category,
+          date: dateStr, startTime: normStartTime, endTime: slotEndTime,
+          location: temp.location || '', status: 'upcoming'
+        }
+        // Same context only: Special Masses/other locations are independent.
+        const contextMatches = existingSchedules.filter(schedule => getOccurrenceContext(schedule) === getOccurrenceContext(occurrence))
+        const isDuplicate = contextMatches.some(schedule => getOccurrenceKey(schedule) === getOccurrenceKey(occurrence))
 
         if (isDuplicate) {
           result.duplicates++
           result.skipped++
           continue
         }
+        if (contextMatches.length > 0) {
+          result.validationErrors.push(`Ownership review required for ${dateStr} ${temp.startTime}: existing schedule(s) ${contextMatches.map(schedule => schedule.id).join(', ')}. No records were reassigned.`)
+          result.skipped++
+          continue
+        }
+
+        // 3. Resolve assigned members (Auto-rotate order groups if applicable)
+        let assignedMemberIds: string[] = []
+        if (options?.autoRotateOrderGroups && rotationSettings && orderRotationService.matchesRotationTarget(temp, rotationSettings)) {
+          const sequence = rotationSettings.rotationSequence && rotationSettings.rotationSequence.length > 0
+            ? rotationSettings.rotationSequence
+            : ['Order of San Pedro', 'Order of San Juan', 'Order of San Tiago', 'Order of San Andres']
+
+          const trackKey = orderRotationService.getServiceTrack(temp)
+          const currentIdx = trackRotationIndices[trackKey] !== undefined
+            ? trackRotationIndices[trackKey]
+            : rotationStartIndex
+
+          const assignedGroup = sequence[currentIdx % sequence.length]
+          const groupMembers = orderRotationService.getMembersForOrder(
+            assignedGroup,
+            allMembers,
+            rotationSettings.includeSuspended
+          )
+          assignedMemberIds = groupMembers.map(m => m.id)
+          trackRotationIndices[trackKey] = currentIdx + 1
+        }
 
         // 4. Create the schedule doc in Firestore
         try {
-          const newId = await scheduleService.addSchedule({
-            title: temp.title,
-            date: dateStr,
-            startTime: temp.startTime,
-            endTime: slotEndTime,
-            status: 'upcoming',
-            assignedMembers: []
-          })
+          const saved = await scheduleService.createGeneratedSchedule({ ...occurrence, assignedMembers: assignedMemberIds }, 'System', generation.publicationRevision)
+          if (!saved.created) {
+            result.duplicates++
+            result.skipped++
+            continue
+          }
 
           // Add to in-memory list to catch conflicts in subsequent generator iterations
           existingSchedules.push({
-            id: newId,
-            title: temp.title,
-            date: dateStr,
-            startTime: temp.startTime,
-            endTime: slotEndTime,
+            ...occurrence,
+            id: saved.id,
             status: 'upcoming',
-            assignedMembers: [],
+            assignedMembers: assignedMemberIds,
             createdAt: new Date(),
             updatedAt: new Date()
           })
@@ -336,11 +437,53 @@ export const recurringService = {
         } catch (err: any) {
           result.validationErrors.push(`Failed to save generated schedule for date ${dateStr}: ${err.message}`)
           result.skipped++
+          if (err instanceof GenerationContextChangedError) return result
         }
       }
     }
 
+
     return result
+  },
+
+  /**
+   * Non-destructively validates a list of Schedule Templates against the parish's 14 official Regular Mass slots.
+   */
+  validateOfficialRegularTemplates(templates: ScheduleTemplate[]): {
+    activeCount: number
+    matchedCount: number
+    missingSlots: string[]
+    extraSlots: string[]
+  } {
+    const active = templates.filter(t => t.active !== false)
+    const matchedSlots = new Set<string>()
+    const extraSlots: string[] = []
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+
+    active.forEach(t => {
+      const dow = dayNames.indexOf(normalizeDayOfWeek(t.dayOfWeek))
+      const normTime = normalizeTemplateTime24(t.startTime)
+      if (dow >= 0 && isOfficialRegularMassSlot(dow, normTime)) {
+        matchedSlots.add(`${dow}-${normTime}`)
+      } else {
+        extraSlots.push(`${t.dayOfWeek} ${t.startTime} (${t.title})`)
+      }
+    })
+
+    const missingSlots: string[] = []
+    OFFICIAL_REGULAR_MASS_SLOTS.forEach(slot => {
+      const key = `${slot.dayOfWeek}-${slot.startTime}`
+      if (!matchedSlots.has(key)) {
+        missingSlots.push(slot.label)
+      }
+    })
+
+    return {
+      activeCount: active.length,
+      matchedCount: matchedSlots.size,
+      missingSlots,
+      extraSlots
+    }
   },
 
   /**

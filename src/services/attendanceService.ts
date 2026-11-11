@@ -67,7 +67,7 @@ export const attendanceService = {
   },
 
   /**
-   * Saves attendance records inside a chunked sequential batch write.
+   * Saves records in sequential transactions, checking the session lock in each chunk.
    */
   async saveAttendanceRecords(
     sessionId: string,

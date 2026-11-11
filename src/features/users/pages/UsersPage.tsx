@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { userService } from '@/services/userService'
 import { authService } from '@/services/authService'
@@ -8,7 +10,7 @@ import type { UserProfile, UserRole, ModuleKey, UserPermissions, PermissionPrese
 import type { OrderGroup, Member } from '@/types/member'
 import { ORDER_GROUPS } from '@/types/member'
 import { Card } from '@/components/Card'
-import { ConfirmModal, AlertModal } from '@/components/Dialog'
+import { ConfirmModal } from '@/components/Dialog'
 import { Pagination } from '@/components/Pagination'
 import { Loading } from '@/components/Loading'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
@@ -16,7 +18,6 @@ import { Button } from '@/components/Button'
 import { ActionMenu, type ActionMenuItem } from '@/components'
 import { CustomSelect } from '@/components/CustomSelect'
 import { QuickFilterPills } from '@/components/QuickFilterPills'
-import { StatusBadge } from '@/components/StatusBadge'
 import { EmptyState } from '@/components/EmptyState'
 import { useToast } from '@/context/ToastContext'
 
@@ -96,9 +97,8 @@ export const UsersPage: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
-  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'order_leader' | 'user'>('all')
+  const [roleFilter, setRoleFilter] = useState<'all' | 'admin' | 'coordinator' | 'order_leader' | 'user'>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
   // Presets Management Modal State
@@ -285,24 +285,47 @@ export const UsersPage: React.FC = () => {
 
   // Confirm delete
   const [deleteTarget, setDeleteTarget] = useState<UserProfile | null>(null)
+  const [autoLinking, setAutoLinking] = useState(false)
 
   const loadData = async (showSpinner = true) => {
     if (showSpinner) setLoading(true)
-    setError(null)
     try {
       const [usersData, presetsData, membersData] = await Promise.all([
         userService.getUsers(),
         settingsService.getPermissionPresets(),
-        memberService.getMembers()
+        memberService.getMembers(true)
       ])
       setUsers(usersData)
       setPresets(presetsData)
       setMembers(membersData)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to load user accounts list and permission presets.')
+      toast.error('Load Failed', 'Failed to load user accounts list and permission presets.')
     } finally {
       if (showSpinner) setLoading(false)
+    }
+  }
+
+  const handleAutoLinkMembers = async () => {
+    setAutoLinking(true)
+    try {
+      const result = await userService.autoLinkAllUnlinkedUsers(currentAdmin?.email || 'Admin')
+      if (result.matchedCount > 0) {
+        toast.success(
+          'Auto-Linking Complete',
+          `Successfully linked ${result.matchedCount} user account${result.matchedCount === 1 ? '' : 's'} to member profiles.`
+        )
+        await loadData(false)
+      } else if (result.totalUnlinked === 0) {
+        toast.info('All Accounts Linked', 'All user accounts in the system are already linked to member profiles.')
+      } else {
+        toast.info('No Matches Found', `Found ${result.totalUnlinked} unlinked accounts, but no matching member profiles by email or name were found.`)
+      }
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Auto-Link Failed', err.message || 'Failed to auto-link member profiles.')
+    } finally {
+      setAutoLinking(false)
     }
   }
 
@@ -559,7 +582,7 @@ export const UsersPage: React.FC = () => {
   const handleSavePreset = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!presetFormName.trim()) {
-      setError('Preset name is required.')
+      toast.error('Validation Error', 'Preset name is required.')
       return
     }
 
@@ -658,7 +681,7 @@ export const UsersPage: React.FC = () => {
       handleOpenAddPreset()
     } catch (err: any) {
       console.error(err)
-      setError('Failed to save permission preset.')
+      toast.error('Preset Error', 'Failed to save permission preset.')
     } finally {
       setSaving(false)
     }
@@ -675,7 +698,7 @@ export const UsersPage: React.FC = () => {
       toast.success('Preset Removed', `Preset '${p.name}' was removed.`)
     } catch (err: any) {
       console.error(err)
-      setError('Failed to delete permission preset.')
+      toast.error('Preset Error', 'Failed to delete permission preset.')
     } finally {
       setSaving(false)
     }
@@ -693,7 +716,6 @@ export const UsersPage: React.FC = () => {
     if (presets.length > 0) {
       applyPreset(presets[0])
     }
-    setError(null)
     setIsModalOpen(true)
   }
 
@@ -710,6 +732,16 @@ export const UsersPage: React.FC = () => {
     setAssignedOrder(userToEdit.assignedOrder || '')
 
     const perms = userToEdit.permissions
+    const presetName = perms?.presetName
+    const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : null
+    if (matchedPreset) {
+      setActivePresetId(matchedPreset.id)
+      setActivePresetName(matchedPreset.name)
+    } else {
+      setActivePresetId(null)
+      setActivePresetName(presetName || '')
+    }
+
     if (userToEdit.role === 'admin') {
       const adminPreset = presets.find(p => p.role === 'admin') || DEFAULT_PERMISSION_PRESETS.find(p => p.id === 'preset_admin')
       if (adminPreset) applyPreset(adminPreset)
@@ -788,7 +820,6 @@ export const UsersPage: React.FC = () => {
     } else {
       if (presets.length > 0) applyPreset(presets[0])
     }
-    setError(null)
     setIsModalOpen(true)
   }
 
@@ -805,28 +836,28 @@ export const UsersPage: React.FC = () => {
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!email.trim()) {
-      setError('Email address is required.')
+      toast.error('Validation Error', 'Email address is required.')
       return
     }
 
     if (!editingUser && (!password || password.length < 6)) {
-      setError('Password is required and must be at least 6 characters.')
+      toast.error('Validation Error', 'Password is required and must be at least 6 characters.')
       return
     }
 
     if (password || confirmPassword) {
       if (password !== confirmPassword) {
-        setError('New Password and Confirm New Password do not match. Please verify.')
+        toast.error('Validation Error', 'New Password and Confirm New Password do not match. Please verify.')
         return
       }
       if (password.length < 6) {
-        setError('Password must be at least 6 characters long.')
+        toast.error('Validation Error', 'Password must be at least 6 characters long.')
         return
       }
     }
 
     if (role === 'order_leader' && !assignedOrder) {
-      setError('Please select an Assigned Order for the Order Leader account.')
+      toast.error('Validation Error', 'Please select an Assigned Order for the Order Leader account.')
       return
     }
 
@@ -908,20 +939,19 @@ export const UsersPage: React.FC = () => {
     }
 
     setSaving(true)
-    setError(null)
     try {
       if (editingUser) {
         const isEditingCoordinator = editingUser.email.toLowerCase() === 'coordinator@mas.com'
         const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
 
         if (editingUser.uid === currentAdmin?.uid && role !== 'admin' && role !== 'coordinator') {
-          setError('You cannot revoke your own admin access.')
+          toast.error('Permission Denied', 'You cannot revoke your own admin access.')
           setSaving(false)
           return
         }
 
         if (isEditingCoordinator && !isCurrentCoordinator) {
-          setError('The Coordinator account can only be modified by the Coordinator themselves.')
+          toast.error('Permission Denied', 'The Coordinator account can only be modified by the Coordinator themselves.')
           setSaving(false)
           return
         }
@@ -980,7 +1010,7 @@ export const UsersPage: React.FC = () => {
       } else if (err.code === 'auth/weak-password') {
         msg = 'Password should be at least 6 characters long.'
       }
-      setError(msg)
+      toast.error('User Save Failed', msg)
     } finally {
       setSaving(false)
     }
@@ -990,7 +1020,7 @@ export const UsersPage: React.FC = () => {
     if (!deleteTarget) return
     // Prevent self-deletion
     if (deleteTarget.uid === currentAdmin?.uid) {
-      setError('You cannot delete your own account.')
+      toast.error('Action Denied', 'You cannot delete your own account.')
       setDeleteTarget(null)
       return
     }
@@ -998,13 +1028,12 @@ export const UsersPage: React.FC = () => {
     const isTargetCoordinator = deleteTarget.email.toLowerCase() === 'coordinator@mas.com'
     const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
     if (isTargetCoordinator && !isCurrentCoordinator) {
-      setError('The Coordinator account is protected and cannot be deleted by other admins.')
+      toast.error('Action Denied', 'The Coordinator account is protected and cannot be deleted by other admins.')
       setDeleteTarget(null)
       return
     }
 
     setSaving(true)
-    setError(null)
     try {
       await userService.deleteUserProfile(
         deleteTarget.uid,
@@ -1016,14 +1045,75 @@ export const UsersPage: React.FC = () => {
       await loadData(false)
     } catch (err: any) {
       console.error(err)
-      setError(err.message || 'Failed to delete user profile.')
+      toast.error('Delete Failed', err.message || 'Failed to delete user profile.')
     } finally {
       setSaving(false)
     }
   }
 
+  const handleResetPassword = async (userToReset: UserProfile) => {
+    try {
+      await userService.sendPasswordReset(userToReset.email, currentAdmin?.email || 'Administrator')
+      toast.success('Password Reset Sent', `Password reset instructions sent to ${userToReset.email}`)
+    } catch (err: any) {
+      console.error(err)
+      toast.error('Reset Failed', err.message || 'Failed to send password reset email.')
+    }
+  }
+
   const [selectedMemberId, setSelectedMemberId] = useState<string>('')
   const [selectedMemberName, setSelectedMemberName] = useState<string>('')
+
+  const getUserActions = (u: UserProfile): ActionMenuItem[] => {
+    const isCurrent = u.uid === currentAdmin?.uid
+    const isCoordinatorAccount = u.email.toLowerCase() === 'coordinator@mas.com'
+    const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
+    const canModifyCoordinator = !isCoordinatorAccount || isCurrentCoordinator
+
+    const userActions: ActionMenuItem[] = []
+
+    if (canModifyCoordinator) {
+      userActions.push({
+        id: 'edit',
+        label: 'Edit Profile & Role',
+        variant: 'primary',
+        onClick: () => handleOpenEditModal(u),
+        icon: (
+          <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        ),
+      })
+
+      userActions.push({
+        id: 'reset_password',
+        label: 'Send Password Reset',
+        variant: 'warning',
+        onClick: () => handleResetPassword(u),
+        icon: (
+          <svg className="h-4 w-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+          </svg>
+        ),
+      })
+    }
+
+    if (!isCurrent && canModifyCoordinator) {
+      userActions.push({
+        id: 'remove',
+        label: 'Delete User Account',
+        variant: 'danger',
+        onClick: () => setDeleteTarget(u),
+        icon: (
+          <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        ),
+      })
+    }
+
+    return userActions
+  }
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
@@ -1037,7 +1127,9 @@ export const UsersPage: React.FC = () => {
         const email = (u.email || '').toLowerCase()
         const name = (u.displayName || u.memberName || '').toLowerCase()
         const role = (u.role || '').toLowerCase()
-        if (!email.includes(q) && !name.includes(q) && !role.includes(q)) return false
+        const presetName = (u.permissions?.presetName || '').toLowerCase()
+        const assignedOrder = (u.assignedOrder || '').toLowerCase()
+        if (!email.includes(q) && !name.includes(q) && !role.includes(q) && !presetName.includes(q) && !assignedOrder.includes(q)) return false
       }
       return true
     })
@@ -1068,18 +1160,36 @@ export const UsersPage: React.FC = () => {
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl font-sans">User Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage user accounts and configure custom module permissions.</p>
         </div>
-        <Button
-          onClick={handleOpenAddModal}
-          variant="primary"
-          size="default"
-          icon={
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-          }
-        >
-          Register New User
-        </Button>
+        <div className="flex items-center gap-2.5 flex-wrap">
+          {isAdmin && (
+            <Button
+              onClick={handleAutoLinkMembers}
+              variant="secondary"
+              size="default"
+              loading={autoLinking}
+              disabled={autoLinking}
+              icon={
+                <svg className="h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              }
+            >
+              Auto-Link Members
+            </Button>
+          )}
+          <Button
+            onClick={handleOpenAddModal}
+            variant="primary"
+            size="default"
+            icon={
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            }
+          >
+            Register New User
+          </Button>
+        </div>
       </div>
 
 
@@ -1101,10 +1211,22 @@ export const UsersPage: React.FC = () => {
               count: users.filter(u => u.role === 'admin').length,
             },
             {
+              label: 'Coordinators',
+              active: roleFilter === 'coordinator',
+              onClick: () => { setRoleFilter('coordinator'); setCurrentPage(1); },
+              count: users.filter(u => u.role === 'coordinator').length,
+            },
+            {
               label: 'Order Leaders',
               active: roleFilter === 'order_leader',
               onClick: () => { setRoleFilter('order_leader'); setCurrentPage(1); },
               count: users.filter(u => u.role === 'order_leader').length,
+            },
+            {
+              label: 'Officers & Users',
+              active: roleFilter === 'user',
+              onClick: () => { setRoleFilter('user'); setCurrentPage(1); },
+              count: users.filter(u => !u.role || u.role === 'user').length,
             },
           ]}
         />
@@ -1133,7 +1255,8 @@ export const UsersPage: React.FC = () => {
           />
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-gray-100 bg-gray-50/50 text-gray-400 uppercase tracking-wider text-[10px] font-bold">
@@ -1171,10 +1294,47 @@ export const UsersPage: React.FC = () => {
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
-                          <StatusBadge
-                            status={u.role === 'admin' ? 'Administrator' : u.role === 'order_leader' ? `Order Leader${u.assignedOrder ? ` (${u.assignedOrder})` : ''}` : 'User Account'}
-                            size="sm"
-                          />
+                          {(() => {
+                            if (u.role === 'admin') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                                  Administrator
+                                </span>
+                              )
+                            }
+                            if (u.role === 'coordinator') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                  Coordinator
+                                </span>
+                              )
+                            }
+                            if (u.role === 'order_leader') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                  Order Leader{u.assignedOrder ? ` (${u.assignedOrder})` : ''}
+                                </span>
+                              )
+                            }
+                            const presetName = u.permissions?.presetName
+                            if (presetName) {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                  {presetName}
+                                </span>
+                              )
+                            }
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                                User Account
+                              </span>
+                            )
+                          })()}
                         </td>
                         <td className="px-6 py-4 text-xs whitespace-nowrap">
                           {(() => {
@@ -1182,6 +1342,14 @@ export const UsersPage: React.FC = () => {
                               return (
                                 <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
                                   Full System Access
+                                </span>
+                              )
+                            }
+
+                            if (u.role === 'coordinator') {
+                              return (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                                  Parish Coordinator
                                 </span>
                               )
                             }
@@ -1232,40 +1400,7 @@ export const UsersPage: React.FC = () => {
                         </td>
                         <td className="px-6 py-4 text-right whitespace-nowrap text-xs">
                           {(() => {
-                            const isCoordinatorAccount = u.email.toLowerCase() === 'coordinator@mas.com'
-                            const isCurrentCoordinator = currentAdmin?.email?.toLowerCase() === 'coordinator@mas.com'
-                            const canModifyCoordinator = !isCoordinatorAccount || isCurrentCoordinator
-
-                            const userActions: ActionMenuItem[] = []
-
-                            if (canModifyCoordinator) {
-                              userActions.push({
-                                id: 'edit',
-                                label: 'Edit Permissions',
-                                variant: 'primary',
-                                onClick: () => handleOpenEditModal(u),
-                                icon: (
-                                  <svg className="h-4 w-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                ),
-                              })
-                            }
-
-                            if (!isCurrent && canModifyCoordinator) {
-                              userActions.push({
-                                id: 'remove',
-                                label: 'Remove User',
-                                variant: 'danger',
-                                onClick: () => setDeleteTarget(u),
-                                icon: (
-                                  <svg className="h-4 w-4 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                ),
-                              })
-                            }
-
+                            const userActions = getUserActions(u)
                             if (userActions.length === 0) {
                               return <span className="text-gray-400 italic text-[11px]">—</span>
                             }
@@ -1274,8 +1409,8 @@ export const UsersPage: React.FC = () => {
                               <div className="flex justify-end">
                                 <ActionMenu
                                   items={userActions}
-                                  triggerVariant="kebab"
-                                  size="xs"
+                                  triggerVariant="meatball"
+                                  size="sm"
                                   align="right"
                                   direction="auto"
                                   ariaLabel={`Actions for ${u.displayName || u.email}`}
@@ -1290,6 +1425,162 @@ export const UsersPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+
+            {/* Mobile Card List View (< md) */}
+            <div className="block md:hidden divide-y divide-gray-100 bg-white">
+              {filteredUsers.slice((currentPage - 1) * 10, currentPage * 10).map((u) => {
+                const isCurrent = u.uid === currentAdmin?.uid
+                const presetName = u.permissions?.presetName
+                const mods = u.permissions?.allowedModules || []
+                const matchedPreset = presetName ? presets.find(p => p.name.toLowerCase() === presetName.toLowerCase()) : undefined
+                const presetIcon = matchedPreset ? PRESET_ICONS[matchedPreset.icon] : null
+
+                return (
+                  <div key={u.uid} className="p-4 space-y-3 hover:bg-gray-50/50 transition-colors">
+                    {/* Header Row: Email & Role Badge */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-xs font-bold text-gray-900 break-all">{u.email}</span>
+                          {isCurrent && (
+                            <span className="text-[10px] font-bold text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded shrink-0">
+                              You
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Linked Member Name */}
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <span className="font-semibold text-slate-700 text-xs">
+                            {u.displayName || u.memberName || '--'}
+                          </span>
+                          {u.memberId && (
+                            <span className="text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200/60 shrink-0">
+                              Linked
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Role Badge */}
+                      <div className="shrink-0">
+                        {(() => {
+                          if (u.role === 'admin') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                                Administrator
+                              </span>
+                            )
+                          }
+                          if (u.role === 'coordinator') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+                                Coordinator
+                              </span>
+                            )
+                          }
+                          if (u.role === 'order_leader') {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                                Order Leader{u.assignedOrder ? ` (${u.assignedOrder})` : ''}
+                              </span>
+                            )
+                          }
+                          if (presetName) {
+                            return (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                {presetName}
+                              </span>
+                            )
+                          }
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                              <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                              User Account
+                            </span>
+                          )
+                        })()}
+                      </div>
+                    </div>
+
+                    {/* Assigned Preset / Module Access Pill */}
+                    <div className="flex items-center gap-2 text-xs flex-wrap">
+                      <span className="text-[10px] uppercase font-bold text-gray-400">Access:</span>
+                      {(() => {
+                        if (u.role === 'admin') {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200/80">
+                              Full System Access
+                            </span>
+                          )
+                        }
+
+                        if (u.role === 'coordinator') {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                              Parish Coordinator
+                            </span>
+                          )
+                        }
+
+                        if (presetName) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+                              {presetIcon && <span className="text-blue-600 shrink-0">{presetIcon}</span>}
+                              <span>{presetName}</span>
+                            </span>
+                          )
+                        }
+
+                        if (mods.length >= ALL_MODULES.length) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/80">
+                              Full Module Access
+                            </span>
+                          )
+                        }
+
+                        if (mods.length > 0) {
+                          return (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200/80">
+                              Custom Access ({mods.length} Modules)
+                            </span>
+                          )
+                        }
+
+                        return <span className="text-gray-400 italic text-[11px]">Default Access</span>
+                      })()}
+                    </div>
+
+                    {/* Meatball Action Menu */}
+                    <div className="flex items-center justify-end pt-2 border-t border-gray-100">
+                      {(() => {
+                        const userActions = getUserActions(u)
+                        if (userActions.length === 0) {
+                          return <span className="text-gray-400 italic text-[11px]">—</span>
+                        }
+
+                        return (
+                          <ActionMenu
+                            items={userActions}
+                            triggerVariant="meatball"
+                            size="sm"
+                            align="right"
+                            direction="auto"
+                            ariaLabel={`Actions for ${u.displayName || u.email}`}
+                          />
+                        )
+                      })()}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
             <Pagination
               currentPage={currentPage}
               totalItems={filteredUsers.length}
@@ -1324,7 +1615,7 @@ export const UsersPage: React.FC = () => {
             </div>
 
             {/* Modal Scrollable Body */}
-            <form id="user-form" onSubmit={handleSaveUser} className="flex-1 overflow-y-auto p-6 space-y-6">
+            <ValidatedForm id="user-form" onSubmit={handleSaveUser} className="flex-1 overflow-y-auto p-6 space-y-6">
               {/* Account Credentials */}
               <div className="bg-gray-50/70 p-4 rounded-xl border border-gray-200/80 space-y-3">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-600 flex items-center gap-1.5">
@@ -1334,10 +1625,10 @@ export const UsersPage: React.FC = () => {
                   Account Profile
                 </h4>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">User Email *</label>
-                    <input
+                    <FormInput
                       type="email"
                       required
                       disabled={!!editingUser}
@@ -1368,7 +1659,78 @@ export const UsersPage: React.FC = () => {
                       }}
                     />
                   </div>
+                  <div>
+                    <CustomSelect
+                      label="Account Role *"
+                      value={role}
+                      onChange={(e) => {
+                        const newRole = e.target.value as UserRole
+                        setRole(newRole)
+                        if (newRole === 'admin') {
+                          const adminPreset = presets.find(p => p.role === 'admin') || DEFAULT_PERMISSION_PRESETS.find(p => p.id === 'preset_admin')
+                          if (adminPreset) applyPreset(adminPreset)
+                        } else if (newRole === 'coordinator') {
+                          const coordPreset = presets.find(p => p.role === 'coordinator' || p.name.toLowerCase().includes('coordinator'))
+                          if (coordPreset) {
+                            applyPreset(coordPreset)
+                          } else {
+                            setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports', 'members', 'excuses'])
+                            setCanViewSchedules(true)
+                            setCanManageSchedules(true)
+                            setCanTakeAttendance(true)
+                            setCanFinalizeAttendance(true)
+                            setCanViewReports(true)
+                            setCanExportReports(true)
+                            setCanViewMembers(true)
+                            setCanManageMembers(true)
+                            setCanReviewExcuses(true)
+                            setCanApproveExcuses(true)
+                            setActivePresetId(null)
+                            setActivePresetName('Parish Coordinator')
+                          }
+                        } else if (newRole === 'order_leader') {
+                          const olPreset = presets.find(p => p.role === 'order_leader' || p.name.toLowerCase().includes('order leader'))
+                          if (olPreset) {
+                            applyPreset(olPreset)
+                          } else {
+                            setAllowedModules(['dashboard', 'schedules', 'attendance', 'reports', 'members'])
+                            setCanTakeAttendance(true)
+                            setCanFinalizeAttendance(false)
+                            setCanViewSchedules(true)
+                            setCanManageSchedules(false)
+                            setCanViewReports(true)
+                            setCanExportReports(true)
+                            setCanViewMembers(true)
+                            setActivePresetId(null)
+                            setActivePresetName('Order Leader')
+                          }
+                        }
+                      }}
+                      options={[
+                        { value: 'user', label: 'Officer / Standard User' },
+                        { value: 'order_leader', label: 'Order Leader' },
+                        { value: 'coordinator', label: 'Coordinator' },
+                        { value: 'admin', label: 'Administrator' },
+                      ]}
+                      helperText="Authorization level and system privileges."
+                    />
+                  </div>
                 </div>
+
+                {role === 'order_leader' && (
+                  <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-xl">
+                    <CustomSelect
+                      label="Assigned Order Group *"
+                      value={assignedOrder}
+                      onChange={(e) => setAssignedOrder(e.target.value as OrderGroup)}
+                      options={[
+                        { value: '', label: '-- Select Order Group --' },
+                        ...ORDER_GROUPS.map((grp) => ({ value: grp, label: grp }))
+                      ]}
+                      helperText="Order Leaders are scoped to manage attendance and reports for their assigned Order Group."
+                    />
+                  </div>
+                )}
 
                 {/* Password Fields / Reset Email Action */}
                 {!editingUser && (
@@ -1377,7 +1739,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         Password *
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         required
                         minLength={6}
@@ -1391,7 +1753,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         Confirm Password *
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         required
                         minLength={6}
@@ -1416,7 +1778,7 @@ export const UsersPage: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
                           Current Password {password.length > 0 && <span className="text-rose-500">*</span>}
                         </label>
-                        <input
+                        <FormInput
                           type="password"
                           required={password.length > 0}
                           value={currentPassword}
@@ -1429,7 +1791,7 @@ export const UsersPage: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
                           New Password (Optional)
                         </label>
-                        <input
+                        <FormInput
                           type="password"
                           minLength={6}
                           value={password}
@@ -1442,7 +1804,7 @@ export const UsersPage: React.FC = () => {
                         <label className="block text-[10px] font-bold uppercase tracking-wider text-blue-800 mb-1">
                           Confirm New Password
                         </label>
-                        <input
+                        <FormInput
                           type="password"
                           required={password.length > 0}
                           minLength={6}
@@ -1462,7 +1824,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         New Password (Optional)
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         minLength={6}
                         value={password}
@@ -1475,7 +1837,7 @@ export const UsersPage: React.FC = () => {
                       <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">
                         Confirm New Password
                       </label>
-                      <input
+                      <FormInput
                         type="password"
                         required={password.length > 0}
                         minLength={6}
@@ -2000,7 +2362,7 @@ export const UsersPage: React.FC = () => {
                 </div>
 
               </div>
-            </form>
+            </ValidatedForm>
 
             {/* Modal Fixed Footer */}
             <div className="flex items-center justify-end space-x-3 p-4 border-t border-gray-100 bg-white shrink-0">
@@ -2095,21 +2457,35 @@ export const UsersPage: React.FC = () => {
                 </div>
 
                 {/* Add / Edit Preset Form */}
-                <form onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
+                <ValidatedForm onSubmit={handleSavePreset} className="bg-gray-50/80 p-4 rounded-xl border border-gray-200 space-y-4">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-gray-700">
                   {presetEditing ? `Edit Preset: ${presetEditing.name}` : 'Create New Permission Preset'}
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <label className="block text-[10px] font-bold uppercase tracking-wider text-gray-400 mb-1">Preset Name *</label>
-                    <input
+                    <FormInput
                       type="text"
                       required
                       value={presetFormName}
                       onChange={(e) => setPresetFormName(e.target.value)}
                       placeholder="e.g. Secretary"
                       className="block w-full rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs text-gray-800 focus:outline-none focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <CustomSelect
+                      label="Base Account Role"
+                      required
+                      value={presetFormRole}
+                      onChange={(e) => setPresetFormRole(e.target.value as UserRole)}
+                      options={[
+                        { value: 'user', label: 'Officer / User' },
+                        { value: 'order_leader', label: 'Order Leader' },
+                        { value: 'coordinator', label: 'Coordinator' },
+                        { value: 'admin', label: 'Administrator' },
+                      ]}
                     />
                   </div>
                   <div>
@@ -2124,7 +2500,8 @@ export const UsersPage: React.FC = () => {
                         { value: 'shield', label: 'Shield (Admin)' },
                         { value: 'calendar', label: 'Calendar (Schedules)' },
                         { value: 'chart', label: 'Chart (Reports)' },
-                        { value: 'settings', label: 'Settings (Config)' }
+                        { value: 'settings', label: 'Settings (Config)' },
+                        { value: 'bank', label: 'Bank (Finance)' }
                       ]}
                     />
                   </div>
@@ -2546,7 +2923,7 @@ export const UsersPage: React.FC = () => {
                     {presetEditing ? 'Update Preset' : 'Save New Preset'}
                   </Button>
                 </div>
-              </form>
+              </ValidatedForm>
             </div>
 
             <div className="p-4 border-t border-gray-100 bg-white flex justify-end shrink-0">
@@ -2573,15 +2950,6 @@ export const UsersPage: React.FC = () => {
         message={`Are you sure you want to remove '${deleteTarget?.email}' from system user profiles?`}
         confirmLabel="Remove Profile"
         loading={saving}
-      />
-
-      {/* Alert Dialog for Errors */}
-      <AlertModal
-        isOpen={!!error}
-        onClose={() => setError(null)}
-        variant="error"
-        title="User Management Error"
-        message={error || ''}
       />
     </div>
   )

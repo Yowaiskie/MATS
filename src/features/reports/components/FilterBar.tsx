@@ -1,5 +1,5 @@
 import React from 'react'
-import { FilterDropdown } from '@/components'
+import { FilterDropdown, DatePicker } from '@/components'
 import type { SchedulePublication } from '@/types/publication'
 
 interface FilterBarProps {
@@ -74,12 +74,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <label htmlFor="filter-start" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               Start Date
             </label>
-            <input
+            <DatePicker
               id="filter-start"
-              type="date"
               value={startDate}
-              onChange={(e) => onStartDateChange(e.target.value)}
-              className="block w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
+              onChange={(val) => onStartDateChange(val)}
+              placeholder="Select start date"
+              maxDate={endDate || undefined}
             />
           </div>
 
@@ -87,16 +87,17 @@ export const FilterBar: React.FC<FilterBarProps> = ({
             <label htmlFor="filter-end" className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
               End Date
             </label>
-            <input
+            <DatePicker
               id="filter-end"
-              type="date"
               value={endDate}
-              onChange={(e) => onEndDateChange(e.target.value)}
-              className="block w-full rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 cursor-pointer font-medium"
+              onChange={(val) => onEndDateChange(val)}
+              placeholder="Select end date"
+              minDate={startDate || undefined}
             />
           </div>
         </>
       )}
+
 
       {/* Year filter (Only used by Monthly tab) */}
       {activeTab === 'monthly' && (

@@ -329,7 +329,7 @@ export const AbsenceBreakdownModal: React.FC<AbsenceBreakdownModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="flex justify-end pt-3 border-t border-slate-100 shrink-0 bg-white sticky bottom-0">
+          <div className="flex flex-col sm:flex-row sm:justify-end pt-3 border-t border-slate-100 shrink-0 bg-white sticky bottom-0 [&>button]:w-full [&>button]:sm:w-auto">
             <Button
               type="button"
               variant="outline"

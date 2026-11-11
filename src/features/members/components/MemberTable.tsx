@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS, getOrderBadgeStyle, MEMBER_RANKS, getMemberOrders } from '@/types/member'
+import type { RenewalMembership, RenewalMembershipWithMember } from '@/types/renewal'
+import { getRenewalStatusBadgeStyle } from '@/types/renewal'
 import { getFullName } from '@/utils/member'
 import { Pagination } from '@/components/Pagination'
-import { BulkProgressBar } from '@/components'
+import { BulkProgressBar, ActionMenu } from '@/components'
+import type { ActionMenuItem } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 
 interface MemberTableProps {
@@ -23,6 +26,13 @@ interface MemberTableProps {
   onClearSelection: () => void
   onExportSelected?: () => void
   bulkProcessing?: boolean
+
+  // Renewal Cycle Mode Props
+  isCycleMode?: boolean
+  isCycleArchived?: boolean
+  cycleMembershipMap?: Map<string, RenewalMembership>
+  onEditCycleMembership?: (membership: RenewalMembershipWithMember) => void
+  onRemoveFromCycle?: (memberId: string, memberName: string) => void
 }
 
 type SortField = 'name' | 'rank' | 'status'
@@ -43,12 +53,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   onClearSelection,
   onExportSelected,
   bulkProcessing,
+  isCycleMode = false,
+  isCycleArchived = false,
+  cycleMembershipMap,
+  onEditCycleMembership,
+  onRemoveFromCycle,
 }) => {
   const { isAdmin, canAction } = useAuth()
   const canManage = isAdmin || canAction('canManageMembers')
   const canDelete = isAdmin || canAction('canDeleteMembers')
   const [searchTerm, setSearchTerm] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive' | 'suspended'>('all')
+  const [statusFilter, setStatusFilter] = useState<string>('all')
   const [orderFilter, setOrderFilter] = useState<string>('all')
   const [rankFilter, setRankFilter] = useState<string>('all')
   const [sortField, setSortField] = useState<SortField>('name')
@@ -101,18 +116,22 @@ export const MemberTable: React.FC<MemberTableProps> = ({
   // Filter + sort
   const filteredMembers = members
     .filter((member) => {
+      const cycleMembership = isCycleMode ? cycleMembershipMap?.get(member.id) : undefined
+      const effectiveRank = cycleMembership ? cycleMembership.cycleRank : member.rank
+      const effectiveStatus = cycleMembership ? cycleMembership.membershipStatus : member.status
+
       const query = searchTerm.toLowerCase().trim()
       const computedFullname = getFullName(member).toLowerCase()
       const matchesSearch =
         computedFullname.includes(query) ||
-        member.rank.toLowerCase().includes(query) ||
+        effectiveRank.toLowerCase().includes(query) ||
         (member.order || '').toLowerCase().includes(query) ||
         (member.phoneNumber || '').includes(query)
 
       const matchesStatus =
         showArchived ||
         statusFilter === 'all' ||
-        member.status === statusFilter
+        effectiveStatus === statusFilter
 
       const memberOrders = getMemberOrders(member.order)
       const matchesOrder =
@@ -121,19 +140,29 @@ export const MemberTable: React.FC<MemberTableProps> = ({
 
       const matchesRank = 
         rankFilter === 'all' ||
-        member.rank === rankFilter
+        effectiveRank === rankFilter
 
       return matchesSearch && matchesStatus && matchesOrder && matchesRank
     })
     .sort((a, b) => {
       let aVal = ''
       let bVal = ''
+      const aCycle = isCycleMode ? cycleMembershipMap?.get(a.id) : undefined
+      const bCycle = isCycleMode ? cycleMembershipMap?.get(b.id) : undefined
+      const aRank = aCycle ? aCycle.cycleRank : a.rank
+      const bRank = bCycle ? bCycle.cycleRank : b.rank
+      const aStatus = aCycle ? aCycle.membershipStatus : a.status
+      const bStatus = bCycle ? bCycle.membershipStatus : b.status
+
       if (sortField === 'name') {
         aVal = getFullName(a).toLowerCase()
         bVal = getFullName(b).toLowerCase()
+      } else if (sortField === 'rank') {
+        aVal = (aRank || '').toLowerCase()
+        bVal = (bRank || '').toLowerCase()
       } else {
-        aVal = (a[sortField] || '').toLowerCase()
-        bVal = (b[sortField] || '').toLowerCase()
+        aVal = (aStatus || '').toLowerCase()
+        bVal = (bStatus || '').toLowerCase()
       }
       if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1
       if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1
@@ -416,7 +445,10 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                   <div className="flex items-center space-x-2 min-w-0 pr-1">
                     <div className={`w-2 h-2 rounded-full shrink-0 ${
                       statusFilter === 'active' ? 'bg-emerald-500' :
-                      statusFilter === 'inactive' ? 'bg-amber-500' :
+                      statusFilter === 'probationary' ? 'bg-amber-500' :
+                      statusFilter === 'honorary' ? 'bg-indigo-500' :
+                      statusFilter === 'alumni' ? 'bg-blue-500' :
+                      statusFilter === 'inactive' ? 'bg-slate-500' :
                       statusFilter === 'suspended' ? 'bg-rose-500' :
                       'bg-slate-400'
                     }`} />
@@ -430,23 +462,33 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                 </button>
 
                 {statusDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-1.5 space-y-0.5 animate-in fade-in zoom-in-95 min-w-[160px]">
+                  <div className="absolute right-0 top-full mt-1.5 bg-white rounded-2xl border border-slate-200 shadow-xl z-30 p-1.5 space-y-0.5 animate-in fade-in zoom-in-95 min-w-[170px]">
                     <div className="px-2.5 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-wider">
-                      Select Status
+                      {isCycleMode ? 'Cycle Status' : 'Directory Status'}
                     </div>
-                    {[
-                      { key: 'all', label: 'All Status', dot: 'bg-slate-400', count: members.length },
-                      { key: 'active', label: 'Active', dot: 'bg-emerald-500', count: members.filter(m => m.status === 'active').length },
-                      { key: 'inactive', label: 'Inactive', dot: 'bg-amber-500', count: members.filter(m => m.status === 'inactive').length },
-                      { key: 'suspended', label: 'Suspended', dot: 'bg-rose-500', count: members.filter(m => m.status === 'suspended').length },
-                    ].map((s) => {
+                    {(isCycleMode
+                      ? [
+                          { key: 'all', label: 'All Status', dot: 'bg-slate-400', count: members.length },
+                          { key: 'active', label: 'Active', dot: 'bg-emerald-500', count: members.filter(m => (cycleMembershipMap?.get(m.id)?.membershipStatus || 'active') === 'active').length },
+                          { key: 'probationary', label: 'Probationary', dot: 'bg-amber-500', count: members.filter(m => cycleMembershipMap?.get(m.id)?.membershipStatus === 'probationary').length },
+                          { key: 'honorary', label: 'Honorary', dot: 'bg-indigo-500', count: members.filter(m => cycleMembershipMap?.get(m.id)?.membershipStatus === 'honorary').length },
+                          { key: 'alumni', label: 'Alumni', dot: 'bg-blue-500', count: members.filter(m => cycleMembershipMap?.get(m.id)?.membershipStatus === 'alumni').length },
+                          { key: 'inactive', label: 'Inactive', dot: 'bg-slate-500', count: members.filter(m => cycleMembershipMap?.get(m.id)?.membershipStatus === 'inactive').length },
+                        ]
+                      : [
+                          { key: 'all', label: 'All Status', dot: 'bg-slate-400', count: members.length },
+                          { key: 'active', label: 'Active', dot: 'bg-emerald-500', count: members.filter(m => m.status === 'active').length },
+                          { key: 'inactive', label: 'Inactive', dot: 'bg-amber-500', count: members.filter(m => m.status === 'inactive').length },
+                          { key: 'suspended', label: 'Suspended', dot: 'bg-rose-500', count: members.filter(m => m.status === 'suspended').length },
+                        ]
+                    ).map((s) => {
                       const isSelected = statusFilter === s.key
                       return (
                         <button
                           key={s.key}
                           type="button"
                           onClick={() => {
-                            setStatusFilter(s.key as any)
+                            setStatusFilter(s.key)
                             setStatusDropdownOpen(false)
                           }}
                           className={`w-full text-left px-2.5 py-2 rounded-xl flex items-center justify-between text-xs transition cursor-pointer ${
@@ -482,8 +524,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
             {[
               { label: 'All', active: orderFilter === 'all' && rankFilter === 'all' && statusFilter === 'all', onClick: () => { setOrderFilter('all'); setRankFilter('all'); setStatusFilter('all'); } },
               { label: 'Active', active: statusFilter === 'active', onClick: () => setStatusFilter(statusFilter === 'active' ? 'all' : 'active') },
-              { label: 'Inactive', active: statusFilter === 'inactive', onClick: () => setStatusFilter(statusFilter === 'inactive' ? 'all' : 'inactive') },
-              { label: 'Suspended', active: statusFilter === 'suspended', onClick: () => setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended') },
+              ...(isCycleMode
+                ? [
+                    { label: 'Probationary', active: statusFilter === 'probationary', onClick: () => setStatusFilter(statusFilter === 'probationary' ? 'all' : 'probationary') },
+                    { label: 'Honorary', active: statusFilter === 'honorary', onClick: () => setStatusFilter(statusFilter === 'honorary' ? 'all' : 'honorary') },
+                    { label: 'Alumni', active: statusFilter === 'alumni', onClick: () => setStatusFilter(statusFilter === 'alumni' ? 'all' : 'alumni') },
+                  ]
+                : [
+                    { label: 'Inactive', active: statusFilter === 'inactive', onClick: () => setStatusFilter(statusFilter === 'inactive' ? 'all' : 'inactive') },
+                    { label: 'Suspended', active: statusFilter === 'suspended', onClick: () => setStatusFilter(statusFilter === 'suspended' ? 'all' : 'suspended') },
+                  ]
+              ),
               ...ORDER_GROUPS.slice(0, 4).map(grp => ({
                 label: grp,
                 active: orderFilter === grp,
@@ -676,11 +727,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({
       {/* Table Container */}
       <div className="border border-slate-200/80 rounded-2xl overflow-hidden bg-white shadow-2xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs whitespace-nowrap">
+          <table className="w-full text-left text-xs">
             <thead className="bg-slate-50/80 border-b border-slate-200/80 text-slate-400 uppercase tracking-wider text-[11px] select-none font-black">
               <tr>
                 {/* Select-all checkbox header */}
-                <th className="p-4 w-10">
+                <th className="p-2.5 sm:p-4 w-8 sm:w-10 shrink-0">
                   <button
                     onClick={handleHeaderCheckbox}
                     className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
@@ -706,40 +757,44 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                   </button>
                 </th>
 
-                <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('name')}>
+                <th className="p-2.5 sm:p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('name')}>
                   <span className="flex items-center space-x-1">
                     <span>Full Name</span>
                     <SortIcon field="name" />
                   </span>
                 </th>
-                <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('rank')}>
+                <th className="p-2.5 sm:p-4 hidden md:table-cell cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('rank')}>
                   <span className="flex items-center space-x-1">
                     <span>Rank</span>
                     <SortIcon field="rank" />
                   </span>
                 </th>
-                <th className="p-4 text-gray-400">Order / Group</th>
-                <th className="p-4 cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('status')}>
+                <th className="p-2.5 sm:p-4 text-gray-400">Order / Group</th>
+                <th className="p-2.5 sm:p-4 hidden md:table-cell cursor-pointer hover:text-gray-950 transition-colors" onClick={() => handleSort('status')}>
                   <span className="flex items-center space-x-1">
                     <span>Status</span>
                     <SortIcon field="status" />
                   </span>
                 </th>
-                <th className="p-4 hidden sm:table-cell text-gray-400">Phone Number</th>
-                <th className="p-4 text-right text-gray-400">Actions</th>
+                <th className="p-2.5 sm:p-4 hidden md:table-cell text-gray-400">Phone Number</th>
+                <th className="p-2.5 sm:p-4 text-right text-gray-400">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100 bg-white">
               {paginatedMembers.length > 0 ? (
                 paginatedMembers.map((member) => {
                   const isSelected = selectedIds.has(member.id)
+                  const cycleMembership = isCycleMode ? cycleMembershipMap?.get(member.id) : undefined
+                  const effectiveRank = cycleMembership ? cycleMembership.cycleRank : member.rank
+                  const effectiveStatus = cycleMembership ? cycleMembership.membershipStatus : member.status
+
                   return (
                     <tr
                       key={member.id}
                       className={`transition-colors ${isSelected ? 'bg-blue-50/60' : 'hover:bg-gray-50/40'}`}
                     >
                       {/* Row checkbox */}
-                      <td className="p-4 w-10">
+                      <td className="p-2.5 sm:p-4 w-8 sm:w-10 shrink-0">
                         <button
                           onClick={() => onToggleSelect(member.id)}
                           className={`h-4 w-4 rounded border-2 flex items-center justify-center transition-colors cursor-pointer ${
@@ -757,19 +812,49 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                         </button>
                       </td>
 
-                      <td className="p-4 font-bold text-gray-900 whitespace-nowrap">
-                        {getFullName(member)}
+                      <td className="p-2.5 sm:p-4 font-bold text-gray-900 min-w-0">
+                        <div className="flex flex-col gap-1 min-w-0">
+                          <span className="truncate max-w-[130px] sm:max-w-none text-xs text-gray-900">{getFullName(member)}</span>
+                          <div className="flex items-center gap-1 md:hidden flex-wrap">
+                            <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 leading-tight shrink-0">
+                              {effectiveRank}
+                            </span>
+                            <span className={`inline-block px-1.5 py-0.5 rounded text-[9.5px] font-bold capitalize border leading-tight shrink-0 ${
+                              isCycleMode && cycleMembership
+                                ? getRenewalStatusBadgeStyle(cycleMembership.membershipStatus)
+                                : member.status === 'active'
+                                ? 'bg-emerald-50 border-emerald-200 text-emerald-700'
+                                : member.status === 'inactive'
+                                ? 'bg-amber-50 border-amber-200 text-amber-700'
+                                : member.status === 'suspended'
+                                ? 'bg-rose-50 border-rose-200 text-rose-700'
+                                : 'bg-gray-50 border border-gray-200 text-gray-600'
+                            }`}>
+                              {effectiveStatus}
+                            </span>
+                          </div>
+                        </div>
                       </td>
-                      <td className="p-4 text-gray-600 whitespace-nowrap">
-                        {member.rank}
+                      <td className="p-2.5 sm:p-4 hidden md:table-cell text-gray-600 whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <span>{effectiveRank}</span>
+                          {isCycleMode && cycleMembership && cycleMembership.cycleRank !== member.rank && (
+                            <span
+                              className="text-[9px] px-1.5 py-0.2 rounded bg-blue-100 text-blue-700 font-bold"
+                              title={`Permanent Profile Rank: ${member.rank}`}
+                            >
+                              Cycle Rank
+                            </span>
+                          )}
+                        </div>
                       </td>
-                      <td className="p-4 whitespace-nowrap">
+                      <td className="p-2.5 sm:p-4 whitespace-nowrap">
                         {getMemberOrders(member.order).length > 0 ? (
-                          <div className="flex items-center gap-1.5 flex-wrap">
+                          <div className="flex items-center gap-1 sm:gap-1.5 flex-wrap">
                             {getMemberOrders(member.order).map((ord) => (
                               <span
                                 key={ord}
-                                className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
+                                className={`inline-block px-1.5 sm:px-2 py-0.5 rounded-md text-[9.5px] sm:text-[10px] font-bold border ${getOrderBadgeStyle(ord)}`}
                               >
                                 {ord}
                               </span>
@@ -779,10 +864,12 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                           <span className="text-[10px] text-gray-400 italic">--</span>
                         )}
                       </td>
-                      <td className="p-4 whitespace-nowrap">
+                      <td className="p-2.5 sm:p-4 hidden md:table-cell whitespace-nowrap">
                         <div className="flex flex-col items-start gap-0.5">
                           <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold capitalize border ${
-                            member.status === 'active'
+                            isCycleMode && cycleMembership
+                              ? getRenewalStatusBadgeStyle(cycleMembership.membershipStatus)
+                              : member.status === 'active'
                               ? 'bg-emerald-50 border border-emerald-200 text-emerald-700'
                               : member.status === 'inactive'
                               ? 'bg-amber-50 border border-amber-200 text-amber-700'
@@ -790,9 +877,17 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                               ? 'bg-rose-50 border border-rose-200 text-rose-700'
                               : 'bg-gray-50 border border-gray-200 text-gray-600'
                           }`}>
-                            {member.status}
+                            {effectiveStatus}
                           </span>
-                          {member.status === 'suspended' && (
+                          {isCycleMode && cycleMembership?.notes && (
+                            <span 
+                              className="text-[9.5px] text-slate-500 max-w-[140px] truncate cursor-help"
+                              title={cycleMembership.notes}
+                            >
+                              {cycleMembership.notes}
+                            </span>
+                          )}
+                          {!isCycleMode && member.status === 'suspended' && (
                             <span 
                               className="text-[9.5px] font-semibold text-rose-600/90 max-w-[140px] truncate cursor-help"
                               title={member.suspensionReason ? `Reason: ${member.suspensionReason}${member.suspensionEndDate ? ` (Until ${member.suspensionEndDate})` : ''}` : undefined}
@@ -804,68 +899,126 @@ export const MemberTable: React.FC<MemberTableProps> = ({
                           )}
                         </div>
                       </td>
-                      <td className="p-4 text-gray-500 hidden sm:table-cell">
+                      <td className="p-2.5 sm:p-4 text-gray-500 hidden md:table-cell whitespace-nowrap">
                         {member.phoneNumber || '--'}
                       </td>
-                      <td className="p-4 text-right space-x-1.5 whitespace-nowrap">
-                        {canManage ? (
-                          member.status !== 'archived' ? (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => onEdit(member)}
-                                className="inline-flex items-center gap-1 text-xs text-blue-700 hover:text-blue-800 font-bold px-2.5 py-1 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                <span>Edit</span>
-                              </button>
-                              {canDelete && (
-                                <button
-                                  onClick={() => onArchive(member.id)}
-                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <td className="p-2.5 sm:p-4 text-right whitespace-nowrap">
+                        {(() => {
+                          const items: ActionMenuItem[] = []
+
+                          if (isCycleMode) {
+                            if (canManage && !isCycleArchived && onEditCycleMembership && cycleMembership) {
+                              items.push({
+                                label: 'Edit Cycle Status / Rank',
+                                variant: 'primary',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                   </svg>
-                                  <span>Delete</span>
-                                </button>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => onRestore(member.id)}
-                                className="inline-flex items-center gap-1 text-xs text-emerald-700 hover:text-emerald-800 font-bold px-2.5 py-1 bg-emerald-50/80 hover:bg-emerald-100 border border-emerald-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                              >
-                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                <span>Restore</span>
-                              </button>
-                              {canDelete && (
-                                <button
-                                  onClick={() => onDelete(member.id)}
-                                  className="inline-flex items-center gap-1 text-xs text-rose-700 hover:text-rose-800 font-bold px-2.5 py-1 bg-rose-50/80 hover:bg-rose-100 border border-rose-200/80 rounded-lg transition-colors cursor-pointer shadow-2xs"
-                                >
-                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                ),
+                                onClick: () => onEditCycleMembership({ ...cycleMembership, member })
+                              })
+                            }
+                            if (canManage) {
+                              items.push({
+                                label: 'Edit Member Profile',
+                                variant: 'default',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                                   </svg>
-                                  <span>Delete</span>
-                                </button>
-                              )}
+                                ),
+                                onClick: () => onEdit(member)
+                              })
+                            }
+                            if (canManage && !isCycleArchived && onRemoveFromCycle) {
+                              items.push({
+                                label: 'Remove from Cycle',
+                                variant: 'danger',
+                                icon: (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 7a4 4 0 11-8 0 4 4 0 018 0zM9 14a6 6 0 00-6 6v1h12v-1a6 6 0 00-6-6zM21 12h-6" />
+                                  </svg>
+                                ),
+                                onClick: () => onRemoveFromCycle(member.id, getFullName(member))
+                              })
+                            }
+                          } else {
+                            if (member.status !== 'archived') {
+                              if (canManage) {
+                                items.push({
+                                  label: 'Edit Member',
+                                  variant: 'primary',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                  ),
+                                  onClick: () => onEdit(member)
+                                })
+                              }
+                              if (canDelete) {
+                                items.push({
+                                  label: 'Archive Member',
+                                  variant: 'warning',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                    </svg>
+                                  ),
+                                  onClick: () => onArchive(member.id)
+                                })
+                              }
+                            } else {
+                              if (canManage) {
+                                items.push({
+                                  label: 'Restore Member',
+                                  variant: 'success',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                    </svg>
+                                  ),
+                                  onClick: () => onRestore(member.id)
+                                })
+                              }
+                              if (canDelete) {
+                                items.push({
+                                  label: 'Delete Permanently',
+                                  variant: 'danger',
+                                  icon: (
+                                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                  ),
+                                  onClick: () => onDelete(member.id)
+                                })
+                              }
+                            }
+                          }
+
+                          if (items.length === 0) {
+                            return <span className="text-[11px] text-gray-400 font-medium italic">Read-only</span>
+                          }
+
+                          return (
+                            <div className="flex items-center justify-end">
+                              <ActionMenu
+                                triggerVariant="meatball"
+                                size="sm"
+                                align="right"
+                                items={items}
+                              />
                             </div>
                           )
-                        ) : (
-                          <span className="text-[11px] text-gray-400 font-medium italic">Read-only</span>
-                        )}
+                        })()}
                       </td>
                     </tr>
                   )
                 })
               ) : (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-sm text-gray-400 italic">
+                  <td colSpan={7} className="p-12 text-center text-sm text-gray-400 italic">
                     No members found matching the current criteria.
                   </td>
                 </tr>

@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { useMaintenance } from '@/context/MaintenanceContext'
@@ -83,23 +85,33 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
   }
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
-      {/* Background glow accents */}
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+    <div
+      className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+      }}
+    >
+      {/* Sacred Ambient Mesh Glow Halos */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
 
-      <div className="bg-white max-w-lg w-full rounded-3xl shadow-xl p-8 sm:p-10 border border-slate-200/80 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
+      <div className="relative z-10 bg-white/95 backdrop-blur-2xl max-w-lg w-full rounded-3xl shadow-2xl p-8 sm:p-10 border border-white/80 ring-1 ring-slate-900/5 text-center animate-in fade-in zoom-in-95 duration-200">
         
         {/* Logo Header */}
-        <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-amber-100 shadow-md flex items-center justify-center bg-white mx-auto mb-6 p-1">
-          <img 
-            src="/favicon/favicon.png" 
-            alt="MATS Logo" 
-            className="w-full h-full object-cover rounded-2xl"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = '/ministy_logo.jpg'
-            }}
-          />
+        <div className="relative inline-block mx-auto mb-6">
+          <div className="absolute inset-0 rounded-3xl bg-amber-500/25 blur-md" />
+          <div className="relative w-20 h-20 rounded-3xl overflow-hidden border border-amber-100 shadow-md flex items-center justify-center bg-white p-1">
+            <img 
+              src="/favicon/favicon.png" 
+              alt="MATS Logo" 
+              className="w-full h-full object-cover rounded-2xl"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/ministy_logo.jpg'
+              }}
+            />
+          </div>
         </div>
 
         {/* Status Badge */}
@@ -209,17 +221,17 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
               </div>
             )}
 
-            <form onSubmit={handleAdminLogin} className="space-y-4">
+            <ValidatedForm onSubmit={handleAdminLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                  Email Address
+                  Username or Email
                 </label>
-                <input
-                  type="email"
+                <FormInput
+                  type="text"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="e.g. coordinator@mas.com"
+                  placeholder="coordinator or officer@mas.com"
                   className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-sm focus:outline-hidden focus:ring-2 focus:ring-blue-500 bg-slate-50/50"
                 />
               </div>
@@ -229,7 +241,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
                   Password
                 </label>
                 <div className="relative">
-                  <input
+                  <FormInput
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
@@ -274,7 +286,7 @@ export const MaintenanceScreen: React.FC<MaintenanceScreenProps> = ({ isPublicRo
                   <span>Back to Maintenance Notice</span>
                 </button>
               </div>
-            </form>
+            </ValidatedForm>
           </div>
         )}
 

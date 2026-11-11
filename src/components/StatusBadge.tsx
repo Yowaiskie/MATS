@@ -2,12 +2,14 @@ import React from 'react'
 
 export interface StatusBadgeProps {
   status: string
+  label?: string
   size?: 'sm' | 'md'
   className?: string
 }
 
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
   status,
+  label,
   size = 'md',
   className = '',
 }) => {
@@ -88,7 +90,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       className={`inline-flex items-center gap-1.5 rounded-md font-bold uppercase tracking-wider border select-none ${config.bg} ${config.text} ${config.border} ${sizeClass} ${className}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${config.dot}`} />
-      <span className="capitalize">{status}</span>
+      <span className="capitalize">{label || status}</span>
     </span>
   )
 }

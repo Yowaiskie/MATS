@@ -12,6 +12,7 @@ import { CommunityReportModal } from '../components/CommunityReportModal'
 import { AddOtherServerModal } from '../components/AddOtherServerModal'
 import { UnlockSessionModal } from '../components/UnlockSessionModal'
 import { AssignmentModal } from '@/features/schedules/components/AssignmentModal'
+import { BulkFinalizeAttendanceModal } from '@/features/schedules/components/BulkFinalizeAttendanceModal'
 import { generateCommunityReport } from '@/utils/communityReport'
 import { getFullName } from '@/utils/member'
 import type { Schedule } from '@/types/schedule'
@@ -35,9 +36,12 @@ interface FormState {
 export const AttendancePage: React.FC = () => {
   const [searchParams] = useSearchParams()
   const scheduleId = searchParams.get('scheduleId')
-  const { user } = useAuth()
+  const { user, isAdmin, canAction } = useAuth()
+  const canFinalize = isAdmin || canAction('canFinalizeAttendance')
   const { toast } = useToast()
   const navigate = useNavigate()
+
+  const [bulkFinalizeOpen, setBulkFinalizeOpen] = useState(false)
 
   const [schedule, setSchedule] = useState<Schedule | null>(null)
   const [allSchedules, setAllSchedules] = useState<Schedule[]>([])
@@ -572,28 +576,55 @@ export const AttendancePage: React.FC = () => {
 
   if (!scheduleId || error === 'Schedule service record not found.') {
     return (
-      <div className="py-16 text-center rounded-xl border border-gray-200 bg-white shadow-sm max-w-lg mx-auto">
-        <svg className="mx-auto h-12 w-12 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-        </svg>
-        <h3 className="mt-3 text-sm font-bold text-gray-900">No schedule selected</h3>
-        <p className="mt-1 text-xs text-gray-500">Please select an active schedule from the panel to record attendance.</p>
-        <div className="mt-4">
-          <Link
-            to="/schedules"
-            className="rounded-lg bg-blue-600 hover:bg-blue-700 px-4 py-2 text-xs font-semibold text-white transition-colors shadow-sm"
-          >
-            Go to Schedules
-          </Link>
+      <div className="py-12 px-4 max-w-lg mx-auto text-center space-y-4">
+        <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+          <div className="mx-auto h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-3 border border-blue-100">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h3 className="text-base font-bold text-slate-900">No Schedule Selected</h3>
+          <p className="mt-1 text-xs text-slate-500">Please select an active schedule from schedules to record attendance, or review and bulk finalize past sessions.</p>
+          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-2.5">
+            <Link
+              to="/schedules"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-10 px-4 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-700 text-white shadow-sm shadow-blue-500/25 transition-all"
+            >
+              Browse Schedules
+            </Link>
+            {canFinalize && (
+              <Button
+                variant="secondary"
+                size="dense"
+                onClick={() => setBulkFinalizeOpen(true)}
+                icon={
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                  </svg>
+                }
+              >
+                Bulk Finalize
+              </Button>
+            )}
+          </div>
         </div>
+
+        {bulkFinalizeOpen && (
+          <BulkFinalizeAttendanceModal
+            onClose={() => setBulkFinalizeOpen(false)}
+            onCompleted={async () => {
+              if (scheduleId) await loadData()
+            }}
+          />
+        )}
       </div>
     )
   }
 
   return (
     <div className="space-y-6">
-      {/* Back button shortcut */}
-      <div>
+      {/* Top action bar: Back button + Bulk Finalize */}
+      <div className="flex items-center justify-between">
         <Link
           to="/schedules"
           onClick={handleBackNavigation}
@@ -604,6 +635,21 @@ export const AttendancePage: React.FC = () => {
           </svg>
           <span>Back to Schedules</span>
         </Link>
+
+        {canFinalize && (
+          <Button
+            variant="secondary"
+            size="dense"
+            onClick={() => setBulkFinalizeOpen(true)}
+            icon={
+              <svg className="w-3.5 h-3.5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+              </svg>
+            }
+          >
+            Bulk Finalize
+          </Button>
+        )}
       </div>
 
       {schedule && session && (
@@ -939,6 +985,16 @@ export const AttendancePage: React.FC = () => {
         title="Error"
         message={error ?? ''}
       />
+
+      {/* Bulk Finalize Attendance Modal */}
+      {bulkFinalizeOpen && (
+        <BulkFinalizeAttendanceModal
+          onClose={() => setBulkFinalizeOpen(false)}
+          onCompleted={async () => {
+            if (scheduleId) await loadData()
+          }}
+        />
+      )}
     </div>
   )
 }

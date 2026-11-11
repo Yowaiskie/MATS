@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
 import { Modal } from '@/components/Modal'
 import { Button, CustomSelect, useToast } from '@/components'
@@ -185,7 +187,7 @@ export const InventoryItemModal: React.FC<Props> = ({
         </>
       }
     >
-      <form id="inventory-item-form" onSubmit={handleSubmit} className="space-y-4">
+      <ValidatedForm id="inventory-item-form" onSubmit={handleSubmit} className="space-y-4">
         {error && (
           <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-xl">
             {error}
@@ -197,7 +199,7 @@ export const InventoryItemModal: React.FC<Props> = ({
           <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
             Item Name *
           </label>
-          <input
+          <FormInput
             type="text"
             required
             value={name}
@@ -235,7 +237,7 @@ export const InventoryItemModal: React.FC<Props> = ({
               <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
                 Custom Category Name *
               </label>
-              <input
+              <FormInput
                 type="text"
                 required
                 value={customCategory}
@@ -275,7 +277,7 @@ export const InventoryItemModal: React.FC<Props> = ({
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-slate-500 mb-1">
               Quantity *
             </label>
-            <input
+            <FormInput
               type="text"
               required
               value={quantity}
@@ -336,7 +338,7 @@ export const InventoryItemModal: React.FC<Props> = ({
             className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition shadow-2xs"
           />
         </div>
-      </form>
+      </ValidatedForm>
     </Modal>
   )
 }

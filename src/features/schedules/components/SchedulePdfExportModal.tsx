@@ -1,9 +1,10 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState, useEffect } from 'react'
 import type { SchedulePublication } from '@/types/publication'
 import type { Member } from '@/types/member'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isSundayOrAnticipatedMass, isScheduleIncludedInPublication } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass } from '@/utils/scheduleUtils'
 import { formatDocCodeWithDate } from '@/utils/pdfFooterHelper'
 import { Button } from '@/components'
 import {
@@ -257,14 +258,12 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
         }
       }
 
-      const [allMembers, rawSchedules] = await Promise.all([
+      const [allMembers, allSchedules] = await Promise.all([
         memberService.getMembers(),
-        scheduleService.getSchedulesByDateRange(startDate, endDate)
+        publication
+          ? scheduleService.getSchedulesForPublication(publication)
+          : scheduleService.getSchedulesByDateRange(startDate, endDate)
       ])
-
-      const allSchedules = publication
-        ? rawSchedules.filter(s => isScheduleIncludedInPublication(s, publication))
-        : rawSchedules
 
       const memberMap = new Map(allMembers.map(m => [m.id, formatMemberDisplayName(m, nameFormat)]))
 
@@ -931,7 +930,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                       <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                         {durationMode === '2' ? 'Starting Month' : 'Target Month'}
                       </label>
-                      <input
+                      <FormInput
                         type="month"
                         value={selectedStartMonth}
                         onChange={e => handleStartMonthChange(e.target.value)}
@@ -949,7 +948,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                         <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                           Start Date
                         </label>
-                        <input
+                        <FormInput
                           type="date"
                           value={customStartDate}
                           onChange={e => {
@@ -964,7 +963,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                         <label className="block text-[10px] font-extrabold uppercase text-slate-500 mb-1">
                           End Date
                         </label>
-                        <input
+                        <FormInput
                           type="date"
                           value={customEndDate}
                           onChange={e => {
@@ -1331,16 +1330,17 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
         </div>
 
         {/* Modal Footer Actions */}
-        <div className="px-6 py-4 border-t border-slate-100 bg-white flex items-center justify-between shrink-0">
+        <div className="px-6 py-4 border-t border-slate-100 bg-white flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 shrink-0">
           <div className="text-xs text-slate-500 font-medium hidden sm:block">
             Formatted for Long Bond Paper (8.5&quot; × 13&quot; Landscape).
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 w-full sm:w-auto">
             <Button
               type="button"
               variant="secondary"
               size="dense"
+              className="w-full sm:w-auto"
               onClick={handlePrint}
               disabled={isExporting || loading}
               icon={
@@ -1369,7 +1369,7 @@ export const SchedulePdfExportModal: React.FC<Props> = ({
                   <line x1="12" x2="12" y1="15" y2="3" />
                 </svg>
               }
-              className="!bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
+              className="w-full sm:w-auto !bg-indigo-600 hover:!bg-indigo-700 !shadow-indigo-500/20"
             >
               Download PDF (Long 8.5×13 Landscape)
             </Button>

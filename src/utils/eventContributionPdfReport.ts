@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import type { EventContribution } from '@/types/eventContribution'
+import { createEventPdfHeader } from '@/utils/eventPdfHeaderHelper'
 
 const formatDate = (d: Date): string => {
   return d.toLocaleDateString('en-US', {
@@ -15,16 +16,6 @@ const formatTime = (d: Date): string => {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
-  })
-}
-
-const loadImage = (url: string): Promise<HTMLImageElement> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.crossOrigin = 'Anonymous'
-    img.onload = () => resolve(img)
-    img.onerror = (err) => reject(err)
-    img.src = url
   })
 }
 
@@ -59,54 +50,8 @@ export const downloadEventContributionReportPdf = async (
 
   const pageWidth = doc.internal.pageSize.getWidth()
 
-  // 1. Prepare Logos for Header
-  let logoParish: HTMLImageElement | null = null
-  let logoMinistry: HTMLImageElement | null = null
-  try {
-    logoParish = await loadImage('/parish-logo.png')
-  } catch {
-    try {
-      logoParish = await loadImage('/favicon/favicon.png')
-    } catch {
-      // Fallback
-    }
-  }
-
-  try {
-    logoMinistry = await loadImage('/ministy_logo.jpg')
-  } catch {
-    // Fallback
-  }
-
-  // 2. Helper to draw Uniform Header on every page
-  const drawUniformHeader = () => {
-    // Dual Logos on Right Side (Parish & Ministry)
-    if (logoParish && logoMinistry) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 48, 6.5, 16, 16)
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 30, 6.5, 16, 16)
-    } else if (logoMinistry) {
-      doc.addImage(logoMinistry, 'JPEG', pageWidth - 28, 6.5, 16, 16)
-    } else if (logoParish) {
-      doc.addImage(logoParish, 'PNG', pageWidth - 28, 6.5, 16, 16)
-    }
-
-    // Left Parish Text
-    doc.setFont('times', 'bolditalic')
-    doc.setFontSize(16)
-    doc.setTextColor(15, 23, 42)
-    doc.text('Ministry of Altar Servers', 14, 14)
-
-    doc.setFont('helvetica', 'normal')
-    doc.setFontSize(10)
-    doc.setTextColor(51, 65, 85)
-    doc.text('Sacred Heart of Jesus Parish - Mbs', 14, 19.5)
-    doc.text('Pilar Rd., Morning Breeze Subdivision, Caloocan City', 14, 24)
-
-    // Horizontal Header Divider Line
-    doc.setDrawColor(30, 41, 59)
-    doc.setLineWidth(0.6)
-    doc.line(14, 28, pageWidth - 14, 28)
-  }
+  // Shared with Requirements so both reports use the same official header.
+  const drawUniformHeader = await createEventPdfHeader(doc)
 
   // 3. Document Title (Centered & Bold Underline Style)
   const defaultTitle = `EVENT CONTRIBUTIONS REPORT: ${data.eventName.toUpperCase()}`

@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -1920,14 +1921,14 @@ export function DesignSystemShowcasePage() {
                   defaultValue="Liturgical Altar Candles"
                   className="h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-medium"
                 />
-                <input
+                <FormInput
                   type="number"
                   value={calcQty}
                   onChange={(e) => setCalcQty(e.target.value)}
                   placeholder="Qty"
                   className="h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-bold"
                 />
-                <input
+                <FormInput
                   type="number"
                   value={calcUnitPrice}
                   onChange={(e) => setCalcUnitPrice(e.target.value)}

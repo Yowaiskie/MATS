@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/compact_item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/widget_item_bg"
+    android:orientation="vertical"
+    android:paddingHorizontal="6dp"
+    android:paddingVertical="5dp">
+
+    <!-- Row 1: Badges & Time using RelativeLayout -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/compact_item_day_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:background="@drawable/widget_badge_today"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="1.5dp"
+            android:text="TODAY • 6:00 AM"
+            android:textColor="#FFFFFF"
+            android:textSize="7.5sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/compact_item_duty_badge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="@drawable/widget_badge_duty"
+            android:paddingHorizontal="4dp"
+            android:paddingVertical="1.5dp"
+            android:text="SCHEDULE"
+            android:textColor="#FFFFFF"
+            android:textSize="7sp"
+            android:textStyle="bold"
+            android:visibility="gone" />
+    </RelativeLayout>
+
+    <!-- Row 2: Mass Title -->
+    <TextView
+        android:id="@+id/compact_item_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Sunday Morning Mass"
+        android:textColor="#F8FAFC"
+        android:textSize="10.5sp"
+        android:textStyle="bold" />
+
+    <!-- Row 3: Assigned Servers -->
+    <TextView
+        android:id="@+id/compact_item_servers"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="1dp"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:text="Order of San Pedro"
+        android:textColor="#94A3B8"
+        android:textSize="8.5sp" />
+
+</LinearLayout>

@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm } from '@/components/ValidatedForm'
 import React, { useState } from 'react'
 import { authService } from '@/services/authService'
 
@@ -91,7 +93,7 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4 text-xs">
+        <ValidatedForm onSubmit={handleSubmit} className="mt-4 space-y-4 text-xs">
           <p className="text-slate-600 font-medium leading-relaxed">
             You are about to unlock attendance for <strong className="text-slate-900">"{scheduleTitle}"</strong>. Please enter your account password to confirm:
           </p>
@@ -107,7 +109,7 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
               Your Account Password *
             </label>
             <div className="relative">
-              <input
+              <FormInput
                 type={showPassword ? 'text' : 'password'}
                 required
                 autoFocus
@@ -128,7 +130,7 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
           </div>
 
           {/* Footer Actions */}
-          <div className="flex justify-end space-x-2.5 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2.5 sm:gap-3 pt-3 border-t border-slate-100 mt-4 bg-white sticky bottom-0 [&>button]:w-full [&>button]:sm:w-auto">
             <Button
               type="button"
               variant="secondary"
@@ -149,7 +151,7 @@ export const UnlockSessionModal: React.FC<UnlockSessionModalProps> = ({
               Confirm & Unlock Session
             </Button>
           </div>
-        </form>
+        </ValidatedForm>
       </div>
     </div>
   )

@@ -1,3 +1,4 @@
+import { FormInput } from '@/components/FormInput'
 import React, { useState } from 'react'
 
 export interface ContactInputProps {
@@ -92,7 +93,7 @@ export const ContactInput: React.FC<ContactInputProps> = ({
 
       {/* Input with dedicated right padding & status icon */}
       <div className="relative">
-        <input
+        <FormInput
           id={id}
           type="tel"
           maxLength={maxDigits}

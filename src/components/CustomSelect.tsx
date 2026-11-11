@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react'
+import React, { useState, useEffect, useRef, useMemo, useId } from 'react'
 
 export interface CustomSelectOption {
   value: string | number
@@ -53,6 +53,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   )
   const [searchTerm, setSearchTerm] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
+  const errorId = useId()
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   const currentValue = controlledValue !== undefined ? controlledValue : internalValue
@@ -81,14 +82,14 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
   }, [])
 
   useEffect(() => {
-    if (isOpen && (searchable || options.length > 8)) {
+    if (isOpen && searchable === true) {
       setTimeout(() => {
         searchInputRef.current?.focus()
       }, 50)
     } else {
       setSearchTerm('')
     }
-  }, [isOpen, searchable, options.length])
+  }, [isOpen, searchable])
 
   const selectedOption = useMemo(() => {
     return options.find((opt) => String(opt.value) === String(currentValue))
@@ -127,7 +128,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
     }
   }
 
-  const showSearch = searchable || options.length > 8
+  const showSearch = searchable === true
 
   return (
     <div className={`space-y-1.5 ${containerClassName}`} ref={containerRef}>
@@ -141,6 +142,8 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
         <button
           type="button"
           id={id}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? errorId : undefined}
           disabled={disabled}
           onClick={() => !disabled && setIsOpen(!isOpen)}
           className={`w-full h-10 ${
@@ -265,7 +268,7 @@ export const CustomSelect: React.FC<CustomSelectProps> = ({
       </div>
 
       {error ? (
-        <p className="text-xs text-rose-600 font-medium">{error}</p>
+        <p id={errorId} className="text-xs text-rose-600 font-medium">{error}</p>
       ) : helperText ? (
         <p className="text-[11px] text-slate-500 font-medium">{helperText}</p>
       ) : null}

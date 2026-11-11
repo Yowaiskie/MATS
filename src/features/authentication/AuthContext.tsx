@@ -7,6 +7,7 @@ import { authService } from '@/services/authService'
 import { auditService } from '@/services/auditService'
 import { maintenanceService } from '@/services/maintenanceService'
 import type { UserProfile, UserRole, ModuleKey, UserPermissions } from '@/types/auth'
+import { nativeWidgetService } from '@/services/nativeWidgetService'
 
 interface AuthContextType {
   user: User | null
@@ -63,6 +64,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const userProfile = snap.data() as UserProfile
                 setProfile(userProfile)
                 setError(null)
+                try {
+                  localStorage.setItem('mats_current_profile', JSON.stringify(userProfile))
+                } catch {}
+                nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, userProfile).catch(() => {})
               } else {
                 // Fallback: attempt legacy lookup and auto-fix via authService
                 try {
@@ -70,10 +75,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   if (userProfile) {
                     setProfile(userProfile)
                     setError(null)
+                    try {
+                      localStorage.setItem('mats_current_profile', JSON.stringify(userProfile))
+                    } catch {}
+                    nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, userProfile).catch(() => {})
                   } else {
                     setError('Unauthorized. This user is not registered in the system.')
                     setUser(null)
                     setProfile(null)
+                    try {
+                      localStorage.removeItem('mats_current_profile')
+                    } catch {}
+                    nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, null).catch(() => {})
                     await authService.logout()
                   }
                 } catch (err: any) {
@@ -100,6 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setUser(null)
         setProfile(null)
+        try {
+          localStorage.removeItem('mats_current_profile')
+        } catch {}
+        nativeWidgetService.syncUpcomingMassesWidget(undefined, undefined, null).catch(() => {})
         setLoading(false)
       }
     })
@@ -110,17 +127,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [])
 
-  const login = async (email: string, password: string) => {
+  const login = async (identifier: string, password: string) => {
     setLoading(true)
     setError(null)
+    const normalizedEmail = authService.normalizeEmail(identifier)
     try {
-      await authService.login(email, password)
+      await authService.login(normalizedEmail, password)
 
       // Strict Maintenance Mode Check: Verify immediately after authenticating
       try {
         const currentMaintenance = await maintenanceService.getMaintenanceSettings()
         if (currentMaintenance.enabled) {
-          const normalizedEmail = email.trim().toLowerCase()
           const isCoord = normalizedEmail === 'coordinator@mas.com'
           const allowedListLower = (currentMaintenance.allowedUserUids || []).map((u) => u.toLowerCase().trim())
           const isAllowed = isCoord || allowedListLower.includes(normalizedEmail)
@@ -144,9 +161,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       auditService.logAction(
         'USER_LOGIN',
         'system',
-        `User '${email.trim().toLowerCase()}' successfully logged into the system`,
-        email.trim().toLowerCase(),
-        { email: email.trim().toLowerCase() }
+        `User '${normalizedEmail}' successfully logged into the system`,
+        normalizedEmail,
+        { email: normalizedEmail }
       ).catch(console.error)
     } catch (err: any) {
       setError(err.message || 'Failed to sign in. Please verify credentials.')

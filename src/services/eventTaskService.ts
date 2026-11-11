@@ -7,11 +7,15 @@ import {
   getDocs, 
   query,
   where,
-  serverTimestamp
+  serverTimestamp,
+  getDoc,
+  runTransaction
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-import type { EventTask, EventChecklistItem } from '@/types/event'
+import type { Event, EventTask, EventChecklistItem } from '@/types/event'
 import { auditService } from '@/services/auditService'
+import { eventTaskNotificationService, taskNotice } from '@/services/eventTaskNotificationService'
+import { isActiveEventTask } from '@/utils/eventTaskNotifications'
 
 const TASKS_COLLECTION = 'eventTasks'
 const CHECKLISTS_COLLECTION = 'eventChecklists'
@@ -61,12 +65,17 @@ export const eventTaskService = {
    * Creates a new task
    */
   async createTask(input: Omit<EventTask, 'id' | 'createdAt' | 'updatedAt' | 'isArchived'>, performedBy = 'System'): Promise<string> {
-    const docRef = await addDoc(collection(db, TASKS_COLLECTION), {
-      ...input,
-      unreadByAssignee: true,
-      isArchived: false,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp()
+    const docRef = doc(collection(db, TASKS_COLLECTION))
+    const task = { ...input, id: docRef.id, isArchived: false } as EventTask
+    const recipient = await eventTaskNotificationService.resolveRecipient(task)
+    await runTransaction(db, async transaction => {
+      const eventSnap = await transaction.get(doc(db, 'events', input.eventId))
+      if (!eventSnap.exists()) throw new Error('Event no longer exists.')
+      const event = { ...eventSnap.data(), id: eventSnap.id } as Event
+      transaction.set(docRef, { ...input, notificationDeliveryKeys: [], notificationVersion: 0, unreadByAssignee: true, isArchived: false, createdAt: serverTimestamp(), updatedAt: serverTimestamp() })
+      if (recipient && isActiveEventTask(task, event)) {
+        transaction.set(doc(collection(db, 'notifications')), taskNotice(task, event, recipient, 'event_task_assignment'))
+      }
     })
 
     await auditService.logAction(
@@ -89,7 +98,36 @@ export const eventTaskService = {
     const updateData = { ...input, unreadByAssignee, updatedAt: serverTimestamp() }
     delete updateData.id
     
-    await updateDoc(docRef, updateData)
+    delete updateData.notificationDeliveryKeys
+    delete updateData.notificationVersion
+    delete updateData.createdAt
+    delete updateData.eventId
+    const before = await getDoc(docRef)
+    if (!before.exists()) throw new Error('Task no longer exists.')
+    const original = { ...before.data(), id } as EventTask
+    const next = { ...original, ...updateData } as EventTask
+    const [oldRecipient, recipient] = await Promise.all([
+      eventTaskNotificationService.resolveRecipient(original), eventTaskNotificationService.resolveRecipient(next)
+    ])
+    await runTransaction(db, async transaction => {
+      const [currentSnap, eventSnap] = await Promise.all([transaction.get(docRef), transaction.get(doc(db, 'events', original.eventId))])
+      if (!currentSnap.exists() || !eventSnap.exists()) throw new Error('Task or event no longer exists.')
+      const current = { ...currentSnap.data(), id } as EventTask
+      // Resolution was performed before the transaction: never notify from stale identity.
+      if (current.assignedMemberUid !== original.assignedMemberUid || current.assignedMemberName !== original.assignedMemberName || current.dueDate !== original.dueDate) {
+        throw new Error('Task changed while saving. Refresh and try again.')
+      }
+      const updated = { ...current, ...updateData } as EventTask
+      const event = { ...eventSnap.data(), id: eventSnap.id } as Event
+      const deadlineChanged = (updated.dueDate || null) !== (current.dueDate || null)
+      const deliveryChanged = recipient !== oldRecipient || deadlineChanged
+      if (deliveryChanged) updated.notificationVersion = (current.notificationVersion ?? 0) + 1
+      transaction.update(docRef, { ...updateData, ...(deliveryChanged ? { notificationVersion: updated.notificationVersion, notificationDeliveryKeys: [] } : {}) })
+      if (recipient && isActiveEventTask(updated, event)) {
+        const type = recipient !== oldRecipient ? 'event_task_assignment' : deadlineChanged ? 'event_task_deadline' : null
+        if (type) transaction.set(doc(collection(db, 'notifications')), taskNotice(updated, event, recipient, type))
+      }
+    })
 
     await auditService.logAction(
       'EVENT_TASK_UPDATE',

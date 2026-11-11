@@ -1,3 +1,5 @@
+import { FormInput } from '@/components/FormInput'
+import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
@@ -7,13 +9,26 @@ import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { eventService } from '@/services/eventService'
 import { memberService } from '@/services/memberService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import type { EventForm, EventFormQuestion, EventFormResponse, CompanionEntry } from '@/types/eventForm'
+import type {
+  EventForm,
+  EventFormQuestion,
+  EventFormResponse,
+  CompanionEntry,
+  AppointmentSlotAnswer,
+  AppointmentDateConfig
+} from '@/types/eventForm'
 import type { Event } from '@/types/event'
 import type { Member } from '@/types/member'
 import { AlertModal } from '@/components/Dialog'
 import { Loading } from '@/components/Loading'
 import { FormattedText } from '@/components/FormattedText'
 import { CustomSelect } from '@/components'
+import {
+  formatContactNumber,
+  detectContactType,
+  getRawContactDigits,
+  isValidContactNumber
+} from '@/utils/contactNumberHelper'
 
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
@@ -38,6 +53,7 @@ export const PublicEventFormPage: React.FC = () => {
   // Answers State: maps questionId -> value
   const [answers, setAnswers] = useState<Record<string, any>>({})
   const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({})
+  const [selectedAppointmentDates, setSelectedAppointmentDates] = useState<Record<string, string>>({})
 
   // Helper to compute used and remaining open slots for an option/category
   const getOptionSlotInfo = (q: EventFormQuestion, opt: string) => {
@@ -54,6 +70,40 @@ export const PublicEventFormPage: React.FC = () => {
         return ans.includes(opt) ? count + 1 : count
       }
       return ans === opt ? count + 1 : count
+    }, 0)
+
+    const openSlots = Math.max(0, maxLimit - usedSlots)
+    const isFull = openSlots <= 0
+
+    return {
+      hasLimit: true,
+      maxSlots: maxLimit,
+      usedSlots,
+      openSlots,
+      isFull
+    }
+  }
+
+  // Helper to compute used and remaining open slots for an appointment slot
+  const getAppointmentSlotInfo = (q: EventFormQuestion, dateStr: string, slotId: string) => {
+    const dateConfig = q.appointmentConfig?.find(d => d.date === dateStr)
+    const slot = dateConfig?.slots.find(s => s.id === slotId)
+    const maxLimit = slot?.maxCapacity
+
+    if (!maxLimit || maxLimit <= 0) {
+      return { hasLimit: false, maxSlots: 0, usedSlots: 0, openSlots: 0, isFull: false }
+    }
+
+    const usedSlots = formResponses.reduce((count, r) => {
+      if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
+      const ans = r.answers?.[q.id]
+      if (ans && typeof ans === 'object' && !Array.isArray(ans)) {
+        const appointmentAns = ans as AppointmentSlotAnswer
+        if (appointmentAns.date === dateStr && appointmentAns.slotId === slotId) {
+          return count + 1
+        }
+      }
+      return count
     }, 0)
 
     const openSlots = Math.max(0, maxLimit - usedSlots)
@@ -185,7 +235,13 @@ export const PublicEventFormPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4">
+      <div
+        className="min-h-screen bg-slate-50 flex items-center justify-center p-4"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
         <Loading variant="spinner" label="Loading registration form..." />
       </div>
     )
@@ -196,15 +252,25 @@ export const PublicEventFormPage: React.FC = () => {
     const isAuthRequired = pageLoadError === 'auth_required'
 
     return (
-      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
-        {/* Background glow accents */}
-        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div
+        className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
+        {/* Sacred Ambient Mesh Glow Halos */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
 
-        <div className="bg-white max-w-lg w-full rounded-3xl shadow-xl p-8 sm:p-10 border border-slate-200/80 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
+        <div className="bg-white/95 backdrop-blur-2xl max-w-lg w-full rounded-3xl shadow-2xl p-8 sm:p-10 border border-white/80 ring-1 ring-slate-900/5 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200">
           {/* Logo Header */}
-          <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-indigo-100 shadow-md flex items-center justify-center bg-white mx-auto mb-6 p-1">
-            <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover rounded-2xl" />
+          <div className="relative inline-block mx-auto mb-6">
+            <div className="absolute inset-0 rounded-3xl bg-indigo-500/25 blur-md" />
+            <div className="relative w-20 h-20 rounded-3xl overflow-hidden border border-indigo-100 shadow-md flex items-center justify-center bg-white p-1">
+              <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover rounded-2xl" />
+            </div>
           </div>
 
           {/* Status Badge */}
@@ -246,17 +312,17 @@ export const PublicEventFormPage: React.FC = () => {
             <p className="text-xs font-medium text-slate-600 leading-relaxed">
               {isTempClosed ? (
                 <>
-                  Ang form na ito ay <strong>pansamantalang sarado (Temporary Closed)</strong> dahil kasalukuyan pa itong inihahanda at nasa <strong>Draft stage</strong> ng administrator.
+                  This form is <strong>temporarily closed</strong> because it is currently in preparation and in the <strong>Draft stage</strong> by the administrator.
                   <br /><br />
-                  Mangyaring maghintay hanggang sa opisyal itong i-publish.
+                  Please wait until it is officially published.
                 </>
               ) : isAuthRequired ? (
                 <>
-                  Ang form na ito ay eksklusibo lamang para sa mga rehistradong miyembro. Mangyaring mag-login muna sa iyong account upang mabuksan ang form.
+                  This form is exclusive to registered members. Please sign in to your account to access the form.
                 </>
               ) : (
                 <>
-                  Ang form na ito ay <strong>lubusan nang sarado (Totally Closed)</strong> o hindi na tumatanggap ng mga bagong tugon. Maaaring tapos na ang registration period o in-archive na ito.
+                  This form is <strong>permanently closed</strong> and no longer accepting responses. The registration period may have ended or been archived.
                 </>
               )}
             </p>
@@ -300,7 +366,7 @@ export const PublicEventFormPage: React.FC = () => {
           <div className="space-y-2">
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">You've Already Responded</h2>
             <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
-              Nakasagot ka na sa form na ito (<strong>{form.title}</strong>). Ang form na ito ay may limitasyon na 1 response lamang bawat kalahok.
+              You have already responded to this form (<strong>{form.title}</strong>). This form is limited to 1 response per participant.
             </p>
           </div>
 
@@ -335,7 +401,7 @@ export const PublicEventFormPage: React.FC = () => {
               </button>
             ) : (
               <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 font-medium">
-                Ang mga sagot ay pinal na at hindi na maaaring baguhin. Kung may kailangang iwasto, mangyaring makipag-ugnayan sa administrator.
+                Responses are final and cannot be modified. If any correction is required, please contact the administrator.
               </div>
             )}
           </div>
@@ -480,6 +546,33 @@ export const PublicEventFormPage: React.FC = () => {
           }
         }
       }
+
+      // Validate appointment slot limits
+      if (q.type === 'appointment_slots') {
+        const val = answers[q.id]
+        if (val && typeof val === 'object' && !Array.isArray(val)) {
+          const appointmentAns = val as AppointmentSlotAnswer
+          if (appointmentAns.date && appointmentAns.slotId) {
+            const slotInfo = getAppointmentSlotInfo(q, appointmentAns.date, appointmentAns.slotId)
+            if (slotInfo.isFull) {
+              errorsMap[q.id] = `The selected appointment time slot (${appointmentAns.timeRange}) is already full. Please select another available time slot.`
+            }
+          }
+        }
+      }
+
+      // Validate contact number format
+      if (q.type === 'contact_number') {
+        const val = answers[q.id]
+        if (val && !isValidContactNumber(val, q.required)) {
+          const raw = getRawContactDigits(val)
+          if (raw.startsWith('09') && raw.length !== 11) {
+            errorsMap[q.id] = 'Please provide a complete 11-digit mobile number (e.g. 0917-123-4567).'
+          } else {
+            errorsMap[q.id] = 'Please provide a valid contact number (7-11 digits).'
+          }
+        }
+      }
     }
 
     if (Object.keys(errorsMap).length > 0) {
@@ -540,8 +633,19 @@ export const PublicEventFormPage: React.FC = () => {
   // Submission Confirmation Screen
   if (submittedTrackingNumber) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 font-sans">
-        <div className="bg-white max-w-md w-full rounded-3xl shadow-xl p-8 border border-slate-200 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+      <div
+        className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center p-4 sm:p-6 overflow-hidden font-sans"
+        style={{
+          paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1rem)',
+          paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1rem)',
+        }}
+      >
+        {/* Sacred Ambient Mesh Glow Halos */}
+        <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[550px] h-[350px] sm:h-[550px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+        <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 bg-white/95 backdrop-blur-2xl max-w-md w-full rounded-3xl shadow-2xl p-8 border border-white/80 ring-1 ring-slate-900/5 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
           {/* Sleek Modern Success Checkmark */}
           <div className="w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto shadow-2xs border border-emerald-100">
             <svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -555,6 +659,39 @@ export const PublicEventFormPage: React.FC = () => {
               {form.confirmationMessage || 'Thank you for submitting your registration response.'}
             </p>
           </div>
+
+          {/* Booked Appointment Summary Badge */}
+          {(() => {
+            const appointmentQ = questions.find(q => q.type === 'appointment_slots')
+            const appointmentAns = appointmentQ ? (answers[appointmentQ.id] as AppointmentSlotAnswer | undefined) : undefined
+            if (!appointmentAns || !appointmentAns.date) return null
+
+            return (
+              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-left space-y-1.5 shadow-2xs">
+                <div className="flex items-center gap-1.5 text-xs font-black text-indigo-900">
+                  <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 11v3l2 2" />
+                  </svg>
+                  <span>Booked Appointment Schedule</span>
+                </div>
+                <div className="text-xs text-slate-700 space-y-1">
+                  <div className="font-bold text-indigo-950 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    <span>{appointmentAns.date} {appointmentAns.dateLabel ? `(${appointmentAns.dateLabel})` : ''}</span>
+                  </div>
+                  <div className="font-bold text-slate-800 flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>{appointmentAns.timeRange} {appointmentAns.slotLabel ? `• ${appointmentAns.slotLabel}` : ''}</span>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
 
           <div className="pt-2 flex flex-col gap-2.5">
             {/* Show Edit Button ONLY if allowEditResponse is ON */}
@@ -640,6 +777,10 @@ export const PublicEventFormPage: React.FC = () => {
       const allNamed = val.every((c: any) => c && typeof c.name === 'string' && c.name.trim().length > 0)
       if (!allNamed) return false
     }
+    if (q.type === 'contact_number') {
+      if (!q.required && (!val || val === '')) return true
+      return isValidContactNumber(val, q.required)
+    }
     if (!q.required) return true
     if (val === undefined || val === null || val === '') return false
     if (val === '__other__') return false // User chose Other but didn't specify text
@@ -665,11 +806,22 @@ export const PublicEventFormPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center py-4 px-3 sm:py-8 sm:px-4 font-sans">
-      <div className="max-w-2xl w-full space-y-4 sm:space-y-6">
+    <div
+      className="relative min-h-screen w-full bg-slate-950 flex flex-col items-center justify-center py-6 px-3 sm:py-10 sm:px-4 overflow-x-hidden font-sans"
+      style={{
+        paddingTop: 'calc(env(safe-area-inset-top, 0px) + 1.5rem)',
+        paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 1.5rem)',
+      }}
+    >
+      {/* Sacred Ambient Mesh Glow Halos */}
+      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-[350px] sm:w-[650px] h-[350px] sm:h-[650px] bg-gradient-to-tr from-indigo-600/25 via-blue-500/20 to-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
+      <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
+
+      <div className="relative z-10 max-w-2xl w-full space-y-4 sm:space-y-6 my-4">
         
         {/* Form Header Card */}
-        <div className="bg-white rounded-2xl sm:rounded-3xl shadow-lg sm:shadow-xl p-5 sm:p-8 border border-slate-200 relative overflow-hidden space-y-4">
+        <div className="bg-white/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 border border-white/80 ring-1 ring-slate-900/5 relative overflow-hidden space-y-4">
           <div className="h-2.5 sm:h-3 bg-blue-600 absolute top-0 left-0 right-0" />
           
           <div className="flex items-start justify-between gap-3 pt-1">
@@ -689,32 +841,25 @@ export const PublicEventFormPage: React.FC = () => {
             )}
           </div>
 
-          {/* Linked Event Info Banner */}
-          {form.showEventBanner !== false && linkedEvent && (
-            <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl space-y-2 text-xs">
-              <div className="flex items-center justify-between">
-                <span className="font-extrabold text-blue-950 flex items-center gap-1.5">
-                  <svg className="w-4 h-4 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  {linkedEvent.title}
-                </span>
-                {linkedEvent.stage && (
-                  <span className="text-[10px] font-bold uppercase text-blue-700 bg-blue-100/80 px-2 py-0.5 rounded-md border border-blue-200">
-                    {linkedEvent.stage}
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-blue-900/80 pt-1 border-t border-blue-100">
+          {/* Linked Event Schedule & Venue Banner */}
+          {form.showEventBanner !== false && linkedEvent && (linkedEvent.startDate || linkedEvent.startTime || linkedEvent.location) && (
+            <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-2xl text-xs text-blue-950">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-blue-900/80">
                 {(linkedEvent.startDate || linkedEvent.startTime) && (
                   <div className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
                     <span className="font-semibold text-blue-950">Schedule:</span>
                     <span>{linkedEvent.startDate} {linkedEvent.startTime && `• ${linkedEvent.startTime}`}</span>
                   </div>
                 )}
                 {linkedEvent.location && (
                   <div className="flex items-center gap-1.5">
+                    <svg className="w-3.5 h-3.5 text-blue-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
                     <span className="font-semibold text-blue-950">Location:</span>
                     <span className="line-clamp-1">{linkedEvent.location}</span>
                   </div>
@@ -855,7 +1000,7 @@ export const PublicEventFormPage: React.FC = () => {
         )}
 
         {/* Public Form Form Element */}
-        <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+        <ValidatedForm onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
           {/* Dynamic Questions Rendering */}
           {visibleQuestions.map((q, idx) => {
             const hasError = !!validationErrors[q.id]
@@ -918,7 +1063,7 @@ export const PublicEventFormPage: React.FC = () => {
               {/* Render Question Control */}
               <div className="pt-1">
                 {q.type === 'short_text' && (
-                  <input
+                  <FormInput
                     type="text"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -929,7 +1074,7 @@ export const PublicEventFormPage: React.FC = () => {
                 )}
 
                 {q.type === 'long_text' && (
-                  <textarea
+                  <FormTextarea
                     required={q.required}
                     value={answers[q.id] || ''}
                     onChange={e => handleInputChange(q.id, e.target.value)}
@@ -1261,7 +1406,7 @@ export const PublicEventFormPage: React.FC = () => {
                 {q.type === 'yes_no' && (
                   <div className="flex items-center space-x-4">
                     <label className="flex-1 flex items-center justify-center space-x-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition">
-                      <input
+                      <FormInput
                         type="radio"
                         name={`q_${q.id}`}
                         required={q.required}
@@ -1272,7 +1417,7 @@ export const PublicEventFormPage: React.FC = () => {
                       <span className="text-xs font-bold text-slate-800">Yes</span>
                     </label>
                     <label className="flex-1 flex items-center justify-center space-x-2 p-3 border border-slate-200 rounded-xl hover:bg-slate-50 cursor-pointer transition">
-                      <input
+                      <FormInput
                         type="radio"
                         name={`q_${q.id}`}
                         required={q.required}
@@ -1361,9 +1506,12 @@ export const PublicEventFormPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => setOpenMemberPickerQuestionId(null)}
-                                  className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md"
+                                  className="text-xs font-bold text-slate-400 hover:text-slate-700 px-2 py-0.5 rounded-md flex items-center gap-1 cursor-pointer"
                                 >
-                                  Close ✕
+                                  <span>Close</span>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
                                 </button>
                               </div>
 
@@ -1426,7 +1574,7 @@ export const PublicEventFormPage: React.FC = () => {
                 })()}
 
                 {q.type === 'name_selector' && (
-                  <input
+                  <FormInput
                     type="text"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1436,8 +1584,258 @@ export const PublicEventFormPage: React.FC = () => {
                   />
                 )}
 
+                {q.type === 'appointment_slots' && (() => {
+                  const configs: AppointmentDateConfig[] = q.appointmentConfig || []
+                  if (configs.length === 0) {
+                    return (
+                      <div className="p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center text-xs text-slate-500 font-medium">
+                        No appointment schedule configured for this question.
+                      </div>
+                    )
+                  }
+
+                  const selectedAns = answers[q.id] as AppointmentSlotAnswer | undefined
+                  const activeDate = selectedAppointmentDates[q.id] || selectedAns?.date || configs[0]?.date
+                  const activeDateConfig = configs.find(d => d.date === activeDate) || configs[0]
+
+                  const formatDatePill = (dateStr: string) => {
+                    try {
+                      const d = new Date(dateStr + 'T00:00:00')
+                      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' })
+                      const monthDay = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                      return { dayName, monthDay }
+                    } catch (e) {
+                      return { dayName: 'Day', monthDay: dateStr }
+                    }
+                  }
+
+                  return (
+                    <div className="space-y-4">
+                      {/* Step 1: Select Date */}
+                      <div>
+                        <span className="text-xs font-black text-slate-700 uppercase tracking-wider block mb-2">
+                          1. Select Event Date
+                        </span>
+                        <div className="flex flex-wrap gap-2">
+                          {configs.map((dConfig, dIdx) => {
+                            const isDateActive = activeDateConfig?.date === dConfig.date
+                            const { dayName, monthDay } = formatDatePill(dConfig.date)
+                            const isDateSelected = selectedAns?.date === dConfig.date
+
+                            return (
+                              <button
+                                key={dConfig.id || dIdx}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedAppointmentDates(prev => ({ ...prev, [q.id]: dConfig.date }))
+                                }}
+                                className={`px-4 py-2.5 rounded-2xl border text-left transition cursor-pointer flex flex-col items-start min-w-[110px] ${
+                                  isDateActive
+                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/20 ring-2 ring-indigo-600/30'
+                                    : isDateSelected
+                                    ? 'bg-indigo-50 border-indigo-300 text-indigo-950 font-bold'
+                                    : 'bg-slate-50 hover:bg-slate-100 border-slate-200 text-slate-800'
+                                }`}
+                              >
+                                <span className={`text-[10px] uppercase font-bold ${isDateActive ? 'text-indigo-200' : 'text-slate-500'}`}>
+                                  {dayName} {dConfig.label ? `• ${dConfig.label}` : ''}
+                                </span>
+                                <span className="text-sm font-black mt-0.5">
+                                  {monthDay}
+                                </span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Step 2: Select Time Slot for the active date */}
+                      {activeDateConfig && (
+                        <div>
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
+                              2. Select Time Slot for {formatDatePill(activeDateConfig.date).monthDay}
+                            </span>
+                            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                              {activeDateConfig.slots.length} available {activeDateConfig.slots.length === 1 ? 'slot' : 'slots'}
+                            </span>
+                          </div>
+
+                          {activeDateConfig.slots.length === 0 ? (
+                            <div className="p-4 text-center text-xs text-slate-400 bg-slate-50 rounded-xl">
+                              No time slots available for this date.
+                            </div>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                              {activeDateConfig.slots.map((slot, sIdx) => {
+                                const slotInfo = getAppointmentSlotInfo(q, activeDateConfig.date, slot.id)
+                                if (slotInfo.isFull && q.fullOptionBehavior === 'hide') {
+                                  return null
+                                }
+
+                                const isSlotFull = slotInfo.isFull
+                                const isSelected =
+                                  selectedAns?.date === activeDateConfig.date && selectedAns?.slotId === slot.id
+
+                                return (
+                                  <div
+                                    key={slot.id || sIdx}
+                                    onClick={() => {
+                                      if (isSlotFull) return
+                                      const ansVal: AppointmentSlotAnswer = {
+                                        date: activeDateConfig.date,
+                                        dateLabel: activeDateConfig.label,
+                                        slotId: slot.id,
+                                        timeRange: `${slot.startTime} - ${slot.endTime}`,
+                                        slotLabel: slot.label
+                                      }
+                                      handleInputChange(q.id, ansVal)
+                                    }}
+                                    className={`p-3.5 rounded-2xl border transition relative ${
+                                      isSlotFull
+                                        ? 'bg-slate-100 border-slate-200 opacity-60 cursor-not-allowed select-none'
+                                        : isSelected
+                                        ? 'bg-indigo-50/90 border-2 border-indigo-600 shadow-sm ring-2 ring-indigo-500/20 cursor-pointer'
+                                        : 'bg-white border-slate-200/90 hover:border-indigo-300 hover:bg-indigo-50/30 cursor-pointer shadow-2xs'
+                                    }`}
+                                  >
+                                    <div className="flex items-start justify-between gap-2">
+                                      <div className="space-y-0.5">
+                                        <div className="flex items-center gap-1.5">
+                                          <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                                            isSelected ? 'border-indigo-600 bg-indigo-600' : 'border-slate-300 bg-white'
+                                          }`}>
+                                            {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                          </div>
+                                          <span className={`text-xs font-black ${isSelected ? 'text-indigo-950' : 'text-slate-900'}`}>
+                                            {slot.startTime} – {slot.endTime}
+                                          </span>
+                                        </div>
+                                        {slot.label && (
+                                          <span className="block text-[11px] text-slate-500 font-semibold pl-5">
+                                            {slot.label}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      {/* Capacity status pill */}
+                                      <div className="shrink-0">
+                                        {isSlotFull ? (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-black bg-rose-100 text-rose-700 border border-rose-200">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                            FULL (0 Left)
+                                          </span>
+                                        ) : slotInfo.hasLimit ? (
+                                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                                            slotInfo.openSlots <= 3
+                                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                                              : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                                          }`}>
+                                            <span className={`w-1.5 h-1.5 rounded-full ${slotInfo.openSlots <= 3 ? 'bg-amber-500' : 'bg-emerald-500'}`} />
+                                            {slotInfo.openSlots} open {slotInfo.openSlots === 1 ? 'slot' : 'slots'}
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-100">
+                                            Available
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Selected Booking Preview Banner */}
+                      {selectedAns && (
+                        <div className="p-3 bg-indigo-50/80 border border-indigo-200 rounded-2xl flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs">
+                              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </span>
+                            <div className="text-xs text-indigo-950 font-bold">
+                              <span>Selected: </span>
+                              <strong>{selectedAns.date}</strong> • <strong>{selectedAns.timeRange}</strong>
+                              {selectedAns.slotLabel && <span className="text-indigo-700 font-normal"> ({selectedAns.slotLabel})</span>}
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleInputChange(q.id, undefined)}
+                            className="text-[11px] font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
+                {/* Unified Contact Number (Mobile / Landline) */}
+                {q.type === 'contact_number' && (() => {
+                  const currentVal = answers[q.id] ? String(answers[q.id]) : ''
+                  const rawDigits = getRawContactDigits(currentVal)
+                  const detected = detectContactType(currentVal)
+
+                  const handleContactInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+                    const formatted = formatContactNumber(e.target.value)
+                    handleInputChange(q.id, formatted)
+                  }
+
+                  return (
+                    <div className="space-y-2">
+                      <div className="relative flex items-center">
+                        <div className="absolute left-3.5 text-slate-400 pointer-events-none">
+                          <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                          </svg>
+                        </div>
+                        <FormInput
+                          type="tel"
+                          required={q.required}
+                          value={currentVal}
+                          onChange={handleContactInput}
+                          placeholder={q.placeholder || 'e.g. 0917-123-4567 or (02) 8123-4567'}
+                          className="w-full pl-10 pr-3.5 py-3 border border-slate-300 rounded-xl text-xs bg-slate-50 focus:bg-white focus:ring-2 focus:ring-blue-500 focus:outline-hidden font-mono font-medium tracking-wide"
+                        />
+                      </div>
+
+                      {/* Real-time Indicator & Digit Counter */}
+                      <div className="flex items-center justify-between px-1 text-[11px]">
+                        <div className="flex items-center gap-1.5">
+                          {detected === 'mobile' && (
+                            <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                              Mobile Number (11 Digits)
+                            </span>
+                          )}
+                          {detected === 'landline' && (
+                            <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                              Landline Number
+                            </span>
+                          )}
+                          {detected === 'unknown' && rawDigits.length > 0 && (
+                            <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 font-medium">
+                              Contact Number
+                            </span>
+                          )}
+                        </div>
+
+                        <span className={`font-mono font-bold ${rawDigits.length === 11 ? 'text-emerald-600' : 'text-slate-400'}`}>
+                          {rawDigits.length} / 11 digits
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })()}
+
                 {q.type === 'date' && (
-                  <input
+                  <FormInput
                     type="date"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1447,7 +1845,7 @@ export const PublicEventFormPage: React.FC = () => {
                 )}
 
                 {q.type === 'time' && (
-                  <input
+                  <FormInput
                     type="time"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1457,7 +1855,7 @@ export const PublicEventFormPage: React.FC = () => {
                 )}
 
                 {q.type === 'number' && (
-                  <input
+                  <FormInput
                     type="number"
                     required={q.required}
                     value={answers[q.id] || ''}
@@ -1511,9 +1909,12 @@ export const PublicEventFormPage: React.FC = () => {
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveCompanion(comp.id)}
-                                  className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition cursor-pointer"
+                                  className="text-xs font-bold text-red-500 hover:text-red-700 hover:bg-red-50 px-2 py-1 rounded-lg transition cursor-pointer flex items-center gap-1"
                                 >
-                                  Remove ✕
+                                  <span>Remove</span>
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
                                 </button>
                               </div>
 
@@ -1604,7 +2005,11 @@ export const PublicEventFormPage: React.FC = () => {
               </span>
             </button>
           </div>
-        </form>
+        </ValidatedForm>
+      </div>
+
+      <div className="relative z-10 text-center mb-6 text-slate-400 text-xs font-medium">
+        <span>Sacred Heart of Jesus Parish - MBS · Ministry of Altar Servers</span>
       </div>
 
       <AlertModal
