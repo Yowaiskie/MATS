@@ -45,6 +45,10 @@ Recent history favors `feat(scope): description` and `fix:` conventions, with so
 
 PRs should explain behavior changes, link relevant issues, list verification results, and include screenshots for UI changes. Document schema, rule, or index changes.
 
+## Dual-Environment Workflow
+
+MATS operates on a single repository with dual isolated Firebase environments (Production: `mats-c10da` on `main`, Development/Staging: `mats-dev` on `develop` and `feature/*`). See [28_DUAL_ENVIRONMENT_AI_WORKFLOW.md](file:///C:/Users/kyle/Desktop/MATS/docs/28_DUAL_ENVIRONMENT_AI_WORKFLOW.md) for full environmental and quality gate specifications.
+
 ## Security & Configuration
 
 Copy `.env.example` to `.env` and configure Firebase locally. Keep credentials and native Firebase configuration out of commits. Preserve authorization guards, Firestore security boundaries, attendance locks, and financial period restrictions. Consult `AI_DEVELOPMENT_RULES.md` before implementation changes.
