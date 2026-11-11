@@ -4,6 +4,7 @@ import {
   updateDoc, 
   getDoc, 
   getDocs, 
+  onSnapshot,
   query, 
   orderBy, 
   serverTimestamp, 
@@ -174,6 +175,88 @@ export const publicationService = {
     const docSnap = await getDocument(firestoreInstance, PUBLICATIONS_COLLECTION, id)
     if (!docSnap || !doesSnapshotExist(docSnap)) return null
     return { id: docSnap.id, ...docSnap.data() } as SchedulePublication
+  },
+
+  /**
+   * Subscribes to real-time updates for a single publication document.
+   */
+  subscribeToPublication(
+    id: string,
+    onUpdate: (pub: SchedulePublication | null) => void,
+    onError?: (err: Error) => void,
+    db?: Firestore
+  ): () => void {
+    let unsubscribed = false
+    let innerUnsub: (() => void) | null = null
+
+    getEffectiveDb(db)
+      .then(firestoreInstance => {
+        if (unsubscribed) return
+        const docRef = getDocumentRef(firestoreInstance, PUBLICATIONS_COLLECTION, id)
+        innerUnsub = onSnapshot(
+          docRef,
+          (docSnap: any) => {
+            if (unsubscribed) return
+            if (!docSnap || !doesSnapshotExist(docSnap)) {
+              onUpdate(null)
+              return
+            }
+            onUpdate({ id: docSnap.id, ...docSnap.data() } as SchedulePublication)
+          },
+          (err: Error) => {
+            if (!unsubscribed && onError) onError(err)
+          }
+        )
+      })
+      .catch(err => {
+        if (!unsubscribed && onError) onError(err)
+      })
+
+    return () => {
+      unsubscribed = true
+      if (innerUnsub) innerUnsub()
+    }
+  },
+
+  /**
+   * Subscribes to real-time updates for all publications sorted chronologically by startDate.
+   */
+  subscribeToPublications(
+    onUpdate: (pubs: SchedulePublication[]) => void,
+    onError?: (err: Error) => void,
+    db?: Firestore
+  ): () => void {
+    let unsubscribed = false
+    let innerUnsub: (() => void) | null = null
+
+    getEffectiveDb(db)
+      .then(firestoreInstance => {
+        if (unsubscribed) return
+        const pubRef = getCollectionRef(firestoreInstance, PUBLICATIONS_COLLECTION)
+        const q = query(pubRef, orderBy('startDate', 'desc'))
+        innerUnsub = onSnapshot(
+          q,
+          (snapshot: any) => {
+            if (unsubscribed) return
+            const list = snapshot.docs.map((d: any) => ({
+              id: d.id,
+              ...d.data()
+            })) as SchedulePublication[]
+            onUpdate(list)
+          },
+          (err: Error) => {
+            if (!unsubscribed && onError) onError(err)
+          }
+        )
+      })
+      .catch(err => {
+        if (!unsubscribed && onError) onError(err)
+      })
+
+    return () => {
+      unsubscribed = true
+      if (innerUnsub) innerUnsub()
+    }
   },
 
   /**

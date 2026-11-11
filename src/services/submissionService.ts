@@ -3,6 +3,7 @@ import {
   doc,
   getDoc,
   getDocs,
+  onSnapshot,
   query,
   where,
   setDoc,
@@ -297,6 +298,53 @@ export const submissionService = {
     const q = query(ref, where('publicationId', '==', publicationId))
     const snapshot = await getDocs(q)
     return snapshot.docs.map(d => ({ id: d.id, ...(d.data() || {}) })) as ScheduleSubmission[]
+  },
+
+  /**
+   * Subscribes to real-time updates for all submissions in a publication.
+   */
+  subscribeToPublicationSubmissions(
+    publicationId: string,
+    onUpdate: (submissions: ScheduleSubmission[]) => void,
+    onError?: (err: Error) => void,
+    db?: Firestore
+  ): () => void {
+    if (!publicationId) {
+      onUpdate([])
+      return () => {}
+    }
+
+    let unsubscribed = false
+    let innerUnsub: (() => void) | null = null
+
+    getEffectiveDb(db)
+      .then(firestoreInstance => {
+        if (unsubscribed) return
+        const ref = collection(firestoreInstance, SUBMISSIONS_COLLECTION)
+        const q = query(ref, where('publicationId', '==', publicationId))
+        innerUnsub = onSnapshot(
+          q,
+          (snapshot: any) => {
+            if (unsubscribed) return
+            const list = snapshot.docs.map((d: any) => ({
+              id: d.id,
+              ...d.data()
+            })) as ScheduleSubmission[]
+            onUpdate(list)
+          },
+          (err: Error) => {
+            if (!unsubscribed && onError) onError(err)
+          }
+        )
+      })
+      .catch(err => {
+        if (!unsubscribed && onError) onError(err)
+      })
+
+    return () => {
+      unsubscribed = true
+      if (innerUnsub) innerUnsub()
+    }
   },
 
   /**

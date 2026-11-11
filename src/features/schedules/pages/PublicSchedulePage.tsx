@@ -19,6 +19,7 @@ import {
   getSlotRankBreakdown,
   isPublicationDeadlinePassed,
   getCountdownTimeRemaining,
+  getParishTodayDate,
   type CountdownResult,
   groupSchedulesIntoPatterns,
   type SchedulePattern,
@@ -26,8 +27,11 @@ import {
   type MemberQuotaStatus
 } from '@/utils/scheduleUtils'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
+import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
+import { useToast } from '@/context/ToastContext'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { AdminMassAssignmentPanel } from '../components/AdminMassAssignmentPanel'
+import { ManageSubmissionsModal } from '../components/ManageSubmissionsModal'
 
 
 export const getLiturgicalTheme = (colorKey?: string, isSpecialPubFallback: boolean = false) => {
@@ -163,12 +167,14 @@ export const getLiturgicalTheme = (colorKey?: string, isSpecialPubFallback: bool
 export const PublicSchedulePage: React.FC = () => {
   const { id: publicationId } = useParams<{ id: string }>()
   const queryClient = useQueryClient()
+  const { toast } = useToast()
   const { user, profile, isAdmin, canAction } = useAuth()
   const canAdminSchedule = Boolean(user && (isAdmin || canAction('canManageSchedules') || profile?.permissions?.canManageSchedules))
   const [schedulingMode, setSchedulingMode] = useState<'member' | 'admin'>('member')
   
   const [publication, setPublication] = useState<SchedulePublication | null>(null)
   const [schedules, setSchedules] = useState<Schedule[]>([])
+  const [allRawMembers, setAllRawMembers] = useState<Member[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [submissions, setSubmissions] = useState<ScheduleSubmission[]>([])
   const [loading, setLoading] = useState(true)
@@ -179,6 +185,15 @@ export const PublicSchedulePage: React.FC = () => {
   const [isMemberPickerOpen, setIsMemberPickerOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  // Admin Mode UI states
+  const [adminModalOpen, setAdminModalOpen] = useState(false)
+  const [adminTargetPatternId, setAdminTargetPatternId] = useState<string>('')
+  const [adminTargetSlotIndex, setAdminTargetSlotIndex] = useState<number | null>(null)
+  const [adminHighlightServerId, setAdminHighlightServerId] = useState<string>('')
+  const [adminEffectiveDate, setAdminEffectiveDate] = useState<string>(() => getParishTodayDate())
+  const [manageSubmissionsOpen, setManageSubmissionsOpen] = useState(false)
+  const [adminControlsExpanded, setAdminControlsExpanded] = useState(false)
   
   // Custom dialog modals
   const [limitModal, setLimitModal] = useState<{ title: string; message: string } | null>(null)
@@ -206,11 +221,10 @@ export const PublicSchedulePage: React.FC = () => {
     }
   }, [])
 
-  const loadData = async () => {
+  const loadData = async (silent = false) => {
     if (!publicationId) return
-    setLoading(true)
+    if (!silent) setLoading(true)
     try {
-      // 1. Fetch publication (staleTime 0 to immediately reflect changes)
       const pub = await queryClient.fetchQuery({
         queryKey: ['publication', publicationId],
         queryFn: () => publicationService.getPublication(publicationId),
@@ -225,7 +239,6 @@ export const PublicSchedulePage: React.FC = () => {
 
       setPublication(pub)
 
-      // 2. Fetch all members, publication schedules, and pending submissions in parallel
       const [membersData, schedsData, subsData] = await Promise.all([
         queryClient.fetchQuery({
           queryKey: ['members'],
@@ -247,7 +260,7 @@ export const PublicSchedulePage: React.FC = () => {
         })
       ])
 
-      // Only eligible active and suspended members based on allowed ranks
+      setAllRawMembers(membersData)
       const eligible = membersData.filter(m => isMemberEligibleForPublication(m, pub, true))
 
       setMembers(eligible)
@@ -265,6 +278,75 @@ export const PublicSchedulePage: React.FC = () => {
     loadData()
   }, [publicationId, queryClient])
 
+  // Real-time Firestore subscriptions for publication and submissions
+  useEffect(() => {
+    if (!publicationId) return
+    const unsubPub = publicationService.subscribeToPublication(
+      publicationId,
+      (livePub) => {
+        setPublication(livePub)
+        setLoading(false)
+      },
+      (err) => console.warn('Live publication subscription warning:', err)
+    )
+
+    const unsubSubs = submissionService.subscribeToPublicationSubmissions(
+      publicationId,
+      (liveSubs) => {
+        setSubmissions(liveSubs || [])
+      },
+      (err) => console.warn('Live submissions subscription warning:', err)
+    )
+
+    return () => {
+      unsubPub()
+      unsubSubs()
+    }
+  }, [publicationId])
+
+  // Real-time Firestore subscription for schedules within the publication range
+  useEffect(() => {
+    if (!publication || !publication.startDate || !publication.endDate) return
+    const unsubScheds = scheduleService.subscribeToPublicationSchedules(
+      publication,
+      (liveSchedules) => {
+        setSchedules(liveSchedules)
+      },
+      (err) => console.warn('Live schedules subscription warning:', err)
+    )
+    return () => unsubScheds()
+  }, [
+    publication?.id,
+    publication?.startDate,
+    publication?.endDate,
+    publication?.publicationType,
+    publication?.includeSundays,
+    publication?.includeWeekdays,
+    publication?.includeSpecialEvents,
+    publication?.includeHolyHour,
+    publication?.includeMeetings
+  ])
+
+  // Recompute eligible members when publication rules or raw members update
+  useEffect(() => {
+    if (!publication || allRawMembers.length === 0) return
+    const eligible = allRawMembers.filter(m => isMemberEligibleForPublication(m, publication, true))
+    setMembers(eligible)
+  }, [publication, allRawMembers])
+
+  // Clamp adminEffectiveDate to publication bounds when publication loads
+  useEffect(() => {
+    if (!publication) return
+    const today = getParishTodayDate()
+    if (today < publication.startDate) {
+      setAdminEffectiveDate(publication.startDate)
+    } else if (today > publication.endDate) {
+      setAdminEffectiveDate(publication.endDate)
+    } else {
+      setAdminEffectiveDate(today)
+    }
+  }, [publication?.id, publication?.startDate, publication?.endDate])
+
   // Filter schedules strictly by publication date range and dynamic filter settings
   const publicationSchedules = useMemo(() => {
     if (!publication) return []
@@ -278,16 +360,29 @@ export const PublicSchedulePage: React.FC = () => {
     return submissions.find(s => s.memberId === selectedMemberId) || null
   }, [selectedMemberId, submissions])
 
-  // Sync selected schedules when selected member changes
+  // Track which memberId was last initialized so background snapshots don't wipe unsaved user selections
+  const [initializedMemberId, setInitializedMemberId] = useState<string>('')
+
   useEffect(() => {
     if (!selectedMemberId) {
       setSelectedScheduleIds(new Set())
       setSelectedSlotIndexMap({})
+      setInitializedMemberId('')
       return
     }
-    // If the member has an existing pending submission, show their requested slots
+
+    const isSwitchingMember = initializedMemberId !== selectedMemberId
+
     if (memberSubmission) {
-      setSelectedScheduleIds(new Set(memberSubmission.requestedScheduleIds))
+      if (isSwitchingMember) {
+        setSelectedScheduleIds(new Set(memberSubmission.requestedScheduleIds))
+      } else {
+        setSelectedScheduleIds(prev => {
+          const next = new Set(prev)
+          memberSubmission.requestedScheduleIds.forEach(id => next.add(id))
+          return next
+        })
+      }
       const slotMap: Record<string, number> = {}
       if (memberSubmission.slotSummaries) {
         memberSubmission.slotSummaries.forEach(sm => {
@@ -298,19 +393,29 @@ export const PublicSchedulePage: React.FC = () => {
           }
         })
       }
-      setSelectedSlotIndexMap(slotMap)
+      setSelectedSlotIndexMap(prev => (isSwitchingMember ? slotMap : { ...prev, ...slotMap }))
+      if (isSwitchingMember) setInitializedMemberId(selectedMemberId)
       return
     }
-    // Otherwise show official assignments (from approved schedules)
-    const initial = new Set<string>()
+
+    const assignedSet = new Set<string>()
     publicationSchedules.forEach(s => {
       if (s.assignedMembers?.includes(selectedMemberId)) {
-        initial.add(s.id)
+        assignedSet.add(s.id)
       }
     })
-    setSelectedScheduleIds(initial)
-    setSelectedSlotIndexMap({})
-  }, [selectedMemberId, publicationSchedules, memberSubmission])
+    if (isSwitchingMember) {
+      setSelectedScheduleIds(assignedSet)
+      setSelectedSlotIndexMap({})
+      setInitializedMemberId(selectedMemberId)
+    } else if (assignedSet.size > 0) {
+      setSelectedScheduleIds(prev => {
+        const next = new Set(prev)
+        assignedSet.forEach(id => next.add(id))
+        return next
+      })
+    }
+  }, [selectedMemberId, publicationSchedules, memberSubmission, initializedMemberId])
 
   const isSpecialPub = publication?.publicationType === 'special_event' || !!publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)
 
@@ -321,6 +426,10 @@ export const PublicSchedulePage: React.FC = () => {
 
   const memberMap = useMemo(() => {
     return new Map(members.map(m => [m.id, getFullName(m)]))
+  }, [members])
+
+  const memberObjMap = useMemo(() => {
+    return new Map(members.map(m => [m.id, m]))
   }, [members])
 
   const maxRowsSunday = useMemo(() => {
@@ -349,6 +458,52 @@ export const PublicSchedulePage: React.FC = () => {
     })
     return currentMaxAssigned
   }, [specialPatterns, publication])
+
+  const allPatterns = useMemo(() => {
+    return [...sundayPatterns, ...weekdayPatterns, ...specialPatterns]
+  }, [sundayPatterns, weekdayPatterns, specialPatterns])
+
+  const adminCycleMetrics = useMemo(() => {
+    let totalCapacity = 0
+    let totalFilled = 0
+    let highlightedServerSlots = 0
+
+    const collectPatternStats = (list: SchedulePattern[], limitPerPattern: number) => {
+      list.forEach(p => {
+        const filled = (p.assignedMembers || []).filter(Boolean)
+        totalCapacity += limitPerPattern
+        totalFilled += Math.min(filled.length, limitPerPattern)
+        if (adminHighlightServerId && filled.includes(adminHighlightServerId)) {
+          highlightedServerSlots += 1
+        }
+      })
+    }
+
+    if (isSpecialPub) {
+      collectPatternStats(specialPatterns, publication?.maxServersPerSpecialSlot ?? 6)
+    } else {
+      collectPatternStats(sundayPatterns, publication?.maxServersPerSundaySlot ?? 5)
+      collectPatternStats(weekdayPatterns, publication?.maxServersPerWeekdaySlot ?? 5)
+    }
+
+    const totalVacant = Math.max(0, totalCapacity - totalFilled)
+    const fillPercent = totalCapacity > 0 ? Math.round((totalFilled / totalCapacity) * 100) : 0
+    const pendingSubmissionsCount = submissions.filter(s => s.status === 'pending').length
+    const totalSubmissionsCount = new Set([
+      ...(publication?.submittedMembers || []),
+      ...submissions.map(s => s.memberId)
+    ]).size
+
+    return {
+      totalCapacity,
+      totalFilled,
+      totalVacant,
+      fillPercent,
+      pendingSubmissionsCount,
+      totalSubmissionsCount,
+      highlightedServerSlots
+    }
+  }, [isSpecialPub, specialPatterns, sundayPatterns, weekdayPatterns, publication, submissions, adminHighlightServerId])
 
   // Map of quota status for every member (including provisional submissions and official assignments)
   const memberQuotaStatusMap = useMemo(() => {
@@ -918,6 +1073,14 @@ export const PublicSchedulePage: React.FC = () => {
   }
 
   const bannerTheme = getLiturgicalTheme(publication?.liturgicalColor, isSpecialPub)
+  const isAdminMode = schedulingMode === 'admin' && canAdminSchedule
+
+  const openAdminRosterModal = (patternId?: string, slotIndex: number | null = null) => {
+    const targetId = patternId || allPatterns[0]?.id || ''
+    setAdminTargetPatternId(targetId)
+    setAdminTargetSlotIndex(slotIndex)
+    setAdminModalOpen(true)
+  }
 
   const renderTable = (patterns: SchedulePattern[], maxRows: number, category: 'sunday' | 'weekday' | 'special', title: string, subtitle: string, icon: React.ReactNode) => {
     if (patterns.length === 0) return null
@@ -928,6 +1091,12 @@ export const PublicSchedulePage: React.FC = () => {
         ? (publication?.maxSundaysPerServer ?? 4)
         : (publication?.maxWeekdaysPerServer ?? 8)
 
+    const slotCapacity = category === 'special'
+      ? (publication?.maxServersPerSpecialSlot ?? 6)
+      : category === 'sunday'
+        ? (publication?.maxServersPerSundaySlot ?? 5)
+        : (publication?.maxServersPerWeekdaySlot ?? 5)
+
     const currentCount = category === 'special'
       ? selectedSpecialCount
       : category === 'sunday'
@@ -937,47 +1106,63 @@ export const PublicSchedulePage: React.FC = () => {
     const sectionTheme = getLiturgicalTheme(publication?.liturgicalColor, category === 'special')
 
     return (
-      <div className="mb-8 sm:mb-10">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 sm:mb-6">
-          <div className="flex items-center gap-3 sm:gap-4">
-            <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${sectionTheme.headerIconBg} flex items-center justify-center shrink-0 shadow-xs`}>
+      <div className="mb-8 sm:mb-10 w-full max-w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3 sm:mb-6">
+          <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+            <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl ${sectionTheme.headerIconBg} flex items-center justify-center shrink-0 shadow-xs`}>
               {icon}
             </div>
-            <div>
-              <h2 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">{title}</h2>
-              <p className="text-xs font-semibold text-slate-500">{subtitle}</p>
+            <div className="min-w-0">
+              <h2 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">{title}</h2>
+              <p className="text-xs font-semibold text-slate-500 truncate">{subtitle}</p>
             </div>
           </div>
 
-          {selectedMemberId && !isClosed && (
-            <div className={`inline-flex items-center gap-2 self-start sm:self-auto ${category === 'special' ? 'bg-purple-50 border-purple-200/80 text-purple-900' : 'bg-indigo-50 border-indigo-200/80 text-indigo-900'} border px-3 py-1.5 rounded-xl text-xs font-bold`}>
-              <span>Your Limit:</span>
-              <span className={`px-2 py-0.5 rounded-md font-extrabold ${currentCount >= maxPerServer ? 'bg-amber-100 text-amber-900' : 'bg-white text-indigo-700 shadow-xs'}`}>
-                {currentCount} / {maxPerServer} Selected
-              </span>
+          {isAdminMode ? (
+            <div className="inline-flex items-center gap-2 self-start sm:self-auto bg-indigo-50 border border-indigo-200/80 text-indigo-900 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold">
+              <span className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse shrink-0" />
+              <span>Click Mass header or slot to assign</span>
             </div>
+          ) : (
+            selectedMemberId && !isClosed && (
+              <div className={`inline-flex items-center gap-2 self-start sm:self-auto ${category === 'special' ? 'bg-purple-50 border-purple-200/80 text-purple-900' : 'bg-indigo-50 border-indigo-200/80 text-indigo-900'} border px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-xl text-[11px] sm:text-xs font-bold`}>
+                <span>Your Limit:</span>
+                <span className={`px-2 py-0.5 rounded-md font-extrabold ${currentCount >= maxPerServer ? 'bg-amber-100 text-amber-900' : 'bg-white text-indigo-700 shadow-xs'}`}>
+                  {currentCount} / {maxPerServer} Selected
+                </span>
+              </div>
+            )
           )}
         </div>
 
         {/* Horizontal scroll hint on mobile */}
-        <div className="sm:hidden mb-2 flex items-center justify-between text-[11px] font-semibold text-slate-400 px-1">
-          <span>Swipe horizontally to view all times</span>
-          <span>{patterns.length} slots</span>
+        <div className="sm:hidden mb-2 px-2.5 py-1.5 bg-slate-100/90 border border-slate-200 rounded-xl flex items-center justify-between text-[11px] font-bold text-slate-600">
+          <span className="flex items-center gap-1.5">
+            <svg className="w-3.5 h-3.5 text-indigo-600 animate-pulse" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span>Swipe table horizontally</span>
+          </span>
+          <span className="text-[10px] font-extrabold uppercase text-slate-500 bg-white px-2 py-0.5 rounded-md border border-slate-200">
+            {patterns.length} Masses ➔
+          </span>
         </div>
 
-        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden">
-          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200">
+        <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs overflow-hidden w-full max-w-full">
+          <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-200 w-full max-w-full touch-pan-x">
             <table className="w-full border-collapse text-left min-w-max">
               <thead>
                 <tr className="border-b border-slate-100 bg-slate-50/70">
-                  <th className="px-3 sm:px-6 py-3.5 sm:py-5 font-extrabold text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest w-16 sm:w-24 sticky left-0 bg-slate-100 sm:bg-slate-50/95 z-20 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
+                  <th className="px-2.5 sm:px-6 py-3 sm:py-5 font-extrabold text-[10px] sm:text-xs text-slate-400 uppercase tracking-widest w-14 sm:w-24 sticky left-0 bg-slate-100 sm:bg-slate-50/95 z-20 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
                     ROLE
                   </th>
                   {patterns.map(p => {
                     const theme = getLiturgicalTheme(p.liturgicalColor || publication?.liturgicalColor, category === 'special')
                     const isPast = isSlotPast(p)
+                    const filledCount = (p.assignedMembers || []).filter(Boolean).length
+                    const isFull = filledCount >= slotCapacity
                     return (
-                      <th key={p.id} className="px-3 sm:px-6 py-3.5 sm:py-5 text-center min-w-[130px] sm:min-w-[170px]">
+                      <th key={p.id} className="px-2.5 sm:px-6 py-3 sm:py-5 text-center min-w-[130px] sm:min-w-[175px] align-top">
                         <div className="font-black text-xs text-slate-900 uppercase tracking-widest">{p.dayName}</div>
                         <div className={`font-extrabold text-xs ${isPast ? 'text-slate-500' : theme.timeClass} mt-0.5`}>
                           {formatTime12Hour(p.startTime)}
@@ -988,7 +1173,7 @@ export const PublicSchedulePage: React.FC = () => {
                           </div>
                         )}
                         {p.location && (
-                          <div className={`inline-flex items-center justify-center gap-1 px-2.5 py-0.5 mt-1 rounded-md border text-[10px] font-extrabold max-w-[150px] mx-auto truncate shadow-2xs ${theme.locationBadgeClass}`}>
+                          <div className={`inline-flex items-center justify-center gap-1 px-2 py-0.5 mt-1 rounded-md border text-[10px] font-extrabold max-w-[140px] sm:max-w-[150px] mx-auto truncate shadow-2xs ${theme.locationBadgeClass}`}>
                             <svg className={`w-2.5 h-2.5 shrink-0 ${theme.locationIconClass}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
                               <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1017,6 +1202,30 @@ export const PublicSchedulePage: React.FC = () => {
                             ))}
                           </div>
                         )}
+
+                        {isAdminMode && (
+                          <div className="mt-2 pt-2 border-t border-slate-200/70 flex flex-col items-center gap-1.5">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold border ${
+                              isFull
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : filledCount > 0
+                                  ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                                  : 'bg-amber-50 text-amber-800 border-amber-200'
+                            }`}>
+                              {filledCount}/{slotCapacity} Filled
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openAdminRosterModal(p.id, null)}
+                              className="w-full py-1 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white text-[10px] font-extrabold shadow-2xs transition cursor-pointer flex items-center justify-center gap-1"
+                            >
+                              <svg className="w-3 h-3 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              <span>Edit Roster</span>
+                            </button>
+                          </div>
+                        )}
                       </th>
                     )
                   })}
@@ -1025,7 +1234,7 @@ export const PublicSchedulePage: React.FC = () => {
               <tbody className="divide-y divide-slate-100">
                 {Array.from({ length: maxRows }).map((_, rowIndex) => (
                   <tr key={rowIndex} className="hover:bg-slate-50/40 transition-colors">
-                    <td className="px-3 sm:px-6 py-3 sm:py-4 font-bold text-xs text-slate-400 uppercase sticky left-0 bg-white sm:bg-white/95 z-10 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
+                    <td className="px-2.5 sm:px-6 py-2.5 sm:py-4 font-bold text-[11px] sm:text-xs text-slate-400 uppercase sticky left-0 bg-white sm:bg-white/95 z-10 border-r border-slate-200/80 shadow-[2px_0_6px_-2px_rgba(0,0,0,0.06)] text-center">
                       S-{rowIndex + 1}
                     </td>
                     {patterns.map(pattern => {
@@ -1033,6 +1242,61 @@ export const PublicSchedulePage: React.FC = () => {
                       const isPast = isSlotPast(pattern)
                       const isSelectedByCurrentMember = pattern.scheduleIds.some(id => selectedScheduleIds.has(id))
                       const savedMemberIds = pattern.assignedMembers
+                      const assignedMemberIdAtRow = savedMemberIds[rowIndex] || ''
+                      const assignedMemberObj = assignedMemberIdAtRow ? memberObjMap.get(assignedMemberIdAtRow) : undefined
+                      const isHighlightedInAdmin = Boolean(isAdminMode && adminHighlightServerId && assignedMemberIdAtRow === adminHighlightServerId)
+
+                      // Admin Mode cell rendering
+                      if (isAdminMode) {
+                        const adminDisplayName = assignedMemberIdAtRow ? (memberMap.get(assignedMemberIdAtRow) || assignedMemberIdAtRow) : null
+                        const rankShort = assignedMemberObj?.rank ? assignedMemberObj.rank.slice(0, 1).toUpperCase() : ''
+
+                        return (
+                          <td key={pattern.id} className="px-1.5 sm:px-3 py-2 sm:py-3 text-center align-middle">
+                            {adminDisplayName ? (
+                              <button
+                                type="button"
+                                onClick={() => openAdminRosterModal(pattern.id, rowIndex)}
+                                className={`group inline-flex items-center justify-between gap-1 px-2 sm:px-3.5 py-1.5 sm:py-2.5 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[115px] sm:min-w-[155px] max-w-[135px] sm:max-w-[165px] text-left cursor-pointer ${
+                                  isHighlightedInAdmin
+                                    ? 'bg-amber-100 border-amber-500 text-amber-950 ring-2 ring-amber-400 shadow-md scale-[1.03]'
+                                    : 'bg-white hover:bg-indigo-50/70 border-slate-200 hover:border-indigo-300 text-slate-800 shadow-2xs'
+                                }`}
+                                title={`Click to change or remove ${adminDisplayName} (Slot S-${rowIndex + 1})`}
+                              >
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                  {rankShort ? (
+                                    <span className={`w-4 h-4 rounded-md text-[9px] font-black flex items-center justify-center shrink-0 ${
+                                      assignedMemberObj?.rank === 'Chevaliers'
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                        : assignedMemberObj?.rank === 'Paladins'
+                                          ? 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                          : 'bg-slate-200 text-slate-700'
+                                    }`}>
+                                      {rankShort}
+                                    </span>
+                                  ) : (
+                                    <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${theme.cellDotClass}`} />
+                                  )}
+                                  <span className="truncate">{adminDisplayName}</span>
+                                </div>
+                                <svg className="w-3 h-3 text-slate-400 group-hover:text-indigo-600 shrink-0 opacity-60 group-hover:opacity-100 transition" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openAdminRosterModal(pattern.id, rowIndex)}
+                                className="w-full h-full min-h-[38px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-indigo-200/80 hover:border-indigo-500 hover:bg-indigo-50/60 flex items-center justify-center gap-1 text-[11px] font-extrabold text-indigo-500 hover:text-indigo-700 transition-all cursor-pointer"
+                                title={`Assign Server to Slot S-${rowIndex + 1}`}
+                              >
+                                <span>+ Assign</span>
+                              </button>
+                            )}
+                          </td>
+                        )
+                      }
                       
                       const savedRowIndexForUser = savedMemberIds.indexOf(selectedMemberId)
                       const isSavedInDb = savedRowIndexForUser !== -1
@@ -1077,11 +1341,11 @@ export const PublicSchedulePage: React.FC = () => {
                       }
 
                       return (
-                        <td key={pattern.id} className="px-2 sm:px-3 py-2.5 sm:py-3 text-center align-middle">
+                        <td key={pattern.id} className="px-1.5 sm:px-3 py-2 sm:py-3 text-center align-middle">
                           {displayMemberName ? (
                             <div
                               onClick={() => !isOtherUserCell && !isPast && handleCellClick(pattern.id, category, rowIndex)}
-                              className={`inline-flex items-center justify-center px-2.5 sm:px-4 py-2 sm:py-3 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[120px] sm:min-w-[140px] max-w-[145px] sm:max-w-[160px] text-center ${
+                              className={`inline-flex items-center justify-center px-2 sm:px-4 py-1.5 sm:py-3 rounded-xl sm:rounded-2xl border text-[11px] sm:text-xs font-bold transition-all select-none min-w-[115px] sm:min-w-[140px] max-w-[130px] sm:max-w-[160px] text-center ${
                                 isPast
                                   ? 'bg-slate-100 border-slate-200 text-slate-600 cursor-not-allowed opacity-90 shadow-2xs'
                                   : isMyCell
@@ -1093,13 +1357,13 @@ export const PublicSchedulePage: React.FC = () => {
                               <span className="truncate">{displayMemberName}</span>
                             </div>
                           ) : isPast ? (
-                            <div className="w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-100/70 flex items-center justify-center text-[10px] font-extrabold text-slate-400 select-none cursor-not-allowed">
+                            <div className="w-full h-full min-h-[38px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border border-slate-200 bg-slate-100/70 flex items-center justify-center text-[10px] font-extrabold text-slate-400 select-none cursor-not-allowed">
                               Closed
                             </div>
                           ) : (
                             <div
                               onClick={() => !isClosed && handleCellClick(pattern.id, category, rowIndex)}
-                              className={`w-full h-full min-h-[40px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
+                              className={`w-full h-full min-h-[38px] sm:min-h-[44px] rounded-xl sm:rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center transition-all ${
                                 !isClosed && !isMemberFullyCompleted
                                   ? 'cursor-pointer hover:border-indigo-400 hover:bg-indigo-50/50 active:bg-indigo-100/50'
                                   : 'cursor-not-allowed opacity-50'
@@ -1123,19 +1387,19 @@ export const PublicSchedulePage: React.FC = () => {
 
   return (
     <div
-      className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0"
+      className="min-h-screen bg-[#f8fafc] flex flex-col lg:flex-row font-sans text-slate-800 pb-24 lg:pb-0 w-full max-w-full overflow-x-hidden"
       style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
     >
       {/* LEFT FORM PANEL */}
-      <div className="w-full lg:w-[380px] lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-5 sm:p-6 lg:p-8 flex flex-col shrink-0 shadow-xs justify-between">
+      <div className="w-full lg:w-[380px] lg:fixed lg:top-0 lg:left-0 lg:h-screen lg:overflow-y-auto bg-white border-b lg:border-b-0 lg:border-r border-slate-200 p-4 sm:p-6 lg:p-8 flex flex-col shrink-0 shadow-xs justify-between min-w-0 z-30 scrollbar-thin scrollbar-thumb-slate-200">
         <div>
           {/* Header Actions */}
           <div className="flex items-center gap-3.5 mb-5 sm:mb-8">
             <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl sm:rounded-full overflow-hidden border border-indigo-100 shadow-xs flex items-center justify-center bg-white shrink-0">
               <img src="/favicon/favicon.png" alt="Ministry Logo" className="w-full h-full object-cover" />
             </div>
-            <div className="lg:hidden">
-              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">Schedule Selection</h1>
+            <div className="lg:hidden min-w-0">
+              <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight truncate">Schedule Selection</h1>
               <p className="text-xs font-bold text-indigo-600 truncate">{publication?.name}</p>
               {publication?.submissionDeadline && (
                 <div className="flex items-center gap-1.5 flex-wrap">
@@ -1229,27 +1493,170 @@ export const PublicSchedulePage: React.FC = () => {
           )}
 
           {schedulingMode === 'admin' && canAdminSchedule ? (
-            <div className="bg-slate-50 border border-slate-200/80 p-5 rounded-2xl space-y-3 mt-2 sm:mt-4">
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
+            <div className="space-y-3.5 mt-2 sm:mt-4">
+              {/* Executive Command Center Header Card */}
+              <div className="bg-gradient-to-br from-indigo-50/90 via-white to-slate-50 border border-indigo-200/80 p-3.5 sm:p-5 rounded-2xl shadow-xs space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                      </svg>
+                    </div>
+                    <div className="min-w-0">
+                      <span className="block text-xs font-black text-slate-900 uppercase tracking-wide truncate">
+                        Admin Command Center
+                      </span>
+                      <span className="text-[10px] font-bold text-slate-500 block truncate">
+                        Direct Matrix & Roster Control
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setAdminControlsExpanded(prev => !prev)}
+                      className="lg:hidden px-2 py-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-[10px] font-black rounded-lg border border-indigo-200 transition cursor-pointer"
+                    >
+                      {adminControlsExpanded ? 'Hide ▲' : 'Tools ▼'}
+                    </button>
+                  </div>
                 </div>
-                <span className="text-xs font-black text-slate-800 uppercase tracking-wide">Admin Direct Mode</span>
+
+                {/* Cycle Health Progress Bar */}
+                <div className="bg-white border border-slate-200/80 rounded-xl p-3 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-extrabold">
+                    <span className="text-slate-600">Slot Occupancy</span>
+                    <span className="text-indigo-700">
+                      {adminCycleMetrics.totalFilled} / {adminCycleMetrics.totalCapacity} ({adminCycleMetrics.fillPercent}%)
+                    </span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        adminCycleMetrics.fillPercent >= 90
+                          ? 'bg-emerald-500'
+                          : adminCycleMetrics.fillPercent >= 50
+                            ? 'bg-indigo-600'
+                            : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${Math.min(100, adminCycleMetrics.fillPercent)}%` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5 pt-1 text-center">
+                    <div className="bg-emerald-50/70 border border-emerald-200/70 rounded-lg py-1.5 px-1">
+                      <span className="block text-sm font-black text-emerald-800">{adminCycleMetrics.totalFilled}</span>
+                      <span className="block text-[9px] font-extrabold text-emerald-600 uppercase">Filled</span>
+                    </div>
+                    <div className="bg-amber-50/70 border border-amber-200/70 rounded-lg py-1.5 px-1">
+                      <span className="block text-sm font-black text-amber-800">{adminCycleMetrics.totalVacant}</span>
+                      <span className="block text-[9px] font-extrabold text-amber-600 uppercase">Vacant</span>
+                    </div>
+                    <div className="bg-indigo-50/70 border border-indigo-200/70 rounded-lg py-1.5 px-1">
+                      <span className="block text-sm font-black text-indigo-800">{adminCycleMetrics.totalSubmissionsCount}</span>
+                      <span className="block text-[9px] font-extrabold text-indigo-600 uppercase">Submitted</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Collapsible Mobile Section: Tools & Highlighter */}
+                <div className={`space-y-3 pt-1 ${adminControlsExpanded ? 'block' : 'hidden lg:block'}`}>
+                  {/* Server Schedule Highlighter */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-extrabold text-slate-500 uppercase tracking-wider">
+                        Highlight Server in Matrix
+                      </label>
+                      {adminHighlightServerId && (
+                        <button
+                          type="button"
+                          onClick={() => setAdminHighlightServerId('')}
+                          className="text-[10px] font-extrabold text-rose-600 hover:underline cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                    </div>
+                    <MemberSearchDropdown
+                      members={members}
+                      value={adminHighlightServerId}
+                      onChange={(id) => setAdminHighlightServerId(id)}
+                      placeholder="Find server across schedule..."
+                      allowClear={true}
+                    />
+                    {adminHighlightServerId && (
+                      <div className="flex items-center justify-between px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-900">
+                        <span>Assigned Mass Slots:</span>
+                        <span className="px-2 py-0.5 rounded-md bg-amber-200/80 text-amber-950 font-black">
+                          {adminCycleMetrics.highlightedServerSlots} Mass(es)
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Effective Date Control */}
+                  <div className="pt-2 border-t border-slate-200/70 flex items-center justify-between gap-2 text-xs">
+                    <span className="font-bold text-slate-600">Effective Date:</span>
+                    <input
+                      type="date"
+                      value={adminEffectiveDate}
+                      min={publication?.startDate}
+                      max={publication?.endDate}
+                      onChange={(e) => setAdminEffectiveDate(e.target.value)}
+                      className="px-2.5 py-1 bg-white border border-slate-200 rounded-lg text-xs font-extrabold text-indigo-700 cursor-pointer focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-slate-600 leading-relaxed font-medium">
-                You are managing Mass rosters as an authorized administrator. Select any Mass on the right, assign servers directly to slots, and save with one click.
-              </p>
-              <div className="pt-2 border-t border-slate-200/70 text-xs font-semibold text-slate-600 space-y-1.5">
-                <div className="flex justify-between">
-                  <span>Eligible Servers:</span>
-                  <span className="font-extrabold text-slate-800">{members.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Publication Schedules:</span>
-                  <span className="font-extrabold text-slate-800">{publicationSchedules.length}</span>
-                </div>
+
+              {/* Quick Admin Action Buttons */}
+              <div className={`space-y-2 ${adminControlsExpanded ? 'block' : 'hidden lg:block'}`}>
+                <button
+                  type="button"
+                  onClick={() => setManageSubmissionsOpen(true)}
+                  className="w-full py-3 px-4 bg-indigo-600 hover:bg-indigo-700 active:scale-[0.99] text-white font-black text-xs rounded-2xl shadow-md shadow-indigo-600/20 transition flex items-center justify-between cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                    </svg>
+                    <span>Submissions Monitor & Auto-Assign</span>
+                  </div>
+                  {adminCycleMetrics.pendingSubmissionsCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-full bg-amber-300 text-slate-950 text-[10px] font-black">
+                      {adminCycleMetrics.pendingSubmissionsCount} Pending
+                    </span>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => openAdminRosterModal()}
+                  className="w-full py-2.5 px-4 bg-white hover:bg-slate-50 text-slate-800 font-extrabold text-xs rounded-2xl border border-slate-200 shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <svg className="w-4 h-4 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  <span>Open Mass Roster Editor</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(window.location.href)
+                    toast.success('Link Copied', 'Public schedule link copied to clipboard!')
+                  }}
+                  className="w-full py-2.5 px-4 bg-slate-50 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-2xl border border-slate-200/80 transition flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <svg className="w-3.5 h-3.5 text-slate-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  <span>Copy Public Schedule Link</span>
+                </button>
               </div>
             </div>
           ) : isDraft ? (
@@ -1560,15 +1967,8 @@ export const PublicSchedulePage: React.FC = () => {
       </div>
 
       {/* RIGHT MATRIX TABLE PANEL */}
-      <div className="flex-1 p-3.5 sm:p-6 md:p-10 overflow-x-auto overflow-y-auto">
-        {schedulingMode === 'admin' && canAdminSchedule ? (
-          <AdminMassAssignmentPanel
-            publication={publication!}
-            publicationSchedules={publicationSchedules}
-            members={members}
-            onSuccess={loadData}
-          />
-        ) : publicationSchedules.length === 0 ? (
+      <div className="flex-1 min-w-0 w-full max-w-full p-3 sm:p-5 md:p-8 lg:p-10 overflow-x-hidden lg:ml-[380px]">
+        {publicationSchedules.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-6 sm:p-10 bg-white rounded-2xl sm:rounded-3xl border border-slate-200/80 shadow-xs">
             <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4">
               <svg xmlns="http://www.w3.org/2000/svg" className="w-8 h-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
@@ -1589,19 +1989,23 @@ export const PublicSchedulePage: React.FC = () => {
           <>
             {/* SCHEDULE MONTH BANNER ABOVE SUNDAY MASSES */}
             <div className={`mb-4 sm:mb-6 ${bannerTheme.bannerGradient} text-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl shadow-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4`}>
-              <div className="flex items-center gap-3 sm:gap-4">
+              <div className="flex items-center gap-3 sm:gap-4 min-w-0">
                 <div className="w-10 h-10 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl bg-white/10 flex items-center justify-center shrink-0 border border-white/10 shadow-xs">
                   <svg xmlns="http://www.w3.org/2000/svg" className={`w-5 h-5 sm:w-7 sm:h-7 ${bannerTheme.bannerIcon}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
                     <span className={`text-[10px] sm:text-[11px] font-extrabold ${bannerTheme.bannerSubtext} uppercase tracking-widest`}>
                       {isSpecialPub ? 'SPECIAL OCCASION SCHEDULE' : 'SCHEDULE PERIOD'}
                     </span>
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-white/15 text-white border border-white/20">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Live Updates
+                    </span>
                   </div>
-                  <h2 className="text-xl sm:text-3xl font-black tracking-tight text-white">
+                  <h2 className="text-lg sm:text-2xl md:text-3xl font-black tracking-tight text-white break-words">
                     {publication?.name || 'Schedule Period'}
                   </h2>
                   <p className={`text-[11px] ${bannerTheme.bannerSubtext} font-semibold sm:hidden mt-0.5`}>
@@ -1609,10 +2013,43 @@ export const PublicSchedulePage: React.FC = () => {
                   </p>
                 </div>
               </div>
-              <div className={`bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl text-xs font-bold ${bannerTheme.bannerSubtext} border border-white/10 backdrop-blur-xs self-stretch sm:self-auto text-center`}>
-                {isSpecialPub ? 'Special Occasion' : 'Public Schedule'}
+
+              <div className="flex items-center gap-2 self-stretch sm:self-auto flex-wrap">
+                {isAdminMode && (
+                  <button
+                    type="button"
+                    onClick={() => openAdminRosterModal()}
+                    className="flex-1 sm:flex-initial px-3 sm:px-3.5 py-2 rounded-xl sm:rounded-2xl bg-white text-slate-900 hover:bg-indigo-50 font-black text-xs shadow-sm transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <svg className="w-3.5 h-3.5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span>Edit Mass Rosters</span>
+                  </button>
+                )}
+                <div className={`bg-white/10 px-3 py-1.5 sm:px-4 sm:py-2 rounded-xl sm:rounded-2xl text-xs font-bold ${bannerTheme.bannerSubtext} border border-white/10 backdrop-blur-xs text-center flex items-center justify-center shrink-0`}>
+                  {isAdminMode ? 'Admin Direct Matrix' : isSpecialPub ? 'Special Occasion' : 'Public Schedule'}
+                </div>
               </div>
             </div>
+
+            {isAdminMode && adminHighlightServerId && (
+              <div className="mb-4 sm:mb-6 px-4 py-3 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-center gap-2.5 text-xs font-bold text-amber-950">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping shrink-0" />
+                  <span>
+                    Highlighting <strong>{memberMap.get(adminHighlightServerId)}</strong> across all Masses ({adminCycleMetrics.highlightedServerSlots} assigned slot(s))
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdminHighlightServerId('')}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-[11px] font-extrabold text-amber-900 hover:bg-amber-100 transition cursor-pointer shrink-0"
+                >
+                  Clear Highlight
+                </button>
+              </div>
+            )}
 
             {isSpecialPub ? (
               renderTable(
@@ -1660,6 +2097,32 @@ export const PublicSchedulePage: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* ADMIN MASS ROSTER EDITOR MODAL */}
+      {canAdminSchedule && publication && (
+        <AdminMassAssignmentPanel
+          isOpen={adminModalOpen}
+          onClose={() => setAdminModalOpen(false)}
+          publication={publication}
+          publicationSchedules={publicationSchedules}
+          members={members}
+          initialPatternId={adminTargetPatternId}
+          initialSlotIndex={adminTargetSlotIndex}
+          effectiveDate={adminEffectiveDate}
+          onEffectiveDateChange={setAdminEffectiveDate}
+          onSuccess={() => loadData(true)}
+        />
+      )}
+
+      {/* ADMIN SUBMISSIONS MONITOR MODAL */}
+      {canAdminSchedule && publication && (
+        <ManageSubmissionsModal
+          isOpen={manageSubmissionsOpen}
+          onClose={() => setManageSubmissionsOpen(false)}
+          publication={publication}
+          onSuccess={() => loadData(true)}
+        />
+      )}
 
       {/* MOBILE FLOATING BOTTOM ACTION BAR (< lg) */}
       {!isClosed && schedulingMode === 'member' && (
@@ -1720,6 +2183,54 @@ export const PublicSchedulePage: React.FC = () => {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MOBILE FLOATING ADMIN ACTION BAR (< lg) */}
+      {canAdminSchedule && schedulingMode === 'admin' && (
+        <div
+          className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 shadow-2xl p-2.5 sm:p-3 animate-in slide-in-from-bottom duration-200"
+          style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 0.5rem)' }}
+        >
+          <div className="max-w-md mx-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => openAdminRosterModal()}
+              className="flex-1 py-2.5 px-3 bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white font-black text-xs rounded-xl shadow-md shadow-indigo-600/20 flex items-center justify-center gap-1.5 cursor-pointer transition"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+              <span>Roster Editor</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setManageSubmissionsOpen(true)}
+              className="flex-1 py-2.5 px-3 bg-white border border-slate-200 hover:bg-slate-50 active:scale-95 text-slate-800 font-extrabold text-xs rounded-xl shadow-2xs flex items-center justify-center gap-1.5 cursor-pointer transition"
+            >
+              <span>Submissions</span>
+              {adminCycleMetrics.pendingSubmissionsCount > 0 && (
+                <span className="px-1.5 py-0.2 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black">
+                  {adminCycleMetrics.pendingSubmissionsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href)
+                toast.success('Link Copied', 'Public schedule link copied to clipboard!')
+              }}
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl border border-slate-200 cursor-pointer transition"
+              title="Copy Public Link"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

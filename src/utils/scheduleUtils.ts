@@ -96,6 +96,23 @@ export const isMeetingSchedule = (title?: string): boolean => {
 }
 
 /**
+ * Determines whether a schedule title or category represents a Baptism / Binyag service.
+ */
+export const isBaptismSchedule = (
+  schedule?: { title?: string; category?: string } | null
+): boolean => {
+  if (!schedule) return false
+  const cat = (schedule.category || '').toLowerCase().trim()
+  if (cat === 'binyag' || cat === 'baptism') return true
+  const title = (schedule.title || '').toLowerCase().trim()
+  return (
+    title.includes('binyag') ||
+    title.includes('baptism') ||
+    title.includes('bautismo')
+  )
+}
+
+/**
  * Detects whether a schedule is one of the corrupted legacy TEST dummy schedules.
  * Specifically checks for dummy test markers without template association, while preserving
  * legitimate Masses (such as "Testimony Mass", "Testimonial Service", "Test of Faith Mass", etc.).
@@ -149,8 +166,8 @@ export const isSundayOrAnticipatedMass = (
 ): boolean => {
   const titleLower = (title || '').toLowerCase().trim()
 
-  // 1. Exclude corrupted test or debug schedules
-  if (isCorruptedLegacyTestSchedule({ title })) {
+  // 1. Exclude corrupted test or debug schedules and baptism services
+  if (isCorruptedLegacyTestSchedule({ title }) || isBaptismSchedule({ title })) {
     return false
   }
 
@@ -353,6 +370,9 @@ export const checkMemberQuotaStatus = (
 export const isSpecialEventOrService = (
   schedule: { title?: string; category?: string }
 ): boolean => {
+  if (isBaptismSchedule(schedule)) {
+    return true
+  }
   if (schedule.category === 'mass_sunday' || schedule.category === 'mass_weekday') {
     return false
   }
@@ -539,6 +559,7 @@ export const isScheduleIncludedInPublication = (
 
   // If publication explicitly enables street locations or has includedDaysOfWeek, and schedule matches day filters, include it
   if (publication?.enableStreetLocation || (publication?.includedDaysOfWeek && publication.includedDaysOfWeek.length > 0)) {
+    if (isBaptismSchedule(schedule)) return false
     return true
   }
 
@@ -546,10 +567,16 @@ export const isScheduleIncludedInPublication = (
   if (publication?.publicationType === 'special_event') {
     if (isHolyHourSchedule(title) && publication?.includeHolyHour === false) return false
     if (isMeetingSchedule(title) && publication?.includeMeetings === false) return false
+    if (isBaptismSchedule(schedule)) return false
     return true
   }
 
   // 4. Regular Mass Cycle Publication Mode (Default)
+  // Baptisms / Binyag are sacramental rotation services, never part of regular mass publications
+  if (isBaptismSchedule(schedule)) {
+    return false
+  }
+
   if (schedule.category === 'holy_hour' || isHolyHourSchedule(title)) {
     return publication?.includeHolyHour ?? false
   }
@@ -1160,7 +1187,9 @@ export const groupSchedulesIntoPatterns = (
 
   if (isSpecialPub) {
     // For special events or dated street mass publications, group by each unique schedule slot chronologically
-    const sortedSchedules = [...schedules].sort((a, b) => {
+    const sortedSchedules = [...schedules]
+      .filter(s => !isBaptismSchedule(s))
+      .sort((a, b) => {
       if (a.date !== b.date) return a.date.localeCompare(b.date)
       return a.startTime.localeCompare(b.startTime)
     })
@@ -1221,8 +1250,8 @@ export const groupSchedulesIntoPatterns = (
   const specialMap = new Map<string, SchedulePattern>()
 
   schedules.forEach(s => {
-    // 1. Exclude corrupted legacy test schedules from all recurring mass grids
-    if (isCorruptedLegacyTestSchedule(s)) {
+    // 1. Exclude corrupted legacy test schedules and baptism services from all recurring mass grids
+    if (isCorruptedLegacyTestSchedule(s) || isBaptismSchedule(s)) {
       return
     }
 

@@ -4,6 +4,7 @@ import { getMemberOrders } from '@/types/member'
 import type { AttendanceStatus } from '@/types/attendance'
 import { getFirstNameFirst } from '@/utils/member'
 import { orderRotationService } from '@/services/orderRotationService'
+import { isBaptismSchedule } from '@/utils/scheduleUtils'
 
 interface RowState {
   id?: string
@@ -304,16 +305,11 @@ export const generateCommunityReport = (
         .join('\n')
     : ''
 
-  const titleLower = (schedule.title || '').toLowerCase()
-  const categoryStr = (schedule.category || '') as string
-  const isBaptismSchedule = categoryStr === 'binyag'
-    || titleLower.includes('binyag')
-    || titleLower.includes('baptism')
-
+  const isBaptism = isBaptismSchedule(schedule)
   const resolvedGroup = resolveScheduleOrderGroup(schedule, assignedMembers)
 
   let formattedAssignedList = assignedList
-  if (isBaptismSchedule && resolvedGroup && !template.includes('{{group}}') && !template.includes('{{orderGroup}}')) {
+  if (isBaptism && resolvedGroup && !template.includes('{{group}}') && !template.includes('{{orderGroup}}')) {
     formattedAssignedList = `Group: ${resolvedGroup}\n${assignedList}`
   }
 

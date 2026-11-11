@@ -12,7 +12,8 @@ import {
   formatScheduleDateWithDay,
   isSundayOrAnticipatedMass,
   isHolyHourSchedule,
-  isMeetingSchedule
+  isMeetingSchedule,
+  isBaptismSchedule
 } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 
@@ -136,14 +137,11 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
     const meetings: Schedule[] = []
 
     activeSchedules.forEach(s => {
-      const titleLower = (s.title || '').toLowerCase()
-      const isBaptism = (s.category as string) === 'binyag' || titleLower.includes('binyag') || titleLower.includes('baptism')
-
       if (isHolyHourSchedule(s.title)) {
         holyHours.push(s)
       } else if (isMeetingSchedule(s.title)) {
         meetings.push(s)
-      } else if (isBaptism) {
+      } else if (isBaptismSchedule(s)) {
         baptisms.push(s)
       } else if (isSundayOrAnticipatedMass(s.title, s.date, s.startTime)) {
         sundays.push(s)

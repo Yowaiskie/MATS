@@ -6,7 +6,7 @@ import type { ScheduleTemplate } from '@/types/schedule'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
-import { isScheduleIncludedInPublication, isOfficialRegularMassSlot, normalizeDayOfWeek } from '@/utils/scheduleUtils'
+import { isScheduleIncludedInPublication, isOfficialRegularMassSlot, isBaptismSchedule, normalizeDayOfWeek } from '@/utils/scheduleUtils'
 import { CustomSelect, Button } from '@/components'
 
 const STATUS_OPTIONS = [
@@ -608,6 +608,32 @@ export const PublicationFormModal: React.FC<Props> = ({
           }
         }
         loadExistingSchedules()
+
+        let unsubLiveSchedules: (() => void) | null = null
+        memberService.getMembers().then(allMembers => {
+          const memberMap = new Map((allMembers || []).map(m => [m.id, `${m.firstName} ${m.lastName}`.trim()]))
+          unsubLiveSchedules = scheduleService.subscribeToPublicationSchedules(
+            publication,
+            (liveSchedules) => {
+              const byDateTime = new Map(liveSchedules.map(s => [`${s.date}-${s.startTime}`, s]))
+              setEventSlots(prev => prev.map(slot => {
+                const liveMatch = byDateTime.get(`${slot.date}-${slot.startTime}`)
+                if (!liveMatch) return slot
+                const assignedIds = liveMatch.assignedMembers || []
+                return {
+                  ...slot,
+                  scheduleId: liveMatch.id,
+                  assignedMembers: [...assignedIds],
+                  assignedMemberNames: assignedIds.map(id => memberMap.get(id) || id)
+                }
+              }))
+            }
+          )
+        }).catch(() => {})
+
+        return () => {
+          if (unsubLiveSchedules) unsubLiveSchedules()
+        }
       } else {
         const now = new Date()
         const sStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
@@ -655,15 +681,16 @@ export const PublicationFormModal: React.FC<Props> = ({
           const active = fetched.filter(t => t.active !== false)
           setTemplates(active)
           
-          // Pre-select the 14 official Regular Mass templates by default
+          // Pre-select the 14 official Regular Mass templates by default (excluding non-mass sacramental rites like Baptism)
           const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
           const officialIds = active.filter(t => {
+            if (isBaptismSchedule(t)) return false
             const dow = dayNames.indexOf(normalizeDayOfWeek(t.dayOfWeek))
             const normTime = (t.startTime || '').trim().slice(0, 5)
             return dow >= 0 && isOfficialRegularMassSlot(dow, normTime)
           }).map(t => t.id)
 
-          setSelectedTemplateIds(officialIds.length > 0 ? officialIds : active.map(t => t.id))
+          setSelectedTemplateIds(officialIds.length > 0 ? officialIds : active.filter(t => !isBaptismSchedule(t)).map(t => t.id))
         } catch (err) {
           console.error('Failed to load templates', err)
         }
@@ -2009,7 +2036,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                     <div className="text-[10px] font-bold text-gray-500 uppercase flex justify-between">
                       <span>Select Templates to Include</span>
                       <div className="space-x-2">
-                        <button type="button" onClick={() => setSelectedTemplateIds(templates.map(t => t.id))} className="text-blue-600 hover:underline cursor-pointer">All</button>
+                        <button type="button" onClick={() => setSelectedTemplateIds(templates.filter(t => !isBaptismSchedule(t)).map(t => t.id))} className="text-blue-600 hover:underline cursor-pointer">All Masses</button>
                         <span>•</span>
                         <button type="button" onClick={() => setSelectedTemplateIds([])} className="text-gray-500 hover:underline cursor-pointer">None</button>
                       </div>

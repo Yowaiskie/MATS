@@ -6,12 +6,14 @@ import {
   deleteDoc,
   getDoc,
   getDocs, 
+  onSnapshot,
   query, 
   documentId,
   where, 
   runTransaction,
   serverTimestamp,
-  type Transaction
+  type Transaction,
+  type Firestore
 } from 'firebase/firestore'
 import { db } from '../firebase/config.ts'
 import type { 
@@ -130,6 +132,44 @@ export const scheduleService = {
     const filtered = rangeSchedules.filter(s => isScheduleIncludedInPublication(s, publication))
 
     return sortSchedulesChronologically(filtered)
+  },
+
+  /**
+   * Subscribes to real-time schedule updates for a publication.
+   */
+  subscribeToPublicationSchedules(
+    publication: SchedulePublication,
+    onUpdate: (schedules: Schedule[]) => void,
+    onError?: (err: Error) => void,
+    explicitDb?: Firestore
+  ): () => void {
+    if (!publication || !publication.startDate || !publication.endDate) {
+      onUpdate([])
+      return () => {}
+    }
+
+    const firestoreInstance = explicitDb || db
+    const schedulesRef = collection(firestoreInstance, SCHEDULES_COLLECTION)
+    const q = query(
+      schedulesRef,
+      where('date', '>=', publication.startDate),
+      where('date', '<=', publication.endDate)
+    )
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const rangeSchedules = snapshot.docs.map(docSnap => ({
+          id: docSnap.id,
+          ...docSnap.data()
+        })) as Schedule[]
+        const filtered = rangeSchedules.filter(s => isScheduleIncludedInPublication(s, publication))
+        onUpdate(sortSchedulesChronologically(filtered))
+      },
+      (err) => {
+        if (onError) onError(err)
+      }
+    )
   },
 
   /**

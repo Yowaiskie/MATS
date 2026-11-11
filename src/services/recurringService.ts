@@ -19,6 +19,7 @@ import {
   isOfficialRegularMassSlot,
   isHolyHourSchedule,
   isMeetingSchedule,
+  isBaptismSchedule,
   isSundayOrAnticipatedMass,
   normalizeDayOfWeek
 } from '@/utils/scheduleUtils'
@@ -357,16 +358,19 @@ export const recurringService = {
           slotEndTime = `${String(nextH).padStart(2, '0')}:${String(Number.isNaN(m) ? 0 : m).padStart(2, '0')}`
         }
 
+        const isBaptism = isBaptismSchedule(temp)
         const category: ScheduleCategoryKey = isHolyHourSchedule(temp.title)
           ? 'holy_hour'
           : isMeetingSchedule(temp.title)
           ? 'meeting'
+          : isBaptism
+          ? 'other'
           : (d.getDay() === 0 || isSundayOrAnticipatedMass(temp.title, dateStr, normStartTime))
           ? 'mass_sunday'
           : 'mass_weekday'
 
         const occurrence: ScheduleInput = {
-          publicationId: options?.publicationId,
+          publicationId: isBaptism ? undefined : options?.publicationId,
           templateId: temp.id,
           title: temp.title,
           category,

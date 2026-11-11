@@ -5,6 +5,7 @@ import { getMemberOrders } from '@/types/member'
 import type { OrderRotationSettings, RotationAssignmentPlanItem } from '@/types/orderRotation'
 import { DEFAULT_ORDER_ROTATION_SETTINGS } from '@/types/orderRotation'
 import { scheduleService } from './scheduleService'
+import { isBaptismSchedule } from '@/utils/scheduleUtils'
 
 export const orderRotationService = {
   /**
@@ -30,7 +31,7 @@ export const orderRotationService = {
     if (schedule.category === 'holy_hour' || titleLower.includes('holy hour') || titleLower.includes('holyhour')) {
       return 'Holy Hour'
     }
-    if (schedule.category === 'binyag' || titleLower.includes('binyag') || titleLower.includes('baptism')) {
+    if (isBaptismSchedule(schedule)) {
       return 'Binyag / Baptism'
     }
     return schedule.title?.trim() || 'General'

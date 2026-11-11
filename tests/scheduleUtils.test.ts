@@ -7,6 +7,7 @@ import {
   isScheduleIncludedInPublication,
   isHistoricalScheduleOccurrence,
   isCorruptedLegacyTestSchedule,
+  isBaptismSchedule,
   groupSchedulesIntoPatterns
 } from '../src/utils/scheduleUtils.ts';
 import type { Schedule, ScheduleTemplate } from '../src/types/schedule.ts';
@@ -63,10 +64,10 @@ test('4. isScheduleIncludedInPublication isolates Regular and Special Event publ
 });
 
 test('5. isHistoricalScheduleOccurrence protects past occurrences based on effectiveDate boundary', () => {
-  // Use dates in future relative to 2026-10-26 (e.g. November 2026)
-  const occurrenceWeek1 = { date: '2026-11-01', startTime: '07:30', status: 'upcoming' };
-  const occurrenceWeek2 = { date: '2026-11-08', startTime: '07:30', status: 'upcoming' };
-  const effectiveDate = '2026-11-08';
+  // Use dates in future relative to current date (e.g. late November 2026)
+  const occurrenceWeek1 = { date: '2026-11-15', startTime: '07:30', status: 'upcoming' };
+  const occurrenceWeek2 = { date: '2026-11-22', startTime: '07:30', status: 'upcoming' };
+  const effectiveDate = '2026-11-22';
 
   assert.equal(isHistoricalScheduleOccurrence(occurrenceWeek1, effectiveDate), true, 'Occurrence before effectiveDate must be historical');
   assert.equal(isHistoricalScheduleOccurrence(occurrenceWeek2, effectiveDate), false, 'Occurrence on effectiveDate must be future eligible');
@@ -371,4 +372,98 @@ test('14. groupSchedulesIntoPatterns includes legitimate Testimony Mass in recur
   // Dummy TEST Mass at 18:00 is completely excluded
   assert.equal(result.sundayPatterns.some(p => p.startTime === '18:00'), false);
   assert.equal(result.weekdayPatterns.length, 0);
+});
+
+test('15. isBaptismSchedule identifies baptism / binyag schedules by title and category variants', () => {
+  assert.equal(isBaptismSchedule({ title: 'Binyag' }), true);
+  assert.equal(isBaptismSchedule({ title: '10:30 AM Binyag' }), true);
+  assert.equal(isBaptismSchedule({ title: 'Sunday Binyagan' }), true);
+  assert.equal(isBaptismSchedule({ title: 'Holy Baptism Rite' }), true);
+  assert.equal(isBaptismSchedule({ title: 'Bautismo sa Parokya' }), true);
+  assert.equal(isBaptismSchedule({ category: 'binyag', title: 'Special Service' }), true);
+  assert.equal(isBaptismSchedule({ category: 'baptism', title: 'Community Rite' }), true);
+
+  // Non-baptism schedules
+  assert.equal(isBaptismSchedule({ title: 'Sunday Morning Mass' }), false);
+  assert.equal(isBaptismSchedule({ title: 'Weekday Daily Mass' }), false);
+  assert.equal(isBaptismSchedule({ title: 'Holy Hour & Adoration' }), false);
+  assert.equal(isBaptismSchedule(null), false);
+});
+
+test('16. isScheduleIncludedInPublication excludes Baptism schedules from regular publications', () => {
+  const pub: Partial<SchedulePublication> = {
+    id: 'pub-nov-2026',
+    startDate: '2026-11-01',
+    endDate: '2026-11-30',
+    publicationType: 'regular',
+    includeSundays: true,
+    includeWeekdays: true,
+    includeSpecialEvents: true
+  };
+
+  const baptismSchedule: Schedule = {
+    id: 'sched-binyag-01',
+    publicationId: 'pub-nov-2026',
+    templateId: 'temp-binyag',
+    date: '2026-11-15', // Sunday
+    startTime: '10:30',
+    endTime: '11:30',
+    title: '10:30 AM Binyag',
+    category: 'mass_sunday', // Even if mistakenly stamped as mass_sunday
+    status: 'upcoming',
+    assignedMembers: []
+  } as Schedule;
+
+  assert.equal(
+    isScheduleIncludedInPublication(baptismSchedule, pub),
+    false,
+    'Baptism schedule must NEVER be included in regular Mass publications'
+  );
+});
+
+test('17. groupSchedulesIntoPatterns excludes Baptism schedules from both sunday and weekday patterns', () => {
+  const pub: Partial<SchedulePublication> = {
+    id: 'pub-nov-2026',
+    publicationType: 'regular',
+    includeSundays: true,
+    includeWeekdays: true
+  };
+
+  const sundayMass: Schedule = {
+    id: 'sched-sun-0900',
+    date: '2026-11-15',
+    startTime: '09:00',
+    endTime: '10:00',
+    title: 'Sunday Morning Mass',
+    category: 'mass_sunday',
+    status: 'upcoming',
+    assignedMembers: []
+  } as Schedule;
+
+  const sundayBaptism: Schedule = {
+    id: 'sched-binyag-1030',
+    date: '2026-11-15',
+    startTime: '10:30',
+    endTime: '11:30',
+    title: '10:30 AM Binyag',
+    templateId: 'template-binyag-sun',
+    category: 'mass_sunday',
+    status: 'upcoming',
+    assignedMembers: []
+  } as Schedule;
+
+  const result = groupSchedulesIntoPatterns([sundayMass, sundayBaptism], pub);
+
+  assert.equal(result.sundayPatterns.length, 1, 'Only Sunday Mass should be in sundayPatterns');
+  assert.equal(result.sundayPatterns[0].startTime, '09:00');
+
+  // CRITICAL: Sunday Baptism must NOT be placed in weekdayPatterns!
+  assert.equal(result.weekdayPatterns.length, 0, 'Baptism must NEVER leak into weekdayPatterns');
+  assert.equal(result.specialPatterns.length, 0, 'Baptism must not appear in regular specialPatterns');
+});
+
+test('18. isSundayOrAnticipatedMass rejects Baptism so it cannot masquerade as Sunday Mass or bypass into Weekday logic', () => {
+  assert.equal(isSundayOrAnticipatedMass('Binyag', '2026-11-15', '10:30'), false);
+  assert.equal(isSundayOrAnticipatedMass('10:30 AM Binyag', '2026-11-15', '10:30'), false);
+  assert.equal(isSundayOrAnticipatedMass('Sunday Baptism', '2026-11-15', '11:00'), false);
 });

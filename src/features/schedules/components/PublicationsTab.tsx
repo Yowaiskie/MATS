@@ -57,24 +57,20 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
   const [manageSubmissionsPub, setManageSubmissionsPub] = useState<SchedulePublication | null>(null)
   const [templateGenPub, setTemplateGenPub] = useState<SchedulePublication | null>(null)
 
-  const loadData = async () => {
-    setLoading(true)
+  const computePublicationStats = async (pubs: SchedulePublication[]) => {
     try {
-      const [data, allMembers] = await Promise.all([
-        publicationService.getPublications(),
-        memberService.getMembers()
-      ])
-      setPublications(data)
-
-      // Compute actual scheduled and eligible members count per publication
+      const allMembers = await memberService.getMembers()
       const statsMap: Record<string, PublicationMemberStats> = {}
       await Promise.all(
-        data.map(async pub => {
+        pubs.map(async pub => {
           try {
             const eligibleMembers = allMembers.filter(m => isMemberEligibleForPublication(m, pub))
             const eligibleIdSet = new Set(eligibleMembers.map(m => m.id))
 
-            const validScheds = await scheduleService.getSchedulesForPublication(pub)
+            const [validScheds, pubSubs] = await Promise.all([
+              scheduleService.getSchedulesForPublication(pub),
+              submissionService.getSubmissionsForPublication(pub.id).catch(() => [])
+            ])
             
             const assignedIds = new Set<string>()
             validScheds.forEach(s => {
@@ -84,6 +80,11 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
             })
             pub.submittedMembers?.forEach(id => {
               if (eligibleIdSet.has(id)) assignedIds.add(id)
+            })
+            pubSubs.forEach(sub => {
+              if (sub.status !== 'rejected' && eligibleIdSet.has(sub.memberId)) {
+                assignedIds.add(sub.memberId)
+              }
             })
 
             statsMap[pub.id] = {
@@ -100,6 +101,17 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
         })
       )
       setPubStatsById(statsMap)
+    } catch (err) {
+      console.warn('Could not compute publication member stats:', err)
+    }
+  }
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const data = await publicationService.getPublications()
+      setPublications(data)
+      await computePublicationStats(data)
     } catch (err: any) {
       console.error(err)
       toast.error('Error', 'Failed to load publications.')
@@ -110,6 +122,15 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
 
   useEffect(() => {
     loadData()
+    const unsub = publicationService.subscribeToPublications(
+      (livePubs) => {
+        setPublications(livePubs)
+        setLoading(false)
+        computePublicationStats(livePubs)
+      },
+      (err) => console.warn('Live publications subscription warning:', err)
+    )
+    return () => unsub()
   }, [])
 
   const handleCopyLink = (pubId: string) => {

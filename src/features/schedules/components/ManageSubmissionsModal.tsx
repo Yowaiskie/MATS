@@ -8,7 +8,7 @@ import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { submissionService } from '@/services/submissionService'
 import { autoAssignService, type AutoAssignResult } from '@/services/autoAssignService'
-import { isSundayOrAnticipatedMass, isSundaySlotSummary, formatTime12Hour, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
+import { isSundayOrAnticipatedMass, isSundaySlotSummary, isBaptismSchedule, formatTime12Hour, isMemberEligibleForPublication } from '@/utils/scheduleUtils'
 import { getFullName } from '@/utils/member'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { AdminEditMemberScheduleModal } from './AdminEditMemberScheduleModal'
@@ -53,10 +53,14 @@ const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Frid
 export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   isOpen,
   onClose,
-  publication,
+  publication: propPublication,
   onSuccess
 }) => {
   const { user, profile } = useAuth()
+  const [livePublication, setLivePublication] = useState<SchedulePublication | null>(propPublication)
+  const publication = livePublication || propPublication
+
+  const [allRawMembers, setAllRawMembers] = useState<Member[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [submissions, setSubmissions] = useState<ScheduleSubmission[]>([])
@@ -67,6 +71,10 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
+  useEffect(() => {
+    setLivePublication(propPublication)
+  }, [propPublication])
 
   // Cycle Finalization State
   const [showCycleFinalizeConfirm, setShowCycleFinalizeConfirm] = useState(false)
@@ -100,8 +108,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
         submissionService.getSubmissionsForPublication(publication.id)
       ])
 
-      // Eligible altar servers based on publication's allowed ranks
-      // Always include members with existing submissions or schedule assignments in this publication
+      setAllRawMembers(allMembers)
       const subMemberIdSet = new Set((pubSubmissions || []).map(s => s.memberId))
       const schedMemberIdSet = new Set(validSchedules.flatMap(s => s.assignedMembers || []))
       const eligible = allMembers.filter(m => 
@@ -122,7 +129,7 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
   }
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && propPublication) {
       setSelectedIds(new Set())
       setExpandedMemberIds(new Set())
       setAutoAssignResult(null)
@@ -133,7 +140,52 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
       setAssignTargetScope('all_unsubmitted')
       loadData()
     }
-  }, [isOpen, publication])
+  }, [isOpen, propPublication?.id])
+
+  // Real-time Firestore subscriptions while modal is open
+  useEffect(() => {
+    if (!isOpen || !propPublication?.id) return
+
+    const unsubPub = publicationService.subscribeToPublication(
+      propPublication.id,
+      (updatedPub) => {
+        if (updatedPub) setLivePublication(updatedPub)
+      }
+    )
+
+    const unsubSubs = submissionService.subscribeToPublicationSubmissions(
+      propPublication.id,
+      (liveSubs) => {
+        setSubmissions(liveSubs || [])
+      }
+    )
+
+    const unsubScheds = scheduleService.subscribeToPublicationSchedules(
+      propPublication,
+      (liveScheds) => {
+        setSchedules(liveScheds)
+      }
+    )
+
+    return () => {
+      unsubPub()
+      unsubSubs()
+      unsubScheds()
+    }
+  }, [isOpen, propPublication?.id, propPublication?.startDate, propPublication?.endDate])
+
+  // Keep eligible members list updated when live submissions or schedules change
+  useEffect(() => {
+    if (!publication || allRawMembers.length === 0) return
+    const subMemberIdSet = new Set(submissions.map(s => s.memberId))
+    const schedMemberIdSet = new Set(schedules.flatMap(s => s.assignedMembers || []))
+    const eligible = allRawMembers.filter(m =>
+      isMemberEligibleForPublication(m, publication, true) ||
+      subMemberIdSet.has(m.id) ||
+      schedMemberIdSet.has(m.id)
+    )
+    setMembers(eligible)
+  }, [publication, allRawMembers, submissions, schedules])
 
   // Compute stats and statuses for each member (grouped by Day of Week & Time)
   const membersWithStatus = useMemo<MemberWithScheduleStatus[]>(() => {
@@ -150,6 +202,10 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
       schedules.forEach(s => {
         if (s.assignedMembers?.includes(member.id)) {
           assignedIds.push(s.id)
+          if (isBaptismSchedule(s)) {
+            // Sacramental Baptisms are managed by Order Rotation and do not count towards Mass quotas
+            return
+          }
           const isSun = isSundayOrAnticipatedMass(s.title, s.date, s.startTime)
           if (isSun) {
             sundaysCount++
@@ -188,6 +244,9 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
       // If member has provisional submission, populate their requested slots in the drawer
       if (pendingSub?.slotSummaries && pendingSub.slotSummaries.length > 0) {
         pendingSub.slotSummaries.forEach(sm => {
+          if (isBaptismSchedule(sm)) {
+            return
+          }
           const smDow = sm.dayOfWeek ?? 0
           const smNormTime = (sm.startTime || '00:00').trim().slice(0, 5)
           const slotKey = `${smDow}-${smNormTime}-${sm.title || 'Mass'}`
