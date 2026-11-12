@@ -7,7 +7,7 @@ import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { isScheduleIncludedInPublication, isOfficialRegularMassSlot, isBaptismSchedule, normalizeDayOfWeek } from '@/utils/scheduleUtils'
-import { CustomSelect, Button } from '@/components'
+import { CustomSelect, Button, useToast } from '@/components'
 
 const STATUS_OPTIONS = [
   { value: 'draft', label: 'Draft (Temporary Closed)' },
@@ -67,6 +67,7 @@ export const PublicationFormModal: React.FC<Props> = ({
   onSubmit,
   publication
 }) => {
+  const { toast } = useToast()
   const [name, setName] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -99,7 +100,6 @@ export const PublicationFormModal: React.FC<Props> = ({
   const [templates, setTemplates] = useState<ScheduleTemplate[]>([])
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<string[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState('')
 
   // Slot Generator & Weekly Street Location Builder State
   const [defaultSlotTitle, setDefaultSlotTitle] = useState('')
@@ -696,8 +696,6 @@ export const PublicationFormModal: React.FC<Props> = ({
         }
       }
       loadTemplates()
-
-      setError('')
     }
   }, [isOpen, publication])
 
@@ -722,17 +720,24 @@ export const PublicationFormModal: React.FC<Props> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (startDate > endDate) {
-      setError('Start date cannot be after end date.')
+      toast.error('Invalid Date Range', 'Start date cannot be after end date.')
+      return
+    }
+
+    if (publicationType === 'regular' && !includeSundays && !includeWeekdays) {
+      toast.error('Mass Scope Required', 'Please enable at least Sunday Masses or Weekday Masses for a regular mass cycle.')
       return
     }
 
     if (enableRankQuotas && totalRankAllotment > currentSlotCapacity) {
-      setError(`Total rank allotment (${totalRankAllotment}) cannot exceed the Max Servers per Slot (${currentSlotCapacity}). Please adjust Chevaliers, Paladins, or Squires.`)
+      toast.error(
+        'Capacity Limit Exceeded',
+        `Total rank allotment (${totalRankAllotment}) cannot exceed the Max Servers per Slot (${currentSlotCapacity}). Please adjust Chevaliers, Paladins, or Squires.`
+      )
       return
     }
 
     setIsSubmitting(true)
-    setError('')
     try {
       const excludedKwList = customExcludedKeywords
         .split(',')
@@ -754,7 +759,7 @@ export const PublicationFormModal: React.FC<Props> = ({
           : undefined
 
       if (publicationType === 'regular' && generateSchedules && (!selectedTemplateIds || selectedTemplateIds.length === 0)) {
-        setError('Please select at least one active Schedule Template to generate regular schedules.')
+        toast.error('Schedule Templates Required', 'Please select at least one active Schedule Template to generate regular schedules.')
         setIsSubmitting(false)
         return
       }
@@ -801,7 +806,7 @@ export const PublicationFormModal: React.FC<Props> = ({
       }, generateSchedules, selectedTemplateIds, customSlotsPayload)
       onClose()
     } catch (err: any) {
-      setError(err.message || 'Failed to save publication.')
+      toast.error('Submission Failed', err.message || 'Failed to save publication.')
     } finally {
       setIsSubmitting(false)
     }
@@ -837,12 +842,6 @@ export const PublicationFormModal: React.FC<Props> = ({
         </div>
 
         <div className="p-6 overflow-y-auto">
-          {error && (
-            <div className="mb-6 p-3.5 bg-rose-50 text-rose-800 text-xs font-bold rounded-2xl border border-rose-200 animate-fade-in">
-              {error}
-            </div>
-          )}
-
           <ValidatedForm id="pub-form" onSubmit={handleSubmit} className="space-y-4">
             {/* Publication Type Selector */}
             <div>
@@ -1032,7 +1031,7 @@ export const PublicationFormModal: React.FC<Props> = ({
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-medium text-gray-800"
               />
               <span className="text-[10px] text-gray-400 font-medium block mt-1">
-                Members who do not submit by this deadline can be automatically assigned via &quot;Auto-Assign Randomly&quot;.
+                Optional: Cut-off date &amp; time for altar server submissions. If left blank, the public link remains open until closed manually.
               </span>
             </div>
 
@@ -2030,6 +2029,15 @@ export const PublicationFormModal: React.FC<Props> = ({
                     </span>
                   </div>
                 </label>
+
+                {generateSchedules && templates.length === 0 && (
+                  <div className="ml-6 p-2.5 rounded-xl border border-amber-200 bg-amber-50 text-[11px] text-amber-800 flex items-center gap-2">
+                    <svg className="w-4 h-4 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span>No active schedule templates found in the database. Please reload or verify template configuration.</span>
+                  </div>
+                )}
 
                 {generateSchedules && templates.length > 0 && (
                   <div className="ml-6 space-y-2">
