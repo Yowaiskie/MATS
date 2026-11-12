@@ -6,7 +6,7 @@ import { attendanceService } from '@/services/attendanceService'
 import { excuseService } from '@/services/excuseService'
 import { settingsService } from '@/services/settingsService'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { Card, Button, EmptyState, useToast } from '@/components'
+import { Card, Button, EmptyState, useToast, CoordinatorWorkflowBanner } from '@/components'
 import { AttendanceHeader } from '../components/AttendanceHeader'
 import { AttendanceRow } from '../components/AttendanceRow'
 import { CommunityReportModal } from '../components/CommunityReportModal'
@@ -682,6 +682,12 @@ export const AttendancePage: React.FC = () => {
       )}
 
       {/* Form Area */}
+      <CoordinatorWorkflowBanner
+        module="attendance"
+        activeStep={session?.locked ? 3 : 2}
+        className="mb-4"
+      />
+
       <Card>
         {/* Search & Bulk Assign Actions Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-b border-gray-100 bg-gray-50/50 rounded-t-xl">
