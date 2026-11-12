@@ -1,5 +1,7 @@
 {
   "projects": {
-    "default": "mats-c10da"
+    "default": "mats-c10da",
+    "production": "mats-c10da",
+    "staging": "mats-dev-10b59"
   }
 }
