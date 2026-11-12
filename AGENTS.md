@@ -45,9 +45,11 @@ Recent history favors `feat(scope): description` and `fix:` conventions, with so
 
 PRs should explain behavior changes, link relevant issues, list verification results, and include screenshots for UI changes. Document schema, rule, or index changes.
 
-## Dual-Environment Workflow
+## Dual-Environment & Multi-AI Workflow
 
 MATS operates on a single repository with dual isolated Firebase environments (Production: `mats-c10da` on `main`, Development/Staging: `mats-dev` on `develop` and `feature/*`). See [28_DUAL_ENVIRONMENT_AI_WORKFLOW.md](file:///C:/Users/kyle/Desktop/MATS/docs/28_DUAL_ENVIRONMENT_AI_WORKFLOW.md) for full environmental and quality gate specifications.
+
+When collaborating across multiple AI assistants (Antigravity & Codex), follow the division of labor and handoff protocol in [AI_COLLABORATION_GUIDE.md](file:///C:/Users/kyle/Desktop/MATS/docs/AI_COLLABORATION_GUIDE.md).
 
 ## Security & Configuration
 
