@@ -2,10 +2,12 @@ import React, { useState } from 'react'
 import type { Member } from '@/types/member'
 import { getOrderBadgeStyle, getMemberOrders } from '@/types/member'
 import type { AttendanceStatus } from '@/types/attendance'
+import type { ExcuseRequest } from '@/types/excuse'
 import { getFullName } from '@/utils/member'
 
 interface AttendanceRowProps {
   member: Member
+  excuse?: ExcuseRequest
   status: AttendanceStatus | undefined
   remarks: string
   onStatusChange: (status: AttendanceStatus | undefined) => void
@@ -18,6 +20,7 @@ interface AttendanceRowProps {
 
 export const AttendanceRow: React.FC<AttendanceRowProps> = ({
   member,
+  excuse,
   status,
   remarks,
   onStatusChange,
@@ -72,7 +75,28 @@ export const AttendanceRow: React.FC<AttendanceRowProps> = ({
               {ord}
             </span>
           ))}
+          {excuse?.status === 'approved' && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200"
+              title={`Reason: ${excuse.reason}`}
+            >
+              ✓ Excused
+            </span>
+          )}
+          {(excuse?.status === 'pending' || excuse?.status === 'under_review') && (
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200"
+              title={`Reason: ${excuse.reason}`}
+            >
+              ⏳ Excuse Pending
+            </span>
+          )}
         </div>
+        {excuse?.status === 'approved' && status === undefined && (
+          <p className="mt-1.5 text-xs font-semibold text-emerald-700">
+            Excuse officially approved. Attendance has not been marked yet.
+          </p>
+        )}
       </div>
 
       {/* Input Options Column */}

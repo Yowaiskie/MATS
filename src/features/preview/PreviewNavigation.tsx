@@ -5,6 +5,7 @@ export const PreviewNavigation: React.FC = () => {
   const location = useLocation()
 
   const links = [
+    { name: '✨ Redesign Showroom', path: '/redesign-showroom' },
     { name: 'Dashboard', path: '/dashboard-preview' },
     { name: 'Schedules', path: '/schedule-preview' },
     { name: 'Members', path: '/members-preview' },

@@ -37,3 +37,7 @@ android/app/google-services.json
 *.png
 .vercel
 
+# Migration and seeding scripts containing credentials
+scripts/seed*.mjs
+
+

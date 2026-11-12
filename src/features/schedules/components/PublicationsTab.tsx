@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { publicationService } from '@/services/publicationService'
 import { recurringService } from '@/services/recurringService'
 import { scheduleService } from '@/services/scheduleService'
@@ -9,7 +9,7 @@ import { getOccurrenceContext } from '@/utils/scheduleIntegrity'
 import type { SchedulePublication, SchedulePublicationInput } from '@/types/publication'
 import type { CycleConflictItem } from '@/types/submission'
 import { ConfirmModal } from '@/components/Dialog'
-import { ActionMenu, Pagination } from '@/components'
+import { ActionMenu, Pagination, CoordinatorWorkflowBanner } from '@/components'
 import { PublicationFormModal, type CustomEventSlotInput } from './PublicationFormModal'
 import { ManageSubmissionsModal } from './ManageSubmissionsModal'
 import { SchedulePdfExportModal } from './SchedulePdfExportModal'
@@ -36,6 +36,8 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
   const [pubStatsById, setPubStatsById] = useState<Record<string, PublicationMemberStats>>({})
   const [loading, setLoading] = useState(true)
   const [currentPage, setCurrentPage] = useState(1)
+  const [copiedPublicationId, setCopiedPublicationId] = useState<string | null>(null)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [formOpen, setFormOpen] = useState(false)
   const [duplicateReportOpen, setDuplicateReportOpen] = useState(false)
@@ -133,10 +135,21 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
     return () => unsub()
   }, [])
 
-  const handleCopyLink = (pubId: string) => {
+  useEffect(() => () => {
+    if (copyTimeoutRef.current !== null) clearTimeout(copyTimeoutRef.current)
+  }, [])
+
+  const handleCopyLink = async (pubId: string) => {
     const url = `${window.location.origin}/public/schedule/${pubId}`
-    navigator.clipboard.writeText(url)
-    toast.success('Link Copied', 'Public link copied to clipboard!')
+    try {
+      await navigator.clipboard.writeText(url)
+      if (copyTimeoutRef.current !== null) clearTimeout(copyTimeoutRef.current)
+      setCopiedPublicationId(pubId)
+      toast.success('Link Copied', 'Public link copied to clipboard!')
+      copyTimeoutRef.current = setTimeout(() => setCopiedPublicationId(null), 2200)
+    } catch {
+      toast.error('Copy Failed', 'Unable to copy the public link. Please try again.')
+    }
   }
 
   const handleDelete = (id: string) => {
@@ -505,6 +518,8 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
         </button>
       </div>
 
+      <CoordinatorWorkflowBanner module="schedules" activeStep={1} />
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-gray-200 shadow-sm">
           <p className="text-[10px] uppercase font-bold text-gray-400">Total</p>
@@ -658,26 +673,40 @@ export const PublicationsTab: React.FC<PublicationsTabProps> = ({ onSchedulesCha
               </div>
 
               {/* Actions Grid */}
-              <div className="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2">
+              <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
                   <a
                     href={`/public/schedule/${pub.id}`}
                     target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 rounded-xl transition-all shadow-2xs"
+                    rel="noopener noreferrer"
+                    title="Preview public portal in new tab"
+                    className="inline-flex min-h-11 items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 transition-all active:scale-95 cursor-pointer"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                    </svg>
                     <span>Preview</span>
                   </a>
                   <button
+                    type="button"
                     onClick={() => handleCopyLink(pub.id)}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-blue-50 hover:text-blue-700 border border-slate-200 rounded-xl transition-all shadow-2xs cursor-pointer"
+                    title="Copy public link to clipboard"
+                    aria-live="polite"
+                    className={`inline-flex min-h-11 items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border ${copiedPublicationId === pub.id
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                      : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'}`}
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
-                      <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
-                    </svg>
-                    <span>Copy</span>
+                    {copiedPublicationId === pub.id ? (
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                    )}
+                    <span>{copiedPublicationId === pub.id ? 'Copied!' : 'Copy Link'}</span>
                   </button>
                 </div>
 

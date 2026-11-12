@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { eventTaskService } from '@/services/eventTaskService'
 import type { Event, EventTask, EventAssignment } from '@/types/event'
 import { Card, Loading, StatusBadge } from '@/components'
@@ -91,6 +92,24 @@ export const OverviewTab: React.FC<Props> = ({ event }) => {
         <Card className="p-6 border border-slate-200/80 shadow-2xs">
           <h3 className="text-sm font-bold text-slate-900 mb-4">Event Details</h3>
           <dl className="space-y-3 text-xs sm:text-sm">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+              <dt className="font-semibold text-slate-500">Linked Mass Schedule</dt>
+              <dd className="font-bold text-slate-900 sm:text-right">
+                {event.linkedScheduleId ? (
+                  <Link
+                    to={`/attendance?scheduleId=${encodeURIComponent(event.linkedScheduleId)}`}
+                    className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 transition-colors"
+                  >
+                    <svg aria-hidden="true" className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    View Mass Roster &amp; Attendance
+                  </Link>
+                ) : (
+                  <span className="font-medium text-slate-500">Not linked to a Mass schedule</span>
+                )}
+              </dd>
+            </div>
             <div className="flex justify-between border-b border-slate-100 pb-2.5">
               <dt className="font-semibold text-slate-500">Location</dt>
               <dd className="font-bold text-slate-900 text-right">{event.location || 'No location set'}</dd>

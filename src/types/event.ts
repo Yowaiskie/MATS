@@ -16,6 +16,7 @@ export interface Event {
   headUid: string;
   headName: string;
   linkedScheduleId?: string;
+  linkedPublicationId?: string;
   linkedFundRequestIds?: string[];
   createdByUid: string;
   createdByName: string;

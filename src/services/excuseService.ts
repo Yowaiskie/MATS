@@ -254,6 +254,31 @@ export const excuseService = {
   },
 
   /**
+   * Fetch active excuse requests for a schedule, newest first.
+   */
+  async getExcuseRequestsForSchedule(scheduleId: string): Promise<ExcuseRequest[]> {
+    const requestsQuery = query(
+      collection(db, EXCUSES_COLLECTION),
+      where('schedules', 'array-contains', scheduleId)
+    )
+    const snapshot = await getDocs(requestsQuery)
+    const requests = snapshot.docs.map(requestDoc => ({
+      ...requestDoc.data(),
+      id: requestDoc.id
+    }) as ExcuseRequest)
+
+    return requests
+      .filter(request => !request.isArchived && (
+        request.status === 'approved' || request.status === 'pending' || request.status === 'under_review'
+      ))
+      .sort((first, second) => {
+        const firstTime = first.submittedAt?.toDate?.().getTime() ?? 0
+        const secondTime = second.submittedAt?.toDate?.().getTime() ?? 0
+        return secondTime - firstTime
+      })
+  },
+
+  /**
    * Fetch a single excuse request by its tracking number.
    */
   async getExcuseRequestByTrackingNumber(trackingNumber: string): Promise<ExcuseRequest | null> {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { EventForm, FormStatus } from '@/types/eventForm'
 import { eventFormService } from '@/services/eventFormService'
@@ -6,7 +6,7 @@ import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { EventFormBuilderModal } from './EventFormBuilderModal'
 import { EventFormResponsesModal } from './EventFormResponsesModal'
 import { useAuth } from '@/features/authentication/AuthContext'
-import { ConfirmModal, FormattedText, Button, EmptyState, StatusBadge, useToast, ActionMenu } from '@/components'
+import { ConfirmModal, FormattedText, Button, EmptyState, StatusBadge, useToast, ActionMenu, CoordinatorWorkflowBanner } from '@/components'
 
 interface EventFormsTabProps {
   eventId: string
@@ -32,6 +32,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
   const [formStatusPending, setFormStatusPending] = useState<{ form: EventForm; target: FormStatus } | null>(null)
   const [formToDuplicate, setFormToDuplicate] = useState<EventForm | null>(null)
   const [copiedFormId, setCopiedFormId] = useState<string | null>(null)
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [actionLoading, setActionLoading] = useState(false)
 
   const canManageForms =
@@ -73,14 +74,23 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
     fetchForms()
   }, [eventId, queryClient])
 
-  const handleCopyPublicLink = (form: EventForm) => {
+  useEffect(() => () => {
+    if (copyTimeoutRef.current !== null) clearTimeout(copyTimeoutRef.current)
+  }, [])
+
+  const handleCopyPublicLink = async (form: EventForm) => {
     if (!form.id) return
     const targetSlug = form.slug || form.id
     const publicUrl = `${window.location.origin}/public/forms/${targetSlug}`
-    navigator.clipboard.writeText(publicUrl)
-    setCopiedFormId(form.id)
-    toast.success('Link Copied', 'Public form registration link copied to clipboard.')
-    setTimeout(() => setCopiedFormId(null), 2500)
+    try {
+      await navigator.clipboard.writeText(publicUrl)
+      if (copyTimeoutRef.current !== null) clearTimeout(copyTimeoutRef.current)
+      setCopiedFormId(form.id)
+      toast.success('Link Copied', 'Public form registration link copied to clipboard.')
+      copyTimeoutRef.current = setTimeout(() => setCopiedFormId(null), 2200)
+    } catch {
+      toast.error('Copy Failed', 'Unable to copy the public link. Please try again.')
+    }
   }
 
   const handleToggleStatus = async () => {
@@ -169,6 +179,8 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
         )}
       </div>
 
+      <CoordinatorWorkflowBanner module="events" activeStep={1} />
+
       {/* Forms List */}
       {forms.length === 0 ? (
         <EmptyState
@@ -241,25 +253,51 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                 </div>
 
                 {/* Card Action Buttons */}
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <div className="flex items-center space-x-1.5">
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2.5">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <a
+                      href={`/public/forms/${f.slug || f.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Preview public portal in new tab"
+                      className="inline-flex min-h-11 items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 hover:text-slate-900 border border-slate-200 transition-all active:scale-95 cursor-pointer"
+                    >
+                      <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      <span>Preview</span>
+                    </a>
                     <Button
                       variant="secondary"
                       size="dense"
+                      className="min-h-11"
                       onClick={() => setResponsesForm(f)}
                     >
                       View Responses ({f.responsesCount || 0})
                     </Button>
 
                     {f.isPublic && f.status === 'published' && (
-                      <Button
-                        variant="ghost"
-                        size="dense"
+                      <button
+                        type="button"
                         onClick={() => handleCopyPublicLink(f)}
-                        className="text-blue-600 hover:text-blue-800 bg-blue-50/80 hover:bg-blue-100 border border-blue-200/60"
+                        title="Copy public link to clipboard"
+                        aria-live="polite"
+                        className={`inline-flex min-h-11 items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer border ${copiedFormId === f.id
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          : 'text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border-indigo-200'}`}
                       >
-                        {copiedFormId === f.id ? 'Copied!' : 'Copy Link'}
-                      </Button>
+                        {copiedFormId === f.id ? (
+                          <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
+                        <span>{copiedFormId === f.id ? 'Copied!' : 'Copy Link'}</span>
+                      </button>
                     )}
                   </div>
 
@@ -269,8 +307,18 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       tooltip="Form Options"
                       groups={[
                         {
-                          title: 'Form Editor',
+                          title: 'Form Options',
                           items: [
+                            {
+                              label: 'Preview Public Form',
+                              icon: (
+                                <svg className="w-4 h-4 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                              ),
+                              onClick: () => window.open(`/public/forms/${f.slug || f.id}`, '_blank', 'noopener,noreferrer')
+                            },
                             {
                               label: 'Edit Form',
                               variant: 'primary',

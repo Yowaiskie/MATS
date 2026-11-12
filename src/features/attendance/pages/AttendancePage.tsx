@@ -3,6 +3,7 @@ import { useSearchParams, Link, useNavigate } from 'react-router-dom'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { attendanceService } from '@/services/attendanceService'
+import { excuseService } from '@/services/excuseService'
 import { settingsService } from '@/services/settingsService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Card, Button, EmptyState, useToast } from '@/components'
@@ -19,6 +20,7 @@ import type { Schedule } from '@/types/schedule'
 import type { Member } from '@/types/member'
 import { ORDER_GROUPS, ORDER_COLORS, getMemberOrders } from '@/types/member'
 import type { AttendanceSession, AttendanceStatus } from '@/types/attendance'
+import type { ExcuseRequest } from '@/types/excuse'
 import { calculateAttendanceSummary } from '@/utils/attendance'
 import { AlertModal, ConfirmModal } from '@/components/Dialog'
 
@@ -49,6 +51,7 @@ export const AttendancePage: React.FC = () => {
   const [assignedMembers, setAssignedMembers] = useState<Member[]>([])
   const [otherServers, setOtherServers] = useState<Member[]>([])
   const [allMembersProfiles, setAllMembersProfiles] = useState<Member[]>([])
+  const [excuseMap, setExcuseMap] = useState<Record<string, ExcuseRequest>>({})
   const [addOtherServerOpen, setAddOtherServerOpen] = useState(false)
   const [assignmentOpen, setAssignmentOpen] = useState(false)
   
@@ -147,6 +150,7 @@ export const AttendancePage: React.FC = () => {
   }, [isDirty])
 
   const loadData = async () => {
+    setExcuseMap({})
     if (!scheduleId) {
       setLoading(false)
       return
@@ -181,7 +185,19 @@ export const AttendancePage: React.FC = () => {
       setAssignedMembers(assignedProfiles)
 
       // 4. Fetch existing attendance records
-      const records = await attendanceService.getAttendanceForSession(sessionDoc.id)
+      const [records, excuseRequests] = await Promise.all([
+        attendanceService.getAttendanceForSession(sessionDoc.id),
+        excuseService.getExcuseRequestsForSchedule(scheduleId)
+      ])
+      const scheduleExcuseMap: Record<string, ExcuseRequest> = {}
+      excuseRequests.forEach(request => {
+        const existing = scheduleExcuseMap[request.memberId]
+        // Keep the newest request, but always give an approved excuse precedence.
+        if (!existing || (existing.status !== 'approved' && request.status === 'approved')) {
+          scheduleExcuseMap[request.memberId] = request
+        }
+      })
+      setExcuseMap(scheduleExcuseMap)
 
       // Get member IDs that have an attendance record for this session where isOtherServer is true
       const otherServerRecords = records.filter(r => r.isOtherServer === true)
@@ -777,6 +793,7 @@ export const AttendancePage: React.FC = () => {
               <AttendanceRow
                 key={member.id}
                 member={member}
+                excuse={excuseMap[member.id]}
                 status={formState[member.id]?.status}
                 remarks={formState[member.id]?.remarks || ''}
                 onStatusChange={(status) => handleRowStatusChange(member.id, status)}
