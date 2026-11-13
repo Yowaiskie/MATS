@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react'
+import React, { createContext, useContext, useEffect, useState, useRef, useCallback, useMemo } from 'react'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { notificationService, type UntakenScheduleInfo } from '@/services/notificationService'
 import type { AppNotification } from '@/types/notification'
@@ -395,6 +395,8 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const currentExcuseIds = pendingExcuses.map(e => e.id).filter(Boolean) as string[]
     if (currentExcuseIds.length > 0) {
       setReadExcuseIds((prev) => {
+        const hasUnread = currentExcuseIds.some(id => !prev.includes(id))
+        if (!hasUnread) return prev
         const set = new Set([...prev, ...currentExcuseIds])
         const updated = Array.from(set)
         try {
@@ -407,26 +409,30 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }
   }, [user?.uid, pendingExcuses])
 
-  const markAsRead = async (notificationId: string) => {
+  const markAsRead = useCallback(async (notificationId: string) => {
     if (!user?.uid || !notificationId) return
     // Optimistic local state update
-    setNotifications((prev) =>
-      prev.map((n) =>
+    setNotifications((prev) => {
+      const target = prev.find((n) => n.id === notificationId)
+      if (!target || (target.readBy && target.readBy.includes(user.uid))) return prev
+      return prev.map((n) =>
         n.id === notificationId
           ? { ...n, readBy: n.readBy ? [...n.readBy, user.uid] : [user.uid] }
           : n
       )
-    )
+    })
     await notificationService.markAsRead(user.uid, notificationId)
-  }
+  }, [user?.uid])
 
-  const markAllAsRead = async () => {
+  const markAllAsRead = useCallback(async () => {
     if (!user?.uid) return
 
     // 1. Mark untaken schedules as read locally for this user
     const currentUntakenIds = relevantUntakenSchedules.map((s) => s.schedule.id)
     if (currentUntakenIds.length > 0) {
       setReadUntakenIds((prev) => {
+        const hasUnread = currentUntakenIds.some(id => !prev.includes(id))
+        if (!hasUnread) return prev
         const set = new Set([...prev, ...currentUntakenIds])
         const updated = Array.from(set)
         try {
@@ -456,9 +462,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
       )
       await notificationService.markAllAsRead(user.uid, unreadIds)
     }
-  }
+  }, [user?.uid, relevantUntakenSchedules, markAllExcusesAsRead, notifications])
 
-  const deleteNotification = async (notificationId: string) => {
+  const deleteNotification = useCallback(async (notificationId: string) => {
     // Optimistic local update
     setNotifications((prev) => prev.filter((n) => n.id !== notificationId))
     try {
@@ -466,9 +472,9 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err) {
       console.error('Failed to delete notification:', err)
     }
-  }
+  }, [])
 
-  const clearAllNotifications = async () => {
+  const clearAllNotifications = useCallback(async () => {
     const ids = notifications.map((n) => n.id)
     // Optimistic local update
     setNotifications([])
@@ -477,18 +483,18 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     } catch (err) {
       console.error('Failed to clear notifications:', err)
     }
-  }
+  }, [notifications])
 
-  const remindSchedule = async (schedule: Schedule) => {
+  const remindSchedule = useCallback(async (schedule: Schedule) => {
     const res = await notificationService.remindSingleSchedule(
       schedule,
       profile?.displayName || profile?.memberName || user?.email || 'Administrator'
     )
     await refreshUntaken()
     return res
-  }
+  }, [profile?.displayName, profile?.memberName, user?.email, refreshUntaken])
 
-  const value: NotificationContextType = {
+  const value: NotificationContextType = useMemo(() => ({
     notifications,
     pendingExcuses,
     untakenSchedules,
@@ -509,7 +515,28 @@ export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     clearAllNotifications,
     refreshUntaken,
     remindSchedule
-  }
+  }), [
+    notifications,
+    pendingExcuses,
+    untakenSchedules,
+    relevantUntakenSchedules,
+    unreadCount,
+    unreadExcuseCount,
+    untakenCount,
+    unreadUntakenCount,
+    readUntakenIds,
+    readExcuseIds,
+    loading,
+    markAsRead,
+    markUntakenAsRead,
+    markExcuseAsRead,
+    markAllExcusesAsRead,
+    markAllAsRead,
+    deleteNotification,
+    clearAllNotifications,
+    refreshUntaken,
+    remindSchedule
+  ])
 
   return (
     <NotificationContext.Provider value={value}>

@@ -228,8 +228,12 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
         )
       }
 
-      onSuccess()
       onClose()
+      try {
+        onSuccess()
+      } catch (refreshErr) {
+        console.error('Failed to reload excuse requests data:', refreshErr)
+      }
     } catch (err: any) {
       console.error(err)
       toast.error('Submission Failed', err.message || 'Failed to file excuse request.')

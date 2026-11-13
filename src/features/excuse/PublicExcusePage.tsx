@@ -1,6 +1,8 @@
 import { FormInput } from '@/components/FormInput'
 import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '@/features/authentication/AuthContext'
 import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
 import { excuseService } from '@/services/excuseService'
@@ -81,6 +83,8 @@ function categorizeScheduleList(list: Schedule[]): CategorizedScheduleGroups {
 }
 
 export const PublicExcusePage: React.FC = () => {
+  const navigate = useNavigate()
+  const { user, profile, isAdmin } = useAuth()
   const { toast } = useToast()
   const [mode, setMode] = useState<'submit' | 'track'>('submit')
   const [step, setStep] = useState<1 | 2 | 3>(1)
@@ -504,7 +508,28 @@ export const PublicExcusePage: React.FC = () => {
       <div className="absolute -bottom-24 -right-24 w-80 h-80 rounded-full bg-blue-600/15 blur-3xl pointer-events-none" />
       <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
 
-      <div className="relative z-10 bg-white/95 backdrop-blur-2xl max-w-2xl w-full rounded-3xl shadow-2xl p-6 sm:p-8 border border-white/80 ring-1 ring-slate-900/5 my-6 sm:my-8">
+      {/* Top Escape / Navigation Bar */}
+      <div className="relative z-10 w-full max-w-2xl flex items-center justify-between mb-2 px-1">
+        <button
+          type="button"
+          onClick={() => navigate(isAdmin ? '/excuses' : user ? '/' : '/login')}
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900/80 hover:bg-slate-800 text-white text-xs font-bold backdrop-blur-md border border-slate-700/80 transition-all cursor-pointer shadow-sm hover:border-indigo-400 group"
+        >
+          <svg className="w-4 h-4 text-indigo-400 group-hover:-translate-x-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          <span>{user ? (isAdmin ? 'Return to Excuse Review' : 'Return to Portal') : 'Back to Login'}</span>
+        </button>
+
+        {user && (
+          <span className="text-[11px] font-semibold text-slate-300 bg-slate-900/80 px-3 py-1.5 rounded-xl backdrop-blur-md border border-slate-700/80 hidden sm:inline-flex items-center gap-1.5">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            Signed in as <strong className="text-white">{profile?.displayName || user.email}</strong>
+          </span>
+        )}
+      </div>
+
+      <div className="relative z-10 bg-white/95 backdrop-blur-2xl max-w-2xl w-full rounded-3xl shadow-2xl p-6 sm:p-8 border border-white/80 ring-1 ring-slate-900/5 my-4 sm:my-6">
         <div className="flex justify-center mb-5">
           <div className="relative inline-block">
             <div className="absolute inset-0 rounded-2xl bg-indigo-500/25 blur-md" />
@@ -982,7 +1007,7 @@ export const PublicExcusePage: React.FC = () => {
               <p className="text-slate-500 text-xs mt-1">Your excuse request has been queued for Coordinator/Admin review.</p>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2">
               <Button 
                 variant="primary"
                 size="public"
@@ -1005,6 +1030,14 @@ export const PublicExcusePage: React.FC = () => {
                 }} 
               >
                 File Another Request
+              </Button>
+              <Button 
+                variant="secondary"
+                size="public"
+                fullWidth
+                onClick={() => navigate(isAdmin ? '/excuses' : user ? '/' : '/login')} 
+              >
+                {user ? (isAdmin ? 'Return to Review' : 'Return to Portal') : 'Back to Login'}
               </Button>
             </div>
           </div>
@@ -1222,6 +1255,23 @@ export const PublicExcusePage: React.FC = () => {
                 })}
               </div>
             )}
+
+            <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
+              <Button
+                variant="secondary"
+                size="dense"
+                onClick={() => { setMode('submit'); setStep(1); }}
+              >
+                ← File Another Excuse
+              </Button>
+              <Button
+                variant="primary"
+                size="dense"
+                onClick={() => navigate(isAdmin ? '/excuses' : user ? '/' : '/login')}
+              >
+                {user ? (isAdmin ? 'Exit to Excuse Review' : 'Exit to Portal') : 'Exit to Login'}
+              </Button>
+            </div>
           </div>
         )}
       </div>

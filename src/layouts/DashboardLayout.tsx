@@ -167,6 +167,7 @@ export const DashboardLayout: React.FC = () => {
     if (path.startsWith('/users')) return 'User Management'
     if (path.startsWith('/settings')) return 'System Settings'
     if (path.startsWith('/audit')) return 'System Audit Trail'
+    if (path.startsWith('/excuses')) return 'Excuse Requests Review'
     if (path.startsWith('/change-password')) return 'Change Password'
     return 'Dashboard'
   }
@@ -247,11 +248,13 @@ export const DashboardLayout: React.FC = () => {
 
             {/* Breadcrumb / Title display */}
             <div className="hidden sm:flex items-center space-x-2 text-xs font-semibold text-gray-400 uppercase tracking-wider shrink-0">
-              <span>MATS</span>
+              <Link to="/" className="hover:text-indigo-600 transition-colors cursor-pointer">MATS</Link>
               <span>/</span>
               <span className="text-gray-700 font-bold tracking-normal text-sm capitalize">{getPageTitle()}</span>
             </div>
-            <span className="sm:hidden font-bold text-gray-900 text-sm capitalize truncate min-w-0">{getPageTitle()}</span>
+            <Link to="/" className="sm:hidden font-bold text-gray-900 text-sm capitalize truncate min-w-0 hover:text-indigo-600 transition-colors">
+              {getPageTitle()}
+            </Link>
           </div>
 
           {/* Top Nav Right Actions */}

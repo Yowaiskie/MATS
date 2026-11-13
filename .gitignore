@@ -40,4 +40,9 @@ android/app/google-services.json
 # Migration and seeding scripts containing credentials
 scripts/seed*.mjs
 
+# AI agent local scratch & skills
+.agents/
+.impeccable/
+PRODUCT.md
+
 

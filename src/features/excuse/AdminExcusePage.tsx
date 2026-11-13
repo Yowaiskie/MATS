@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { excuseService } from '@/services/excuseService'
 import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
@@ -84,10 +85,15 @@ export const AdminExcusePage: React.FC = () => {
     loadData()
   }, [])
 
-  // Automatically mark all unread excuse_request notifications and pending excuses as read when viewing the page
+  // Automatically mark pending excuses as read when viewing the review page
   useEffect(() => {
     if (!user?.uid) return
     markAllExcusesAsRead()
+  }, [user?.uid, markAllExcusesAsRead])
+
+  // Automatically mark excuse_request notifications as read when viewing the page
+  useEffect(() => {
+    if (!user?.uid) return
     const unreadExcuseNotifs = notifications.filter(
       n => n.type === 'excuse_request' && (!n.readBy || !n.readBy.includes(user.uid))
     )
@@ -96,7 +102,7 @@ export const AdminExcusePage: React.FC = () => {
         markAsRead(n.id).catch(() => {})
       })
     }
-  }, [notifications, user?.uid, markAsRead, markAllExcusesAsRead])
+  }, [notifications, user?.uid, markAsRead])
 
   const filteredRequests = useMemo(() => {
     return requests.filter(req => {
@@ -197,8 +203,19 @@ export const AdminExcusePage: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
+          <div className="flex items-center gap-2 mb-1">
+            <Link
+              to="/"
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-indigo-600 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              <span>Back to Dashboard</span>
+            </Link>
+          </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">Excuse Requests Review</h1>
-          <p className="text-sm font-medium text-slate-500 mt-1">Review, approve, reject, or file altar server excuse submissions.</p>
+          <p className="text-sm font-medium text-slate-500 mt-0.5">Review, approve, reject, or file altar server excuse submissions.</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <Button 
