@@ -394,6 +394,14 @@ export const eventFormResponseService = {
       'Submitted At'
     ]
 
+    const sanitizeCsvCell = (str: string): string => {
+      let cleaned = str.replace(/"/g, '""')
+      if (/^[=+\-@\t\r]/.test(cleaned)) {
+        cleaned = "'" + cleaned
+      }
+      return `"${cleaned}"`
+    }
+
     const rows = responses.map(r => {
       const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
         ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
@@ -407,37 +415,40 @@ export const eventFormResponseService = {
             const formattedCompanions = (val as any[])
               .map(c => typeof c === 'object' && c && c.name ? `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}` : String(c))
               .join('; ')
-            return `"${formattedCompanions.replace(/"/g, '""')}"`
+            return sanitizeCsvCell(formattedCompanions)
           }
-          return `"${val.join(', ').replace(/"/g, '""')}"`
+          return sanitizeCsvCell(val.join(', '))
         }
         if (typeof val === 'object' && val !== null) {
           if (q.type === 'appointment_slots' || 'timeRange' in val) {
             const appt = val as any
             const formattedAppt = `${appt.date || ''} • ${appt.timeRange || ''}${appt.slotLabel ? ` (${appt.slotLabel})` : ''}`.trim()
-            return `"${formattedAppt.replace(/"/g, '""')}"`
+            return sanitizeCsvCell(formattedAppt)
           }
         }
-        return `"${String(val).replace(/"/g, '""')}"`
+        return sanitizeCsvCell(String(val))
       })
 
       return [
-        `"${r.trackingNumber || ''}"`,
-        `"${(r.respondentMemberName || '').replace(/"/g, '""')}"`,
-        `"${(r.respondentEmail || '').replace(/"/g, '""')}"`,
+        sanitizeCsvCell(r.trackingNumber || ''),
+        sanitizeCsvCell(r.respondentMemberName || ''),
+        sanitizeCsvCell(r.respondentEmail || ''),
         ...questionAnswers,
-        `"${submittedDateStr}"`
+        sanitizeCsvCell(submittedDateStr)
       ].join(',')
     })
 
-    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows].join('\n')
-    const encodedUri = encodeURI(csvContent)
+    const blob = new Blob(['\uFEFF' + [headers.join(','), ...rows].join('\n')], {
+      type: 'text/csv;charset=utf-8;'
+    })
+    const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.setAttribute('href', encodedUri)
+    link.setAttribute('href', url)
     const sanitizedTitle = form.title.toLowerCase().replace(/[^a-z0-9]/g, '_')
     link.setAttribute('download', `${sanitizedTitle}_responses.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(url)
   }
 }

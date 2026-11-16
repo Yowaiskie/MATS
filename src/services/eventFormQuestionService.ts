@@ -107,6 +107,18 @@ export const eventFormQuestionService = {
         if (q.placeholder !== undefined) {
           fullQuestionData.placeholder = q.placeholder
         }
+        if (q.maxRating !== undefined) {
+          fullQuestionData.maxRating = q.maxRating
+        }
+        if (q.ratingScaleType !== undefined) {
+          fullQuestionData.ratingScaleType = q.ratingScaleType
+        }
+        if (q.lowRatingLabel !== undefined) {
+          fullQuestionData.lowRatingLabel = q.lowRatingLabel
+        }
+        if (q.highRatingLabel !== undefined) {
+          fullQuestionData.highRatingLabel = q.highRatingLabel
+        }
 
         // Set complete document without merge so deleted/updated conditions overwrite cleanly
         await setDoc(docRef, fullQuestionData)

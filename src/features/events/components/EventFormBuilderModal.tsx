@@ -16,6 +16,7 @@ import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ConfirmModal, FormattedText, RichTextEditor, CustomSelect, Button, useToast } from '@/components'
+import { ImportQuestionsModal } from './ImportQuestionsModal'
 
 interface EventFormBuilderModalProps {
   isOpen: boolean
@@ -30,6 +31,7 @@ const QUESTION_TYPES: { type: QuestionType; label: string; group: string; descri
   { type: 'long_text', label: 'Long Text (Paragraph)', group: 'Text & Input', description: 'Multi-line detailed answer' },
   { type: 'contact_number', label: 'Contact Number (Mobile / Landline)', group: 'Text & Input', description: 'Dual mobile (11-digit) or landline with smart 11-digit limit' },
   { type: 'multiple_choice', label: 'Multiple Choice', group: 'Choices', description: 'Select 1 option from a list' },
+  { type: 'rating', label: 'Rating (1 to 5 Stars / Scale)', group: 'Choices', description: 'Numeric rating scale or star rating for evaluations' },
   { type: 'checkbox', label: 'Checkboxes', group: 'Choices', description: 'Select 1 or more options' },
   { type: 'dropdown', label: 'Dropdown', group: 'Choices', description: 'Select 1 option from a menu' },
   { type: 'yes_no', label: 'Yes / No', group: 'Choices', description: 'Binary choice' },
@@ -159,6 +161,12 @@ const QuestionTypeIcon: React.FC<{ type: QuestionType; className?: string }> = (
           <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
         </svg>
       )
+    case 'rating':
+      return (
+        <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+        </svg>
+      )
     case 'section_header':
       return (
         <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -242,6 +250,7 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
   const [bulkGenEndTime, setBulkGenEndTime] = useState('17:00')
   const [bulkGenIntervalMinutes, setBulkGenIntervalMinutes] = useState(60)
   const [bulkGenCapacity, setBulkGenCapacity] = useState(10)
+  const [showImportModal, setShowImportModal] = useState(false)
 
   useEffect(() => {
     if (formToEdit?.id) {
@@ -389,6 +398,16 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
           ]
         : undefined
 
+    const defaultRatingConfig =
+      type === 'rating'
+        ? {
+            maxRating: 5,
+            ratingScaleType: 'stars' as const,
+            lowRatingLabel: '1 - Needs Improvement',
+            highRatingLabel: '5 - Excellent'
+          }
+        : {}
+
     const newQuestion: EventFormQuestion = {
       id: newId,
       formId: formToEdit?.id || '',
@@ -399,7 +418,8 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
       required: false,
       order: questions.length,
       options: defaultOptions,
-      appointmentConfig: defaultAppointmentConfig
+      appointmentConfig: defaultAppointmentConfig,
+      ...defaultRatingConfig
     }
 
     if (afterIndex !== undefined && afterIndex >= 0 && afterIndex < questions.length) {
@@ -411,6 +431,20 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
     }
 
     setActiveQuestionId(newId)
+  }
+
+  const handleImportQuestions = (newQuestions: EventFormQuestion[], replaceExisting: boolean) => {
+    if (replaceExisting) {
+      setQuestions(newQuestions.map((q, i) => ({ ...q, order: i })))
+      setActiveQuestionId(newQuestions[0]?.id || null)
+      toast.success('Questions Loaded', `Loaded ${newQuestions.length} questions into form.`)
+    } else {
+      const startOrder = questions.length
+      const reordered = newQuestions.map((q, i) => ({ ...q, order: startOrder + i }))
+      setQuestions(prev => [...prev, ...reordered])
+      setActiveQuestionId(reordered[0]?.id || null)
+      toast.success('Questions Appended', `Added ${newQuestions.length} questions to form.`)
+    }
   }
 
   const handleMoveQuestion = (index: number, direction: 'up' | 'down') => {
@@ -573,6 +607,21 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
 
             {/* Right Action Buttons */}
             <div className="flex items-center space-x-2 shrink-0">
+              <Button
+                type="button"
+                variant="secondary"
+                size="dense"
+                onClick={() => setShowImportModal(true)}
+                icon={
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                }
+                title="Import questions from templates, CSV, or paste"
+              >
+                Import
+              </Button>
+
               <Button
                 type="button"
                 variant="secondary"
@@ -1662,6 +1711,66 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                           </div>
                         )}
 
+                        {/* Rating Scale Configuration */}
+                        {q.type === 'rating' && (
+                          <div className="p-3.5 bg-indigo-50/50 border border-indigo-200/80 rounded-xl space-y-3">
+                            <div>
+                              <h4 className="text-xs font-bold text-slate-800">Rating Scale Configuration</h4>
+                              <p className="text-[11px] text-slate-500">Configure score style and descriptive boundary labels.</p>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <label className="text-[11px] font-bold text-slate-700 block mb-1">Rating Display Style:</label>
+                                <select
+                                  value={q.ratingScaleType || 'stars'}
+                                  onChange={e => handleUpdateQuestion(q.id, { ratingScaleType: e.target.value as 'stars' | 'numbers' })}
+                                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                                >
+                                  <option value="stars">★ Interactive Stars (1 to 5 Stars)</option>
+                                  <option value="numbers">🔢 Numeric Pills (1 to 5 Score Buttons)</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="text-[11px] font-bold text-slate-700 block mb-1">Max Rating Scale:</label>
+                                <select
+                                  value={q.maxRating || 5}
+                                  onChange={e => handleUpdateQuestion(q.id, { maxRating: parseInt(e.target.value, 10) })}
+                                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                                >
+                                  <option value="5">1 to 5 (Standard Evaluation Rubric)</option>
+                                  <option value="3">1 to 3 (Low / Medium / High)</option>
+                                  <option value="10">1 to 10 (Detailed Score Scale)</option>
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                              <div>
+                                <label className="text-[11px] font-bold text-slate-700 block mb-1">Lowest Rating Descriptor (1):</label>
+                                <input
+                                  type="text"
+                                  value={q.lowRatingLabel || ''}
+                                  onChange={e => handleUpdateQuestion(q.id, { lowRatingLabel: e.target.value })}
+                                  placeholder="e.g. 1 - Needs Improvement / Disagree"
+                                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                              <div>
+                                <label className="text-[11px] font-bold text-slate-700 block mb-1">Highest Rating Descriptor (5):</label>
+                                <input
+                                  type="text"
+                                  value={q.highRatingLabel || ''}
+                                  onChange={e => handleUpdateQuestion(q.id, { highRatingLabel: e.target.value })}
+                                  placeholder="e.g. 5 - Excellent / Strongly Agree"
+                                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:ring-1 focus:ring-indigo-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
                         {/* Conditional Visibility Flyout Editor */}
                         {showConditionEditorId === q.id && (
                           <div className="p-3.5 bg-amber-50/70 border border-amber-200 rounded-xl space-y-2">
@@ -1928,6 +2037,18 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                             <span className="text-indigo-600 font-bold">+ Add Companion</span>
                           </div>
                         )}
+                        {q.type === 'rating' && (
+                          <div className="p-2.5 border rounded-xl text-xs bg-slate-50 flex items-center justify-between text-slate-600">
+                            <div className="flex items-center gap-1 text-amber-500">
+                              {[1, 2, 3, 4, 5].slice(0, q.maxRating || 5).map(n => (
+                                <span key={n} className="text-base leading-none">★</span>
+                              ))}
+                            </div>
+                            <span className="text-[10px] text-slate-500 font-bold">
+                              {q.lowRatingLabel || '1'} ➔ {q.highRatingLabel || '5'}
+                            </span>
+                          </div>
+                        )}
                         {q.type === 'appointment_slots' && (
                           <div className="p-2.5 border border-indigo-200 rounded-xl bg-indigo-50/40 text-xs text-slate-700 space-y-1.5">
                             <div className="flex items-center justify-between text-[11px] font-bold text-indigo-950">
@@ -2023,6 +2144,22 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                     Add Companions List
                   </span>
                 </button>
+
+                <div className="w-6 h-[1px] bg-slate-200 my-1 mx-auto" />
+
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(true)}
+                  className="w-10 h-10 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 flex items-center justify-center transition border border-indigo-200 cursor-pointer group relative shadow-2xs"
+                  title="Import Questions (Templates / CSV / Paste)"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span className="absolute left-12 whitespace-nowrap bg-slate-900 text-white text-[11px] font-bold px-2 py-1 rounded-md opacity-0 group-hover:opacity-100 transition pointer-events-none shadow-sm z-50">
+                    Import Questions
+                  </span>
+                </button>
               </div>
 
             </div>
@@ -2075,6 +2212,18 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
                   </svg>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowImportModal(true)}
+                  className="px-2 py-1.5 bg-indigo-500 hover:bg-indigo-600 active:scale-95 text-white text-xs font-bold rounded-xl flex items-center gap-1 cursor-pointer transition border border-indigo-400"
+                  title="Import Questions"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                  </svg>
+                  <span>Import</span>
                 </button>
               </div>
             </div>
@@ -2218,6 +2367,14 @@ export const EventFormBuilderModal: React.FC<EventFormBuilderModalProps> = ({
         message="Are you sure you want to close the form builder? Any unsaved changes will be lost."
         confirmLabel="Discard & Close"
         variant="danger"
+      />
+
+      {/* Import Questions Modal */}
+      <ImportQuestionsModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        eventId={eventId}
+        onImport={handleImportQuestions}
       />
     </div>
   )

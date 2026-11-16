@@ -152,6 +152,15 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
       return formatContactNumber(String(val))
     }
 
+    if (q.type === 'rating') {
+      const num = Number(val)
+      const max = q.maxRating || 5
+      if (!isNaN(num) && num > 0) {
+        return `${'★'.repeat(Math.min(num, max))}${'☆'.repeat(Math.max(0, max - num))} (${num}/${max})`
+      }
+      return String(val)
+    }
+
     if (q.type === 'companion_repeater' && Array.isArray(val)) {
       return (val as unknown as CompanionEntry[])
         .map(c => `${c.name}${c.relationship ? ` (${c.relationship})` : ''}${c.notes ? ` - ${c.notes}` : ''}`)
@@ -1434,7 +1443,7 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                         <div className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100 flex items-center justify-between">
                           <span className="font-mono font-bold text-slate-900">{displayVal}</span>
                           <a
-                            href={`tel:${String(val).replace(/[^0-9\+]/g, '')}`}
+                            href={`tel:${String(val).replace(/[^0-9+]/g, '')}`}
                             className="text-xs font-bold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md border border-indigo-200 transition"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1442,6 +1451,16 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                             </svg>
                             <span>Call</span>
                           </a>
+                        </div>
+                      ) : q.type === 'rating' && val ? (
+                        <div className="text-slate-800 bg-amber-50/60 p-2.5 rounded-lg font-medium border border-amber-200 flex items-center justify-between">
+                          <span className="text-amber-500 font-bold text-sm tracking-wide">
+                            {'★'.repeat(Math.min(Number(val) || 0, q.maxRating || 5))}
+                            <span className="text-slate-300">{'☆'.repeat(Math.max(0, (q.maxRating || 5) - (Number(val) || 0)))}</span>
+                          </span>
+                          <span className="text-xs font-black text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                            {val} / {q.maxRating || 5}
+                          </span>
                         </div>
                       ) : (
                         <p className="text-slate-800 bg-slate-50 p-2.5 rounded-lg font-medium border border-slate-100 break-words">{displayVal}</p>

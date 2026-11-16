@@ -19,6 +19,7 @@ import { settingsService, type SuspensionPolicySettings } from '@/services/setti
 import { getReportOrderScope } from '@/utils/reportScope'
 import { getParishTodayDate } from '@/utils/scheduleUtils'
 import { resolveEvaluationContext } from '@/utils/evaluationContext'
+import { MEMBER_RANKS } from '@/types/member'
 
 type TabType = 'summary' | 'member' | 'schedule' | 'monthly' | 'holyhour' | 'qualifications'
 
@@ -50,6 +51,7 @@ export const ReportsPage: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
+  const [rankFilter, setRankFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
 
   // Report raw data
@@ -199,6 +201,18 @@ export const ReportsPage: React.FC = () => {
     return reportService.generateOverallSummary(scopedData)
   }
 
+  // Distinct ranks from scoped members
+  const availableRanks = React.useMemo(() => {
+    const rankSet = new Set<string>()
+    MEMBER_RANKS.forEach(r => rankSet.add(r))
+    if (scopedData?.members) {
+      scopedData.members.forEach(m => {
+        if (m.rank && m.rank.trim()) rankSet.add(m.rank.trim())
+      })
+    }
+    return Array.from(rankSet)
+  }, [scopedData?.members])
+
   const getFilteredMemberRows = (): MemberReportRow[] => {
     if (!scopedData) return []
 
@@ -210,11 +224,30 @@ export const ReportsPage: React.FC = () => {
       rows = rows.filter(r => r.name.toLowerCase().includes(q))
     }
 
+    // Apply rank filter
+    if (rankFilter !== 'all') {
+      rows = rows.filter(r => r.rank === rankFilter)
+    }
+
     // Apply suspension status filter
     if (statusFilter !== 'all') {
       rows = rows.filter(r => r.warningStatus === statusFilter)
     }
 
+    return rows
+  }
+
+  // Member rows for export modal (preserves search and status filters, with all ranks available for modal selection)
+  const getAllMemberRowsForExport = (): MemberReportRow[] => {
+    if (!scopedData) return []
+    let rows = reportService.generateMemberReport(scopedData, activePolicy)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      rows = rows.filter(r => r.name.toLowerCase().includes(q))
+    }
+    if (statusFilter !== 'all') {
+      rows = rows.filter(r => r.warningStatus === statusFilter)
+    }
     return rows
   }
 
@@ -326,6 +359,9 @@ export const ReportsPage: React.FC = () => {
           onSearchQueryChange={setSearchQuery}
           statusFilter={statusFilter}
           onStatusFilterChange={setStatusFilter}
+          rankFilter={rankFilter}
+          onRankFilterChange={setRankFilter}
+          availableRanks={availableRanks}
           publications={publications}
           selectedPublicationId={selectedPublicationId}
           onPublicationChange={handlePublicationChange}
@@ -926,7 +962,8 @@ export const ReportsPage: React.FC = () => {
       <MemberReportExportModal
         isOpen={showExportPdfModal}
         onClose={() => setShowExportPdfModal(false)}
-        rows={getFilteredMemberRows()}
+        rows={getAllMemberRowsForExport()}
+        initialRankFilter={rankFilter}
         dateRange={{ start: startDate, end: endDate }}
       />
 

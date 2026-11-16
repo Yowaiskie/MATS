@@ -483,6 +483,72 @@ export const EditFormResponseModal: React.FC<EditFormResponseModalProps> = ({
                     </div>
                   )}
 
+                  {/* Rating Question */}
+                  {q.type === 'rating' && (() => {
+                    const maxRating = q.maxRating || 5
+                    const scaleType = q.ratingScaleType || 'stars'
+                    const score = typeof currentVal === 'number' ? currentVal : (currentVal ? Number(currentVal) : 0)
+                    const ratingOptions = Array.from({ length: maxRating }, (_, i) => i + 1)
+
+                    return (
+                      <div className="space-y-2 pt-1">
+                        {scaleType === 'stars' ? (
+                          <div className="flex items-center gap-1.5">
+                            {ratingOptions.map(val => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => handleAnswerChange(q.id, val)}
+                                className="p-1 rounded-lg hover:scale-110 transition cursor-pointer"
+                              >
+                                <svg
+                                  className={`w-7 h-7 transition-colors ${val <= score ? 'text-amber-400 fill-amber-400 drop-shadow-xs' : 'text-slate-400 fill-slate-100 hover:text-amber-400 hover:fill-amber-100'}`}
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={1.75}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                  />
+                                </svg>
+                              </button>
+                            ))}
+                            {score > 0 && (
+                              <span className="ml-2 text-xs font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
+                                {score} / {maxRating}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {ratingOptions.map(val => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => handleAnswerChange(q.id, val)}
+                                className={`h-9 min-w-[36px] px-2.5 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                                  score === val
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs font-black'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                                }`}
+                              >
+                                {val}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {(q.lowRatingLabel || q.highRatingLabel) && (
+                          <div className="flex justify-between text-[10px] text-slate-500 font-medium">
+                            <span>{q.lowRatingLabel || '1'}</span>
+                            <span>{q.highRatingLabel || `${maxRating}`}</span>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })()}
+
                   {/* Member Selector */}
                   {q.type === 'member_selector' && (
                     <CustomSelect

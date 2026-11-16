@@ -56,6 +56,7 @@ export type QuestionType =
   | 'relationship_selector'
   | 'companion_repeater'
   | 'section_header'
+  | 'rating'
 
 export interface CompanionEntry {
   id: string
@@ -116,6 +117,10 @@ export interface EventFormQuestion {
   visibilityCondition?: VisibilityCondition
   memberFilterType?: 'all' | 'order' | 'rank'
   memberFilterValue?: string | string[]
+  maxRating?: number
+  ratingScaleType?: 'stars' | 'numbers'
+  lowRatingLabel?: string
+  highRatingLabel?: string
   createdAt?: Timestamp | FieldValue | string
   updatedAt?: Timestamp | FieldValue | string
 }

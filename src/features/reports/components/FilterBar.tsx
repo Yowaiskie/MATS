@@ -14,6 +14,9 @@ interface FilterBarProps {
   onSearchQueryChange: (val: string) => void
   statusFilter?: string
   onStatusFilterChange?: (val: string) => void
+  rankFilter?: string
+  onRankFilterChange?: (val: string) => void
+  availableRanks?: string[]
   publications?: SchedulePublication[]
   selectedPublicationId?: string
   onPublicationChange?: (pubId: string) => void
@@ -31,6 +34,9 @@ export const FilterBar: React.FC<FilterBarProps> = ({
   onSearchQueryChange,
   statusFilter = 'all',
   onStatusFilterChange,
+  rankFilter = 'all',
+  onRankFilterChange,
+  availableRanks = [],
   publications = [],
   selectedPublicationId = '',
   onPublicationChange,
@@ -133,6 +139,28 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               { key: 'warning', label: 'Warning Only', dot: 'bg-amber-500' },
               { key: 'suspended', label: 'Suspended Only', dot: 'bg-rose-500' },
               { key: 'inactive', label: 'Inactive (0 Serves)', dot: 'bg-slate-300' },
+            ]}
+          />
+        </div>
+      )}
+
+      {/* Rank Filter (Only for Member tab) */}
+      {activeTab === 'member' && onRankFilterChange && (
+        <div className="flex flex-col space-y-1.5 w-full md:w-48">
+          <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+            Rank
+          </label>
+          <FilterDropdown
+            value={rankFilter || 'all'}
+            onChange={(val) => onRankFilterChange(val)}
+            allLabel="All Ranks"
+            options={[
+              { key: 'all', label: 'All Ranks', dot: 'bg-slate-400' },
+              ...(availableRanks.length > 0 ? availableRanks : ['Chevaliers', 'Paladins', 'Squires']).map(r => ({
+                key: r,
+                label: r,
+                dot: 'bg-indigo-500'
+              }))
             ]}
           />
         </div>

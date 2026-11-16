@@ -46,6 +46,28 @@ export const eventFormService = {
   },
 
   /**
+   * Get all forms across all events.
+   */
+  async getAllForms(): Promise<EventForm[]> {
+    try {
+      const snapshot = await getDocs(collection(db, FORMS_COLLECTION))
+      const forms = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      })) as EventForm[]
+
+      return forms.sort((a, b) => {
+        const timeA = typeof a.createdAt === 'object' && a.createdAt && 'seconds' in a.createdAt ? (a.createdAt as any).seconds : 0
+        const timeB = typeof b.createdAt === 'object' && b.createdAt && 'seconds' in b.createdAt ? (b.createdAt as any).seconds : 0
+        return timeB - timeA
+      })
+    } catch (error) {
+      console.error('Error fetching all forms:', error)
+      throw new Error('Failed to fetch forms.')
+    }
+  },
+
+  /**
    * Get a single form by ID or custom URL slug.
    */
   async getFormById(formIdOrSlug: string): Promise<EventForm | null> {

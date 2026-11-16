@@ -39,6 +39,9 @@ export interface MemberPdfOptions {
   documentTitle?: string
   signatureConfig?: SignatureConfig
   paperSize?: PaperSize
+  reportType?: 'standard' | 'pastoral_evaluation'
+  evaluationsMap?: Record<string, string>
+  selectedRanks?: string[]
 }
 
 /**
@@ -46,6 +49,13 @@ export interface MemberPdfOptions {
  * Includes official parish title, ministry logo, custom document title with underline,
  * metadata row, attendance metrics, status badges, and dynamic signatures.
  */
+import {
+  buildMemberReportTableData,
+  type MemberReportTableData
+} from './eventFormConsolidation.ts'
+
+export { buildMemberReportTableData, type MemberReportTableData }
+
 export const downloadMembersReportPdf = async (
   rows: MemberReportRow[],
   options?: MemberPdfOptions | { start?: string; end?: string }
@@ -55,10 +65,17 @@ export const downloadMembersReportPdf = async (
   const timeStr = formatTime(now)
 
   // Normalize options parameter (support legacy dateRange or new MemberPdfOptions)
-  const opts: MemberPdfOptions = options && ('signatureConfig' in options || 'documentTitle' in options || 'paperSize' in options)
+  const opts: MemberPdfOptions = options && (
+    'signatureConfig' in options ||
+    'documentTitle' in options ||
+    'paperSize' in options ||
+    'reportType' in options ||
+    'evaluationsMap' in options
+  )
     ? (options as MemberPdfOptions)
     : { dateRange: options as { start?: string; end?: string } }
 
+  const isPastoral = opts.reportType === 'pastoral_evaluation'
   const paperSize: PaperSize = opts.paperSize || 'long'
   let docFormat: string | [number, number] = [215.9, 330.2]
   if (paperSize === 'a4') {
@@ -127,7 +144,9 @@ export const downloadMembersReportPdf = async (
   }
 
   // 3. Document Title (Centered & Bold Underline Style matching Finance)
-  const defaultTitle = 'MEMBER MASTERLIST & ATTENDANCE REPORT'
+  const defaultTitle = isPastoral
+    ? 'ALTAR SERVERS PASTORAL EVALUATION & ATTENDANCE REPORT'
+    : 'MEMBER MASTERLIST & ATTENDANCE REPORT'
   const titleText = (opts.documentTitle?.trim() || defaultTitle).toUpperCase()
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(14.5)
@@ -146,10 +165,14 @@ export const downloadMembersReportPdf = async (
     ? `${dateRange.start || 'Start'} to ${dateRange.end || 'Present'}`
     : 'All Time Records'
 
+  const rankSubtitle = opts.selectedRanks && opts.selectedRanks.length > 0
+    ? ` • Ranks: ${opts.selectedRanks.join(', ')}`
+    : ''
+
   doc.setFont('helvetica', 'bold')
   doc.setFontSize(9)
   doc.setTextColor(71, 85, 105)
-  doc.text(`Covered Period: ${rangeSubtitle}`, leftMargin, 45)
+  doc.text(`Covered Period: ${rangeSubtitle}${rankSubtitle}`, leftMargin, 45)
   doc.text(
     `Generated: ${dateStr} at ${timeStr} • Total Records: ${rows.length}`,
     pageWidth - rightMargin,
@@ -157,45 +180,33 @@ export const downloadMembersReportPdf = async (
     { align: 'right' }
   )
 
-  // 5. Define Table Columns
-  const tableHead = [
-    [
-      '#',
-      'MEMBER NAME',
-      'RANK',
-      'PRESENT',
-      'LATE',
-      'ABSENT',
-      'EXCUSED',
-      'ATTENDANCE %',
-      'STATUS',
-      'TRIGGERING ABSENCES',
-    ],
-  ]
+  // 5. Define Table Columns and Rows
+  const { tableHead, tableBody } = buildMemberReportTableData(rows, opts)
 
-  const tableBody = rows.map((r, index) => {
-    let triggering = '—'
-    if (r.warningStatus === 'suspended' || r.warningStatus === 'warning') {
-      const parts = []
-      if (r.sundayAbsences > 0) parts.push(`${r.sundayAbsences} Sun`)
-      if (r.weekdayAbsences > 0) parts.push(`${r.weekdayAbsences} Wkday`)
-      if (r.meetingAbsences > 0) parts.push(`${r.meetingAbsences} Mtg`)
-      triggering = parts.join(', ') || `${r.absent} Absences`
-    }
-
-    return [
-      String(index + 1),
-      r.name.toUpperCase(),
-      (r.rank || '—').toUpperCase(),
-      String(r.present),
-      String(r.late),
-      String(r.absent),
-      String(r.excused),
-      `${r.rate.toFixed(1)}%`,
-      r.warningStatus.toUpperCase(),
-      triggering,
-    ]
-  })
+  // Column styling per report type
+  const columnStyles = isPastoral
+    ? {
+        0: { halign: 'center' as const, cellWidth: 10, fontStyle: 'bold' as const },
+        1: { fontStyle: 'bold' as const, cellWidth: 46 },
+        2: { cellWidth: 26 },
+        3: { halign: 'center' as const, cellWidth: 16 },
+        4: { halign: 'center' as const, cellWidth: 16 },
+        5: { halign: 'center' as const, cellWidth: 16 },
+        6: { halign: 'center' as const, fontStyle: 'bold' as const, cellWidth: 22 },
+        7: { cellWidth: 'auto' as const, fontSize: 8 },
+      }
+    : {
+        0: { halign: 'center' as const, cellWidth: 10, fontStyle: 'bold' as const },
+        1: { fontStyle: 'bold' as const, cellWidth: 52 },
+        2: { cellWidth: 26 },
+        3: { halign: 'center' as const, cellWidth: 18 },
+        4: { halign: 'center' as const, cellWidth: 18 },
+        5: { halign: 'center' as const, cellWidth: 18 },
+        6: { halign: 'center' as const, cellWidth: 18 },
+        7: { halign: 'right' as const, fontStyle: 'bold' as const, cellWidth: 24 },
+        8: { halign: 'center' as const, fontStyle: 'bold' as const, cellWidth: 26 },
+        9: { fontSize: 7.5, cellWidth: 'auto' as const },
+      }
 
   // 6. Generate Table using autoTable
   autoTable(doc, {
@@ -220,20 +231,24 @@ export const downloadMembersReportPdf = async (
     alternateRowStyles: {
       fillColor: [248, 250, 252],
     },
-    columnStyles: {
-      0: { halign: 'center', cellWidth: 10, fontStyle: 'bold' },                             // #
-      1: { fontStyle: 'bold', cellWidth: 52 },                                               // Name
-      2: { cellWidth: 26 },                                                                  // Rank
-      3: { halign: 'center', cellWidth: 18 },
-      4: { halign: 'center', cellWidth: 18 },
-      5: { halign: 'center', cellWidth: 18 },
-      6: { halign: 'center', cellWidth: 18 },
-      7: { halign: 'right', fontStyle: 'bold', cellWidth: 24 },
-      8: { halign: 'center', fontStyle: 'bold', cellWidth: 26 },                             // Status Badge
-      9: { fontSize: 7.5, cellWidth: 'auto' },                                               // Triggering Absences
-    },
+    columnStyles: columnStyles as any,
     margin: { left: leftMargin, right: rightMargin, top: 49, bottom: 16 },
     didParseCell: (data) => {
+      if (isPastoral) {
+        if (data.section === 'body') {
+          const rowObj = rows[data.row.index]
+          if (rowObj && rowObj.rate <= 10) {
+            // Highlight the entire row in soft red for rate <= 10% (inactive rule)
+            data.cell.styles.fillColor = [254, 226, 226]
+            if (data.column.index === 6) {
+              data.cell.styles.textColor = [185, 28, 28]
+              data.cell.styles.fontStyle = 'bold'
+            }
+          }
+        }
+        return
+      }
+
       // Style Status column (Column 8)
       if (data.section === 'body' && data.column.index === 8) {
         const val = String(data.cell.raw)
@@ -288,9 +303,11 @@ export const downloadMembersReportPdf = async (
   }
 
   // Apply uniform standard footer across all pages
-  const docCode = formatDocCodeWithDate('MEM', now)
+  const docCode = formatDocCodeWithDate(isPastoral ? 'EVAL' : 'MEM', now)
   applyStandardPdfFooters(doc, docCode, { leftMargin, rightMargin })
 
-  const filename = `Ministry_Members_Report_${now.toISOString().split('T')[0]}.pdf`
+  const filename = isPastoral
+    ? `Pastoral_Evaluation_Report_${now.toISOString().split('T')[0]}.pdf`
+    : `Ministry_Members_Report_${now.toISOString().split('T')[0]}.pdf`
   doc.save(filename)
 }

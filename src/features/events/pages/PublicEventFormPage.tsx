@@ -1,6 +1,6 @@
 import { FormInput } from '@/components/FormInput'
 import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { eventFormService } from '@/services/eventFormService'
@@ -43,6 +43,8 @@ export const PublicEventFormPage: React.FC = () => {
   const [loading, setLoading] = useState(true)
   const [openMemberPickerQuestionId, setOpenMemberPickerQuestionId] = useState<string | null>(null)
   const [memberSearchQuery, setMemberSearchQuery] = useState('')
+  const [hideEvaluatedMembers, setHideEvaluatedMembers] = useState(true)
+  const [hoverRatingMap, setHoverRatingMap] = useState<Record<string, number>>({})
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
   const [pageLoadError, setPageLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
@@ -188,7 +190,7 @@ export const PublicEventFormPage: React.FC = () => {
           console.error('Failed to load responses for slot limits:', err)
         }
 
-        // If form contains a member selector, load active members list and exclude already submitted members
+        // If form contains a member selector, load active members list
         if (qs.some(q => q.type === 'member_selector')) {
           try {
             const allMembers = await queryClient.fetchQuery({
@@ -197,21 +199,7 @@ export const PublicEventFormPage: React.FC = () => {
               staleTime: 1000 * 60 * 10 // 10 minutes cache
             })
             const activeMembers = allMembers.filter(m => m.status === 'active')
-
-            // Build set of member IDs who already submitted a response for this form
-            const submittedSet = new Set<string>()
-            existingResponses.forEach(r => {
-              if (r.respondentMemberUid) submittedSet.add(r.respondentMemberUid)
-              // Also check any member_selector answer in previous responses
-              Object.values(r.answers).forEach(val => {
-                if (typeof val === 'string' && val.startsWith('mem_')) {
-                  submittedSet.add(val)
-                }
-              })
-            })
-
-            // Store active members who have NOT submitted yet
-            setMembers(activeMembers.filter(m => !submittedSet.has(m.id)))
+            setMembers(activeMembers)
           } catch (err) {
             console.error('Failed to load members for selector:', err)
           }
@@ -232,6 +220,53 @@ export const PublicEventFormPage: React.FC = () => {
     // Clean slate on initial page load
     setExistingTrackingNumber(null)
   }, [form?.id])
+
+  // Set of member IDs evaluated by the current officer (or submitted in this form)
+  const evaluatedMemberIds = useMemo(() => {
+    const ids = new Set<string>()
+    const memberSelectorQs = questions.filter(q => q.type === 'member_selector')
+    if (memberSelectorQs.length === 0) return ids
+
+    const isOfficer = !!(user || profile)
+    const myUid = user?.uid || profile?.uid || profile?.memberId || ''
+    const myEmail = (user?.email || profile?.email || '').toLowerCase()
+    const myName = (profile?.displayName || profile?.memberName || '').toLowerCase()
+
+    formResponses.forEach(r => {
+      // Check if this response was submitted by the current officer / user
+      const isMyResponse = !isOfficer
+        ? true
+        : Boolean(
+            (myUid && r.respondentMemberUid === myUid) ||
+            (myEmail && r.respondentEmail && r.respondentEmail.toLowerCase() === myEmail) ||
+            (myName && r.respondentMemberName && r.respondentMemberName.toLowerCase() === myName)
+          )
+
+      if (isMyResponse && r.answers) {
+        // Collect member IDs from member_selector answers
+        memberSelectorQs.forEach(mq => {
+          const val = r.answers[mq.id]
+          if (typeof val === 'string' && val.trim()) {
+            ids.add(val.trim())
+          }
+        })
+
+        // Also check if any answer value matches an active member ID directly
+        members.forEach(m => {
+          if (Object.values(r.answers).includes(m.id)) {
+            ids.add(m.id)
+          }
+        })
+
+        // For non-officer public registration, also count respondent themselves
+        if (!isOfficer && r.respondentMemberUid) {
+          ids.add(r.respondentMemberUid)
+        }
+      }
+    })
+
+    return ids
+  }, [formResponses, questions, user, profile, members])
 
   if (loading) {
     return (
@@ -531,6 +566,13 @@ export const PublicEventFormPage: React.FC = () => {
         }
       }
 
+      if (q.type === 'rating' && q.required) {
+        const val = answers[q.id]
+        if (val === undefined || val === null || val === '' || val === 0) {
+          errorsMap[q.id] = 'Please select a rating.'
+        }
+      }
+
       // Validate option slot limits
       if (q.optionLimits && Object.keys(q.optionLimits).length > 0) {
         const val = answers[q.id]
@@ -595,18 +637,22 @@ export const PublicEventFormPage: React.FC = () => {
     setSubmitError(null)
 
     try {
-      // Determine respondent info
-      let respMemberUid = user?.uid || profile?.uid || ''
-      let respMemberName = profile?.displayName || profile?.email || ''
-      let respEmail = profile?.email || ''
+      // Determine respondent info (preserves authenticated officer identity)
+      let respMemberUid = user?.uid || profile?.uid || profile?.memberId || ''
+      let respMemberName = profile?.displayName || profile?.memberName || profile?.email || ''
+      let respEmail = profile?.email || user?.email || ''
 
-      // If there is a member_selector question answered, record that member name as well
+      // If respondent identity is not established via auth session, fallback to member_selector if present
       const memberSelQ = questions.find(q => q.type === 'member_selector')
       if (memberSelQ && answers[memberSelQ.id]) {
-        respMemberUid = answers[memberSelQ.id]
-        const selectedMem = members.find(m => m.id === answers[memberSelQ.id])
-        if (selectedMem) {
-          respMemberName = `${selectedMem.lastName}, ${selectedMem.firstName}`
+        if (!respMemberUid) {
+          respMemberUid = String(answers[memberSelQ.id])
+        }
+        if (!respMemberName) {
+          const selectedMem = members.find(m => m.id === answers[memberSelQ.id])
+          if (selectedMem) {
+            respMemberName = `${selectedMem.lastName}, ${selectedMem.firstName}`
+          }
         }
       }
 
@@ -620,6 +666,21 @@ export const PublicEventFormPage: React.FC = () => {
         },
         existingTrackingNumber || undefined
       )
+
+      // Immediately append new response record to local state so evaluated member disappears instantly
+      const newResponseRecord: EventFormResponse = {
+        id: trackingNumber,
+        formId: form.id || formId || '',
+        eventId: form.eventId || '',
+        trackingNumber,
+        respondentMemberUid: respMemberUid,
+        respondentMemberName: respMemberName,
+        respondentEmail: respEmail,
+        answers: { ...answers },
+        status: 'submitted',
+        submittedAt: new Date().toISOString()
+      }
+      setFormResponses(prev => [...prev.filter(r => r.trackingNumber !== trackingNumber), newResponseRecord])
 
       setSubmittedTrackingNumber(trackingNumber)
     } catch (err) {
@@ -721,6 +782,9 @@ export const PublicEventFormPage: React.FC = () => {
                   setSubmittedTrackingNumber(null)
                   setExistingTrackingNumber(null)
                   setValidationErrors({})
+                  setOpenMemberPickerQuestionId(null)
+                  setMemberSearchQuery('')
+                  setHoverRatingMap({})
 
                   // Re-fetch existing responses so member list and slot counts are updated immediately!
                   if (form?.id) {
@@ -731,16 +795,7 @@ export const PublicEventFormPage: React.FC = () => {
                       if (questions.some(q => q.type === 'member_selector')) {
                         const allMembers = await memberService.getMembers()
                         const activeMembers = allMembers.filter(m => m.status === 'active')
-                        const submittedSet = new Set<string>()
-                        rs.forEach(r => {
-                          if (r.respondentMemberUid) submittedSet.add(r.respondentMemberUid)
-                          Object.values(r.answers).forEach(val => {
-                            if (typeof val === 'string' && val.startsWith('mem_')) {
-                              submittedSet.add(val)
-                            }
-                          })
-                        })
-                        setMembers(activeMembers.filter(m => !submittedSet.has(m.id)))
+                        setMembers(activeMembers)
                       }
                     } catch (err) {
                       console.error('Failed to reload form responses after submission:', err)
@@ -780,6 +835,10 @@ export const PublicEventFormPage: React.FC = () => {
     if (q.type === 'contact_number') {
       if (!q.required && (!val || val === '')) return true
       return isValidContactNumber(val, q.required)
+    }
+    if (q.type === 'rating') {
+      if (!q.required && (val === undefined || val === null || val === '')) return true
+      return typeof val === 'number' && val > 0
     }
     if (!q.required) return true
     if (val === undefined || val === null || val === '') return false
@@ -996,6 +1055,33 @@ export const PublicEventFormPage: React.FC = () => {
             >
               Cancel Edit / Start Fresh
             </button>
+          </div>
+        )}
+
+        {/* Authenticated Officer / Respondent Identity Banner */}
+        {(profile?.displayName || profile?.memberName || user?.email) && (
+          <div className="bg-indigo-50/80 border border-indigo-200/90 rounded-2xl p-3 sm:p-3.5 shadow-2xs flex items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 shadow-2xs">
+                {(profile?.displayName || profile?.memberName || user?.email || 'O').charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <span className="text-[10px] font-black uppercase tracking-wider text-indigo-700 block">
+                  Logged in Evaluator / Officer
+                </span>
+                <span className="font-bold text-slate-800">
+                  {profile?.displayName || profile?.memberName || user?.email}
+                </span>
+                {profile?.role && (
+                  <span className="ml-1.5 px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-800 font-extrabold text-[10px] uppercase">
+                    {profile.role}
+                  </span>
+                )}
+              </div>
+            </div>
+            <span className="text-[10px] text-indigo-600 font-semibold hidden sm:inline">
+              ✓ Identity recorded automatically
+            </span>
           </div>
         )}
 
@@ -1430,8 +1516,101 @@ export const PublicEventFormPage: React.FC = () => {
                   </div>
                 )}
 
+                {q.type === 'rating' && (() => {
+                  const maxRating = q.maxRating || 5
+                  const scaleType = q.ratingScaleType || 'stars'
+                  const rawScore = answers[q.id]
+                  const currentScore = typeof rawScore === 'number' ? rawScore : (rawScore ? Number(rawScore) : 0)
+                  const hoverScore = hoverRatingMap[q.id] || 0
+                  const activeScore = hoverScore > 0 ? hoverScore : currentScore
+                  const ratingOptions = Array.from({ length: maxRating }, (_, i) => i + 1)
+
+                  return (
+                    <div className="space-y-3">
+                      {scaleType === 'stars' ? (
+                        <div
+                          className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 pt-1"
+                          onMouseLeave={() => setHoverRatingMap(prev => ({ ...prev, [q.id]: 0 }))}
+                        >
+                          {ratingOptions.map(score => {
+                            const isFilled = score <= activeScore
+                            return (
+                              <button
+                                key={score}
+                                type="button"
+                                onClick={() => {
+                                  handleInputChange(q.id, score)
+                                  setHoverRatingMap(prev => ({ ...prev, [q.id]: 0 }))
+                                }}
+                                onMouseEnter={() => setHoverRatingMap(prev => ({ ...prev, [q.id]: score }))}
+                                className="p-1 sm:p-1.5 rounded-xl hover:scale-115 active:scale-95 transition-all duration-150 cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-amber-400 group"
+                                title={`Rate ${score} of ${maxRating}`}
+                                aria-label={`Rate ${score} of ${maxRating}`}
+                              >
+                                <svg
+                                  className={`w-9 h-9 sm:w-11 sm:h-11 transition-all duration-150 ${
+                                    isFilled
+                                      ? 'text-amber-400 fill-amber-400 filter drop-shadow-[0_2px_4px_rgba(251,191,36,0.4)] scale-105'
+                                      : 'text-slate-400 fill-slate-100 hover:text-amber-400 hover:fill-amber-100'
+                                  }`}
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={1.75}
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"
+                                  />
+                                </svg>
+                              </button>
+                            )
+                          })}
+                          {activeScore > 0 && (
+                            <span className="ml-2 text-xs sm:text-sm font-black text-amber-800 bg-amber-50 border border-amber-300 px-3 py-1 rounded-xl shadow-2xs animate-in fade-in duration-150">
+                              {activeScore} / {maxRating}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {ratingOptions.map(score => {
+                            const isSelected = currentScore === score
+                            return (
+                              <button
+                                key={score}
+                                type="button"
+                                onClick={() => handleInputChange(q.id, score)}
+                                className={`h-11 min-w-[44px] px-3.5 rounded-xl text-sm font-bold border transition-all cursor-pointer flex items-center justify-center ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-md font-black ring-2 ring-indigo-300'
+                                    : 'bg-white text-slate-700 border-slate-200 hover:border-indigo-300 hover:bg-indigo-50/40'
+                                }`}
+                              >
+                                {score}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+
+                      {/* Low & High Scale Descriptor Labels */}
+                      {(q.lowRatingLabel || q.highRatingLabel) && (
+                        <div className="flex items-center justify-between text-xs font-semibold text-slate-600 pt-1 px-1">
+                          <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80 shadow-2xs">
+                            1: {q.lowRatingLabel || '1'}
+                          </span>
+                          <span className="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-lg border border-slate-200/80 shadow-2xs">
+                            {maxRating}: {q.highRatingLabel || `${maxRating}`}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })()}
+
                 {q.type === 'member_selector' && (() => {
-                  const filteredMembers = members.filter(m => {
+                  const baseEligibleMembers = members.filter(m => {
                     if (q.memberFilterType === 'order' && q.memberFilterValue) {
                       const allowed = Array.isArray(q.memberFilterValue) ? q.memberFilterValue : [q.memberFilterValue]
                       return !!m.order && allowed.includes(m.order)
@@ -1443,11 +1622,16 @@ export const PublicEventFormPage: React.FC = () => {
                     return true
                   })
 
+                  const unevaluatedMembers = baseEligibleMembers.filter(m => !evaluatedMemberIds.has(m.id))
+                  const evaluatedCount = baseEligibleMembers.length - unevaluatedMembers.length
+                  const isAllEvaluated = baseEligibleMembers.length > 0 && unevaluatedMembers.length === 0
+                  const activePool = hideEvaluatedMembers ? unevaluatedMembers : baseEligibleMembers
+
                   const selectedMemberId = typeof answers[q.id] === 'string' ? answers[q.id] : ''
                   const selectedMember = members.find(m => m.id === selectedMemberId)
                   const isOpen = openMemberPickerQuestionId === q.id
 
-                  const searchFiltered = filteredMembers.filter(m => {
+                  const searchFiltered = activePool.filter(m => {
                     if (!memberSearchQuery.trim()) return true
                     const full = `${m.lastName} ${m.firstName} ${m.order || ''} ${m.rank || ''}`.toLowerCase()
                     return full.includes(memberSearchQuery.toLowerCase().trim())
@@ -1455,9 +1639,66 @@ export const PublicEventFormPage: React.FC = () => {
 
                   return (
                     <div className="space-y-3">
-                      {filteredMembers.length === 0 ? (
+                      {/* Evaluation Progress & Toggle Bar */}
+                      {baseEligibleMembers.length > 0 && (
+                        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-700">
+                              Remaining to Evaluate:
+                            </span>
+                            <span className="font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 border border-blue-200">
+                              {unevaluatedMembers.length} of {baseEligibleMembers.length}
+                            </span>
+                            {evaluatedCount > 0 && (
+                              <span className="hidden sm:inline text-[11px] font-semibold text-emerald-700">
+                                ({evaluatedCount} done)
+                              </span>
+                            )}
+                          </div>
+
+                          {evaluatedCount > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setHideEvaluatedMembers(prev => !prev)}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer hover:underline"
+                            >
+                              <span>{hideEvaluatedMembers ? `Show All (${baseEligibleMembers.length})` : `Hide Evaluated (${evaluatedCount})`}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {baseEligibleMembers.length === 0 ? (
                         <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center text-xs font-semibold text-slate-500">
-                          All eligible members in this group have already submitted their response.
+                          No active members found for this group.
+                        </div>
+                      ) : isAllEvaluated && hideEvaluatedMembers && !selectedMember ? (
+                        <div className="p-6 bg-gradient-to-br from-emerald-50 via-teal-50 to-blue-50 border-2 border-emerald-300 rounded-2xl text-center space-y-3 shadow-xs">
+                          <div className="w-12 h-12 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-2xs">
+                            🎉
+                          </div>
+                          <div className="space-y-1">
+                            <h4 className="text-sm font-black text-emerald-950">
+                              All Members Evaluated!
+                            </h4>
+                            <p className="text-xs text-emerald-800 leading-relaxed max-w-sm mx-auto">
+                              You have completed evaluations for all <strong>{baseEligibleMembers.length}</strong> active members in this group. Thank you for your leadership and service!
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setHideEvaluatedMembers(false)
+                              setOpenMemberPickerQuestionId(q.id)
+                            }}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-white hover:bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition shadow-2xs cursor-pointer"
+                          >
+                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            <span>Review / Edit Evaluated Members</span>
+                          </button>
                         </div>
                       ) : (
                         <div>
@@ -1502,7 +1743,12 @@ export const PublicEventFormPage: React.FC = () => {
                             /* Expanded Picker Card with Search Input */
                             <div className="p-4 bg-white border-2 border-blue-500 rounded-2xl shadow-lg space-y-3">
                               <div className="flex items-center justify-between border-b pb-2">
-                                <span className="text-xs font-bold text-slate-800">Select Participant Name</span>
+                                <div className="flex items-center gap-2">
+                                  <span className="text-xs font-bold text-slate-800">Select Participant Name</span>
+                                  <span className="text-[11px] font-bold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-md">
+                                    {unevaluatedMembers.length} remaining
+                                  </span>
+                                </div>
                                 <button
                                   type="button"
                                   onClick={() => setOpenMemberPickerQuestionId(null)}
@@ -1527,13 +1773,16 @@ export const PublicEventFormPage: React.FC = () => {
                               <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
                                 {searchFiltered.length === 0 ? (
                                   <div className="p-3 text-center text-xs text-slate-400 italic">
-                                    No matching active members found.
+                                    {activePool.length === 0 && hideEvaluatedMembers
+                                      ? 'All members have been evaluated! Toggle "Show All" above to view them.'
+                                      : 'No matching active members found.'}
                                   </div>
                                 ) : (
                                   searchFiltered
                                     .sort((a, b) => a.lastName.localeCompare(b.lastName))
                                     .map(m => {
                                       const isSelected = selectedMemberId === m.id
+                                      const isAlreadyEvaluated = evaluatedMemberIds.has(m.id)
                                       return (
                                         <div
                                           key={m.id}
@@ -1541,25 +1790,33 @@ export const PublicEventFormPage: React.FC = () => {
                                             handleInputChange(q.id, m.id)
                                             setOpenMemberPickerQuestionId(null)
                                           }}
-                                          className={`flex items-center space-x-3 p-2.5 border rounded-xl cursor-pointer transition ${
+                                          className={`flex items-center justify-between p-2.5 border rounded-xl cursor-pointer transition ${
                                             isSelected
                                               ? 'bg-blue-50 border-blue-500 text-blue-900 shadow-2xs font-bold'
                                               : 'bg-white border-slate-200 hover:bg-slate-50 text-slate-800'
                                           }`}
                                         >
-                                          <input
-                                            type="radio"
-                                            name={`member_select_${q.id}`}
-                                            checked={isSelected}
-                                            readOnly
-                                            className="h-4 w-4 text-blue-600 focus:ring-blue-500"
-                                          />
-                                          <div className="flex flex-col">
-                                            <span className="text-xs font-bold">
-                                              {m.lastName}, {m.firstName}
-                                            </span>
-                                            {m.order && <span className="text-[10px] text-slate-500">{m.order}</span>}
+                                          <div className="flex items-center space-x-3">
+                                            <input
+                                              type="radio"
+                                              name={`member_select_${q.id}`}
+                                              checked={isSelected}
+                                              readOnly
+                                              className="h-4 w-4 text-blue-600 focus:ring-blue-500"
+                                            />
+                                            <div className="flex flex-col">
+                                              <span className="text-xs font-bold">
+                                                {m.lastName}, {m.firstName}
+                                              </span>
+                                              {m.order && <span className="text-[10px] text-slate-500">{m.order}</span>}
+                                            </div>
                                           </div>
+
+                                          {isAlreadyEvaluated && (
+                                            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md shadow-2xs">
+                                              ✓ Evaluated
+                                            </span>
+                                          )}
                                         </div>
                                       )
                                     })
