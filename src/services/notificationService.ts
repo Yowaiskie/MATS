@@ -13,7 +13,8 @@ import {
   arrayUnion,
   updateDoc,
   serverTimestamp,
-  where
+  where,
+  documentId
 } from 'firebase/firestore'
 import type { AppNotification, PushNotificationProgress, AssignedServerAccount } from '@/types/notification'
 import type { UserProfile } from '@/types/auth'
@@ -805,8 +806,18 @@ class NotificationService {
       statusLabel: 'Scanning untaken schedules...'
     })
 
-    // 1. Fetch all schedules and filter in-memory
-    const schedulesSnap = await getDocs(collection(db, 'schedules'))
+    // 1. Fetch schedules within window or by selected IDs to avoid full collection scans
+    const pastBoundaryDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+    const pYear = pastBoundaryDate.getFullYear()
+    const pMonth = String(pastBoundaryDate.getMonth() + 1).padStart(2, '0')
+    const pDay = String(pastBoundaryDate.getDate()).padStart(2, '0')
+    const startDateStr = `${pYear}-${pMonth}-${pDay}`
+
+    const schedulesRef = collection(db, 'schedules')
+    const schedulesQuery = opts.scheduleIds && opts.scheduleIds.length > 0 && opts.scheduleIds.length <= 30
+      ? query(schedulesRef, where(documentId(), 'in', opts.scheduleIds))
+      : query(schedulesRef, where('date', '>=', startDateStr), where('date', '<=', todayStr))
+    const schedulesSnap = await getDocs(schedulesQuery)
 
     let schedules = schedulesSnap.docs
       .map(d => ({ id: d.id, ...d.data() } as Schedule))
@@ -821,8 +832,8 @@ class NotificationService {
         return false
       })
 
-    // If specific scheduleIds are selected, filter to those
-    if (opts.scheduleIds && opts.scheduleIds.length > 0) {
+    // If specific scheduleIds are selected and exceeded single batch query, filter to those
+    if (opts.scheduleIds && opts.scheduleIds.length > 30) {
       const selectedSet = new Set(opts.scheduleIds)
       schedules = schedules.filter(s => selectedSet.has(s.id))
     }
@@ -872,12 +883,11 @@ class NotificationService {
       return { schedulesReminded: 0, officersNotified: 0 }
     }
 
-    // 3. Clean up previous attendance_reminder notifications
+    // 3. Clean up previous attendance_reminder notifications using indexed query instead of full collection scan
     try {
-      const oldNotifsSnap = await getDocs(collection(db, NOTIFICATIONS_COLLECTION))
-      const deleteOps = oldNotifsSnap.docs
-        .filter(d => d.data().type === 'attendance_reminder')
-        .map(d => deleteDoc(d.ref).catch(() => {}))
+      const oldNotifsQuery = query(collection(db, NOTIFICATIONS_COLLECTION), where('type', '==', 'attendance_reminder'))
+      const oldNotifsSnap = await getDocs(oldNotifsQuery)
+      const deleteOps = oldNotifsSnap.docs.map(d => deleteDoc(d.ref).catch(() => {}))
       if (deleteOps.length > 0) {
         await Promise.all(deleteOps)
       }

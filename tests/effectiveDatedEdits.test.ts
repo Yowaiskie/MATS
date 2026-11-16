@@ -86,6 +86,8 @@ class MockFirestoreStore {
   }
 }
 
+const TEST_NOW = new Date('2026-11-01T00:00:00+08:00');
+
 function createSampleEnvironment() {
   const store = new MockFirestoreStore();
 
@@ -188,6 +190,7 @@ test('1. Effective-Dated Edit: Member A moves from 7:30 AM to 9:00 AM from Week 
     {
       effectiveDate: '2026-11-08',
       markAsSubmitted: true,
+      referenceNow: TEST_NOW,
       adminUser: {
         uid: 'admin-1',
         email: 'admin@example.com',
@@ -244,6 +247,7 @@ test('2. Stale stored schedule.status does not compromise historical preservatio
     selections,
     {
       effectiveDate: '2026-11-08',
+      referenceNow: TEST_NOW,
       adminUser: { uid: 'admin-1', role: 'admin' },
       firestoreInstance: store,
       transactionRunner: store.createTransactionRunner()
@@ -279,6 +283,7 @@ test('3. Locked schedules and finalized attendance sessions are preserved regard
     selections,
     {
       effectiveDate: '2026-11-01',
+      referenceNow: TEST_NOW,
       adminUser: { uid: 'admin-1', role: 'admin' },
       firestoreInstance: store,
       transactionRunner: store.createTransactionRunner()
@@ -319,6 +324,7 @@ test('4. Target slot at capacity limit rejects edit with SLOT_FULL', async () =>
         selections,
         {
           effectiveDate: '2026-11-08',
+          referenceNow: TEST_NOW,
           adminUser: { uid: 'admin-1', role: 'admin' },
           firestoreInstance: store,
           transactionRunner: store.createTransactionRunner()
@@ -397,6 +403,7 @@ test('6. Overlapping schedule assignment on the same day is rejected', async () 
         selections,
         {
           effectiveDate: '2026-11-08',
+          referenceNow: TEST_NOW,
           adminUser: { uid: 'admin-1', role: 'admin' },
           firestoreInstance: store,
           transactionRunner: store.createTransactionRunner()
@@ -427,6 +434,7 @@ test('7. Unauthorized administrator edit is rejected with PERMISSION_DENIED', as
         selections,
         {
           effectiveDate: '2026-11-08',
+          referenceNow: TEST_NOW,
           adminUser: {
             uid: 'unauthorized-user',
             role: 'viewer',
@@ -473,6 +481,7 @@ test('8. Cross-publication schedule selection is rejected', async () => {
         selections,
         {
           effectiveDate: '2026-11-08',
+          referenceNow: TEST_NOW,
           adminUser: { uid: 'admin-1', role: 'admin' },
           firestoreInstance: store,
           transactionRunner: store.createTransactionRunner()
@@ -513,6 +522,7 @@ test('9. Ineligible or suspended member edit is rejected', async () => {
         selections,
         {
           effectiveDate: '2026-11-08',
+          referenceNow: TEST_NOW,
           adminUser: { uid: 'admin-1', role: 'admin' },
           firestoreInstance: store,
           transactionRunner: store.createTransactionRunner()
@@ -559,6 +569,7 @@ test('10. Concurrency contention prevention: simultaneous edits detected and res
     selectionsA,
     {
       effectiveDate: '2026-11-08',
+      referenceNow: TEST_NOW,
       adminUser: { uid: 'admin-1', role: 'admin' },
       firestoreInstance: store,
       transactionRunner: store.createTransactionRunner()
@@ -578,6 +589,7 @@ test('10. Concurrency contention prevention: simultaneous edits detected and res
         selectionsB,
         {
           effectiveDate: '2026-11-08',
+          referenceNow: TEST_NOW,
           adminUser: { uid: 'admin-2', role: 'admin' },
           firestoreInstance: store,
           transactionRunner: store.createTransactionRunner()

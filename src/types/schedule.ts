@@ -78,6 +78,7 @@ export interface AdminEffectiveDatedScheduleEditOptions {
   markAsSubmitted?: boolean
   firestoreInstance?: any
   transactionRunner?: <T>(fn: (transaction: any) => Promise<T>) => Promise<T>
+  referenceNow?: Date
 }
 
 export interface AdminEffectiveDatedScheduleEditResult {
@@ -106,6 +107,7 @@ export interface AdminMassSlotAssignmentOptions {
   markAsSubmitted?: boolean
   firestoreInstance?: any
   transactionRunner?: <T>(fn: (transaction: any) => Promise<T>) => Promise<T>
+  referenceNow?: Date
 }
 
 export interface AdminMassSlotAssignmentResult {

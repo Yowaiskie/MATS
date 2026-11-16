@@ -1017,7 +1017,8 @@ export const getParishTodayDate = (parishTimeZone = 'Asia/Manila'): string => {
 export const isHistoricalScheduleOccurrence = (
   schedule: { date: string; startTime: string; status?: string; isLocked?: boolean; attendanceFinalized?: boolean; attendanceSessionFinalized?: boolean },
   effectiveDate?: string,
-  parishTimeZone = 'Asia/Manila'
+  parishTimeZone = 'Asia/Manila',
+  referenceNow?: Date
 ): boolean => {
   if (schedule.isLocked || schedule.attendanceFinalized || schedule.attendanceSessionFinalized || schedule.status === 'finalized' || schedule.status === 'completed') {
     return true
@@ -1027,7 +1028,7 @@ export const isHistoricalScheduleOccurrence = (
     return true
   }
 
-  const now = new Date()
+  const now = referenceNow || new Date()
   let todayStr: string
   let currentTimeStr: string
 

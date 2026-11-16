@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
 import { AuthProvider } from '@/features/authentication/AuthContext'
 import { MaintenanceProvider } from '@/context/MaintenanceContext'
 import { PublicMaintenanceGuard } from '@/features/maintenance/components/PublicMaintenanceGuard'
@@ -8,34 +9,36 @@ import { ProtectedRoute, PublicRoute } from '@/features/authentication/component
 import { LoginPage } from '@/features/authentication/components/LoginPage'
 import { DashboardLayout } from '@/layouts/DashboardLayout'
 import { DashboardOverview } from '@/features/dashboard/components/DashboardOverview'
-import { DashboardRedesignLabPage } from '@/features/dashboard/pages/DashboardRedesignLabPage'
-import { MembersPage } from '@/features/members/pages/MembersPage'
-import { SchedulesPage } from '@/features/schedules/pages/SchedulesPage'
-import { AttendancePage } from '@/features/attendance/pages/AttendancePage'
-import { ReportsPage } from '@/features/reports/pages/ReportsPage'
-import { SettingsPage } from '@/features/settings/pages/SettingsPage'
-import { AuditPage } from '@/features/audit/pages/AuditPage'
-import { UsersPage } from '@/features/users/pages/UsersPage'
-import { ChangePasswordPage } from '@/features/authentication/pages/ChangePasswordPage'
-import { PublicSchedulePage } from '@/features/schedules/pages/PublicSchedulePage'
-import { PublicExcusePage } from '@/features/excuse/PublicExcusePage'
-import { PublicEventFormPage } from '@/features/events/pages/PublicEventFormPage'
-import { AdminExcusePage } from '@/features/excuse/AdminExcusePage'
-import { FinancePage } from '@/features/finance/pages/FinancePage'
-import { EventsPage } from '@/features/events/pages/EventsPage'
-import { EventDetailsPage } from '@/features/events/pages/EventDetailsPage'
-import { InventoryPage } from '@/features/inventory/pages/InventoryPage'
-import { DesignSystemShowcasePage } from '@/features/preview/DesignSystemShowcasePage'
-import { LoginPageShowcasePage } from '@/features/preview/LoginPageShowcasePage'
-import { BulkFinalizeShowcasePage } from '@/features/preview/BulkFinalizeShowcasePage'
-import { RedesignShowroomPage } from '@/features/preview/RedesignShowroomPage'
+import { Loading } from '@/components/Loading'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { ToastProvider } from '@/context/ToastContext'
 import { NotificationProvider } from '@/context/NotificationContext'
-import { useEffect } from 'react'
 import { initializeNativeBridge } from '@/utils/nativeAppBridge'
 import { nativeWidgetService } from '@/services/nativeWidgetService'
 import { useNavigate } from 'react-router-dom'
+
+// Lazy load non-critical and heavy feature pages to minimize initial bundle size and boost startup speed
+const DashboardRedesignLabPage = lazy(() => import('@/features/dashboard/pages/DashboardRedesignLabPage').then(m => ({ default: m.DashboardRedesignLabPage })))
+const MembersPage = lazy(() => import('@/features/members/pages/MembersPage').then(m => ({ default: m.MembersPage })))
+const SchedulesPage = lazy(() => import('@/features/schedules/pages/SchedulesPage').then(m => ({ default: m.SchedulesPage })))
+const AttendancePage = lazy(() => import('@/features/attendance/pages/AttendancePage').then(m => ({ default: m.AttendancePage })))
+const ReportsPage = lazy(() => import('@/features/reports/pages/ReportsPage').then(m => ({ default: m.ReportsPage })))
+const SettingsPage = lazy(() => import('@/features/settings/pages/SettingsPage').then(m => ({ default: m.SettingsPage })))
+const AuditPage = lazy(() => import('@/features/audit/pages/AuditPage').then(m => ({ default: m.AuditPage })))
+const UsersPage = lazy(() => import('@/features/users/pages/UsersPage').then(m => ({ default: m.UsersPage })))
+const ChangePasswordPage = lazy(() => import('@/features/authentication/pages/ChangePasswordPage').then(m => ({ default: m.ChangePasswordPage })))
+const PublicSchedulePage = lazy(() => import('@/features/schedules/pages/PublicSchedulePage').then(m => ({ default: m.PublicSchedulePage })))
+const PublicExcusePage = lazy(() => import('@/features/excuse/PublicExcusePage').then(m => ({ default: m.PublicExcusePage })))
+const PublicEventFormPage = lazy(() => import('@/features/events/pages/PublicEventFormPage').then(m => ({ default: m.PublicEventFormPage })))
+const AdminExcusePage = lazy(() => import('@/features/excuse/AdminExcusePage').then(m => ({ default: m.AdminExcusePage })))
+const FinancePage = lazy(() => import('@/features/finance/pages/FinancePage').then(m => ({ default: m.FinancePage })))
+const EventsPage = lazy(() => import('@/features/events/pages/EventsPage').then(m => ({ default: m.EventsPage })))
+const EventDetailsPage = lazy(() => import('@/features/events/pages/EventDetailsPage').then(m => ({ default: m.EventDetailsPage })))
+const InventoryPage = lazy(() => import('@/features/inventory/pages/InventoryPage').then(m => ({ default: m.InventoryPage })))
+const DesignSystemShowcasePage = lazy(() => import('@/features/preview/DesignSystemShowcasePage').then(m => ({ default: m.DesignSystemShowcasePage })))
+const LoginPageShowcasePage = lazy(() => import('@/features/preview/LoginPageShowcasePage').then(m => ({ default: m.LoginPageShowcasePage })))
+const BulkFinalizeShowcasePage = lazy(() => import('@/features/preview/BulkFinalizeShowcasePage').then(m => ({ default: m.BulkFinalizeShowcasePage })))
+const RedesignShowroomPage = lazy(() => import('@/features/preview/RedesignShowroomPage').then(m => ({ default: m.RedesignShowroomPage })))
 
 function NativeBridgeInit() {
   const navigate = useNavigate()
@@ -57,8 +60,9 @@ function App() {
               <NotificationProvider>
                 <BrowserRouter>
                   <NativeBridgeInit />
-                  <Routes>
-                {/* Design System Preview Route (Phase 1 Preview) */}
+                  <Suspense fallback={<Loading label="Loading MATS..." />}>
+                    <Routes>
+                  {/* Design System Preview Route (Phase 1 Preview) */}
                 <Route path="/redesign-showroom" element={<RedesignShowroomPage />} />
                 <Route path="/design-system-preview" element={<DesignSystemShowcasePage />} />
                 <Route path="/login-preview" element={<LoginPageShowcasePage />} />
@@ -240,8 +244,9 @@ function App() {
             {/* Fallback redirection */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-          <PWAUpdatePrompt />
-        </BrowserRouter>
+        </Suspense>
+        <PWAUpdatePrompt />
+      </BrowserRouter>
               </NotificationProvider>
             </ToastProvider>
           </TutorialProvider>

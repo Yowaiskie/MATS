@@ -229,7 +229,7 @@ export const PublicSchedulePage: React.FC = () => {
       const pub = await queryClient.fetchQuery({
         queryKey: ['publication', publicationId],
         queryFn: () => publicationService.getPublication(publicationId),
-        staleTime: 0
+        staleTime: 1000 * 60 * 3
       })
 
       if (!pub) {
@@ -244,17 +244,17 @@ export const PublicSchedulePage: React.FC = () => {
         queryClient.fetchQuery({
           queryKey: ['members'],
           queryFn: () => memberService.getMembers(),
-          staleTime: 1000 * 60 * 2
+          staleTime: 1000 * 60 * 3
         }),
         queryClient.fetchQuery({
           queryKey: ['public-schedules', pub.id],
           queryFn: () => scheduleService.getSchedulesForPublication(pub),
-          staleTime: 0
+          staleTime: 1000 * 60 * 3
         }),
         queryClient.fetchQuery({
           queryKey: ['public-submissions', pub.id],
           queryFn: () => submissionService.getSubmissionsForPublication(pub.id),
-          staleTime: 0
+          staleTime: 1000 * 60 * 3
         }).catch(err => {
           console.warn('Could not fetch existing submissions:', err)
           return [] as ScheduleSubmission[]

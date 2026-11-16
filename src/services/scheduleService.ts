@@ -809,7 +809,7 @@ export const scheduleService = {
         }
 
         // Historical preservation check (Asia/Manila wall-clock time, locks, and effectiveDate)
-        const isHistorical = isHistoricalScheduleOccurrence(sched, effectiveDate, 'Asia/Manila')
+        const isHistorical = isHistoricalScheduleOccurrence(sched, effectiveDate, 'Asia/Manila', options.referenceNow)
         if (isHistorical) {
           preservedHistoricalScheduleIds.push(schedId)
           if (isCurrentlyAssigned) {

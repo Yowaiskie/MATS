@@ -43,6 +43,7 @@ scripts/seed*.mjs
 # AI agent local scratch & skills
 .agents/
 .impeccable/
+.worktrees/
 PRODUCT.md
 
 

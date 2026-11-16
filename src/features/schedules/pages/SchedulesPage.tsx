@@ -226,7 +226,11 @@ export const SchedulesPage: React.FC = () => {
           queryFn: () => memberService.getMembers(true),
           staleTime: 1000 * 60 * 5 // 5-minute memory cache
         }),
-        attendanceService.getAllSessions()
+        queryClient.fetchQuery({
+          queryKey: ['attendance-sessions'],
+          queryFn: () => attendanceService.getAllSessions(),
+          staleTime: 1000 * 60 * 3 // 3-minute memory cache
+        })
       ])
 
       setSchedules(scheduleData)
@@ -509,6 +513,7 @@ export const SchedulesPage: React.FC = () => {
           ...(session ? [attendanceService.setSessionLockState(session.id, false, actor, s.title)] : []),
         ])
       }
+      queryClient.invalidateQueries({ queryKey: ['attendance-sessions'] })
       await refreshUntaken()
       await loadData(false)
       if (nextLocked) {

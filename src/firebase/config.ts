@@ -1,6 +1,12 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, connectAuthEmulator } from 'firebase/auth'
-import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
+import { 
+  getFirestore, 
+  initializeFirestore, 
+  persistentLocalCache, 
+  persistentMultipleTabManager, 
+  connectFirestoreEmulator 
+} from 'firebase/firestore'
 
 const env = (typeof import.meta !== 'undefined' && (import.meta as any).env) || (typeof globalThis !== 'undefined' && (globalThis as any).process ? (globalThis as any).process.env : {}) || {}
 
@@ -16,7 +22,25 @@ export const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 
 export const auth = getAuth(app)
-export const db = getFirestore(app)
+
+let firestoreInstance: ReturnType<typeof getFirestore>
+
+if (typeof window !== 'undefined' && typeof window.indexedDB !== 'undefined') {
+  try {
+    firestoreInstance = initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager()
+      })
+    })
+  } catch (error) {
+    console.warn('[Firebase] Multi-tab persistent local cache initialization skipped or failed, using standard Firestore instance:', error)
+    firestoreInstance = getFirestore(app)
+  }
+} else {
+  firestoreInstance = getFirestore(app)
+}
+
+export const db = firestoreInstance
 
 if (env.VITE_USE_FIREBASE_EMULATOR === 'true') {
   try {

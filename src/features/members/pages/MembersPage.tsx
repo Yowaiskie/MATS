@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { memberService } from '@/services/memberService'
 import { renewalService } from '@/services/renewalService'
 import { Card } from '@/components/Card'
@@ -23,6 +24,7 @@ import { useToast } from '@/context/ToastContext'
 export const MembersPage: React.FC = () => {
   const { profile, isAdmin, canAction } = useAuth()
   const { toast } = useToast()
+  const queryClient = useQueryClient()
   const canManage = isAdmin || canAction('canManageMembers')
   const [members, setMembers] = useState<Member[]>([])
   const [loading, setLoading] = useState(true)
@@ -125,19 +127,36 @@ export const MembersPage: React.FC = () => {
     }
   }
 
-  const loadAllPermanent = async () => {
+  const loadAllPermanent = async (forceRefresh = false) => {
     try {
-      const all = await memberService.getMembers(false)
+      if (forceRefresh) {
+        queryClient.invalidateQueries({ queryKey: ['members'] })
+      }
+      const all = await queryClient.fetchQuery({
+        queryKey: ['members', 'active'],
+        queryFn: () => memberService.getMembers(false),
+        staleTime: forceRefresh ? 0 : 1000 * 60 * 3
+      })
       setAllPermanentMembers(all)
+      return all
     } catch (err) {
       console.error(err)
+      return []
     }
   }
 
-  const loadMembers = async (showSpinner = true) => {
+  const loadMembers = async (showSpinner = true, preloadedPermanent?: Member[], forceRefresh = false) => {
     if (showSpinner) setLoading(true)
     try {
-      const data = await memberService.getMembers(showArchived ? 'archived_only' : false)
+      if (!showArchived && preloadedPermanent && !forceRefresh) {
+        setMembers(preloadedPermanent)
+        return
+      }
+      const data = await queryClient.fetchQuery({
+        queryKey: ['members', showArchived ? 'archived_only' : 'active'],
+        queryFn: () => memberService.getMembers(showArchived ? 'archived_only' : false),
+        staleTime: forceRefresh ? 0 : 1000 * 60 * 3
+      })
       setMembers(data)
     } catch (err: any) {
       console.error(err)
@@ -152,8 +171,8 @@ export const MembersPage: React.FC = () => {
     const init = async () => {
       setLoading(true)
       const loadedCycles = await loadCycles()
-      await loadAllPermanent()
-      await loadMembers(false)
+      const allPerm = await loadAllPermanent()
+      await loadMembers(false, allPerm)
 
       // Default to current active cycle if one exists
       const current = loadedCycles.find(c => c.isCurrent)

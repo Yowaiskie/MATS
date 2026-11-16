@@ -358,7 +358,7 @@ test('Scenario 5: Admin extends deadline and subsequent submission succeeds', as
     async () => {
       await publicationService.extendPublicationDeadline(
         pubDoc.id,
-        '2026-11-10T23:59:00',
+        '2026-12-10T23:59:00',
         unauthorizedUser,
         'Coordinator decision',
         mockDb
@@ -368,7 +368,7 @@ test('Scenario 5: Admin extends deadline and subsequent submission succeeds', as
   );
 
   // Authorized admin extends deadline
-  const newDeadline = '2026-11-10T23:59:00';
+  const newDeadline = '2026-12-10T23:59:00';
   await publicationService.extendPublicationDeadline(
     pubDoc.id,
     newDeadline,

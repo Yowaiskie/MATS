@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { dashboardService, type ActivityLog, type BirthdayCelebrant } from '@/services/dashboardService'
-import type { Schedule } from '@/types/schedule'
-import type { Member } from '@/types/member'
+import { useQuery } from '@tanstack/react-query'
+import { dashboardService } from '@/services/dashboardService'
 import { getScheduleStatus, getParishTodayDate } from '@/utils/scheduleUtils'
 import { getOrderBadgeStyle } from '@/types/member'
 import { nativeWidgetService } from '@/services/nativeWidgetService'
@@ -136,16 +135,17 @@ export const DashboardOverview: React.FC = () => {
   const reportOrderScope = getReportOrderScope(profile)
   const orderTheme = (userOrder && ORDER_THEMES[userOrder]) ? ORDER_THEMES[userOrder] : DEFAULT_THEME
 
-  const [data, setData] = useState<{
-    stats: any
-    todaySchedules: Schedule[]
-    activities: ActivityLog[]
-    monthBirthdays: BirthdayCelebrant[]
-    members?: Member[]
-  } | null>(null)
+  const {
+    data,
+    isLoading: loading,
+    error: queryError,
+  } = useQuery({
+    queryKey: ['dashboard-overview', reportOrderScope],
+    queryFn: () => dashboardService.getDashboardData(reportOrderScope),
+    staleTime: 1000 * 60 * 3,
+  })
 
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const error = queryError ? 'Failed to fetch real-time dashboard data.' : null
   const [sideTab, setSideTab] = useState<'birthdays' | 'activity'>('birthdays')
 
   const parishToday = useMemo(() => getParishTodayDate('Asia/Manila'), [])
@@ -187,24 +187,12 @@ export const DashboardOverview: React.FC = () => {
     )
   }, [data?.members, data?.monthBirthdays, selectedBirthdayMonth, currentYearNumber])
 
+  // Reuse already loaded schedules and members to avoid duplicate Firestore collection reads
   useEffect(() => {
-    const loadDashboard = async () => {
-      try {
-        setLoading(true)
-        const dashboardData = await dashboardService.getDashboardData(reportOrderScope)
-        setData(dashboardData)
-        // Reuse already loaded schedules and members to avoid duplicate Firestore collection reads
-        nativeWidgetService.syncUpcomingMassesWidget(dashboardData.monthSchedules, dashboardData.members, profile).catch(() => {})
-      } catch (err: any) {
-        console.error(err)
-        setError('Failed to fetch real-time dashboard data.')
-      } finally {
-        setLoading(false)
-      }
+    if (data?.monthSchedules && data?.members) {
+      nativeWidgetService.syncUpcomingMassesWidget(data.monthSchedules, data.members, profile).catch(() => {})
     }
-
-    loadDashboard()
-  }, [reportOrderScope, profile])
+  }, [data?.monthSchedules, data?.members, profile])
 
   // Format 12-hour time format helper
   const formatTime12 = (timeStr: string) => {

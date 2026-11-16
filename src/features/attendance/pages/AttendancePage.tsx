@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link, useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { scheduleService } from '@/services/scheduleService'
 import { memberService } from '@/services/memberService'
 import { attendanceService } from '@/services/attendanceService'
@@ -42,6 +43,7 @@ export const AttendancePage: React.FC = () => {
   const canFinalize = isAdmin || canAction('canFinalizeAttendance')
   const { toast } = useToast()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [bulkFinalizeOpen, setBulkFinalizeOpen] = useState(false)
 
@@ -177,8 +179,12 @@ export const AttendancePage: React.FC = () => {
       const sessionDoc = await attendanceService.getOrCreateSession(scheduleId)
       setSession(sessionDoc)
 
-      // 3. Load all member profiles to map full names
-      const allMembers = await memberService.getMembers(true) // include archived to support old records
+      // 3. Load all member profiles to map full names (shared 5-minute memory cache)
+      const allMembers = await queryClient.fetchQuery({
+        queryKey: ['members', 'all-with-archived'],
+        queryFn: () => memberService.getMembers(true),
+        staleTime: 1000 * 60 * 5
+      })
       setAllMembersProfiles(allMembers)
       const assignedIds = matchedSchedule.assignedMembers || []
       const assignedProfiles = allMembers.filter(m => assignedIds.includes(m.id))
