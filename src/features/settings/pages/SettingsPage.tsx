@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Card } from '@/components/Card'
 import { 
   settingsService, 
@@ -15,6 +16,7 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { ReportTemplateEditor } from '../components/ReportTemplateEditor'
 import { ReminderTemplateEditor } from '../components/ReminderTemplateEditor'
 import { PolicySettingsCard } from '../components/PolicySettingsCard'
+import { ExcusePolicySettingsCard } from '../components/ExcusePolicySettingsCard'
 import { OrderRotationSettingsCard } from '../components/OrderRotationSettingsCard'
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
@@ -75,11 +77,17 @@ const mockUntakenSchedules: Schedule[] = [
   }
 ]
 
-type TabId = 'policy' | 'order_rotation' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
+type TabId = 'policy' | 'excuse_policy' | 'order_rotation' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+  </svg>
+)
+
+const ClockIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
   </svg>
 )
 
@@ -123,8 +131,11 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 )
 
+const VALID_TABS: TabId[] = ['policy', 'excuse_policy', 'order_rotation', 'template', 'reminder_template', 'signatures', 'maintenance']
+
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
+  { id: 'excuse_policy', label: 'Excuse Policy', icon: <ClockIcon className="w-4 h-4" /> },
   { id: 'order_rotation', label: 'Order Rotation', icon: <ArrowPathIcon className="w-4 h-4" /> },
   { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
   { id: 'reminder_template', label: 'Reminder Template', icon: <BellIcon className="w-4 h-4" /> },
@@ -135,7 +146,25 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
 export const SettingsPage: React.FC = () => {
   const { profile } = useAuth()
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState<TabId>('policy')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const tabParam = searchParams.get('tab') as TabId | null
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      return tabParam
+    }
+    return 'policy'
+  })
+
+  useEffect(() => {
+    if (tabParam && VALID_TABS.includes(tabParam)) {
+      setActiveTab(tabParam)
+    }
+  }, [tabParam])
+
+  const handleTabChange = (tabId: TabId) => {
+    setActiveTab(tabId)
+    setSearchParams({ tab: tabId }, { replace: true })
+  }
 
   // Community Report Template state
   const [template, setTemplate] = useState('')
@@ -256,7 +285,7 @@ export const SettingsPage: React.FC = () => {
             <button
               key={tab.id}
               type="button"
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
               className={`inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
@@ -281,6 +310,13 @@ export const SettingsPage: React.FC = () => {
         <div>
           {activeTab === 'policy' && (
             <PolicySettingsCard
+              onNotifySuccess={(msg) => toast.success(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
+            />
+          )}
+
+          {activeTab === 'excuse_policy' && (
+            <ExcusePolicySettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => toast.error(msg)}
             />

@@ -130,33 +130,33 @@ test('Attendance Evaluation Consistency & Alignment Suite', async (t) => {
     ]
 
     const schedules: Schedule[] = [
-      { id: 's-sun-1', title: 'Sunday Mass', date: '2026-09-06', startTime: '08:00' } as any,
-      { id: 's-sun-2', title: 'Sunday Mass', date: '2026-09-13', startTime: '08:00' } as any,
-      { id: 's-sun-3', title: 'Sunday Mass', date: '2026-09-20', startTime: '08:00' } as any,
-      { id: 's-sun-4', title: 'Sunday Mass', date: '2026-09-27', startTime: '08:00' } as any,
-      { id: 's-sun-5', title: 'Sunday Mass', date: '2026-10-04', startTime: '08:00' } as any,
-      { id: 's-sun-6', title: 'Sunday Mass', date: '2026-10-11', startTime: '08:00' } as any,
+      { id: 's-sun-1', title: 'Sunday Mass', date: '2026-10-04', startTime: '08:00' } as any,
+      { id: 's-sun-2', title: 'Sunday Mass', date: '2026-10-11', startTime: '08:00' } as any,
+      { id: 's-sun-3', title: 'Sunday Mass', date: '2026-10-18', startTime: '08:00' } as any,
+      { id: 's-sun-4', title: 'Sunday Mass', date: '2026-10-25', startTime: '08:00' } as any,
+      { id: 's-sun-5', title: 'Sunday Mass', date: '2026-11-01', startTime: '08:00' } as any,
+      { id: 's-sun-6', title: 'Sunday Mass', date: '2026-11-08', startTime: '08:00' } as any,
     ]
 
     const attendance: AttendanceRecord[] = [
       // mem-delinquent-zero: 6 Sunday absences, 0 presents (threshold is 5)
-      { id: 'a1', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-1', status: 'absent', attendanceDate: '2026-09-06' } as any,
-      { id: 'a2', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-2', status: 'absent', attendanceDate: '2026-09-13' } as any,
-      { id: 'a3', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-3', status: 'absent', attendanceDate: '2026-09-20' } as any,
-      { id: 'a4', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-4', status: 'absent', attendanceDate: '2026-09-27' } as any,
-      { id: 'a5', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-5', status: 'absent', attendanceDate: '2026-10-04' } as any,
-      { id: 'a6', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-6', status: 'absent', attendanceDate: '2026-10-11' } as any,
+      { id: 'a1', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-1', status: 'absent', attendanceDate: '2026-10-04' } as any,
+      { id: 'a2', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-2', status: 'absent', attendanceDate: '2026-10-11' } as any,
+      { id: 'a3', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-3', status: 'absent', attendanceDate: '2026-10-18' } as any,
+      { id: 'a4', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-4', status: 'absent', attendanceDate: '2026-10-25' } as any,
+      { id: 'a5', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-5', status: 'absent', attendanceDate: '2026-11-01' } as any,
+      { id: 'a6', memberId: 'mem-delinquent-zero', scheduleId: 's-sun-6', status: 'absent', attendanceDate: '2026-11-08' } as any,
 
       // mem-inactive-under-limit: 2 absences, 0 presents (under threshold 5)
-      { id: 'a7', memberId: 'mem-inactive-under-limit', scheduleId: 's-sun-1', status: 'absent', attendanceDate: '2026-09-06' } as any,
-      { id: 'a8', memberId: 'mem-inactive-under-limit', scheduleId: 's-sun-2', status: 'absent', attendanceDate: '2026-09-13' } as any,
+      { id: 'a7', memberId: 'mem-inactive-under-limit', scheduleId: 's-sun-1', status: 'absent', attendanceDate: '2026-10-04' } as any,
+      { id: 'a8', memberId: 'mem-inactive-under-limit', scheduleId: 's-sun-2', status: 'absent', attendanceDate: '2026-10-11' } as any,
 
       // mem-active-good: 5 presents, 0 absences
-      { id: 'a9', memberId: 'mem-active-good', scheduleId: 's-sun-1', status: 'present', attendanceDate: '2026-09-06' } as any,
-      { id: 'a10', memberId: 'mem-active-good', scheduleId: 's-sun-2', status: 'present', attendanceDate: '2026-09-13' } as any,
-      { id: 'a11', memberId: 'mem-active-good', scheduleId: 's-sun-3', status: 'present', attendanceDate: '2026-09-20' } as any,
-      { id: 'a12', memberId: 'mem-active-good', scheduleId: 's-sun-4', status: 'present', attendanceDate: '2026-09-27' } as any,
-      { id: 'a13', memberId: 'mem-active-good', scheduleId: 's-sun-5', status: 'present', attendanceDate: '2026-10-04' } as any,
+      { id: 'a9', memberId: 'mem-active-good', scheduleId: 's-sun-1', status: 'present', attendanceDate: '2026-10-04' } as any,
+      { id: 'a10', memberId: 'mem-active-good', scheduleId: 's-sun-2', status: 'present', attendanceDate: '2026-10-11' } as any,
+      { id: 'a11', memberId: 'mem-active-good', scheduleId: 's-sun-3', status: 'present', attendanceDate: '2026-10-18' } as any,
+      { id: 'a12', memberId: 'mem-active-good', scheduleId: 's-sun-4', status: 'present', attendanceDate: '2026-10-25' } as any,
+      { id: 'a13', memberId: 'mem-active-good', scheduleId: 's-sun-5', status: 'present', attendanceDate: '2026-11-01' } as any,
     ]
 
     const cyclePolicy: SuspensionPolicySettings = {
@@ -200,14 +200,14 @@ test('Attendance Evaluation Consistency & Alignment Suite', async (t) => {
       order: i < 15 ? 'Order of San Pedro' : 'Order of San Tiago'
     } as any))
 
-    // First 16 members have 6 absences in Sept-Oct (threshold is 5)
+    // First 16 members have 6 absences in Oct-Nov (threshold is 5)
     const testSchedules: Schedule[] = [
-      { id: 'sched-1', title: 'Sunday Mass', date: '2026-09-06', startTime: '08:00' } as any,
-      { id: 'sched-2', title: 'Sunday Mass', date: '2026-09-13', startTime: '08:00' } as any,
-      { id: 'sched-3', title: 'Sunday Mass', date: '2026-09-20', startTime: '08:00' } as any,
-      { id: 'sched-4', title: 'Sunday Mass', date: '2026-09-27', startTime: '08:00' } as any,
-      { id: 'sched-5', title: 'Sunday Mass', date: '2026-10-04', startTime: '08:00' } as any,
-      { id: 'sched-6', title: 'Sunday Mass', date: '2026-10-11', startTime: '08:00' } as any,
+      { id: 'sched-1', title: 'Sunday Mass', date: '2026-10-04', startTime: '08:00' } as any,
+      { id: 'sched-2', title: 'Sunday Mass', date: '2026-10-11', startTime: '08:00' } as any,
+      { id: 'sched-3', title: 'Sunday Mass', date: '2026-10-18', startTime: '08:00' } as any,
+      { id: 'sched-4', title: 'Sunday Mass', date: '2026-10-25', startTime: '08:00' } as any,
+      { id: 'sched-5', title: 'Sunday Mass', date: '2026-11-01', startTime: '08:00' } as any,
+      { id: 'sched-6', title: 'Sunday Mass', date: '2026-11-08', startTime: '08:00' } as any,
     ]
 
     const testAttendance: AttendanceRecord[] = []

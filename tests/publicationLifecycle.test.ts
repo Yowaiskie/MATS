@@ -467,7 +467,7 @@ test('Scenario 7: Admin reopens archived publication with new deadline and submi
   const mockDb = store.createFirestoreInstance();
 
   // Reopen with new deadline
-  const reopenedDeadline = '2026-11-15T23:59:00';
+  const reopenedDeadline = '2026-11-30T23:59:00';
   await publicationService.reopenPublication(
     archivedPub.id,
     reopenedDeadline,

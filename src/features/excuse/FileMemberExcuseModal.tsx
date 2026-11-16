@@ -53,6 +53,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
 
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [showAllParishSchedules, setShowAllParishSchedules] = useState<boolean>(false)
+  const [showPastSchedules, setShowPastSchedules] = useState<boolean>(false)
   const [reason, setReason] = useState<string>('')
   const [directlyApprove, setDirectlyApprove] = useState<boolean>(canDirectlyApprove)
   const [submitting, setSubmitting] = useState<boolean>(false)
@@ -65,6 +66,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
       setIsPickerOpen(false)
       setSelectedScheduleIds(new Set())
       setShowAllParishSchedules(false)
+      setShowPastSchedules(false)
       setReason('')
       setDirectlyApprove(canDirectlyApprove)
       setSubmitting(false)
@@ -101,7 +103,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
     return members.find(m => m.id === selectedMemberId)
   }, [members, selectedMemberId])
 
-  // Filter & categorize upcoming schedules
+  // Filter & categorize upcoming and past schedules
   const categorizedSchedules = useMemo(() => {
     if (!selectedMemberId && !showAllParishSchedules) {
       return {
@@ -110,6 +112,9 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
         holyHours: [],
         baptisms: [],
         meetings: [],
+        pastSchedules: [],
+        upcomingTotal: 0,
+        pastTotal: 0,
         total: 0
       }
     }
@@ -119,15 +124,11 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
 
     const activeSchedules = schedules.filter(s => {
       if (s.status === 'cancelled') return false
-      if (!s.date || s.date < todayStr) return false
+      if (!s.date) return false
       if (!showAllParishSchedules) {
         return s.assignedMembers?.includes(selectedMemberId)
       }
       return true
-    }).sort((a, b) => {
-      const dateComp = (a.date || '').localeCompare(b.date || '')
-      if (dateComp !== 0) return dateComp
-      return (a.startTime || '').localeCompare(b.startTime || '')
     })
 
     const sundays: Schedule[] = []
@@ -135,9 +136,12 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
     const holyHours: Schedule[] = []
     const baptisms: Schedule[] = []
     const meetings: Schedule[] = []
+    const pastSchedules: Schedule[] = []
 
     activeSchedules.forEach(s => {
-      if (isHolyHourSchedule(s.title)) {
+      if (s.date < todayStr) {
+        pastSchedules.push(s)
+      } else if (isHolyHourSchedule(s.title)) {
         holyHours.push(s)
       } else if (isMeetingSchedule(s.title)) {
         meetings.push(s)
@@ -150,13 +154,37 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
       }
     })
 
+    const sortUpcoming = (a: Schedule, b: Schedule) => {
+      const dateComp = (a.date || '').localeCompare(b.date || '')
+      if (dateComp !== 0) return dateComp
+      return (a.startTime || '').localeCompare(b.startTime || '')
+    }
+
+    sundays.sort(sortUpcoming)
+    weekdays.sort(sortUpcoming)
+    holyHours.sort(sortUpcoming)
+    baptisms.sort(sortUpcoming)
+    meetings.sort(sortUpcoming)
+
+    // Sort past schedules in reverse chronological order (most recent past first)
+    pastSchedules.sort((a, b) => {
+      const dateComp = (b.date || '').localeCompare(a.date || '')
+      if (dateComp !== 0) return dateComp
+      return (b.startTime || '').localeCompare(a.startTime || '')
+    })
+
+    const upcomingTotal = sundays.length + weekdays.length + holyHours.length + baptisms.length + meetings.length
+
     return {
       sundays,
       weekdays,
       holyHours,
       baptisms,
       meetings,
-      total: activeSchedules.length
+      pastSchedules,
+      upcomingTotal,
+      pastTotal: pastSchedules.length,
+      total: upcomingTotal + pastSchedules.length
     }
   }, [schedules, selectedMemberId, showAllParishSchedules])
 
@@ -171,8 +199,11 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
 
   const selectAllSchedules = () => {
     const allIds = new Set<string>()
-    const { sundays, weekdays, holyHours, baptisms, meetings } = categorizedSchedules
+    const { sundays, weekdays, holyHours, baptisms, meetings, pastSchedules } = categorizedSchedules
     ;[...sundays, ...weekdays, ...holyHours, ...baptisms, ...meetings].forEach(s => allIds.add(s.id))
+    if (showPastSchedules) {
+      pastSchedules.forEach(s => allIds.add(s.id))
+    }
     setSelectedScheduleIds(allIds)
   }
 
@@ -251,29 +282,46 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
         : formatTime12Hour(s.startTime)
     ) : ''
 
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const isPast = Boolean(s.date && s.date < todayStr)
+
     return (
       <label
         key={s.id}
         className={`flex items-start gap-3 p-3 border rounded-xl cursor-pointer transition-all ${
           isSelected
-            ? 'border-indigo-500 bg-indigo-50/70 ring-1 ring-indigo-500'
-            : 'border-slate-200 hover:bg-slate-50 bg-white'
+            ? isPast
+              ? 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500'
+              : 'border-indigo-500 bg-indigo-50/70 ring-1 ring-indigo-500'
+            : isPast
+              ? 'border-amber-200/70 hover:bg-amber-50/40 bg-amber-50/20'
+              : 'border-slate-200 hover:bg-slate-50 bg-white'
         }`}
       >
         <input
           type="checkbox"
           checked={isSelected}
           onChange={() => toggleSchedule(s.id)}
-          className="mt-1 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+          className={`mt-1 w-4 h-4 rounded border-slate-300 cursor-pointer shrink-0 ${
+            isPast ? 'text-amber-600 focus:ring-amber-500' : 'text-indigo-600 focus:ring-indigo-500'
+          }`}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1 flex-wrap">
             <span className="text-xs font-black text-slate-900 truncate">{s.title || 'Church Service'}</span>
-            {formattedTime && (
-              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
-                {formattedTime}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {isPast && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300/70 shrink-0">
+                  Past Duty
+                </span>
+              )}
+              {formattedTime && (
+                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
+                  {formattedTime}
+                </span>
+              )}
+            </div>
           </div>
           <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
             {formattedDate}
@@ -477,7 +525,7 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
 
               {/* Toggle to show all parish schedules */}
               {selectedMemberId && (
-                <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 mb-3 text-xs">
+                <div className="flex items-center justify-between p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 mb-2.5 text-xs">
                   <span className="font-semibold text-slate-700">
                     {showAllParishSchedules ? 'Showing all church schedules' : 'Showing assigned schedules only'}
                   </span>
@@ -491,16 +539,49 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
                 </div>
               )}
 
+              {/* Past Schedules Available Banner & Toggle */}
+              {selectedMemberId && categorizedSchedules.pastTotal > 0 && (
+                <div className="flex items-center justify-between p-2.5 bg-amber-50/80 rounded-xl border border-amber-200/80 mb-3 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                    <span className="font-semibold text-amber-900">
+                      {categorizedSchedules.pastTotal} past missed {categorizedSchedules.pastTotal === 1 ? 'duty' : 'duties'} available
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPastSchedules(prev => !prev)}
+                    className="text-xs font-bold text-amber-800 hover:text-amber-950 underline cursor-pointer"
+                  >
+                    {showPastSchedules ? 'Hide Past Duties' : 'Show Past Duties'}
+                  </button>
+                </div>
+              )}
+
               {!selectedMemberId ? (
                 <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-400 italic">
                   Select an altar server above to view their scheduled assignments.
                 </div>
               ) : categorizedSchedules.total === 0 ? (
                 <div className="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-xs text-slate-500 space-y-2">
-                  <p className="font-bold">No upcoming assigned schedules found for this server.</p>
+                  <p className="font-bold">No schedules found for this server.</p>
                   <p className="text-[11px] text-slate-400">
-                    Click "Show All Schedules" above if you need to excuse from a general schedule.
+                    Click &quot;Show All Schedules&quot; above if you need to excuse from a general schedule.
                   </p>
+                </div>
+              ) : categorizedSchedules.upcomingTotal === 0 && !showPastSchedules ? (
+                <div className="p-6 rounded-2xl bg-amber-50/60 border border-amber-200 text-center text-xs text-amber-900 space-y-2">
+                  <p className="font-bold">No upcoming assigned schedules found for this server.</p>
+                  <p className="text-[11px] text-amber-700">
+                    However, {categorizedSchedules.pastTotal} past missed {categorizedSchedules.pastTotal === 1 ? 'assignment is' : 'assignments are'} available to excuse.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowPastSchedules(true)}
+                    className="mt-1 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold cursor-pointer transition-colors shadow-2xs"
+                  >
+                    Show {categorizedSchedules.pastTotal} Past Duties
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-4 max-h-72 overflow-y-auto pr-1">
@@ -565,6 +646,24 @@ export const FileMemberExcuseModal: React.FC<FileMemberExcuseModalProps> = ({
                       </div>
                       <div className="space-y-1.5">
                         {categorizedSchedules.meetings.map(renderScheduleCard)}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Past / Missed Schedules Section (Collapsible) */}
+                  {showPastSchedules && categorizedSchedules.pastSchedules.length > 0 && (
+                    <div className="space-y-2 pt-3 border-t border-amber-200">
+                      <div className="text-[11px] font-black uppercase text-amber-800 tracking-wider flex items-center justify-between">
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-amber-500" />
+                          <span>Past / Missed Assignments ({categorizedSchedules.pastSchedules.length})</span>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-200">
+                          Retroactive Excuse
+                        </span>
+                      </div>
+                      <div className="space-y-1.5">
+                        {categorizedSchedules.pastSchedules.map(renderScheduleCard)}
                       </div>
                     </div>
                   )}

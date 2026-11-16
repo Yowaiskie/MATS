@@ -125,7 +125,7 @@ function createSampleEnvironment() {
     id: 'sched-sun-future',
     publicationId: 'pub-nov-2026',
     title: 'Sunday Mass',
-    date: '2026-11-15',
+    date: '2026-11-22',
     startTime: '07:30',
     endTime: '08:30',
     status: 'upcoming',

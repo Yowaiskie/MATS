@@ -34,3 +34,19 @@ export interface ExcuseConfig {
   minimumReasonLength: number
   requireReason: boolean
 }
+
+export interface ExcusePolicySettings {
+  allowPublicPastExcuses: boolean
+  publicPastWindowDays: number
+  requireReason: boolean
+  minimumReasonLength: number
+  updatedAt?: any
+  updatedBy?: string
+}
+
+export const DEFAULT_EXCUSE_POLICY_SETTINGS: ExcusePolicySettings = {
+  allowPublicPastExcuses: true,
+  publicPastWindowDays: 7,
+  requireReason: true,
+  minimumReasonLength: 5
+}

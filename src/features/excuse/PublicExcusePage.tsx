@@ -6,9 +6,11 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { memberService } from '@/services/memberService'
 import { scheduleService } from '@/services/scheduleService'
 import { excuseService } from '@/services/excuseService'
+import { settingsService } from '@/services/settingsService'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
-import type { ExcuseRequest } from '@/types/excuse'
+import type { ExcuseRequest, ExcusePolicySettings } from '@/types/excuse'
+import { DEFAULT_EXCUSE_POLICY_SETTINGS } from '@/types/excuse'
 import { 
   formatTime12Hour, 
   formatScheduleDateWithDay,
@@ -105,9 +107,11 @@ export const PublicExcusePage: React.FC = () => {
   const [verificationError, setVerificationError] = useState('')
   
   // Submit Step 2: Excuse Request State
+  const [excusePolicy, setExcusePolicy] = useState<ExcusePolicySettings>(DEFAULT_EXCUSE_POLICY_SETTINGS)
   const [schedules, setSchedules] = useState<Schedule[]>([])
   const [selectedScheduleIds, setSelectedScheduleIds] = useState<Set<string>>(new Set())
   const [showAdvanceSchedules, setShowAdvanceSchedules] = useState(false)
+  const [showPastSchedules, setShowPastSchedules] = useState(false)
   const [reason, setReason] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -122,12 +126,14 @@ export const PublicExcusePage: React.FC = () => {
   useEffect(() => {
     Promise.all([
       memberService.getMembers(),
-      scheduleService.getSchedules()
-    ]).then(([mems, scheds]) => {
+      scheduleService.getSchedules(),
+      settingsService.getExcusePolicySettings().catch(() => DEFAULT_EXCUSE_POLICY_SETTINGS)
+    ]).then(([mems, scheds, policy]) => {
       setMembers(mems.filter(m => m.status === 'active'))
       const map = new Map<string, Schedule>()
       scheds.forEach(s => map.set(s.id, s))
       setAllSchedulesMap(map)
+      setExcusePolicy(policy)
     }).catch(err => {
       console.error('Failed to load initial data:', err)
       toast.error('Data Loading Error', 'Failed to load member records and service schedules.')
@@ -169,8 +175,8 @@ export const PublicExcusePage: React.FC = () => {
     })
   }, [sortedMembers, trackSearchQuery])
 
-  // Categorize schedules into This Week vs Advance
-  const { thisWeekGroup, advanceGroup } = useMemo(() => {
+  // Categorize schedules into Past vs This Week vs Advance
+  const { pastGroup, thisWeekGroup, advanceGroup } = useMemo(() => {
     const today = new Date()
     const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
@@ -181,18 +187,29 @@ export const PublicExcusePage: React.FC = () => {
     endOfWeekDate.setDate(today.getDate() + daysUntilEndOfWeek)
     const endOfWeekStr = `${endOfWeekDate.getFullYear()}-${String(endOfWeekDate.getMonth() + 1).padStart(2, '0')}-${String(endOfWeekDate.getDate()).padStart(2, '0')}`
 
+    const pastList: Schedule[] = []
     const thisWeekList: Schedule[] = []
     const advanceList: Schedule[] = []
 
     schedules.forEach(s => {
-      if (s.date >= todayStr && s.date <= endOfWeekStr) {
+      if (s.date < todayStr) {
+        pastList.push(s)
+      } else if (s.date <= endOfWeekStr) {
         thisWeekList.push(s)
-      } else if (s.date > endOfWeekStr) {
+      } else {
         advanceList.push(s)
       }
     })
 
+    // Sort past in reverse chronological (most recent past first)
+    pastList.sort((a, b) => {
+      const d = (b.date || '').localeCompare(a.date || '')
+      if (d !== 0) return d
+      return (b.startTime || '').localeCompare(a.startTime || '')
+    })
+
     return {
+      pastGroup: categorizeScheduleList(pastList),
       thisWeekGroup: categorizeScheduleList(thisWeekList),
       advanceGroup: categorizeScheduleList(advanceList)
     }
@@ -246,10 +263,12 @@ export const PublicExcusePage: React.FC = () => {
     // Load member's schedules and filter out already approved excuses
     setLoading(true)
     try {
-      const [allSchedules, existingExcuses] = await Promise.all([
+      const [allSchedules, existingExcuses, freshPolicy] = await Promise.all([
         scheduleService.getSchedules(),
-        excuseService.getExcuseRequestsByMemberId(selectedMemberId)
+        excuseService.getExcuseRequestsByMemberId(selectedMemberId),
+        settingsService.getExcusePolicySettings().catch(() => excusePolicy)
       ])
+      setExcusePolicy(freshPolicy)
 
       // Find all schedule IDs that have ALREADY been approved as excused
       const approvedScheduleIds = new Set<string>()
@@ -257,25 +276,39 @@ export const PublicExcusePage: React.FC = () => {
         .filter(ex => ex.status === 'approved')
         .forEach(ex => ex.schedules?.forEach(sId => approvedScheduleIds.add(sId)))
 
-      // Find upcoming schedules where member is assigned AND not already approved as excused
       const today = new Date()
       today.setHours(0, 0, 0, 0)
+      const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
 
-      const upcoming = allSchedules.filter(s => {
+      // Calculate past cutoff window if public past excuses are allowed
+      let cutoffStr = todayStr
+      if (freshPolicy.allowPublicPastExcuses) {
+        const cutoffDate = new Date(today)
+        cutoffDate.setDate(today.getDate() - (freshPolicy.publicPastWindowDays || 7))
+        cutoffStr = `${cutoffDate.getFullYear()}-${String(cutoffDate.getMonth() + 1).padStart(2, '0')}-${String(cutoffDate.getDate()).padStart(2, '0')}`
+      }
+
+      // Filter eligible schedules: assigned, not cancelled, not already approved, and within active policy date range
+      const eligible = allSchedules.filter(s => {
+        if (!s.date || s.status === 'cancelled') return false
         const isAssigned = s.assignedMembers?.includes(selectedMemberId)
-        const isFuture = new Date(s.date + 'T23:59:59') >= today
+        if (!isAssigned) return false
         const isNotApproved = !approvedScheduleIds.has(s.id)
-        const isNotCancelled = s.status !== 'cancelled'
-        return isAssigned && isFuture && isNotApproved && isNotCancelled
+        if (!isNotApproved) return false
+
+        const isFuture = s.date >= todayStr
+        const isEligiblePast = freshPolicy.allowPublicPastExcuses && s.date < todayStr && s.date >= cutoffStr
+        return isFuture || isEligiblePast
       }).sort((a, b) => {
         const d = (a.date || '').localeCompare(b.date || '')
         if (d !== 0) return d
         return (a.startTime || '').localeCompare(b.startTime || '')
       })
 
-      setSchedules(upcoming)
+      setSchedules(eligible)
       setSelectedScheduleIds(new Set())
       setShowAdvanceSchedules(false)
+      setShowPastSchedules(false)
       setReason('')
       setStep(2)
     } catch {
@@ -302,8 +335,12 @@ export const PublicExcusePage: React.FC = () => {
       toast.error('Missing Information', 'Please select at least one schedule to excuse.')
       return
     }
-    if (!reason.trim()) {
+    if (excusePolicy.requireReason && !reason.trim()) {
       toast.error('Missing Information', 'Please state your reason for filing an excuse.')
+      return
+    }
+    if (excusePolicy.requireReason && reason.trim().length < (excusePolicy.minimumReasonLength || 5)) {
+      toast.error('Validation Error', `Reason must be at least ${excusePolicy.minimumReasonLength || 5} characters long.`)
       return
     }
 
@@ -364,29 +401,46 @@ export const PublicExcusePage: React.FC = () => {
         : formatTime12Hour(s.startTime)
     ) : ''
 
+    const today = new Date()
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+    const isPast = Boolean(s.date && s.date < todayStr)
+
     return (
       <label 
         key={s.id} 
         className={`flex items-start gap-3 p-3 border rounded-2xl cursor-pointer transition-all ${
           isSelected 
-            ? 'border-indigo-500 bg-indigo-50/70 ring-1 ring-indigo-500 shadow-2xs' 
-            : 'border-slate-200 hover:bg-slate-50 bg-white'
+            ? isPast
+              ? 'border-amber-500 bg-amber-50/70 ring-1 ring-amber-500 shadow-2xs'
+              : 'border-indigo-500 bg-indigo-50/70 ring-1 ring-indigo-500 shadow-2xs' 
+            : isPast
+              ? 'border-amber-200/70 hover:bg-amber-50/40 bg-amber-50/20'
+              : 'border-slate-200 hover:bg-slate-50 bg-white'
         }`}
       >
         <input 
           type="checkbox" 
           checked={isSelected}
           onChange={() => toggleSchedule(s.id)}
-          className="mt-1 w-4 h-4 rounded text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer shrink-0"
+          className={`mt-1 w-4 h-4 rounded border-slate-300 cursor-pointer shrink-0 ${
+            isPast ? 'text-amber-600 focus:ring-amber-500' : 'text-indigo-600 focus:ring-indigo-500'
+          }`}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-1 flex-wrap">
             <span className="text-xs font-black text-slate-900 truncate">{s.title || 'Church Service'}</span>
-            {formattedTime && (
-              <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
-                {formattedTime}
-              </span>
-            )}
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {isPast && (
+                <span className="text-[10px] font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md border border-amber-300/70 shrink-0">
+                  Past Duty
+                </span>
+              )}
+              {formattedTime && (
+                <span className="text-[10px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-200/60 shrink-0">
+                  {formattedTime}
+                </span>
+              )}
+            </div>
           </div>
           <div className="text-[11px] font-semibold text-slate-500 mt-0.5">
             {formattedDate}
@@ -809,11 +863,11 @@ export const PublicExcusePage: React.FC = () => {
               </button>
             </div>
 
-            {/* Categorized Upcoming Schedules */}
+            {/* Categorized Assigned Schedules */}
             <div className="space-y-3">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                  Upcoming Duties ({selectedScheduleIds.size} selected) *
+                  Select Assigned Duties ({selectedScheduleIds.size} selected) *
                 </label>
                 {schedules.length > 0 && (
                   <div className="flex items-center gap-2 text-xs">
@@ -839,7 +893,11 @@ export const PublicExcusePage: React.FC = () => {
               {schedules.length === 0 ? (
                 <EmptyState
                   title="No Eligible Assigned Schedules Found"
-                  description="You have no upcoming assignments, or your assignments have already been approved as excused."
+                  description={
+                    excusePolicy.allowPublicPastExcuses
+                      ? `You have no upcoming assignments or missed duties within the last ${excusePolicy.publicPastWindowDays} days, or your assignments have already been approved as excused.`
+                      : 'You have no upcoming assignments, or your assignments have already been approved as excused.'
+                  }
                   className="py-6"
                 />
               ) : (
@@ -854,6 +912,20 @@ export const PublicExcusePage: React.FC = () => {
                         </span>
                       </div>
                       {renderCategorizedGroup(thisWeekGroup)}
+                    </div>
+                  ) : thisWeekGroup.total === 0 && advanceGroup.total === 0 && pastGroup.total > 0 && !showPastSchedules ? (
+                    <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl text-xs text-amber-900 font-medium space-y-2 text-center">
+                      <p className="font-bold">No upcoming assignments found for this or future weeks.</p>
+                      <p className="text-[11px] text-amber-700">
+                        You have {pastGroup.total} past missed {pastGroup.total === 1 ? 'duty' : 'duties'} available to excuse from the last {excusePolicy.publicPastWindowDays} days.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowPastSchedules(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-extrabold cursor-pointer transition-colors shadow-2xs"
+                      >
+                        Show {pastGroup.total} Missed Duties
+                      </button>
                     </div>
                   ) : (
                     <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 font-medium">
@@ -929,6 +1001,78 @@ export const PublicExcusePage: React.FC = () => {
                       )}
                     </div>
                   )}
+
+                  {/* Section 3: Past / Missed Duties (Within Configured Window) */}
+                  {pastGroup.total > 0 && (
+                    <div className="pt-3 border-t border-slate-200 space-y-2.5">
+                      <div
+                        onClick={() => setShowPastSchedules(prev => !prev)}
+                        className={`p-3.5 rounded-2xl border-2 transition-all cursor-pointer select-none ${
+                          showPastSchedules
+                            ? 'bg-gradient-to-br from-amber-50 via-orange-50 to-amber-100/60 border-amber-500 shadow-xs'
+                            : 'bg-gradient-to-r from-amber-50/80 via-white to-orange-50/70 border-amber-200/90 hover:border-amber-400 hover:shadow-2xs'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                              showPastSchedules ? 'bg-amber-600 text-white shadow-2xs' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-black text-amber-950">
+                                  Past Assignments (Missed Duties)
+                                </span>
+                                <span className="text-[10px] font-extrabold uppercase px-2 py-0.5 bg-amber-600 text-white rounded-full shadow-2xs">
+                                  {pastGroup.total} Available
+                                </span>
+                              </div>
+                              <p className="text-[11px] font-medium text-amber-800 truncate mt-0.5">
+                                {showPastSchedules
+                                  ? `Allowed within the past ${excusePolicy.publicPastWindowDays} days • Retroactive filing`
+                                  : 'Need to excuse a duty you missed? Click to show'}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="shrink-0 flex items-center gap-1.5">
+                            <span className={`px-2.5 py-1 rounded-xl text-[11px] font-extrabold transition-all ${
+                              showPastSchedules
+                                ? 'bg-amber-600 text-white shadow-2xs'
+                                : 'bg-white text-amber-800 border border-amber-300 shadow-2xs hover:bg-amber-50'
+                            }`}>
+                              {showPastSchedules ? 'Hide' : 'Show'}
+                            </span>
+                            <svg
+                              className={`w-4 h-4 text-amber-600 transition-transform duration-200 ${showPastSchedules ? 'rotate-180' : ''}`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={2.5}
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+                      </div>
+
+                      {showPastSchedules && (
+                        <div className="pt-2 pl-2 border-l-2 border-amber-300 space-y-3">
+                          <div className="text-[11px] font-black text-amber-900 uppercase tracking-wider pl-1 flex items-center justify-between">
+                            <span>Missed Duties from Last {excusePolicy.publicPastWindowDays} Days ({pastGroup.total})</span>
+                            <span className="text-[10px] font-bold text-amber-700 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-200">
+                              Requires Coordinator Review
+                            </span>
+                          </div>
+                          {renderCategorizedGroup(pastGroup)}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -936,7 +1080,7 @@ export const PublicExcusePage: React.FC = () => {
             {/* Reason with Presets */}
             <div className="space-y-2">
               <label className="block text-xs font-extrabold text-slate-600 uppercase tracking-wider">
-                Reason for Absence *
+                Reason for Absence {excusePolicy.requireReason ? '*' : '(Optional)'}
               </label>
 
               {/* Quick Preset Pills */}
@@ -964,8 +1108,12 @@ export const PublicExcusePage: React.FC = () => {
                 value={reason} 
                 onChange={e => setReason(e.target.value)}
                 className="w-full p-3 border border-slate-300 rounded-xl text-xs sm:text-sm bg-slate-50 text-slate-800 h-24 focus:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500 font-medium"
-                placeholder="State your reason for filing an excuse (e.g. Sickness, School activity, Family emergency)..."
-                required
+                placeholder={
+                  excusePolicy.requireReason
+                    ? `State your reason for filing an excuse (minimum ${excusePolicy.minimumReasonLength || 5} characters)...`
+                    : 'State your reason for filing an excuse (optional)...'
+                }
+                required={excusePolicy.requireReason}
               />
             </div>
 
@@ -983,7 +1131,7 @@ export const PublicExcusePage: React.FC = () => {
                 type="submit" 
                 variant="primary"
                 size="public"
-                disabled={selectedScheduleIds.size === 0 || !reason.trim()} 
+                disabled={selectedScheduleIds.size === 0 || (excusePolicy.requireReason && !reason.trim())} 
                 loading={loading}
                 loadingText="Submitting..."
                 className="w-2/3"

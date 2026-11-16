@@ -8,6 +8,8 @@ import type { QualificationPreset } from '@/types/attendanceCategory'
 import { DEFAULT_QUALIFICATION_PRESETS } from '@/types/attendanceCategory'
 import type { OrderRotationSettings } from '@/types/orderRotation'
 import { DEFAULT_ORDER_ROTATION_SETTINGS } from '@/types/orderRotation'
+import type { ExcusePolicySettings } from '@/types/excuse'
+import { DEFAULT_EXCUSE_POLICY_SETTINGS } from '@/types/excuse'
 
 const SETTINGS_COLLECTION = 'settings'
 const REPORT_TEMPLATE_DOC = 'communityReport'
@@ -16,9 +18,11 @@ const POLICY_DOC = 'suspensionPolicy'
 const SIGNATURE_PRESETS_DOC = 'signaturePresets'
 const QUALIFICATION_PRESETS_DOC = 'qualificationPresets'
 const ORDER_ROTATION_DOC = 'orderRotation'
+const EXCUSE_POLICY_DOC = 'excusePolicy'
 const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v2'
 const LOCAL_STORAGE_QUALIFICATION_KEY = 'mats_qualification_presets_v1'
 const LOCAL_STORAGE_ORDER_ROTATION_KEY = 'mats_order_rotation_settings_v1'
+const LOCAL_STORAGE_EXCUSE_POLICY_KEY = 'mats_excuse_policy_settings_v1'
 
 export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
 
@@ -839,6 +843,87 @@ export const settingsService = {
       'SETTINGS_UPDATE',
       'settings',
       `Updated order group rotation settings (Sequence: ${settings.rotationSequence.join(' -> ')})`,
+      performedBy,
+      payload
+    )
+  },
+
+  /**
+   * Retrieves excuse policy settings from Firestore with fallback to localStorage & defaults.
+   */
+  async getExcusePolicySettings(): Promise<ExcusePolicySettings> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, EXCUSE_POLICY_DOC)
+      const docSnap = await getDoc(docRef)
+      if (docSnap.exists()) {
+        const data = docSnap.data() as Partial<ExcusePolicySettings>
+        const settings: ExcusePolicySettings = {
+          allowPublicPastExcuses: data.allowPublicPastExcuses !== undefined ? Boolean(data.allowPublicPastExcuses) : DEFAULT_EXCUSE_POLICY_SETTINGS.allowPublicPastExcuses,
+          publicPastWindowDays: typeof data.publicPastWindowDays === 'number' && data.publicPastWindowDays > 0 ? data.publicPastWindowDays : DEFAULT_EXCUSE_POLICY_SETTINGS.publicPastWindowDays,
+          requireReason: data.requireReason !== undefined ? Boolean(data.requireReason) : DEFAULT_EXCUSE_POLICY_SETTINGS.requireReason,
+          minimumReasonLength: typeof data.minimumReasonLength === 'number' ? data.minimumReasonLength : DEFAULT_EXCUSE_POLICY_SETTINGS.minimumReasonLength,
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy
+        }
+        try {
+          localStorage.setItem(LOCAL_STORAGE_EXCUSE_POLICY_KEY, JSON.stringify(settings))
+        } catch {}
+        return settings
+      }
+
+      try {
+        const local = localStorage.getItem(LOCAL_STORAGE_EXCUSE_POLICY_KEY)
+        if (local) {
+          const parsed = JSON.parse(local)
+          return {
+            ...DEFAULT_EXCUSE_POLICY_SETTINGS,
+            ...parsed
+          }
+        }
+      } catch {}
+
+      return { ...DEFAULT_EXCUSE_POLICY_SETTINGS }
+    } catch (err) {
+      console.error('Failed to get excuse policy settings:', err)
+      try {
+        const local = localStorage.getItem(LOCAL_STORAGE_EXCUSE_POLICY_KEY)
+        if (local) {
+          return {
+            ...DEFAULT_EXCUSE_POLICY_SETTINGS,
+            ...JSON.parse(local)
+          }
+        }
+      } catch {}
+      return { ...DEFAULT_EXCUSE_POLICY_SETTINGS }
+    }
+  },
+
+  /**
+   * Saves excuse policy settings to Firestore and localStorage with audit logging.
+   */
+  async saveExcusePolicySettings(settings: ExcusePolicySettings, performedBy = 'System'): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, EXCUSE_POLICY_DOC)
+    const payload = {
+      allowPublicPastExcuses: Boolean(settings.allowPublicPastExcuses),
+      publicPastWindowDays: Math.max(1, Math.min(90, Number(settings.publicPastWindowDays) || 7)),
+      requireReason: Boolean(settings.requireReason),
+      minimumReasonLength: typeof settings.minimumReasonLength === 'number' && !isNaN(settings.minimumReasonLength)
+        ? Math.max(0, settings.minimumReasonLength)
+        : 5,
+      updatedAt: serverTimestamp(),
+      updatedBy: performedBy
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    try {
+      localStorage.setItem(LOCAL_STORAGE_EXCUSE_POLICY_KEY, JSON.stringify(payload))
+    } catch {}
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated excuse policy (Public Past Excuses: ${payload.allowPublicPastExcuses ? 'Allowed' : 'Disabled'}, Window: ${payload.publicPastWindowDays} days)`,
       performedBy,
       payload
     )
