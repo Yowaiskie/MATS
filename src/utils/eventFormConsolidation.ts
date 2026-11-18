@@ -219,6 +219,228 @@ const ATTENDANCE_TIER_TEMPLATES: Record<'exemplary' | 'good' | 'moderate' | 'irr
 }
 
 /**
+ * Summarizes and synthesizes multiple raw officer remarks, notes, and bullet points
+ * into cohesive, flowing pastoral sentences without bullets, dashes, or verbatim quotes.
+ */
+export function summarizeOfficerRemarks(officerRemarks: string[] = []): string {
+  if (!officerRemarks || officerRemarks.length === 0) return ''
+
+  // 1. Extract and clean individual points from remarks
+  const rawFragments: string[] = []
+
+  for (const rem of officerRemarks) {
+    if (!rem || typeof rem !== 'string') continue
+    // Split by line breaks and semicolons
+    const splitItems = rem.split(/[\r\n;]+/)
+    for (const item of splitItems) {
+      // Strip bullet points, numbers, asterisks, dashes, leading/trailing whitespace & quotes
+      const cleaned = item
+        .replace(/^[\s•*–—\d.):-]+/, '')
+        .replace(/["'“”]/g, '')
+        .trim()
+
+      if (cleaned.length < 3) continue
+
+      const lower = cleaned.toLowerCase()
+      // Skip meaningless filler responses
+      if (
+        lower === 'n/a' ||
+        lower === 'na' ||
+        lower === 'none' ||
+        lower === 'wala' ||
+        lower === 'wla' ||
+        lower === 'no comment' ||
+        lower === 'nothing' ||
+        lower === 'ok' ||
+        lower === 'okay' ||
+        lower === 'goods' ||
+        lower === 'all good' ||
+        lower === 'walang komento'
+      ) {
+        continue
+      }
+
+      rawFragments.push(cleaned)
+    }
+  }
+
+  if (rawFragments.length === 0) return ''
+
+  // 2. Deduplicate while preserving original phrasing
+  const uniqueFragments: string[] = []
+  const seen = new Set<string>()
+
+  for (const frag of rawFragments) {
+    const key = frag.toLowerCase().replace(/[^a-z0-9]/g, '')
+    if (!seen.has(key)) {
+      seen.add(key)
+      uniqueFragments.push(frag)
+    }
+  }
+
+  // 3. Classify fragments
+  const commendations: string[] = []
+  const growthAreas: string[] = []
+  const recommendations: string[] = []
+  const generalNotes: string[] = []
+
+  for (const frag of uniqueFragments) {
+    const lower = frag.toLowerCase()
+
+    const hasGrowthTrigger =
+      lower.includes('need') ||
+      lower.includes('kailangan') ||
+      lower.includes('dapat') ||
+      lower.includes('stuck') ||
+      lower.includes('lack') ||
+      lower.includes('kulang') ||
+      lower.includes('nahuhuli') ||
+      lower.includes('late') ||
+      lower.includes('absent') ||
+      lower.includes('struggle') ||
+      lower.includes('cooperation') ||
+      lower.includes('attendance') ||
+      lower.includes('meeting') ||
+      lower.includes('formation') ||
+      (lower.includes('focus') && (lower.includes('more') || lower.includes('dapat') || lower.includes('need')))
+
+    const hasRecommendationTrigger =
+      lower.includes('mentor') ||
+      lower.includes('workshop') ||
+      lower.includes('activities') ||
+      lower.includes('activity') ||
+      lower.includes('training') ||
+      lower.includes('exposure') ||
+      lower.includes('recommend') ||
+      lower.includes('rekomenda') ||
+      lower.includes('encourage') ||
+      lower.includes('fellowship') ||
+      lower.includes('social interaction') ||
+      lower.includes('interaction') ||
+      lower.includes('counseling') ||
+      lower.includes('guidance')
+
+    const hasCommendationTrigger =
+      lower.includes('presence of mind') ||
+      lower.includes('willingness') ||
+      lower.includes('posture') ||
+      lower.includes('accept feedback') ||
+      lower.includes('reveren') ||
+      lower.includes('punctual') ||
+      lower.includes('diligent') ||
+      lower.includes('active') ||
+      lower.includes('reliable') ||
+      lower.includes('dependable') ||
+      lower.includes('magaling') ||
+      lower.includes('maasahan') ||
+      lower.includes('mabait') ||
+      lower.includes('respectful') ||
+      lower.includes('alert') ||
+      lower.includes('good') ||
+      lower.includes('great') ||
+      lower.includes('potential') ||
+      lower.includes('dedicated') ||
+      lower.includes('dedication') ||
+      lower.includes('initiative')
+
+    if (hasRecommendationTrigger && !hasCommendationTrigger) {
+      recommendations.push(frag)
+    } else if (hasGrowthTrigger && !lower.includes('potential')) {
+      growthAreas.push(frag)
+    } else if (hasCommendationTrigger) {
+      commendations.push(frag)
+    } else {
+      generalNotes.push(frag)
+    }
+  }
+
+  // 4. Transform raw phrases into natural flowing clauses
+  const polishClause = (text: string): string => {
+    let t = text.trim()
+    // Strip trailing punctuation
+    t = t.replace(/[.,;:]+$/, '').trim()
+    // Remove colloquial preamble
+    t = t.replace(/^(as far as I know,?|in my opinion,?|tingin ko,?|sa tingin ko,?|parang|palagay ko,?)\s*/i, '')
+    // Smooth common officer phrasing
+    t = t.replace(/\bdoes accept feedback\b/i, 'receptiveness to feedback')
+    t = t.replace(/\baccepts? feedback\b/i, 'receptiveness to feedback')
+    t = t.replace(/\bknows proper posture\b/i, 'proper posture')
+    t = t.replace(/\bproper posture during mass\b/i, 'proper posture during Mass')
+    t = t.replace(/\bshows steady commitment\b/i, 'steady commitment')
+    t = t.replace(/\bshows great potential\b/i, 'great potential')
+    t = t.replace(/^he is stuck at being a main server, four bell, and single bell/i, 'broadening assignments beyond main and bell server duties')
+    t = t.replace(/^stuck at being a main server, four bell, and single bell/i, 'broadening assignments beyond main and bell server duties')
+    t = t.replace(/^attendance on ministry meetings, formation, and activities/i, 'active attendance in ministry meetings and formation activities')
+    t = t.replace(/^cooperation with other altar servers/i, 'cooperation and camaraderie with fellow servers')
+    t = t.replace(/^more activities to enhance his social interaction with other servers/i, 'involvement in activities to enhance social interaction with peers')
+    t = t.replace(/^mentorship$/i, 'continued fraternal mentorship')
+    t = t.replace(/^always punctual/i, 'consistent punctuality')
+    t = t.replace(/^respectful to/i, 'respect for')
+    t = t.replace(/^handles liturgical/i, 'reverent handling of liturgical')
+    t = t.replace(/^handles sacred/i, 'reverent handling of sacred')
+    t = t.replace(/^needs more practice on/i, 'further practice on')
+    t = t.replace(/^shyness/i, 'building confidence and overcoming shyness')
+    t = t.replace(/^occasional tardiness/i, 'addressing occasional tardiness')
+
+    // Capitalize Mass / Sunday if present
+    t = t.replace(/\bmass\b/g, 'Mass')
+    t = t.replace(/\bsunday\b/g, 'Sunday')
+
+    // Lowercase first letter if not Mass, Sunday, Holy, etc.
+    if (t.length > 0 && !t.startsWith('Mass') && !t.startsWith('Sunday') && !t.startsWith('Holy') && !t.startsWith('I ')) {
+      t = t.charAt(0).toLowerCase() + t.slice(1)
+    }
+    return t
+  }
+
+  const joinClauses = (items: string[]): string => {
+    if (items.length === 0) return ''
+    if (items.length === 1) return items[0]
+    if (items.length === 2) return `${items[0]} and ${items[1]}`
+    return `${items.slice(0, -1).join(', ')}, and ${items[items.length - 1]}`
+  }
+
+  const summarySentences: string[] = []
+
+  // Commendations sentence
+  if (commendations.length > 0) {
+    const polished = commendations.map(polishClause)
+    summarySentences.push(`Evaluating officers commend his ${joinClauses(polished)}.`)
+  }
+
+  // Growth & Recommendations sentence
+  if (growthAreas.length > 0 && recommendations.length > 0) {
+    const polishedGrowth = growthAreas.map(polishClause)
+    const polishedRecs = recommendations.map(polishClause)
+    summarySentences.push(
+      `For continued growth, officers note areas for improvement in ${joinClauses(polishedGrowth)}, recommending ${joinClauses(polishedRecs)}.`
+    )
+  } else if (growthAreas.length > 0) {
+    const polishedGrowth = growthAreas.map(polishClause)
+    summarySentences.push(
+      `For continued growth, officers recommend focus on ${joinClauses(polishedGrowth)}.`
+    )
+  } else if (recommendations.length > 0) {
+    const polishedRecs = recommendations.map(polishClause)
+    summarySentences.push(
+      `Evaluating officers recommend ${joinClauses(polishedRecs)}.`
+    )
+  }
+
+  // General notes
+  if (generalNotes.length > 0) {
+    const polishedGeneral = generalNotes.map(polishClause)
+    if (summarySentences.length === 0) {
+      summarySentences.push(`Evaluating officers noted ${joinClauses(polishedGeneral)}.`)
+    } else {
+      summarySentences.push(`Officers also noted ${joinClauses(polishedGeneral)}.`)
+    }
+  }
+
+  return summarySentences.join(' ')
+}
+
+/**
  * Synthesizes a cohesive, naturally varied pastoral evaluation narrative.
  */
 export function synthesizePastoralEvaluation(
@@ -259,18 +481,9 @@ export function synthesizePastoralEvaluation(
     baseSentence = 'Faithfully serves as an altar server in the parish ministry.'
   }
 
-  // Deduplicate and filter remarks
-  const cleanedRemarks = Array.from(
-    new Set(
-      officerRemarks
-        .map(r => r.trim())
-        .filter(r => r.length > 0 && !r.toLowerCase().includes('n/a') && !r.toLowerCase().includes('none'))
-    )
-  )
-
-  if (cleanedRemarks.length > 0) {
-    const combinedRemarks = cleanedRemarks.join('; ')
-    return `${baseSentence} Officers noted: "${combinedRemarks}".`
+  const summarizedRemarks = summarizeOfficerRemarks(officerRemarks)
+  if (summarizedRemarks) {
+    return `${baseSentence} ${summarizedRemarks}`
   }
 
   return baseSentence

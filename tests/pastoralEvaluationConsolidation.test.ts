@@ -3,6 +3,7 @@ import assert from 'node:assert'
 import {
   getMemberVariationIndex,
   synthesizePastoralEvaluation,
+  summarizeOfficerRemarks,
   getMemberIdFromResponse,
   consolidateFormEvaluations,
   generateSmartAttendancePresets
@@ -115,7 +116,7 @@ test('synthesizePastoralEvaluation handles attendance tier fallbacks when no rat
   assert.ok(exemplary.includes('Outstanding') || exemplary.includes('Exemplary') || exemplary.includes('Superb') || exemplary.includes('attendance'))
 })
 
-test('synthesizePastoralEvaluation integrates deduplicated officer remarks', () => {
+test('synthesizePastoralEvaluation summarizes officer remarks into flowing sentences without bullets or quotes', () => {
   const remarks = [
     'Always punctual for Sunday dawn mass.',
     'Always punctual for Sunday dawn mass.', // duplicate
@@ -123,7 +124,41 @@ test('synthesizePastoralEvaluation integrates deduplicated officer remarks', () 
     'N/A' // ignored
   ]
   const synthesized = synthesizePastoralEvaluation('m1', 4.8, 95, remarks)
-  assert.ok(synthesized.includes('Officers noted: "Always punctual for Sunday dawn mass.; Shows great reverence during communion."'))
+  // Must NOT have bullets, raw dashes, or quotes
+  assert.ok(!synthesized.includes('-'), 'Should not contain raw bullet dashes')
+  assert.ok(!synthesized.includes('\n'), 'Should not contain raw newlines')
+  assert.ok(!synthesized.includes('Officers noted: "'), 'Should not dump raw quotation wrapper')
+  assert.ok(
+    synthesized.includes('Evaluating officers commend') ||
+    synthesized.includes('punctual') ||
+    synthesized.includes('reverence'),
+    `Expected synthesized narrative, got: ${synthesized}`
+  )
+})
+
+test('summarizeOfficerRemarks converts messy bulleted feedback into cohesive pastoral sentences', () => {
+  const userFeedbackInput = [
+    'Presence of mind and willingness to serve; Does accept feedback, knows proper posture during mass.',
+    '- cooperation with other altar servers\n- attendance on ministry meetings, formation, and activities. \n- as far as I know, he is stuck at being a main server, four bell, and single bell.',
+    '- more activities to enhance his social interaction with other servers.\n- mentorship'
+  ]
+
+  const summary = summarizeOfficerRemarks(userFeedbackInput)
+
+  // Verify bullet elimination
+  assert.ok(!summary.includes('-'), 'Must strip all dashes and bullets')
+  assert.ok(!summary.includes('\n'), 'Must strip all raw newlines')
+  assert.ok(!summary.includes('\r'), 'Must strip all carriage returns')
+  assert.ok(!summary.includes('"'), 'Must not contain raw quotes')
+
+  // Verify natural sentence structure and synthesis
+  assert.ok(summary.includes('Evaluating officers commend his'), 'Should commend recognized strengths')
+  assert.ok(summary.includes('presence of mind'), 'Should include presence of mind')
+  assert.ok(summary.includes('proper posture during Mass'), 'Should properly format and capitalize posture')
+  assert.ok(summary.includes('receptiveness to feedback'), 'Should polish does accept feedback into receptiveness')
+  assert.ok(summary.includes('For continued growth, officers note areas for improvement'), 'Should transition smoothly into growth areas')
+  assert.ok(summary.includes('recommending'), 'Should recommend next steps')
+  assert.ok(summary.includes('fraternal mentorship'), 'Should polish mentorship into fraternal mentorship')
 })
 
 test('getMemberIdFromResponse resolves member via selector question or name matching', () => {
@@ -326,10 +361,11 @@ test('consolidateFormEvaluations consolidates multi-officer feedback with attrib
   // Deduplicated remarks
   assert.strictEqual(evalItem.distinctRemarks.length, 2)
 
-  // Synthesized narrative includes remarks
-  assert.ok(evalItem.synthesizedNarrative.includes('Officers noted:'))
-  assert.ok(evalItem.synthesizedNarrative.includes('Consistently reverent during the Holy Hour.'))
-  assert.ok(evalItem.synthesizedNarrative.includes('Shows great discipline and helpfulness to younger servers.'))
+  // Synthesized narrative includes remarks summarized into flowing sentences
+  assert.ok(evalItem.synthesizedNarrative.includes('Evaluating officers commend'))
+  assert.ok(evalItem.synthesizedNarrative.includes('reverent during the Holy Hour'))
+  assert.ok(evalItem.synthesizedNarrative.includes('discipline and helpfulness to younger servers'))
+  assert.ok(!evalItem.synthesizedNarrative.includes('Officers noted: "'), 'Should not use raw quote dump')
 })
 
 test('generateSmartAttendancePresets generates complete presets for all members', () => {
