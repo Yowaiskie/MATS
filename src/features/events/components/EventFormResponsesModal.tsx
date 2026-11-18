@@ -15,6 +15,7 @@ import { DynamicSignatureConfig } from '@/components/signatures/DynamicSignature
 import type { SignatureConfig } from '@/types/signature'
 import { DEFAULT_MINISTRY_NAME, DEFAULT_PARISH_NAME } from '@/types/signature'
 import { formatContactNumber } from '@/utils/contactNumberHelper'
+import { EvaluationCollapsibleView } from './EvaluationCollapsibleView'
 
 interface EventFormResponsesModalProps {
   isOpen: boolean
@@ -210,7 +211,16 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
       })
     : []
 
-  // Map of memberId to response (if member submitted)
+  // Track evaluated members if member selector is present
+  const evaluatedMemberIds = new Set<string>()
+  responses.forEach(r => {
+    if (memberSelectorQ) {
+      const val = r.answers?.[memberSelectorQ.id]
+      if (typeof val === 'string' && val) evaluatedMemberIds.add(val)
+    }
+  })
+
+  // Map of memberId to response (if member submitted or was evaluated)
   const respondedMemberIds = new Set<string>()
   responses.forEach(r => {
     if (r.respondentMemberUid) {
@@ -221,8 +231,11 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   // Determine member list with response status
   const memberRows = eligibleMembersList.map(member => {
     const memberName = `${member.lastName}, ${member.firstName}`
-    const response = responses.find(r => r.respondentMemberUid === member.id)
-    const hasResponded = !!response
+    const response = responses.find(r =>
+      r.respondentMemberUid === member.id ||
+      (memberSelectorQ && (r.answers?.[memberSelectorQ.id] === member.id || r.answers?.[memberSelectorQ.id] === memberName))
+    )
+    const hasResponded = !!response || (memberSelectorQ ? (evaluatedMemberIds.has(member.id) || evaluatedMemberIds.has(memberName)) : false)
     return {
       member,
       memberName,
@@ -305,8 +318,13 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
     return nameMatch || emailMatch || answerMatch
   })
 
-  const totalRespondedCount = responses.length
-  const totalPendingCount = eligibleMembersList.length - respondedMemberIds.size
+  const totalRespondedCount = memberSelectorQ && evaluatedMemberIds.size > 0
+    ? evaluatedMemberIds.size
+    : responses.length
+  const totalPendingCount = Math.max(
+    0,
+    eligibleMembersList.length - (memberSelectorQ && evaluatedMemberIds.size > 0 ? evaluatedMemberIds.size : respondedMemberIds.size)
+  )
 
   const activeFilteredResponses = hasTargetMembers
     ? [
@@ -391,6 +409,380 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
   const togglePdfColumn = (colId: string) => {
     setPdfSelectedQuestionIds(prev =>
       prev.includes(colId) ? prev.filter(id => id !== colId) : [...prev, colId]
+    )
+  }
+
+  const renderTargetMembersTable = () => {
+    if (filteredMemberRows.length === 0 && filteredGuestResponses.length === 0) {
+      return (
+        <div className="p-8 sm:p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
+          <p className="text-sm font-bold">No records found</p>
+          <p className="text-xs mt-1 text-slate-400">Try adjusting your status tab, order filter, or search keywords.</p>
+        </div>
+      )
+    }
+
+    return (
+      <>
+        {/* Desktop Table View */}
+        <div className="hidden md:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
+          <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
+            <thead>
+              <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
+                <th className="p-3.5">Member / Respondent</th>
+                <th className="p-3.5">Order / Group</th>
+                <th className="p-3.5">Status</th>
+                {questions.map(q => (
+                  <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
+                    {q.question}
+                  </th>
+                ))}
+                <th className="p-3.5">Submitted At</th>
+                <th className="p-3.5 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {/* Render Member Rows */}
+              {filteredMemberRows.map(row => {
+                const r = row.response
+                const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                  ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                  : String(r?.submittedAt || '-')
+
+                return (
+                  <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
+                    <td className="p-3.5 font-bold text-slate-900">
+                      {row.memberName}
+                    </td>
+                    <td className="p-3.5 font-medium text-slate-600">
+                      {row.member.order || row.member.position || '-'}
+                    </td>
+                    <td className="p-3.5">
+                      {row.hasResponded ? (
+                        <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Responded
+                        </span>
+                      ) : (
+                        <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
+                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                          Not Yet Answered
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Question Answers */}
+                    {questions.map(q => {
+                      if (!r) {
+                        return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
+                      }
+                      const val = r.answers[q.id]
+                      const displayVal = formatQuestionAnswer(q, val)
+                      return (
+                        <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                          {displayVal}
+                        </td>
+                      )
+                    })}
+
+                    <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
+                    <td className="p-3.5 text-right">
+                      {r ? (
+                        <ActionMenu
+                          triggerVariant="meatball"
+                          tooltip="Response Options"
+                          size="xs"
+                          items={[
+                            {
+                              label: 'View Details',
+                              icon: (
+                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                              ),
+                              onClick: () => setSelectedResponse(r)
+                            },
+                            {
+                              label: 'Edit Response',
+                              icon: (
+                                <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                              ),
+                              onClick: () => setResponseToEdit(r)
+                            },
+                            {
+                              label: 'Delete Response',
+                              variant: 'danger',
+                              icon: (
+                                <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              ),
+                              onClick: () => setResponseToDelete(r)
+                            }
+                          ]}
+                        />
+                      ) : (
+                        <span className="text-slate-400 text-[11px] italic">No submission</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
+
+              {/* Guest Responses if any */}
+              {filteredGuestResponses.map(r => {
+                const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+                  ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+                  : String(r.submittedAt || '-')
+
+                return (
+                  <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
+                    <td className="p-3.5 font-bold text-slate-900">
+                      {r.respondentMemberName || 'Guest / Non-Member'}
+                    </td>
+                    <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
+                    <td className="p-3.5">
+                      <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
+                        Responded
+                      </span>
+                    </td>
+                    {questions.map(q => {
+                      const val = r.answers[q.id]
+                      const displayVal = formatQuestionAnswer(q, val)
+                      return (
+                        <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
+                          {displayVal}
+                        </td>
+                      )
+                    })}
+                    <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
+                    <td className="p-3.5 text-right">
+                      <ActionMenu
+                        triggerVariant="meatball"
+                        tooltip="Response Options"
+                        size="xs"
+                        items={[
+                          {
+                            label: 'View Details',
+                            icon: (
+                              <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              </svg>
+                            ),
+                            onClick: () => setSelectedResponse(r)
+                          },
+                          {
+                            label: 'Edit Response',
+                            icon: (
+                              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                            ),
+                            onClick: () => setResponseToEdit(r)
+                          },
+                          {
+                            label: 'Delete Response',
+                            variant: 'danger',
+                            icon: (
+                              <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            ),
+                            onClick: () => setResponseToDelete(r)
+                          }
+                        ]}
+                      />
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Cards View */}
+        <div className="md:hidden space-y-3">
+          {filteredMemberRows.map(row => {
+            const r = row.response
+            const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+              ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+              : String(r?.submittedAt || '-')
+
+            return (
+              <div key={row.member.id} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{row.memberName}</h4>
+                    <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
+                      {row.member.order || row.member.position || 'Altar Server'}
+                    </span>
+                  </div>
+                  {row.hasResponded ? (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                      Responded
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1 shrink-0">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                      Not Answered
+                    </span>
+                  )}
+                </div>
+
+                {r && (
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                    {questions.slice(0, 3).map(q => {
+                      const val = r.answers[q.id]
+                      const displayVal = formatQuestionAnswer(q, val)
+                      return (
+                        <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                          <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
+                          <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
+                        </div>
+                      )
+                    })}
+                    {questions.length > 3 && (
+                      <span className="text-[10px] text-slate-400 italic block">+{questions.length - 3} more questions</span>
+                    )}
+                    <div className="text-[10px] text-slate-400 font-medium">
+                      Submitted: {submittedDateStr}
+                    </div>
+                  </div>
+                )}
+
+                {r && (
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                    <ActionMenu
+                      triggerVariant="meatball"
+                      tooltip="Response Options"
+                      size="xs"
+                      items={[
+                        {
+                          label: 'View Details',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                          ),
+                          onClick: () => setSelectedResponse(r)
+                        },
+                        {
+                          label: 'Edit Response',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          ),
+                          onClick: () => setResponseToEdit(r)
+                        },
+                        {
+                          label: 'Delete Response',
+                          variant: 'danger',
+                          icon: (
+                            <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                          ),
+                          onClick: () => setResponseToDelete(r)
+                        }
+                      ]}
+                    />
+                  </div>
+                )}
+              </div>
+            )
+          })}
+
+          {/* Guest responses in mobile */}
+          {filteredGuestResponses.map(r => {
+            const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
+              ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
+              : String(r.submittedAt || '-')
+
+            return (
+              <div key={r.id || Math.random()} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
+                      {r.respondentMemberName || 'Guest / Non-Member'}
+                    </h4>
+                    <span className="text-[11px] font-semibold text-slate-400 italic block mt-0.5">
+                      Guest Respondent
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 rounded-full shrink-0">
+                    Responded
+                  </span>
+                </div>
+
+                <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
+                  {questions.slice(0, 3).map(q => {
+                    const val = r.answers[q.id]
+                    const displayVal = formatQuestionAnswer(q, val)
+                    return (
+                      <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
+                        <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
+                      </div>
+                    )
+                  })}
+                  {questions.length > 3 && (
+                    <span className="text-[10px] text-slate-400 italic block">+{questions.length - 3} more questions</span>
+                  )}
+                  <div className="text-[10px] text-slate-400 font-medium">
+                    Submitted: {submittedDateStr}
+                  </div>
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
+                  <ActionMenu
+                    triggerVariant="meatball"
+                    tooltip="Response Options"
+                    size="xs"
+                    items={[
+                      {
+                        label: 'View Details',
+                        icon: (
+                          <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                        ),
+                        onClick: () => setSelectedResponse(r)
+                      },
+                      {
+                        label: 'Edit Response',
+                        icon: (
+                          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                        ),
+                        onClick: () => setResponseToEdit(r)
+                      },
+                      {
+                        label: 'Delete Response',
+                        variant: 'danger',
+                        icon: (
+                          <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        ),
+                        onClick: () => setResponseToDelete(r)
+                      }
+                    ]}
+                  />
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </>
     )
   }
 
@@ -852,370 +1244,21 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
           {loading ? (
             <div className="p-12 text-center text-xs font-semibold text-slate-500">Loading form responses...</div>
           ) : hasTargetMembers ? (
-            filteredMemberRows.length === 0 && filteredGuestResponses.length === 0 ? (
-              <div className="p-8 sm:p-12 text-center text-slate-500 bg-white rounded-2xl border border-slate-200">
-                <p className="text-sm font-bold">No records found</p>
-                <p className="text-xs mt-1 text-slate-400">Try adjusting your status tab, order filter, or search keywords.</p>
-              </div>
-            ) : (
-              <>
-                {/* Desktop Table View */}
-                <div className="hidden md:block bg-white border border-slate-200 rounded-2xl overflow-x-auto shadow-xs">
-                  <table className="w-full text-left border-collapse text-xs whitespace-nowrap">
-                    <thead>
-                      <tr className="bg-slate-100/70 text-slate-700 font-bold border-b border-slate-200">
-                        <th className="p-3.5">Member / Respondent</th>
-                        <th className="p-3.5">Order / Group</th>
-                        <th className="p-3.5">Status</th>
-                        {questions.map(q => (
-                          <th key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal" title={q.question}>
-                            {q.question}
-                          </th>
-                        ))}
-                        <th className="p-3.5">Submitted At</th>
-                        <th className="p-3.5 text-right">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {/* Render Member Rows */}
-                      {filteredMemberRows.map(row => {
-                        const r = row.response
-                        const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                          ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                          : String(r?.submittedAt || '-')
-
-                        return (
-                          <tr key={row.member.id} className="hover:bg-slate-50 transition-colors group">
-                            <td className="p-3.5 font-bold text-slate-900">
-                              {row.memberName}
-                            </td>
-                            <td className="p-3.5 font-medium text-slate-600">
-                              {row.member.order || row.member.position || '-'}
-                            </td>
-                            <td className="p-3.5">
-                              {row.hasResponded ? (
-                                <span className="px-2.5 py-1 text-[11px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                  Responded
-                                </span>
-                              ) : (
-                                <span className="px-2.5 py-1 text-[11px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                                  Not Yet Answered
-                                </span>
-                              )}
-                            </td>
-
-                            {/* Question Answers */}
-                            {questions.map(q => {
-                              if (!r) {
-                                return <td key={q.id} className="p-3.5 text-slate-300 italic">-</td>
-                              }
-                              const val = r.answers[q.id]
-                              const displayVal = formatQuestionAnswer(q, val)
-                              return (
-                                <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                                  {displayVal}
-                                </td>
-                              )
-                            })}
-
-                            <td className="p-3.5 text-slate-500">{r ? submittedDateStr : '-'}</td>
-                            <td className="p-3.5 text-right">
-                              {r ? (
-                                <ActionMenu
-                                  triggerVariant="meatball"
-                                  tooltip="Response Options"
-                                  size="xs"
-                                  items={[
-                                    {
-                                      label: 'View Details',
-                                      icon: (
-                                        <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                        </svg>
-                                      ),
-                                      onClick: () => setSelectedResponse(r)
-                                    },
-                                    {
-                                      label: 'Edit Response',
-                                      icon: (
-                                        <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                      ),
-                                      onClick: () => setResponseToEdit(r)
-                                    },
-                                    {
-                                      label: 'Delete Response',
-                                      variant: 'danger',
-                                      icon: (
-                                        <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                          <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                        </svg>
-                                      ),
-                                      onClick: () => setResponseToDelete(r)
-                                    }
-                                  ]}
-                                />
-                              ) : (
-                                <span className="text-slate-400 text-[11px] italic">No submission</span>
-                              )}
-                            </td>
-                          </tr>
-                        )
-                      })}
-
-                      {/* Guest Responses if any */}
-                      {filteredGuestResponses.map(r => {
-                        const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                          ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                          : String(r.submittedAt || '-')
-
-                        return (
-                          <tr key={r.id || Math.random()} className="hover:bg-slate-50 transition-colors group bg-slate-50/50">
-                            <td className="p-3.5 font-bold text-slate-900">
-                              {r.respondentMemberName || 'Guest / Non-Member'}
-                            </td>
-                            <td className="p-3.5 font-medium text-slate-400 italic">Guest</td>
-                            <td className="p-3.5">
-                              <span className="px-2.5 py-1 text-[11px] font-bold bg-blue-100 text-blue-800 rounded-full inline-flex items-center gap-1">
-                                Responded
-                              </span>
-                            </td>
-                            {questions.map(q => {
-                              const val = r.answers[q.id]
-                              const displayVal = formatQuestionAnswer(q, val)
-                              return (
-                                <td key={q.id} className="p-3.5 min-w-[180px] max-w-[320px] whitespace-normal break-words" title={displayVal}>
-                                  {displayVal}
-                                </td>
-                              )
-                            })}
-                            <td className="p-3.5 text-slate-500">{submittedDateStr}</td>
-                            <td className="p-3.5 text-right">
-                              <ActionMenu
-                                triggerVariant="meatball"
-                                tooltip="Response Options"
-                                size="xs"
-                                items={[
-                                  {
-                                    label: 'View Details',
-                                    icon: (
-                                      <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                      </svg>
-                                    ),
-                                    onClick: () => setSelectedResponse(r)
-                                  },
-                                  {
-                                    label: 'Edit Response',
-                                    icon: (
-                                      <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
-                                    ),
-                                    onClick: () => setResponseToEdit(r)
-                                  },
-                                  {
-                                    label: 'Delete Response',
-                                    variant: 'danger',
-                                    icon: (
-                                      <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    ),
-                                    onClick: () => setResponseToDelete(r)
-                                  }
-                                ]}
-                              />
-                            </td>
-                          </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Mobile Cards View */}
-                <div className="md:hidden space-y-3">
-                  {filteredMemberRows.map(row => {
-                    const r = row.response
-                    const submittedDateStr = r?.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                      : String(r?.submittedAt || '-')
-
-                    return (
-                      <div key={row.member.id} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">{row.memberName}</h4>
-                            <span className="text-[11px] font-semibold text-slate-500 block mt-0.5">
-                              {row.member.order || row.member.position || 'Altar Server'}
-                            </span>
-                          </div>
-                          {row.hasResponded ? (
-                            <span className="px-2 py-0.5 text-[10px] font-bold bg-emerald-100 text-emerald-800 rounded-full inline-flex items-center gap-1 shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              Responded
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 rounded-full inline-flex items-center gap-1 shrink-0">
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-                              Not Answered
-                            </span>
-                          )}
-                        </div>
-
-                        {r && (
-                          <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
-                            {questions.slice(0, 3).map(q => {
-                              const val = r.answers[q.id]
-                              const displayVal = formatQuestionAnswer(q, val)
-                              return (
-                                <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                  <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
-                                  <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
-                                </div>
-                              )
-                            })}
-                            {questions.length > 3 && (
-                              <span className="text-[10px] text-slate-400 italic block">+{questions.length - 3} more questions</span>
-                            )}
-                            <div className="text-[10px] text-slate-400 font-medium">
-                              Submitted: {submittedDateStr}
-                            </div>
-                          </div>
-                        )}
-
-                        {r && (
-                          <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-                            <ActionMenu
-                              triggerVariant="meatball"
-                              tooltip="Response Options"
-                              size="xs"
-                              items={[
-                                {
-                                  label: 'View Details',
-                                  icon: (
-                                    <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    </svg>
-                                  ),
-                                  onClick: () => setSelectedResponse(r)
-                                },
-                                {
-                                  label: 'Edit Response',
-                                  icon: (
-                                    <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                    </svg>
-                                  ),
-                                  onClick: () => setResponseToEdit(r)
-                                },
-                                {
-                                  label: 'Delete Response',
-                                  variant: 'danger',
-                                  icon: (
-                                    <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                    </svg>
-                                  ),
-                                  onClick: () => setResponseToDelete(r)
-                                }
-                              ]}
-                            />
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {/* Guest responses in mobile */}
-                  {filteredGuestResponses.map(r => {
-                    const submittedDateStr = r.submittedAt && typeof r.submittedAt === 'object' && 'seconds' in r.submittedAt
-                      ? new Date((r.submittedAt as any).seconds * 1000).toLocaleString()
-                      : String(r.submittedAt || '-')
-
-                    return (
-                      <div key={r.id || Math.random()} className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-2.5">
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="min-w-0 flex-1">
-                            <h4 className="font-bold text-xs sm:text-sm text-slate-900 truncate">
-                              {r.respondentMemberName || 'Guest / Non-Member'}
-                            </h4>
-                            <span className="text-[11px] font-semibold text-slate-400 italic block mt-0.5">
-                              Guest Respondent
-                            </span>
-                          </div>
-                          <span className="px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-800 rounded-full shrink-0">
-                            Responded
-                          </span>
-                        </div>
-
-                        <div className="space-y-1.5 pt-2 border-t border-slate-100 text-xs">
-                          {questions.slice(0, 3).map(q => {
-                            const val = r.answers[q.id]
-                            const displayVal = formatQuestionAnswer(q, val)
-                            return (
-                              <div key={q.id} className="bg-slate-50 p-2 rounded-xl border border-slate-100">
-                                <span className="text-[10px] font-bold uppercase text-slate-400 block line-clamp-1">{q.question}</span>
-                                <span className="text-slate-800 font-medium text-xs break-words">{displayVal}</span>
-                              </div>
-                            )
-                          })}
-                          <div className="text-[10px] text-slate-400 font-medium">
-                            Submitted: {submittedDateStr}
-                          </div>
-                        </div>
-
-                        <div className="pt-2 border-t border-slate-100 flex items-center justify-end">
-                          <ActionMenu
-                            triggerVariant="meatball"
-                            tooltip="Response Options"
-                            size="xs"
-                            items={[
-                              {
-                                label: 'View Details',
-                                icon: (
-                                  <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  </svg>
-                                ),
-                                onClick: () => setSelectedResponse(r)
-                              },
-                              {
-                                label: 'Edit Response',
-                                icon: (
-                                  <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                  </svg>
-                                ),
-                                onClick: () => setResponseToEdit(r)
-                              },
-                              {
-                                label: 'Delete Response',
-                                variant: 'danger',
-                                icon: (
-                                  <svg className="w-3.5 h-3.5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                ),
-                                onClick: () => setResponseToDelete(r)
-                              }
-                            ]}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </>
-            )
+            <EvaluationCollapsibleView
+              questions={questions}
+              responses={responses}
+              membersList={membersList}
+              membersMap={membersMap}
+              eligibleMembersList={eligibleMembersList}
+              searchTerm={searchTerm}
+              orderFilter={orderFilter}
+              activeTab={activeTab}
+              formatQuestionAnswer={formatQuestionAnswer}
+              onSelectResponse={setSelectedResponse}
+              onEditResponse={setResponseToEdit}
+              onDeleteResponse={setResponseToDelete}
+              renderTableView={renderTargetMembersTable}
+            />
           ) : (
             /* Direct Submissions List (when no target members are set) */
             filteredGeneralResponses.length === 0 ? (
