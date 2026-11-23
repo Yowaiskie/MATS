@@ -1,6 +1,6 @@
 import { FormInput } from '@/components/FormInput'
 import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { eventFormService } from '@/services/eventFormService'
@@ -29,6 +29,20 @@ import {
   getRawContactDigits,
   isValidContactNumber
 } from '@/utils/contactNumberHelper'
+import {
+  buildAppointmentSlotKey,
+  buildSlotCountMapKey,
+  extractLimitedSelections,
+  SlotFullError
+} from '@/utils/eventFormSlots'
+
+interface LocalSubmissionRecord {
+  trackingNumber: string
+  submittedAt: string
+  appointment?: AppointmentSlotAnswer
+}
+
+const getLocalSubmissionKey = (id: string) => `mats_form_submitted_${id}`
 
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
@@ -40,6 +54,10 @@ export const PublicEventFormPage: React.FC = () => {
   const [questions, setQuestions] = useState<EventFormQuestion[]>([])
   const [members, setMembers] = useState<Member[]>([])
   const [formResponses, setFormResponses] = useState<EventFormResponse[]>([])
+  const [slotCountsMap, setSlotCountsMap] = useState<Record<string, number>>({})
+  const [refreshingSlots, setRefreshingSlots] = useState(false)
+  const [slotRefreshCooldown, setSlotRefreshCooldown] = useState(0)
+  const [localSubmission, setLocalSubmission] = useState<LocalSubmissionRecord | null>(null)
   const [loading, setLoading] = useState(true)
   const [openMemberPickerQuestionId, setOpenMemberPickerQuestionId] = useState<string | null>(null)
   const [memberSearchQuery, setMemberSearchQuery] = useState('')
@@ -49,6 +67,7 @@ export const PublicEventFormPage: React.FC = () => {
   const [pageLoadError, setPageLoadError] = useState<string | null>(null)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const submittingRef = useRef(false)
   const [submittedTrackingNumber, setSubmittedTrackingNumber] = useState<string | null>(null)
   const [existingTrackingNumber, setExistingTrackingNumber] = useState<string | null>(null)
 
@@ -57,6 +76,57 @@ export const PublicEventFormPage: React.FC = () => {
   const [otherTextAnswers, setOtherTextAnswers] = useState<Record<string, string>>({})
   const [selectedAppointmentDates, setSelectedAppointmentDates] = useState<Record<string, string>>({})
 
+  // Cooldown timer for manual slot refresh button
+  useEffect(() => {
+    if (slotRefreshCooldown <= 0) return
+    const timer = window.setTimeout(() => {
+      setSlotRefreshCooldown(prev => Math.max(0, prev - 1))
+    }, 1000)
+    return () => window.clearTimeout(timer)
+  }, [slotRefreshCooldown])
+
+  const lastAutoRefreshAtRef = useRef<number>(Date.now())
+
+  const handleRefreshSlots = useCallback(async () => {
+    if (!form?.id || refreshingSlots || slotRefreshCooldown > 0) return
+    setRefreshingSlots(true)
+    try {
+      const freshCounts = await eventFormResponseService.getSlotCountsByFormId(form.id)
+      setSlotCountsMap(freshCounts)
+      lastAutoRefreshAtRef.current = Date.now()
+      setSlotRefreshCooldown(5)
+    } catch (err) {
+      console.error('Failed to refresh slot availability:', err)
+    } finally {
+      setRefreshingSlots(false)
+    }
+  }, [form?.id, refreshingSlots, slotRefreshCooldown])
+
+  // Smart auto-refresh: silently refresh slot counts when user returns to this tab after >= 30s
+  useEffect(() => {
+    if (!form?.id || submittedTrackingNumber) return
+    const hasCapacityLimits = questions.some(
+      q =>
+        (q.type === 'appointment_slots' && q.appointmentConfig && q.appointmentConfig.length > 0) ||
+        (q.optionLimits && Object.keys(q.optionLimits).length > 0)
+    )
+    if (!hasCapacityLimits) return
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      const elapsedMs = Date.now() - lastAutoRefreshAtRef.current
+      if (elapsedMs < 30_000) return
+      lastAutoRefreshAtRef.current = Date.now()
+      eventFormResponseService
+        .getSlotCountsByFormId(form.id!)
+        .then(freshCounts => setSlotCountsMap(freshCounts))
+        .catch(() => {})
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange)
+  }, [form?.id, questions, submittedTrackingNumber])
+
   // Helper to compute used and remaining open slots for an option/category
   const getOptionSlotInfo = (q: EventFormQuestion, opt: string) => {
     const maxLimit = q.optionLimits?.[opt]
@@ -64,15 +134,18 @@ export const PublicEventFormPage: React.FC = () => {
       return { hasLimit: false, maxSlots: 0, usedSlots: 0, openSlots: 0, isFull: false }
     }
 
-    const usedSlots = formResponses.reduce((count, r) => {
-      // Exclude current respondent's previous answer ONLY if actively editing that specific submission
-      if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
-      const ans = r.answers?.[q.id]
-      if (Array.isArray(ans)) {
-        return ans.includes(opt) ? count + 1 : count
+    const mapKey = buildSlotCountMapKey(q.id, 'option', opt)
+    let usedSlots = slotCountsMap[mapKey] ?? 0
+
+    // If editing an existing authenticated response that already holds this option, exclude self
+    if (existingTrackingNumber) {
+      const existingResp = formResponses.find(r => r.trackingNumber === existingTrackingNumber)
+      const prevAns = existingResp?.answers?.[q.id]
+      const heldPreviously = Array.isArray(prevAns) ? prevAns.includes(opt) : prevAns === opt
+      if (heldPreviously) {
+        usedSlots = Math.max(0, usedSlots - 1)
       }
-      return ans === opt ? count + 1 : count
-    }, 0)
+    }
 
     const openSlots = Math.max(0, maxLimit - usedSlots)
     const isFull = openSlots <= 0
@@ -96,17 +169,21 @@ export const PublicEventFormPage: React.FC = () => {
       return { hasLimit: false, maxSlots: 0, usedSlots: 0, openSlots: 0, isFull: false }
     }
 
-    const usedSlots = formResponses.reduce((count, r) => {
-      if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
-      const ans = r.answers?.[q.id]
-      if (ans && typeof ans === 'object' && !Array.isArray(ans)) {
-        const appointmentAns = ans as AppointmentSlotAnswer
-        if (appointmentAns.date === dateStr && appointmentAns.slotId === slotId) {
-          return count + 1
+    const slotKey = buildAppointmentSlotKey(dateStr, slotId)
+    const mapKey = buildSlotCountMapKey(q.id, 'appointment', slotKey)
+    let usedSlots = slotCountsMap[mapKey] ?? 0
+
+    // If editing an existing authenticated response that already holds this slot, exclude self
+    if (existingTrackingNumber) {
+      const existingResp = formResponses.find(r => r.trackingNumber === existingTrackingNumber)
+      const prevAns = existingResp?.answers?.[q.id]
+      if (prevAns && typeof prevAns === 'object' && !Array.isArray(prevAns)) {
+        const apptAns = prevAns as AppointmentSlotAnswer
+        if (apptAns.date === dateStr && apptAns.slotId === slotId) {
+          usedSlots = Math.max(0, usedSlots - 1)
         }
       }
-      return count
-    }, 0)
+    }
 
     const openSlots = Math.max(0, maxLimit - usedSlots)
     const isFull = openSlots <= 0
@@ -133,7 +210,7 @@ export const PublicEventFormPage: React.FC = () => {
         const formData = await queryClient.fetchQuery({
           queryKey: ['public-event-form', formId],
           queryFn: () => eventFormService.getFormById(formId),
-          staleTime: 0
+          staleTime: 1000 * 60
         })
         if (!formData || !formData.id) {
           setPageLoadError('Event form not found.')
@@ -143,8 +220,24 @@ export const PublicEventFormPage: React.FC = () => {
 
         setForm(formData)
 
-        // Load linked event details if available
-        if (formData.eventId) {
+        // Check local browser duplicate guard for single-response public forms
+        if (!formData.allowMultipleResponses) {
+          try {
+            const rawSaved = localStorage.getItem(getLocalSubmissionKey(formData.id))
+            if (rawSaved) {
+              setLocalSubmission(JSON.parse(rawSaved) as LocalSubmissionRecord)
+            } else {
+              setLocalSubmission(null)
+            }
+          } catch {
+            setLocalSubmission(null)
+          }
+        } else {
+          setLocalSubmission(null)
+        }
+
+        // Load linked event details only when authenticated (events collection requires auth)
+        if (formData.eventId && user) {
           try {
             const ev = await queryClient.fetchQuery({
               queryKey: ['event-details-public', formData.eventId],
@@ -173,21 +266,40 @@ export const PublicEventFormPage: React.FC = () => {
         const qs = await queryClient.fetchQuery({
           queryKey: ['event-form-questions', realFormId],
           queryFn: () => eventFormQuestionService.getQuestionsByFormId(realFormId),
-          staleTime: 0
+          staleTime: 1000 * 60
         })
         setQuestions(qs)
 
-        // Load all existing submissions to calculate member uniqueness & category slot limits
-        let existingResponses: EventFormResponse[] = []
-        try {
-          existingResponses = await queryClient.fetchQuery({
-            queryKey: ['public-form-submissions', realFormId],
-            queryFn: () => eventFormResponseService.getResponsesByFormId(realFormId),
-            staleTime: 0
-          })
-          setFormResponses(existingResponses)
-        } catch (err) {
-          console.error('Failed to load responses for slot limits:', err)
+        // Fetch lightweight per-slot counter documents only (zero PII, O(slots) reads instead of O(responses))
+        const hasCapacityLimits = qs.some(
+          q =>
+            (q.type === 'appointment_slots' && q.appointmentConfig && q.appointmentConfig.length > 0) ||
+            (q.optionLimits && Object.keys(q.optionLimits).length > 0)
+        )
+        if (hasCapacityLimits) {
+          try {
+            const counts = await eventFormResponseService.getSlotCountsByFormId(realFormId)
+            setSlotCountsMap(counts)
+          } catch (err) {
+            console.error('Failed to load slot counts:', err)
+          }
+        }
+
+        // Only fetch full responses when authenticated AND needed for officer evaluation tracking or single-response edit
+        const needsAuthResponses =
+          Boolean(user) &&
+          (qs.some(q => q.type === 'member_selector') || !formData.allowMultipleResponses)
+        if (needsAuthResponses) {
+          try {
+            const existingResponses = await queryClient.fetchQuery({
+              queryKey: ['public-form-submissions', realFormId],
+              queryFn: () => eventFormResponseService.getResponsesByFormId(realFormId),
+              staleTime: 1000 * 30
+            })
+            setFormResponses(existingResponses)
+          } catch (err) {
+            console.error('Failed to load authenticated responses:', err)
+          }
         }
 
         // If form contains a member selector, load active members list
@@ -373,6 +485,53 @@ export const PublicEventFormPage: React.FC = () => {
             >
               Refresh Page
             </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Check if current public device already submitted on a single-response form
+  if (!user && localSubmission && form && !form.allowMultipleResponses && !submittedTrackingNumber) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4 font-sans relative overflow-hidden">
+        <div className="absolute -top-40 -left-40 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="bg-white max-w-md w-full rounded-3xl shadow-xl p-8 sm:p-10 border border-slate-200/80 text-center relative z-10 animate-in fade-in zoom-in-95 duration-200 space-y-6">
+          <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-3xl flex items-center justify-center mx-auto shadow-xs border border-emerald-100">
+            <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black text-slate-900 tracking-tight">Already Registered</h2>
+            <p className="text-xs text-slate-600 leading-relaxed max-w-sm mx-auto">
+              A response for <strong>{form.title}</strong> was already submitted from this device.
+            </p>
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 border border-slate-200 text-xs font-bold text-slate-700 mt-1">
+              <span>Reference:</span>
+              <span className="font-mono text-indigo-700">{localSubmission.trackingNumber}</span>
+            </div>
+          </div>
+
+          {localSubmission.appointment && localSubmission.appointment.date && (
+            <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-left space-y-1 shadow-2xs">
+              <div className="text-[11px] font-black uppercase tracking-wider text-indigo-700">
+                Booked Schedule
+              </div>
+              <div className="text-xs font-bold text-indigo-950">
+                {localSubmission.appointment.date} {localSubmission.appointment.dateLabel ? `(${localSubmission.appointment.dateLabel})` : ''}
+              </div>
+              <div className="text-xs font-bold text-slate-700">
+                {localSubmission.appointment.timeRange} {localSubmission.appointment.slotLabel ? `• ${localSubmission.appointment.slotLabel}` : ''}
+              </div>
+            </div>
+          )}
+
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs text-slate-500 font-medium">
+            This form is limited to 1 response per participant. Please screenshot your reference number or contact the coordinator if you need changes.
           </div>
         </div>
       </div>
@@ -633,6 +792,8 @@ export const PublicEventFormPage: React.FC = () => {
       return
     }
 
+    if (submittingRef.current) return
+    submittingRef.current = true
     setSubmitting(true)
     setSubmitError(null)
 
@@ -664,8 +825,40 @@ export const PublicEventFormPage: React.FC = () => {
           memberName: respMemberName,
           email: respEmail
         },
-        existingTrackingNumber || undefined
+        existingTrackingNumber || undefined,
+        questions
       )
+
+      // Optimistically increment local slot counts so UI reflects the booking immediately
+      if (form.id) {
+        const bookedTargets = extractLimitedSelections(form.id, questions, answers)
+        if (bookedTargets.length > 0 && !existingTrackingNumber) {
+          setSlotCountsMap(prev => {
+            const next = { ...prev }
+            bookedTargets.forEach(t => {
+              next[t.mapKey] = (next[t.mapKey] ?? 0) + 1
+            })
+            return next
+          })
+        }
+
+        // Persist local browser duplicate guard for single-response public forms
+        if (!form.allowMultipleResponses) {
+          const appointmentQ = questions.find(q => q.type === 'appointment_slots')
+          const appointmentAns = appointmentQ
+            ? (answers[appointmentQ.id] as AppointmentSlotAnswer | undefined)
+            : undefined
+          const savedRecord: LocalSubmissionRecord = {
+            trackingNumber,
+            submittedAt: new Date().toISOString(),
+            appointment: appointmentAns
+          }
+          try {
+            localStorage.setItem(getLocalSubmissionKey(form.id), JSON.stringify(savedRecord))
+            setLocalSubmission(savedRecord)
+          } catch {}
+        }
+      }
 
       // Immediately append new response record to local state so evaluated member disappears instantly
       const newResponseRecord: EventFormResponse = {
@@ -685,8 +878,37 @@ export const PublicEventFormPage: React.FC = () => {
       setSubmittedTrackingNumber(trackingNumber)
     } catch (err) {
       console.error('Failed to submit form response:', err)
-      setSubmitError(err instanceof Error ? err.message : 'Failed to submit form response.')
+      if (err instanceof SlotFullError) {
+        // Keep all typed answers (Name, Address, Contact Number) intact; clear only the filled slot & refresh counts
+        setAnswers(prev => {
+          const next = { ...prev }
+          delete next[err.questionId]
+          return next
+        })
+        setValidationErrors(prev => ({
+          ...prev,
+          [err.questionId]: `${err.message} Your other details have been kept.`
+        }))
+        setSubmitError(`${err.message} Your other details have been kept—please choose another available slot.`)
+
+        if (form.id) {
+          eventFormResponseService
+            .getSlotCountsByFormId(form.id)
+            .then(freshCounts => setSlotCountsMap(freshCounts))
+            .catch(console.error)
+        }
+
+        setTimeout(() => {
+          const slotElem = document.getElementById(`q_card_${err.questionId}`)
+          if (slotElem) {
+            slotElem.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }
+        }, 80)
+      } else {
+        setSubmitError(err instanceof Error ? err.message : 'Failed to submit form response.')
+      }
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }
@@ -786,19 +1008,18 @@ export const PublicEventFormPage: React.FC = () => {
                   setMemberSearchQuery('')
                   setHoverRatingMap({})
 
-                  // Re-fetch existing responses so member list and slot counts are updated immediately!
+                  // Re-fetch lightweight slot counts (and authenticated responses only when needed)
                   if (form?.id) {
                     try {
-                      const rs = await eventFormResponseService.getResponsesByFormId(form.id)
-                      setFormResponses(rs)
+                      const freshCounts = await eventFormResponseService.getSlotCountsByFormId(form.id)
+                      setSlotCountsMap(freshCounts)
 
-                      if (questions.some(q => q.type === 'member_selector')) {
-                        const allMembers = await memberService.getMembers()
-                        const activeMembers = allMembers.filter(m => m.status === 'active')
-                        setMembers(activeMembers)
+                      if (user && questions.some(q => q.type === 'member_selector')) {
+                        const rs = await eventFormResponseService.getResponsesByFormId(form.id)
+                        setFormResponses(rs)
                       }
                     } catch (err) {
-                      console.error('Failed to reload form responses after submission:', err)
+                      console.error('Failed to reload slot availability after submission:', err)
                     }
                   }
                   window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -1909,13 +2130,39 @@ export const PublicEventFormPage: React.FC = () => {
                       {/* Step 2: Select Time Slot for the active date */}
                       {activeDateConfig && (
                         <div>
-                          <div className="flex items-center justify-between mb-2">
+                          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                             <span className="text-xs font-black text-slate-700 uppercase tracking-wider">
                               2. Select Time Slot for {formatDatePill(activeDateConfig.date).monthDay}
                             </span>
-                            <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
-                              {activeDateConfig.slots.length} available {activeDateConfig.slots.length === 1 ? 'slot' : 'slots'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-md border border-indigo-100">
+                                {activeDateConfig.slots.length} {activeDateConfig.slots.length === 1 ? 'slot' : 'slots'}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={handleRefreshSlots}
+                                disabled={refreshingSlots || slotRefreshCooldown > 0}
+                                className="min-h-[36px] px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition cursor-pointer inline-flex items-center gap-1.5 shadow-2xs"
+                                title="Refresh available slot counts"
+                              >
+                                <svg
+                                  className={`w-3.5 h-3.5 text-indigo-600 ${refreshingSlots ? 'animate-spin' : ''}`}
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                  stroke="currentColor"
+                                  strokeWidth={2.2}
+                                >
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                <span>
+                                  {refreshingSlots
+                                    ? 'Refreshing...'
+                                    : slotRefreshCooldown > 0
+                                    ? `Wait ${slotRefreshCooldown}s`
+                                    : 'Refresh Slots'}
+                                </span>
+                              </button>
+                            </div>
                           </div>
 
                           {activeDateConfig.slots.length === 0 ? (

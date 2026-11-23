@@ -127,6 +127,19 @@ export interface EventFormQuestion {
 
 export type ResponseStatus = 'submitted' | 'draft'
 
+export type SlotCounterType = 'appointment' | 'option'
+
+export interface EventFormSlotCount {
+  id: string
+  formId: string
+  questionId: string
+  slotType: SlotCounterType
+  slotKey: string
+  count: number
+  maxCapacity: number
+  updatedAt?: Timestamp | FieldValue | string
+}
+
 export interface EventFormResponse {
   id?: string
   formId: string

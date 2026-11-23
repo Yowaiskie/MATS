@@ -1,34 +1,105 @@
 import {
   collection,
   doc,
+  getDoc,
   getDocs,
-  setDoc,
-  deleteDoc,
   serverTimestamp,
-  updateDoc,
   query,
-  where
+  where,
+  runTransaction,
+  writeBatch
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
-import type { EventForm, EventFormQuestion, EventFormResponse } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, EventFormSlotCount } from '@/types/eventForm'
+import {
+  buildSlotCountMapKey,
+  computeSlotDeltas,
+  extractLimitedSelections,
+  SlotFullError
+} from '@/utils/eventFormSlots'
 
 const RESPONSES_COLLECTION = 'eventFormResponses'
+const SLOT_COUNTS_COLLECTION = 'eventFormSlotCounts'
+const BATCH_SIZE_LIMIT = 450
+const MAX_CONTENTION_RETRIES = 4
+
+function isTransactionContentionError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false
+  const code = String((error as any).code || '').toLowerCase()
+  const message = String((error as any).message || '').toLowerCase()
+  return (
+    code.includes('aborted') ||
+    code.includes('failed-precondition') ||
+    message.includes('contention') ||
+    message.includes('aborted') ||
+    message.includes('cross-transaction')
+  )
+}
+
+async function runTransactionWithJitteredRetry<T>(
+  operation: () => Promise<T>,
+  maxRetries: number = MAX_CONTENTION_RETRIES
+): Promise<T> {
+  let attempt = 0
+  while (true) {
+    try {
+      return await operation()
+    } catch (err) {
+      if (err instanceof SlotFullError || !isTransactionContentionError(err) || attempt >= maxRetries) {
+        throw err
+      }
+      attempt += 1
+      const baseDelayMs = 150 * Math.pow(1.6, attempt - 1)
+      const jitterMs = Math.floor(Math.random() * 250)
+      await new Promise(resolve => setTimeout(resolve, baseDelayMs + jitterMs))
+    }
+  }
+}
 
 export const eventFormResponseService = {
   /**
-   * Submit a new response for a form.
-   * Generates a safe collision-free tracking number without lock contention.
+   * Fetch lightweight per-slot capacity counts for a form (zero PII).
+   * Returns a map of `${questionId}::${slotType}::${slotKey}` -> booked count.
+   */
+  async getSlotCountsByFormId(formId: string): Promise<Record<string, number>> {
+    try {
+      const q = query(
+        collection(db, SLOT_COUNTS_COLLECTION),
+        where('formId', '==', formId)
+      )
+      const snapshot = await getDocs(q)
+      const countsMap: Record<string, number> = {}
+      snapshot.docs.forEach(d => {
+        const data = d.data() as EventFormSlotCount
+        if (data.questionId && data.slotType && data.slotKey) {
+          const mapKey = buildSlotCountMapKey(data.questionId, data.slotType, data.slotKey)
+          countsMap[mapKey] = typeof data.count === 'number' ? data.count : 0
+        }
+      })
+      return countsMap
+    } catch (error) {
+      console.error('Error fetching slot counts for form:', error)
+      throw new Error('Failed to load available slot counts.')
+    }
+  },
+
+  /**
+   * Submit a new response (or edit an existing authenticated response) for a form.
+   * Uses atomic Firestore transactions on per-slot counter documents to prevent overbooking
+   * and avoid scanning all existing responses.
    */
   async submitResponse(
     form: EventForm,
     answers: Record<string, string | string[] | number | boolean>,
     respondentInfo?: { memberUid?: string; memberName?: string; email?: string },
-    existingTrackingNumber?: string
+    existingTrackingNumber?: string,
+    preloadedQuestions?: EventFormQuestion[]
   ): Promise<string> {
     try {
       if (!form.id) throw new Error('Invalid form ID.')
+      const formId = form.id
       if (form.status !== 'published') throw new Error('Form is not open for responses.')
 
       // Check date bounds if configured
@@ -40,157 +111,215 @@ export const eventFormResponseService = {
         throw new Error('Form submission window has closed.')
       }
 
-      // --- Option & Appointment Limits Backend Validation ---
-      const questions = await eventFormQuestionService.getQuestionsByFormId(form.id)
-      const limitedQuestions = questions.filter(q => q.optionLimits && Object.keys(q.optionLimits).length > 0)
-      const appointmentQuestions = questions.filter(q => q.type === 'appointment_slots' && q.appointmentConfig && q.appointmentConfig.length > 0)
+      const questions =
+        preloadedQuestions && preloadedQuestions.length > 0
+          ? preloadedQuestions
+          : await eventFormQuestionService.getQuestionsByFormId(formId)
 
-      if (limitedQuestions.length > 0 || appointmentQuestions.length > 0) {
-        const freshResponses = await this.getResponsesByFormId(form.id)
+      const newTargets = extractLimitedSelections(formId, questions, answers)
 
-        for (const q of limitedQuestions) {
-          const val = answers[q.id]
-          if (!val) continue
-          const selectedOpts = Array.isArray(val) ? val : [val]
-
-          for (const selOpt of selectedOpts) {
-            if (typeof selOpt === 'string') {
-              const maxLimit = q.optionLimits?.[selOpt]
-              if (maxLimit && maxLimit > 0) {
-                const usedCount = freshResponses.reduce((count, r) => {
-                  if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
-                  const rAns = r.answers?.[q.id]
-                  if (Array.isArray(rAns)) {
-                    return rAns.includes(selOpt) ? count + 1 : count
-                  }
-                  return rAns === selOpt ? count + 1 : count
-                }, 0)
-
-                if (usedCount >= maxLimit) {
-                  throw new Error(`The option "${selOpt}" is already full (${maxLimit} max slots reached). Please select another option.`)
-                }
-              }
-            }
-          }
-        }
-
-        for (const q of appointmentQuestions) {
-          const val = answers[q.id] as any
-          if (!val || typeof val !== 'object' || !val.slotId || !val.date) continue
-
-          const dateCfg = (q.appointmentConfig || []).find(d => d.date === val.date)
-          const slotCfg = dateCfg?.slots.find(s => s.id === val.slotId)
-
-          if (slotCfg && slotCfg.maxCapacity && slotCfg.maxCapacity > 0) {
-            const usedCount = freshResponses.reduce((count, r) => {
-              if (existingTrackingNumber && r.trackingNumber === existingTrackingNumber) return count
-              const rAns = r.answers?.[q.id] as any
-              if (rAns && typeof rAns === 'object' && rAns.date === val.date && rAns.slotId === val.slotId) {
-                return count + 1
-              }
-              return count
-            }, 0)
-
-            if (usedCount >= slotCfg.maxCapacity) {
-              throw new Error(`The appointment slot "${val.timeRange || slotCfg.startTime}" on ${val.dateLabel || val.date} is already full (${slotCfg.maxCapacity} max capacity reached). Please select another slot.`)
-            }
-          }
-        }
-      }
-
-      // --- Explicit edit path: re-submit via provided tracking number ---
+      // --- Explicit edit path (authenticated): re-submit via provided tracking number ---
       if (existingTrackingNumber) {
         const existingByTracking = query(
           collection(db, RESPONSES_COLLECTION),
           where('trackingNumber', '==', existingTrackingNumber),
-          where('formId', '==', form.id)
+          where('formId', '==', formId)
         )
         const existingSnap = await getDocs(existingByTracking)
         if (!existingSnap.empty) {
           const existingDoc = existingSnap.docs[0]
-          await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
-            answers,
-            respondentMemberUid: respondentInfo?.memberUid || '',
-            respondentMemberName: respondentInfo?.memberName || '',
-            respondentEmail: respondentInfo?.email || '',
-            status: 'submitted',
-            updatedAt: serverTimestamp()
-          })
-          await auditService.logAction(
-            'FORM_RESPONSE_SUBMIT',
-            'events',
-            `Updated existing response ${existingTrackingNumber} for form "${form.title}"`,
-            respondentInfo?.memberName || respondentInfo?.email || 'Public User',
-            { formId: form.id, eventId: form.eventId, trackingNumber: existingTrackingNumber }
-          )
-          return existingTrackingNumber
-        }
-      }
+          const existingRef = doc(db, RESPONSES_COLLECTION, existingDoc.id)
 
-      // --- When allowMultipleResponses is false and respondent already answered ---
-      if (respondentInfo?.memberUid && form.allowMultipleResponses === false) {
-        const existingQ = query(
-          collection(db, RESPONSES_COLLECTION),
-          where('formId', '==', form.id),
-          where('respondentMemberUid', '==', respondentInfo.memberUid)
-        )
-        const existingSnap = await getDocs(existingQ)
-        if (!existingSnap.empty) {
-          if (form.allowEditResponse) {
-            const existingDoc = existingSnap.docs[0]
-            const foundTrackingNumber = existingDoc.data().trackingNumber as string
-            await updateDoc(doc(db, RESPONSES_COLLECTION, existingDoc.id), {
+          await runTransaction(db, async (tx) => {
+            const freshSnap = await tx.get(existingRef)
+            if (!freshSnap.exists()) {
+              throw new Error('Original response not found.')
+            }
+            const oldData = freshSnap.data() as EventFormResponse
+            const oldTargets = extractLimitedSelections(formId, questions, oldData.answers || {})
+            const { toIncrement, toDecrement } = computeSlotDeltas(oldTargets, newTargets)
+
+            // Read all affected counter docs before any writes
+            const incSnaps = await Promise.all(
+              toIncrement.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+            )
+            const decSnaps = await Promise.all(
+              toDecrement.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+            )
+
+            // Validate capacity for newly selected slots
+            toIncrement.forEach((target, idx) => {
+              const snap = incSnaps[idx]
+              const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+              if (currentCount + 1 > target.maxCapacity) {
+                throw new SlotFullError(target)
+              }
+            })
+
+            // Apply increments
+            toIncrement.forEach((target, idx) => {
+              const snap = incSnaps[idx]
+              const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+              const slotRef = doc(db, SLOT_COUNTS_COLLECTION, target.docId)
+              tx.set(slotRef, {
+                formId,
+                questionId: target.questionId,
+                slotType: target.slotType,
+                slotKey: target.slotKey,
+                count: currentCount + 1,
+                maxCapacity: target.maxCapacity,
+                updatedAt: serverTimestamp()
+              })
+            })
+
+            // Apply decrements
+            toDecrement.forEach((target, idx) => {
+              const snap = decSnaps[idx]
+              if (snap.exists()) {
+                const currentCount = Number(snap.data().count || 0)
+                const slotRef = doc(db, SLOT_COUNTS_COLLECTION, target.docId)
+                tx.update(slotRef, {
+                  count: Math.max(0, currentCount - 1),
+                  maxCapacity: target.maxCapacity,
+                  updatedAt: serverTimestamp()
+                })
+              }
+            })
+
+            tx.update(existingRef, {
               answers,
+              respondentMemberUid: respondentInfo?.memberUid || '',
               respondentMemberName: respondentInfo?.memberName || '',
               respondentEmail: respondentInfo?.email || '',
               status: 'submitted',
               updatedAt: serverTimestamp()
             })
-            await auditService.logAction(
+          })
+
+          auditService
+            .logAction(
               'FORM_RESPONSE_SUBMIT',
               'events',
-              `Updated response for form "${form.title}"`,
+              `Updated existing response ${existingTrackingNumber} for form "${form.title}"`,
               respondentInfo?.memberName || respondentInfo?.email || 'Public User',
-              { formId: form.id, eventId: form.eventId, trackingNumber: foundTrackingNumber }
+              { formId, eventId: form.eventId, trackingNumber: existingTrackingNumber }
             )
-            return foundTrackingNumber
-          } else {
-            throw new Error('You have already submitted a response for this form. Multiple responses are not allowed.')
+            .catch(console.error)
+
+          return existingTrackingNumber
+        }
+      }
+
+      // --- Authenticated single-response check ---
+      if (respondentInfo?.memberUid && form.allowMultipleResponses === false) {
+        try {
+          const existingQ = query(
+            collection(db, RESPONSES_COLLECTION),
+            where('formId', '==', formId),
+            where('respondentMemberUid', '==', respondentInfo.memberUid)
+          )
+          const existingSnap = await getDocs(existingQ)
+          if (!existingSnap.empty) {
+            if (form.allowEditResponse) {
+              const existingDoc = existingSnap.docs[0]
+              const foundTrackingNumber = existingDoc.data().trackingNumber as string
+              return await this.submitResponse(form, answers, respondentInfo, foundTrackingNumber, questions)
+            } else {
+              throw new Error('You have already submitted a response for this form. Multiple responses are not allowed.')
+            }
+          }
+        } catch (err) {
+          // If unauthenticated public user has a memberUid from member_selector, read is intentionally blocked by rules;
+          // rethrow only explicit duplicate error
+          if (err instanceof Error && err.message.includes('already submitted')) {
+            throw err
           }
         }
       }
 
-      // No existing response found — create a new one with collision-free tracking number
+      // --- Atomic New Submission (1 slot read + 1 slot write + 1 response write) ---
       const date = new Date()
       const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
       const randomSuffix = Math.floor(10000 + Math.random() * 90000)
       const generatedTrackingNumber = `FR-${yearMonth}-${randomSuffix}`
-
       const responseRef = doc(collection(db, RESPONSES_COLLECTION))
-      await setDoc(responseRef, {
-        formId: form.id,
-        eventId: form.eventId,
-        trackingNumber: generatedTrackingNumber,
-        respondentMemberUid: respondentInfo?.memberUid || '',
-        respondentMemberName: respondentInfo?.memberName || '',
-        respondentEmail: respondentInfo?.email || '',
-        answers,
-        status: 'submitted',
-        submittedAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      })
 
-      await auditService.logAction(
-        'FORM_RESPONSE_SUBMIT',
-        'events',
-        `Submitted response ${generatedTrackingNumber} for form "${form.title}"`,
-        respondentInfo?.memberName || respondentInfo?.email || 'Public User',
-        { formId: form.id, eventId: form.eventId, trackingNumber: generatedTrackingNumber }
+      await runTransactionWithJitteredRetry(() =>
+        runTransaction(db, async (tx) => {
+          // 1. Read only the selected slot counter doc(s)
+          const slotSnaps = await Promise.all(
+            newTargets.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+          )
+
+          // 2. Verify capacity atomically
+          newTargets.forEach((target, idx) => {
+            const snap = slotSnaps[idx]
+            const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+            if (currentCount + 1 > target.maxCapacity) {
+              throw new SlotFullError(target)
+            }
+          })
+
+          // 3. Increment each selected slot counter
+          newTargets.forEach((target, idx) => {
+            const snap = slotSnaps[idx]
+            const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+            const slotRef = doc(db, SLOT_COUNTS_COLLECTION, target.docId)
+            if (snap.exists()) {
+              tx.update(slotRef, {
+                formId,
+                questionId: target.questionId,
+                slotType: target.slotType,
+                slotKey: target.slotKey,
+                count: currentCount + 1,
+                maxCapacity: target.maxCapacity,
+                updatedAt: serverTimestamp()
+              })
+            } else {
+              tx.set(slotRef, {
+                formId,
+                questionId: target.questionId,
+                slotType: target.slotType,
+                slotKey: target.slotKey,
+                count: 1,
+                maxCapacity: target.maxCapacity,
+                updatedAt: serverTimestamp()
+              })
+            }
+          })
+
+          // 4. Write the response document inside the same atomic transaction
+          tx.set(responseRef, {
+            formId,
+            eventId: form.eventId,
+            trackingNumber: generatedTrackingNumber,
+            respondentMemberUid: respondentInfo?.memberUid || '',
+            respondentMemberName: respondentInfo?.memberName || '',
+            respondentEmail: respondentInfo?.email || '',
+            answers,
+            status: 'submitted',
+            submittedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          })
+        })
       )
+
+      auditService
+        .logAction(
+          'FORM_RESPONSE_SUBMIT',
+          'events',
+          `Submitted response ${generatedTrackingNumber} for form "${form.title}"`,
+          respondentInfo?.memberName || respondentInfo?.email || 'Public User',
+          { formId, eventId: form.eventId, trackingNumber: generatedTrackingNumber }
+        )
+        .catch(console.error)
 
       return generatedTrackingNumber
     } catch (error) {
       console.error('Error submitting form response:', error)
+      if (error instanceof SlotFullError) {
+        throw error
+      }
       throw new Error(error instanceof Error ? error.message : 'Failed to submit form response.')
     }
   },
@@ -291,7 +420,7 @@ export const eventFormResponseService = {
   },
 
   /**
-   * Update an existing response document in Firestore.
+   * Update an existing response document in Firestore and keep slot counters synchronized atomically.
    */
   async updateResponse(
     responseId: string,
@@ -301,6 +430,15 @@ export const eventFormResponseService = {
   ): Promise<void> {
     try {
       const ref = doc(db, RESPONSES_COLLECTION, responseId)
+      const initialSnap = await getDoc(ref)
+      if (!initialSnap.exists()) {
+        throw new Error('Response not found.')
+      }
+      const initialData = initialSnap.data() as EventFormResponse
+      const questions = initialData.formId
+        ? await eventFormQuestionService.getQuestionsByFormId(initialData.formId)
+        : []
+
       const updateData: Record<string, any> = {
         answers,
         updatedAt: serverTimestamp()
@@ -315,34 +453,133 @@ export const eventFormResponseService = {
         updateData.respondentMemberUid = respondentInfo.memberUid
       }
 
-      await updateDoc(ref, updateData)
-      await auditService.logAction(
-        'FORM_RESPONSE_UPDATE',
-        'events',
-        `Updated response ID ${responseId}`,
-        performedBy,
-        { responseId }
-      )
+      await runTransaction(db, async (tx) => {
+        const freshSnap = await tx.get(ref)
+        if (!freshSnap.exists()) {
+          throw new Error('Response not found.')
+        }
+        const currentData = freshSnap.data() as EventFormResponse
+        const formId = currentData.formId
+
+        if (formId && questions.length > 0) {
+          const oldTargets = extractLimitedSelections(formId, questions, currentData.answers || {})
+          const newTargets = extractLimitedSelections(formId, questions, answers)
+          const { toIncrement, toDecrement } = computeSlotDeltas(oldTargets, newTargets)
+
+          const incSnaps = await Promise.all(
+            toIncrement.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+          )
+          const decSnaps = await Promise.all(
+            toDecrement.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+          )
+
+          toIncrement.forEach((target, idx) => {
+            const snap = incSnaps[idx]
+            const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+            if (currentCount + 1 > target.maxCapacity) {
+              throw new SlotFullError(target)
+            }
+          })
+
+          toIncrement.forEach((target, idx) => {
+            const snap = incSnaps[idx]
+            const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+            tx.set(doc(db, SLOT_COUNTS_COLLECTION, target.docId), {
+              formId,
+              questionId: target.questionId,
+              slotType: target.slotType,
+              slotKey: target.slotKey,
+              count: currentCount + 1,
+              maxCapacity: target.maxCapacity,
+              updatedAt: serverTimestamp()
+            })
+          })
+
+          toDecrement.forEach((target, idx) => {
+            const snap = decSnaps[idx]
+            if (snap.exists()) {
+              const currentCount = Number(snap.data().count || 0)
+              tx.update(doc(db, SLOT_COUNTS_COLLECTION, target.docId), {
+                count: Math.max(0, currentCount - 1),
+                maxCapacity: target.maxCapacity,
+                updatedAt: serverTimestamp()
+              })
+            }
+          })
+        }
+
+        tx.update(ref, updateData)
+      })
+
+      auditService
+        .logAction(
+          'FORM_RESPONSE_UPDATE',
+          'events',
+          `Updated response ID ${responseId}`,
+          performedBy,
+          { responseId }
+        )
+        .catch(console.error)
     } catch (error) {
       console.error('Error updating response:', error)
-      throw new Error('Failed to update form response.')
+      if (error instanceof SlotFullError) {
+        throw error
+      }
+      throw new Error(error instanceof Error ? error.message : 'Failed to update form response.')
     }
   },
 
   /**
-   * Delete a response document from Firestore.
+   * Delete a response document from Firestore and decrement its slot counters atomically.
    */
   async deleteResponse(responseId: string): Promise<void> {
     try {
       const ref = doc(db, RESPONSES_COLLECTION, responseId)
-      await deleteDoc(ref)
-      await auditService.logAction(
-        'FORM_RESPONSE_DELETE',
-        'events',
-        `Deleted response ID ${responseId}`,
-        'Admin',
-        { responseId }
-      )
+      const initialSnap = await getDoc(ref)
+      if (!initialSnap.exists()) return
+
+      const initialData = initialSnap.data() as EventFormResponse
+      const questions = initialData.formId
+        ? await eventFormQuestionService.getQuestionsByFormId(initialData.formId)
+        : []
+
+      await runTransaction(db, async (tx) => {
+        const freshSnap = await tx.get(ref)
+        if (!freshSnap.exists()) return
+        const currentData = freshSnap.data() as EventFormResponse
+        const formId = currentData.formId
+
+        if (formId && questions.length > 0) {
+          const targets = extractLimitedSelections(formId, questions, currentData.answers || {})
+          const snaps = await Promise.all(
+            targets.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+          )
+
+          targets.forEach((target, idx) => {
+            const snap = snaps[idx]
+            if (snap.exists()) {
+              const currentCount = Number(snap.data().count || 0)
+              tx.update(doc(db, SLOT_COUNTS_COLLECTION, target.docId), {
+                count: Math.max(0, currentCount - 1),
+                maxCapacity: target.maxCapacity,
+                updatedAt: serverTimestamp()
+              })
+            }
+          })
+        }
+
+        tx.delete(ref)
+      })
+
+      auditService
+        .logAction(
+          'FORM_RESPONSE_DELETE',
+          'events',
+          `Deleted response ID ${responseId}`,
+          'Admin',
+          { responseId }
+        )
+        .catch(console.error)
     } catch (error) {
       console.error('Error deleting response:', error)
       throw new Error('Failed to delete form response.')
@@ -350,28 +587,125 @@ export const eventFormResponseService = {
   },
 
   /**
-   * Delete all response documents for a form.
+   * Delete all response documents and slot counter documents for a form in 450-op batches.
    */
   async deleteAllResponsesByFormId(formId: string, performedBy: string = 'Admin'): Promise<void> {
     try {
-      const q = query(
-        collection(db, RESPONSES_COLLECTION),
-        where('formId', '==', formId)
-      )
-      const snapshot = await getDocs(q)
-      const deletePromises = snapshot.docs.map(d => deleteDoc(doc(db, RESPONSES_COLLECTION, d.id)))
-      await Promise.all(deletePromises)
+      const [responsesSnap, slotCountsSnap] = await Promise.all([
+        getDocs(query(collection(db, RESPONSES_COLLECTION), where('formId', '==', formId))),
+        getDocs(query(collection(db, SLOT_COUNTS_COLLECTION), where('formId', '==', formId)))
+      ])
 
-      await auditService.logAction(
-        'FORM_RESPONSE_DELETE',
-        'events',
-        `Deleted all ${snapshot.docs.length} responses for form ID ${formId}`,
-        performedBy,
-        { formId, count: snapshot.docs.length }
-      )
+      const allRefs = [
+        ...responsesSnap.docs.map(d => doc(db, RESPONSES_COLLECTION, d.id)),
+        ...slotCountsSnap.docs.map(d => doc(db, SLOT_COUNTS_COLLECTION, d.id))
+      ]
+
+      for (let i = 0; i < allRefs.length; i += BATCH_SIZE_LIMIT) {
+        const chunk = allRefs.slice(i, i + BATCH_SIZE_LIMIT)
+        const batch = writeBatch(db)
+        chunk.forEach(ref => batch.delete(ref))
+        await batch.commit()
+      }
+
+      auditService
+        .logAction(
+          'FORM_RESPONSE_DELETE',
+          'events',
+          `Deleted all ${responsesSnap.docs.length} responses for form ID ${formId}`,
+          performedBy,
+          { formId, count: responsesSnap.docs.length }
+        )
+        .catch(console.error)
     } catch (error) {
       console.error('Error deleting all responses:', error)
       throw new Error('Failed to delete all form responses.')
+    }
+  },
+
+  /**
+   * Admin utility: recompute exact eventFormSlotCounts from all existing responses for a form.
+   */
+  async reconcileSlotCountsForForm(formId: string): Promise<{ syncedSlots: number; totalResponses: number }> {
+    try {
+      const [questions, responses, existingSlotsSnap] = await Promise.all([
+        eventFormQuestionService.getQuestionsByFormId(formId),
+        this.getResponsesByFormId(formId),
+        getDocs(query(collection(db, SLOT_COUNTS_COLLECTION), where('formId', '==', formId)))
+      ])
+
+      const computedMap = new Map<
+        string,
+        {
+          formId: string
+          questionId: string
+          slotType: 'appointment' | 'option'
+          slotKey: string
+          count: number
+          maxCapacity: number
+        }
+      >()
+
+      responses.forEach(r => {
+        const targets = extractLimitedSelections(formId, questions, r.answers || {})
+        targets.forEach(target => {
+          const existing = computedMap.get(target.docId)
+          if (existing) {
+            existing.count += 1
+          } else {
+            computedMap.set(target.docId, {
+              formId,
+              questionId: target.questionId,
+              slotType: target.slotType,
+              slotKey: target.slotKey,
+              count: 1,
+              maxCapacity: target.maxCapacity
+            })
+          }
+        })
+      })
+
+      type BatchOp =
+        | { type: 'set'; id: string; data: Record<string, any> }
+        | { type: 'delete'; id: string }
+
+      const ops: BatchOp[] = []
+
+      computedMap.forEach((data, docId) => {
+        ops.push({
+          type: 'set',
+          id: docId,
+          data: {
+            ...data,
+            updatedAt: serverTimestamp()
+          }
+        })
+      })
+
+      existingSlotsSnap.docs.forEach(d => {
+        if (!computedMap.has(d.id)) {
+          ops.push({ type: 'delete', id: d.id })
+        }
+      })
+
+      for (let i = 0; i < ops.length; i += BATCH_SIZE_LIMIT) {
+        const chunk = ops.slice(i, i + BATCH_SIZE_LIMIT)
+        const batch = writeBatch(db)
+        chunk.forEach(op => {
+          const ref = doc(db, SLOT_COUNTS_COLLECTION, op.id)
+          if (op.type === 'set') {
+            batch.set(ref, op.data)
+          } else {
+            batch.delete(ref)
+          }
+        })
+        await batch.commit()
+      }
+
+      return { syncedSlots: computedMap.size, totalResponses: responses.length }
+    } catch (error) {
+      console.error('Error reconciling slot counts:', error)
+      throw new Error('Failed to synchronize slot counts.')
     }
   },
 
