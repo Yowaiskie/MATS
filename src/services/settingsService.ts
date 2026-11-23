@@ -19,10 +19,27 @@ const SIGNATURE_PRESETS_DOC = 'signaturePresets'
 const QUALIFICATION_PRESETS_DOC = 'qualificationPresets'
 const ORDER_ROTATION_DOC = 'orderRotation'
 const EXCUSE_POLICY_DOC = 'excusePolicy'
+const PAX_TECUM_LANDING_DOC = 'paxTecumLanding'
 const LOCAL_STORAGE_PRESETS_KEY = 'mats_dynamic_signature_presets_v2'
 const LOCAL_STORAGE_QUALIFICATION_KEY = 'mats_qualification_presets_v1'
 const LOCAL_STORAGE_ORDER_ROTATION_KEY = 'mats_order_rotation_settings_v1'
 const LOCAL_STORAGE_EXCUSE_POLICY_KEY = 'mats_excuse_policy_settings_v1'
+
+export interface PaxTecumLandingSettings {
+  enabled: boolean
+  linkedFormId: string
+  linkedFormSlug?: string
+  linkedFormTitle?: string
+  updatedAt?: any
+  updatedBy?: string
+}
+
+export const DEFAULT_PAX_TECUM_LANDING_SETTINGS: PaxTecumLandingSettings = {
+  enabled: true,
+  linkedFormId: '',
+  linkedFormSlug: '',
+  linkedFormTitle: ''
+}
 
 export const DEFAULT_REPORT_TEMPLATE = `{{dayOfWeek}}, {{scheduleDate}} ({{scheduleTitle}}, {{startTime}})
 
@@ -924,6 +941,60 @@ export const settingsService = {
       'SETTINGS_UPDATE',
       'settings',
       `Updated excuse policy (Public Past Excuses: ${payload.allowPublicPastExcuses ? 'Allowed' : 'Disabled'}, Window: ${payload.publicPastWindowDays} days)`,
+      performedBy,
+      payload
+    )
+  },
+
+  /**
+   * Fetches public Pax Tecum landing page settings (linked event form and visibility).
+   */
+  async getPaxTecumLandingSettings(): Promise<PaxTecumLandingSettings> {
+    try {
+      const docRef = doc(db, SETTINGS_COLLECTION, PAX_TECUM_LANDING_DOC)
+      const snap = await getDoc(docRef)
+      if (snap.exists()) {
+        const data = snap.data() as Partial<PaxTecumLandingSettings>
+        return {
+          ...DEFAULT_PAX_TECUM_LANDING_SETTINGS,
+          enabled: typeof data.enabled === 'boolean' ? data.enabled : true,
+          linkedFormId: typeof data.linkedFormId === 'string' ? data.linkedFormId : '',
+          linkedFormSlug: typeof data.linkedFormSlug === 'string' ? data.linkedFormSlug : '',
+          linkedFormTitle: typeof data.linkedFormTitle === 'string' ? data.linkedFormTitle : '',
+          updatedAt: data.updatedAt,
+          updatedBy: data.updatedBy
+        }
+      }
+      return { ...DEFAULT_PAX_TECUM_LANDING_SETTINGS }
+    } catch (err) {
+      console.error('Failed to fetch Pax Tecum landing settings:', err)
+      return { ...DEFAULT_PAX_TECUM_LANDING_SETTINGS }
+    }
+  },
+
+  /**
+   * Saves Pax Tecum landing page settings (Admin/Coordinator only) with audit logging.
+   */
+  async savePaxTecumLandingSettings(
+    settings: Pick<PaxTecumLandingSettings, 'enabled' | 'linkedFormId' | 'linkedFormSlug' | 'linkedFormTitle'>,
+    performedBy = 'System'
+  ): Promise<void> {
+    const docRef = doc(db, SETTINGS_COLLECTION, PAX_TECUM_LANDING_DOC)
+    const payload = {
+      enabled: Boolean(settings.enabled),
+      linkedFormId: (settings.linkedFormId || '').trim(),
+      linkedFormSlug: (settings.linkedFormSlug || '').trim(),
+      linkedFormTitle: (settings.linkedFormTitle || '').trim(),
+      updatedAt: serverTimestamp(),
+      updatedBy: performedBy
+    }
+
+    await setDoc(docRef, payload, { merge: true })
+
+    await auditService.logAction(
+      'SETTINGS_UPDATE',
+      'settings',
+      `Updated Pax Tecum landing page settings (Enabled: ${payload.enabled ? 'Yes' : 'No'}, Form: ${payload.linkedFormTitle || payload.linkedFormId || 'None'})`,
       performedBy,
       payload
     )

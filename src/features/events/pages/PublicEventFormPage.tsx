@@ -1,7 +1,7 @@
 import { FormInput } from '@/components/FormInput'
 import { ValidatedForm, FormTextarea } from '@/components/ValidatedForm'
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { eventFormService } from '@/services/eventFormService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
@@ -46,6 +46,10 @@ const getLocalSubmissionKey = (id: string) => `mats_form_submitted_${id}`
 
 export const PublicEventFormPage: React.FC = () => {
   const { formId } = useParams<{ eventId: string; formId: string }>()
+  const [searchParams] = useSearchParams()
+  const preselectedDateParam = searchParams.get('date') || ''
+  const preselectedSlotParam = searchParams.get('slot') || ''
+  const fromPaxTecum = searchParams.get('from') === 'pax-tecum'
   const { profile, user } = useAuth()
   const queryClient = useQueryClient()
 
@@ -332,6 +336,38 @@ export const PublicEventFormPage: React.FC = () => {
     // Clean slate on initial page load
     setExistingTrackingNumber(null)
   }, [form?.id])
+
+  // Pre-select appointment date & time slot when arriving from /pax-tecum (?date=...&slot=...)
+  useEffect(() => {
+    if (!preselectedDateParam || !preselectedSlotParam || questions.length === 0) return
+    const apptQ = questions.find(
+      q => q.type === 'appointment_slots' && q.appointmentConfig && q.appointmentConfig.length > 0
+    )
+    if (!apptQ || !apptQ.appointmentConfig) return
+
+    const dateCfg = apptQ.appointmentConfig.find(d => d.date === preselectedDateParam)
+    const slotCfg = dateCfg?.slots.find(s => s.id === preselectedSlotParam)
+    if (!dateCfg || !slotCfg) return
+
+    setSelectedAppointmentDates(prev => ({ ...prev, [apptQ.id]: dateCfg.date }))
+
+    // Only pre-select if the slot still has remaining capacity
+    const maxCap = slotCfg.maxCapacity || 0
+    if (maxCap > 0) {
+      const slotKey = buildAppointmentSlotKey(dateCfg.date, slotCfg.id)
+      const booked = slotCountsMap[buildSlotCountMapKey(apptQ.id, 'appointment', slotKey)] ?? 0
+      if (booked >= maxCap) return
+    }
+
+    const preselectedAnswer: AppointmentSlotAnswer = {
+      date: dateCfg.date,
+      dateLabel: dateCfg.label,
+      slotId: slotCfg.id,
+      timeRange: `${slotCfg.startTime} - ${slotCfg.endTime}`,
+      slotLabel: slotCfg.label
+    }
+    setAnswers(prev => (prev[apptQ.id] ? prev : { ...prev, [apptQ.id]: preselectedAnswer }))
+  }, [preselectedDateParam, preselectedSlotParam, questions, slotCountsMap])
 
   // Set of member IDs evaluated by the current officer (or submitted in this form)
   const evaluatedMemberIds = useMemo(() => {
@@ -1099,6 +1135,19 @@ export const PublicEventFormPage: React.FC = () => {
       <div className="absolute -top-24 -left-24 w-80 h-80 rounded-full bg-indigo-600/15 blur-3xl pointer-events-none" />
 
       <div className="relative z-10 max-w-2xl w-full space-y-4 sm:space-y-6 my-4">
+        {fromPaxTecum && (
+          <div>
+            <Link
+              to="/pax-tecum"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 px-3.5 py-2 text-xs font-bold text-slate-100 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+              </svg>
+              <span>Back to Pax Tecum</span>
+            </Link>
+          </div>
+        )}
         
         {/* Form Header Card */}
         <div className="bg-white/95 backdrop-blur-2xl rounded-2xl sm:rounded-3xl shadow-2xl p-5 sm:p-8 border border-white/80 ring-1 ring-slate-900/5 relative overflow-hidden space-y-4">
