@@ -5,6 +5,7 @@ import { eventFormService } from '@/services/eventFormService'
 import { eventFormResponseService } from '@/services/eventFormResponseService'
 import { EventFormBuilderModal } from './EventFormBuilderModal'
 import { EventFormResponsesModal } from './EventFormResponsesModal'
+import { EventFormSlotStatusModal } from './EventFormSlotStatusModal'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { ConfirmModal, FormattedText, Button, EmptyState, StatusBadge, useToast, ActionMenu, CoordinatorWorkflowBanner } from '@/components'
 
@@ -25,6 +26,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
   const [loading, setLoading] = useState(true)
   const [isBuilderOpen, setIsBuilderOpen] = useState(false)
   const [responsesForm, setResponsesForm] = useState<EventForm | null>(null)
+  const [slotStatusForm, setSlotStatusForm] = useState<EventForm | null>(null)
 
   // Dialog State
   const [formToDelete, setFormToDelete] = useState<EventForm | null>(null)
@@ -272,6 +274,19 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
                       variant="secondary"
                       size="dense"
                       className="min-h-11"
+                      onClick={() => setSlotStatusForm(f)}
+                      icon={
+                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      }
+                    >
+                      Slots
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="dense"
+                      className="min-h-11"
                       onClick={() => setResponsesForm(f)}
                     >
                       View Responses ({f.responsesCount || 0})
@@ -421,6 +436,16 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
           }}
           eventId={eventId}
           formToEdit={formToEdit}
+        />
+      )}
+
+      {/* Quick Slot Availability Modal */}
+      {slotStatusForm && (
+        <EventFormSlotStatusModal
+          isOpen={!!slotStatusForm}
+          onClose={() => setSlotStatusForm(null)}
+          form={slotStatusForm}
+          onOpenResponses={() => setResponsesForm(slotStatusForm)}
         />
       )}
 

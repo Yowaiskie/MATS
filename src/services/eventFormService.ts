@@ -69,13 +69,25 @@ export const eventFormService = {
 
   /**
    * Get a single form by ID or custom URL slug.
+   * Checks document ID first when the identifier matches a standard 20-char Firestore ID to avoid a wasted query read.
    */
   async getFormById(formIdOrSlug: string): Promise<EventForm | null> {
     try {
-      // 1. Try querying by custom URL slug
+      const trimmed = formIdOrSlug.trim()
+      const looksLikeFirestoreId = /^[A-Za-z0-9]{20}$/.test(trimmed)
+
+      if (looksLikeFirestoreId) {
+        const docRef = doc(db, FORMS_COLLECTION, trimmed)
+        const docSnap = await getDoc(docRef)
+        if (docSnap.exists()) {
+          return { id: docSnap.id, ...docSnap.data() } as EventForm
+        }
+      }
+
+      // Query by custom URL slug
       const q = query(
         collection(db, FORMS_COLLECTION),
-        where('slug', '==', formIdOrSlug.toLowerCase().trim())
+        where('slug', '==', trimmed.toLowerCase())
       )
       const snapshot = await getDocs(q)
       if (!snapshot.empty) {
@@ -83,11 +95,15 @@ export const eventFormService = {
         return { id: d.id, ...d.data() } as EventForm
       }
 
-      // 2. Fallback to document ID
-      const docRef = doc(db, FORMS_COLLECTION, formIdOrSlug)
-      const docSnap = await getDoc(docRef)
-      if (!docSnap.exists()) return null
-      return { id: docSnap.id, ...docSnap.data() } as EventForm
+      if (!looksLikeFirestoreId) {
+        const docRef = doc(db, FORMS_COLLECTION, trimmed)
+        const docSnap = await getDoc(docRef)
+        if (docSnap.exists()) {
+          return { id: docSnap.id, ...docSnap.data() } as EventForm
+        }
+      }
+
+      return null
     } catch (error) {
       console.error('Error fetching form by ID or slug:', error)
       return null

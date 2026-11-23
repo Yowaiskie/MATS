@@ -497,9 +497,44 @@ service cloud.firestore {
     }
 
     match /eventFormResponses/{responseId} {
-      allow read: if true;
-      allow create: if true;
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() || (
+        isValidString(request.resource.data.formId, 1, 150) &&
+        request.resource.data.status == 'submitted' &&
+        exists(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)) &&
+        get(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)).data.status == 'published'
+      );
       allow update, delete: if isAuthenticated();
+    }
+
+    // Lightweight per-slot capacity counters (zero PII) for high-concurrency public forms
+    match /eventFormSlotCounts/{slotDocId} {
+      allow read: if true;
+      allow create: if isAuthenticated() || (
+        request.resource.data.keys().hasOnly(['formId', 'questionId', 'slotType', 'slotKey', 'count', 'maxCapacity', 'updatedAt']) &&
+        isValidString(request.resource.data.formId, 1, 150) &&
+        isValidString(request.resource.data.questionId, 1, 150) &&
+        request.resource.data.slotType in ['appointment', 'option'] &&
+        isValidString(request.resource.data.slotKey, 1, 200) &&
+        isValidInt(request.resource.data.maxCapacity, 1, 100000) &&
+        request.resource.data.count == 1 &&
+        request.resource.data.count <= request.resource.data.maxCapacity &&
+        exists(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)) &&
+        get(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)).data.status == 'published'
+      );
+      allow update: if isAuthenticated() || (
+        request.resource.data.keys().hasOnly(['formId', 'questionId', 'slotType', 'slotKey', 'count', 'maxCapacity', 'updatedAt']) &&
+        request.resource.data.formId == resource.data.formId &&
+        request.resource.data.questionId == resource.data.questionId &&
+        request.resource.data.slotType == resource.data.slotType &&
+        request.resource.data.slotKey == resource.data.slotKey &&
+        isValidInt(request.resource.data.maxCapacity, 1, 100000) &&
+        request.resource.data.count == resource.data.count + 1 &&
+        request.resource.data.count <= request.resource.data.maxCapacity &&
+        exists(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)) &&
+        get(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)).data.status == 'published'
+      );
+      allow delete: if isAuthenticated();
     }
 
     // ==========================================

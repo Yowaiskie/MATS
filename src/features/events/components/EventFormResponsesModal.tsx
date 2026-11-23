@@ -367,6 +367,24 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
 
   const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false)
   const [deletingAll, setDeletingAll] = useState(false)
+  const [syncingSlots, setSyncingSlots] = useState(false)
+
+  const handleSyncSlotCounts = async () => {
+    if (!form.id || syncingSlots) return
+    setSyncingSlots(true)
+    try {
+      const result = await eventFormResponseService.reconcileSlotCountsForForm(form.id)
+      toast.success(
+        'Slot Counts Synced',
+        `Synchronized ${result.syncedSlots} active slot counter(s) across ${result.totalResponses} response(s).`
+      )
+    } catch (err: any) {
+      console.error('Failed to sync slot counts:', err)
+      toast.error('Sync Failed', err.message || 'Could not synchronize slot counts.')
+    } finally {
+      setSyncingSlots(false)
+    }
+  }
 
   const handleDeleteResponse = async () => {
     if (!responseToDelete?.id) return
@@ -1000,15 +1018,29 @@ export const EventFormResponsesModal: React.FC<EventFormResponsesModalProps> = (
                       </span>
                     </div>
                   </div>
-                  {appointmentSlotFilter !== 'all' && (
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
                     <button
                       type="button"
-                      onClick={() => setAppointmentSlotFilter('all')}
-                      className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline self-start sm:self-auto cursor-pointer"
+                      onClick={handleSyncSlotCounts}
+                      disabled={syncingSlots}
+                      className="px-3 py-1.5 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold transition cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                      title="Recalculate public slot counters from actual responses"
                     >
-                      Clear Slot Filter
+                      <svg className={`w-3.5 h-3.5 ${syncingSlots ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>{syncingSlots ? 'Syncing...' : 'Sync Slot Counts'}</span>
                     </button>
-                  )}
+                    {appointmentSlotFilter !== 'all' && (
+                      <button
+                        type="button"
+                        onClick={() => setAppointmentSlotFilter('all')}
+                        className="text-xs font-bold text-indigo-600 hover:text-indigo-800 underline cursor-pointer"
+                      >
+                        Clear Slot Filter
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-4">
