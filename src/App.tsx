@@ -30,6 +30,7 @@ const ChangePasswordPage = lazy(() => import('@/features/authentication/pages/Ch
 const PublicSchedulePage = lazy(() => import('@/features/schedules/pages/PublicSchedulePage').then(m => ({ default: m.PublicSchedulePage })))
 const PublicExcusePage = lazy(() => import('@/features/excuse/PublicExcusePage').then(m => ({ default: m.PublicExcusePage })))
 const PublicEventFormPage = lazy(() => import('@/features/events/pages/PublicEventFormPage').then(m => ({ default: m.PublicEventFormPage })))
+const PaxTecumLandingPage = lazy(() => import('@/features/events/pages/PaxTecumLandingPage').then(m => ({ default: m.PaxTecumLandingPage })))
 const AdminExcusePage = lazy(() => import('@/features/excuse/AdminExcusePage').then(m => ({ default: m.AdminExcusePage })))
 const FinancePage = lazy(() => import('@/features/finance/pages/FinancePage').then(m => ({ default: m.FinancePage })))
 const EventsPage = lazy(() => import('@/features/events/pages/EventsPage').then(m => ({ default: m.EventsPage })))
@@ -94,6 +95,16 @@ function App() {
                 element={
                   <PublicMaintenanceGuard>
                     <PublicExcusePage />
+                  </PublicMaintenanceGuard>
+                } 
+              />
+
+              {/* Public Pax Tecum Landing Page */}
+              <Route 
+                path="/pax-tecum" 
+                element={
+                  <PublicMaintenanceGuard>
+                    <PaxTecumLandingPage />
                   </PublicMaintenanceGuard>
                 } 
               />

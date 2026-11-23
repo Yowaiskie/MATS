@@ -20,6 +20,7 @@ import { ExcusePolicySettingsCard } from '../components/ExcusePolicySettingsCard
 import { OrderRotationSettingsCard } from '../components/OrderRotationSettingsCard'
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
+import { PaxTecumSettingsCard } from '../components/PaxTecumSettingsCard'
 
 const mockSchedule: Schedule = {
   id: 'mock-123',
@@ -77,7 +78,7 @@ const mockUntakenSchedules: Schedule[] = [
   }
 ]
 
-type TabId = 'policy' | 'excuse_policy' | 'order_rotation' | 'template' | 'reminder_template' | 'signatures' | 'maintenance'
+type TabId = 'policy' | 'excuse_policy' | 'order_rotation' | 'template' | 'reminder_template' | 'signatures' | 'pax_tecum' | 'maintenance'
 
 const ShieldIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
@@ -131,7 +132,7 @@ const CopyIcon: React.FC<{ className?: string }> = ({ className }) => (
   </svg>
 )
 
-const VALID_TABS: TabId[] = ['policy', 'excuse_policy', 'order_rotation', 'template', 'reminder_template', 'signatures', 'maintenance']
+const VALID_TABS: TabId[] = ['policy', 'excuse_policy', 'order_rotation', 'template', 'reminder_template', 'signatures', 'pax_tecum', 'maintenance']
 
 const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'policy', label: 'Attendance Policy', icon: <ShieldIcon className="w-4 h-4" /> },
@@ -140,6 +141,7 @@ const TABS: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: 'template', label: 'Report Template', icon: <FileTextIcon className="w-4 h-4" /> },
   { id: 'reminder_template', label: 'Reminder Template', icon: <BellIcon className="w-4 h-4" /> },
   { id: 'signatures', label: 'Signature Presets', icon: <SignatureIcon className="w-4 h-4" /> },
+  { id: 'pax_tecum', label: 'Pax Tecum Landing', icon: <FileTextIcon className="w-4 h-4" /> },
   { id: 'maintenance', label: 'Maintenance Mode', icon: <WrenchIcon className="w-4 h-4" /> }
 ]
 
@@ -331,6 +333,13 @@ export const SettingsPage: React.FC = () => {
 
           {activeTab === 'signatures' && (
             <SignatureSettingsCard
+              onNotifySuccess={(msg) => toast.success(msg)}
+              onNotifyError={(msg) => toast.error(msg)}
+            />
+          )}
+
+          {activeTab === 'pax_tecum' && (
+            <PaxTecumSettingsCard
               onNotifySuccess={(msg) => toast.success(msg)}
               onNotifyError={(msg) => toast.error(msg)}
             />
