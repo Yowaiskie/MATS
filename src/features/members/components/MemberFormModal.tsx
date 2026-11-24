@@ -174,10 +174,6 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       newErrors.firstName = 'First Name is required.'
     }
     
-    if (!dateOfBirth.trim()) {
-      newErrors.dateOfBirth = 'Date of Birth is required for excuse verification.'
-    }
-    
     if (!lastName.trim()) {
       newErrors.lastName = 'Last Name is required.'
     }
@@ -254,7 +250,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
         order: finalOrder,
         status,
         phoneNumber: phoneNumber.trim() || undefined,
-        dateOfBirth: dateOfBirth.trim(),
+        dateOfBirth: dateOfBirth.trim() || undefined,
         suspensionReason: status === 'suspended' ? finalSuspensionReason : undefined,
         suspensionStartDate: status === 'suspended' ? suspensionStartDate : undefined,
         suspensionEndDate: status === 'suspended' ? (suspensionDurationType === 'indefinite' ? undefined : suspensionEndDate) : undefined,
@@ -476,7 +472,7 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
           {/* Date of Birth */}
           <div>
             <label htmlFor="modal-dob" className="block text-[10px] font-bold uppercase tracking-wider text-gray-400">
-              Date of Birth *
+              Date of Birth <span className="font-normal lowercase text-gray-400">(optional)</span>
             </label>
             <FormInput
               id="modal-dob"
@@ -485,8 +481,17 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
               onChange={(e) => setDateOfBirth(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
               disabled={loading}
-              required
             />
+            {!dateOfBirth.trim() && (
+              <div className="mt-2 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50/90 px-3 py-2 text-[11px] font-semibold text-amber-800">
+                <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>
+                  Birthday is not set yet. You can still save this member, but excuse verification and birthday reminders will stay inactive until a Date of Birth is added.
+                </span>
+              </div>
+            )}
             {errors.dateOfBirth && <p className="mt-1 text-xs text-red-600 font-medium">{errors.dateOfBirth}</p>}
           </div>
 
