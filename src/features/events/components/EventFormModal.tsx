@@ -43,6 +43,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
   
   const [headUid, setHeadUid] = useState('')
   const [enabledModules, setEnabledModules] = useState<EventOptionalModule[]>([])
+  const [showOnDashboardCalendar, setShowOnDashboardCalendar] = useState(false)
   const [warningModules, setWarningModules] = useState<EventOptionalModule[] | null>(null)
   const [users, setUsers] = useState<UserProfile[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -73,6 +74,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setStage(editItem.stage)
         setHeadUid(editItem.headUid || profile?.uid || '')
         setEnabledModules(getResolvedEventModules(editItem))
+        setShowOnDashboardCalendar(Boolean(editItem.showOnDashboardCalendar))
       } else {
         setTitle('')
         setDescription('')
@@ -85,6 +87,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setStage('Planning')
         setHeadUid(profile?.uid || '')
         setEnabledModules([])
+        setShowOnDashboardCalendar(false)
       }
       setWarningModules(null)
       setError(null)
@@ -163,6 +166,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             headUid: selectedHeadUid,
             headName: selectedHeadName,
             enabledModules,
+            showOnDashboardCalendar,
           },
           profile?.email || 'System'
         )
@@ -181,6 +185,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             headUid: selectedHeadUid,
             headName: selectedHeadName,
             enabledModules,
+            showOnDashboardCalendar,
             createdByUid: profile?.uid || '',
             createdByName: profile?.displayName || profile?.email || 'Unknown'
           },
@@ -359,7 +364,25 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
               </div>
             </div>
 
-            <div className="pt-2 border-t border-slate-100">
+            <div className="pt-2 border-t border-slate-100 space-y-3">
+              <label className="flex items-start gap-3 p-3 min-h-[44px] rounded-xl border border-slate-200 bg-slate-50/60 hover:bg-slate-50 transition-colors cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={showOnDashboardCalendar}
+                  disabled={submitting}
+                  onChange={(e) => setShowOnDashboardCalendar(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 shrink-0 cursor-pointer"
+                />
+                <div className="min-w-0">
+                  <div className="text-xs font-extrabold text-slate-800 leading-tight">
+                    Show on everyone&apos;s Dashboard Calendar
+                  </div>
+                  <p className="text-[11px] font-medium text-slate-500 leading-snug mt-0.5">
+                    Share this event date with all logged-in members (non-team members see a read-only preview).
+                  </p>
+                </div>
+              </label>
+
               <EventModuleSelector
                 selected={enabledModules}
                 onChange={(next) => {

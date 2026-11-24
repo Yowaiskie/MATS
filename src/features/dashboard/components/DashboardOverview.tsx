@@ -9,6 +9,7 @@ import { FilterDropdown } from '@/components'
 import { useAuth } from '@/features/authentication/AuthContext'
 import { Loading } from '@/components/Loading'
 import { getReportOrderScope } from '@/utils/reportScope'
+import { DashboardCalendarCard } from './DashboardCalendarCard'
 import {
   AreaChart,
   Area,
@@ -611,6 +612,13 @@ export const DashboardOverview: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Interactive Ministry Calendar (Events, Assigned Tasks, Mass Duties) */}
+      <DashboardCalendarCard
+        monthSchedules={data.monthSchedules}
+        members={data.members}
+        parishToday={parishToday}
+      />
 
       {/* High-Density Micro Analytics Row (Concept 6 Charts) */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

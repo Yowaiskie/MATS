@@ -30,6 +30,11 @@ export interface Event {
    * Core tabs (overview, team, tasks) are always enabled.
    */
   enabledModules?: EventOptionalModule[];
+  /**
+   * When true, this event appears on all logged-in users' Dashboard Calendar.
+   * Non-team members see a read-only preview; team members/head/creator/admins can open the workspace.
+   */
+  showOnDashboardCalendar?: boolean;
   linkedScheduleId?: string;
   linkedPublicationId?: string;
   linkedFundRequestIds?: string[];

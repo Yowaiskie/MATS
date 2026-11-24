@@ -8,6 +8,7 @@ import { db } from '../firebase/config.ts'
 import type { Schedule } from '../types/schedule.ts'
 import type { AttendanceSession } from '../types/attendance.ts'
 import type { Member } from '../types/member.ts'
+import type { Event, EventTask } from '../types/event.ts'
 import { getScheduleStatus, getParishTodayDate } from '../utils/scheduleUtils.ts'
 import { publicationService } from './publicationService.ts'
 import type { SuspensionPolicySettings } from './settingsService.ts'
@@ -550,6 +551,136 @@ export const dashboardService = {
     } catch (err) {
       console.error(err)
       return 0
+    }
+  },
+
+  /**
+   * Loads active events, the user's team assignments, and assigned event tasks
+   * for the Dashboard Calendar using one-time getDocs (Spark-friendly, no onSnapshot).
+   */
+  async getMyDashboardCalendarSourceData(params: {
+    uid: string
+    displayName: string
+    email?: string
+    memberId?: string
+    canManageEvents: boolean
+  }): Promise<{
+    events: Event[]
+    myEventIds: string[]
+    tasks: EventTask[]
+    eventTitles: Record<string, string>
+  }> {
+    const { uid, displayName, email, memberId, canManageEvents } = params
+    const identifier = displayName || email || ''
+    const uidCandidates = [...new Set([uid, memberId].filter(Boolean))] as string[]
+
+    const eventsSnap = await getDocs(
+      query(collection(db, 'events'), where('isArchived', '==', false))
+    )
+    const allActiveEvents: Event[] = eventsSnap.docs.map(d => ({
+      id: d.id,
+      ...d.data()
+    })) as Event[]
+
+    const eventTitles: Record<string, string> = {}
+    allActiveEvents.forEach(ev => {
+      eventTitles[ev.id] = ev.title
+    })
+
+    // Collect event IDs where the user is assigned as a team member
+    const myEventIdSet = new Set<string>()
+    const assignmentPromises: Promise<void>[] = []
+
+    if (uidCandidates.length > 0) {
+      assignmentPromises.push(
+        getDocs(
+          query(collection(db, 'eventAssignments'), where('memberUid', 'in', uidCandidates))
+        ).then(snap => {
+          snap.forEach(d => {
+            const eventId = d.data().eventId
+            if (eventId && eventTitles[eventId]) myEventIdSet.add(eventId)
+          })
+        }).catch(() => {})
+      )
+    }
+
+    if (identifier) {
+      assignmentPromises.push(
+        getDocs(
+          query(collection(db, 'eventAssignments'), where('memberName', '==', identifier))
+        ).then(snap => {
+          const matchingMemberUids = new Set(
+            snap.docs
+              .filter(d => eventTitles[d.data().eventId])
+              .map(d => d.data().memberUid)
+          )
+          snap.forEach(d => {
+            const data = d.data()
+            const matchesIdentity =
+              data.memberUid === uid ||
+              data.memberUid === memberId ||
+              (!memberId && matchingMemberUids.size === 1)
+            if (data.eventId && eventTitles[data.eventId] && matchesIdentity) {
+              myEventIdSet.add(data.eventId)
+            }
+          })
+        }).catch(() => {})
+      )
+    }
+
+    // Collect non-archived eventTasks assigned to the user
+    const tasksMap = new Map<string, EventTask>()
+    const taskPromises: Promise<void>[] = []
+
+    if (uidCandidates.length > 0) {
+      taskPromises.push(
+        getDocs(
+          query(
+            collection(db, 'eventTasks'),
+            where('assignedMemberUid', 'in', uidCandidates),
+            where('isArchived', '==', false)
+          )
+        ).then(snap => {
+          snap.forEach(d => {
+            const task = { id: d.id, ...d.data() } as EventTask
+            if (eventTitles[task.eventId]) tasksMap.set(task.id, task)
+          })
+        }).catch(() => {})
+      )
+    }
+
+    if (identifier) {
+      taskPromises.push(
+        getDocs(
+          query(
+            collection(db, 'eventTasks'),
+            where('assignedMemberName', '==', identifier),
+            where('isArchived', '==', false)
+          )
+        ).then(snap => {
+          snap.forEach(d => {
+            const task = { id: d.id, ...d.data() } as EventTask
+            if (eventTitles[task.eventId]) tasksMap.set(task.id, task)
+          })
+        }).catch(() => {})
+      )
+    }
+
+    await Promise.all([...assignmentPromises, ...taskPromises])
+
+    const visibleEvents = allActiveEvents.filter(ev => {
+      if (canManageEvents) return true
+      if (ev.createdByUid === uid || ev.headUid === uid) return true
+      if (myEventIdSet.has(ev.id)) return true
+      if (ev.showOnDashboardCalendar) return true
+      return false
+    })
+
+    return {
+      events: visibleEvents,
+      myEventIds: Array.from(myEventIdSet),
+      tasks: Array.from(tasksMap.values()),
+      eventTitles
     }
   }
 }
