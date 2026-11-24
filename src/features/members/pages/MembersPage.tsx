@@ -166,6 +166,16 @@ export const MembersPage: React.FC = () => {
     }
   }
 
+  /**
+   * Refreshes member lists after a write mutation with a single fresh Firestore read
+   * for active directory (reusing the result across both permanent and displayed lists).
+   */
+  const refreshMemberLists = async () => {
+    const freshPermanent = await loadAllPermanent(true)
+    await loadMembers(false, showArchived ? undefined : freshPermanent, showArchived)
+    queryClient.invalidateQueries({ queryKey: ['dashboard-overview'] })
+  }
+
   // Initial load
   useEffect(() => {
     const init = async () => {
@@ -294,8 +304,7 @@ export const MembersPage: React.FC = () => {
           toast.success('Member Added', `Successfully added ${input.firstName} ${input.lastName} to member directory.`)
         }
       }
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       if (selectedCycle) {
         await loadCycleMemberships(selectedCycle.id)
         await loadCycles()
@@ -317,8 +326,7 @@ export const MembersPage: React.FC = () => {
     setConfirmArchive(null)
     try {
       await memberService.deleteMember(id, profile?.email || 'Admin')
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       if (selectedCycle) {
         await loadCycleMemberships(selectedCycle.id)
       }
@@ -341,8 +349,7 @@ export const MembersPage: React.FC = () => {
       await authService.verifyPassword(password)
       await memberService.deleteMember(id, profile?.email || 'Admin')
       setConfirmDelete(null)
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       if (selectedCycle) {
         await loadCycleMemberships(selectedCycle.id)
       }
@@ -357,8 +364,7 @@ export const MembersPage: React.FC = () => {
     try {
       const member = members.find(m => m.id === id)
       await memberService.restoreMember(id, profile?.email || 'Admin')
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Member Restored', `${member ? member.firstName + ' ' + member.lastName : 'Member'} has been restored to active.`)
     } catch (err: any) {
       console.error(err)
@@ -369,8 +375,7 @@ export const MembersPage: React.FC = () => {
   const handleImport = async (inputs: MemberInput[]) => {
     try {
       await memberService.importMembersBatch(inputs, profile?.email || 'Admin')
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Import Successful', `Successfully imported ${inputs.length} member records.`)
     } catch (err: any) {
       console.error(err)
@@ -407,8 +412,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkArchiveOpen(false)
       setSelectedIds(new Set())
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Bulk Delete Complete', `${ids.length} member(s) have been permanently deleted.`)
     } catch (err: any) {
       console.error(err)
@@ -425,8 +429,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkRestoreMembers(ids, profile?.email || 'Admin')
       setBulkRestoreOpen(false)
       setSelectedIds(new Set())
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Bulk Restore Complete', `${ids.length} member(s) have been restored to active.`)
     } catch (err: any) {
       console.error(err)
@@ -444,8 +447,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkDeleteMembers(ids, profile?.email || 'Admin')
       setBulkDeleteOpen(false)
       setSelectedIds(new Set())
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Bulk Delete Complete', `${ids.length} member(s) have been permanently deleted.`)
     } catch (err: any) {
       console.error(err)
@@ -462,8 +464,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkUpdateRank(ids, newRank, profile?.email || 'Admin')
       setBulkRankEditOpen(false)
       setSelectedIds(new Set())
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Bulk Rank Update Complete', `Successfully updated rank to '${newRank}' for ${ids.length} member(s).`)
     } catch (err: any) {
       console.error(err)
@@ -480,8 +481,7 @@ export const MembersPage: React.FC = () => {
       await memberService.bulkUpdateOrder(ids, newOrder, profile?.email || 'Admin')
       setBulkOrderEditOpen(false)
       setSelectedIds(new Set())
-      await loadMembers(false)
-      await loadAllPermanent()
+      await refreshMemberLists()
       toast.success('Bulk Order Update Complete', `Successfully updated order to '${newOrder || 'Unassigned'}' for ${ids.length} member(s).`)
     } catch (err: any) {
       console.error(err)
