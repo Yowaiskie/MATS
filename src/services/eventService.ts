@@ -6,10 +6,13 @@ import {
   getDocs, 
   getDoc,
   serverTimestamp,
-  deleteDoc
+  deleteDoc,
+  query,
+  where,
+  limit
 } from 'firebase/firestore'
 import { db } from '@/firebase/config'
-import type { Event } from '@/types/event'
+import type { Event, EventOptionalModule } from '@/types/event'
 import { auditService } from '@/services/auditService'
 
 const EVENTS_COLLECTION = 'events'
@@ -121,5 +124,39 @@ export const eventService = {
       performedBy,
       { eventId: id }
     )
+  },
+
+  /**
+   * Checks which of the provided optional modules already have persisted records
+   * for this event using minimal limit(1) Firestore queries.
+   */
+  async getModulesWithExistingData(
+    eventId: string,
+    modules: EventOptionalModule[]
+  ): Promise<EventOptionalModule[]> {
+    const collectionsByModule: Partial<Record<EventOptionalModule, string[]>> = {
+      finance: ['eventIncome', 'eventExpenses', 'eventFundTransfers'],
+      forms: ['eventForms'],
+      requirements: ['eventRequirements'],
+      contributions: ['eventContributions', 'eventContributionPurposes']
+    }
+
+    const checks = await Promise.all(
+      modules.map(async (mod): Promise<EventOptionalModule | null> => {
+        const colNames = collectionsByModule[mod]
+        if (!colNames || colNames.length === 0) return null
+        for (const colName of colNames) {
+          const snap = await getDocs(
+            query(collection(db, colName), where('eventId', '==', eventId), limit(1))
+          )
+          if (!snap.empty) {
+            return mod
+          }
+        }
+        return null
+      })
+    )
+
+    return checks.filter((mod): mod is EventOptionalModule => mod !== null)
   }
 }
