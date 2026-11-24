@@ -523,11 +523,12 @@ service cloud.firestore {
         get(/databases/$(database)/documents/eventForms/$(request.resource.data.formId)).data.status == 'published'
       );
       allow update: if isAuthenticated() || (
-        request.resource.data.keys().hasOnly(['formId', 'questionId', 'slotType', 'slotKey', 'count', 'maxCapacity', 'updatedAt']) &&
+        request.resource.data.keys().hasOnly(['formId', 'questionId', 'slotType', 'slotKey', 'count', 'paperReservedCount', 'maxCapacity', 'updatedAt']) &&
         request.resource.data.formId == resource.data.formId &&
         request.resource.data.questionId == resource.data.questionId &&
         request.resource.data.slotType == resource.data.slotType &&
         request.resource.data.slotKey == resource.data.slotKey &&
+        request.resource.data.get('paperReservedCount', 0) == resource.data.get('paperReservedCount', 0) &&
         isValidInt(request.resource.data.maxCapacity, 1, 100000) &&
         request.resource.data.count == resource.data.count + 1 &&
         request.resource.data.count <= request.resource.data.maxCapacity &&

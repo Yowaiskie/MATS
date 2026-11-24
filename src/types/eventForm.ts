@@ -136,6 +136,7 @@ export interface EventFormSlotCount {
   slotType: SlotCounterType
   slotKey: string
   count: number
+  paperReservedCount?: number
   maxCapacity: number
   updatedAt?: Timestamp | FieldValue | string
 }
@@ -150,6 +151,9 @@ export interface EventFormResponse {
   respondentEmail?: string
   answers: Record<string, string | string[] | number | boolean>
   status: ResponseStatus
+  submissionSource?: 'online' | 'paper'
+  encodedByUid?: string
+  encodedByName?: string
   submittedAt?: Timestamp | FieldValue | string
   updatedAt?: Timestamp | FieldValue | string
 }
