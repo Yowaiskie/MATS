@@ -8,8 +8,14 @@ import { useAuth } from '@/features/authentication/AuthContext'
 import { MemberSearchDropdown } from '@/components/MemberSearchDropdown'
 import { Button, CustomSelect, DatePicker, TimePicker } from '@/components'
 import { useToast } from '@/context/ToastContext'
-import type { EventStage, Priority, Event } from '@/types/event'
+import type { EventStage, Priority, Event, EventOptionalModule } from '@/types/event'
 import type { UserProfile } from '@/types/auth'
+import {
+  getEventModuleLabel,
+  getNewlyDisabledModules,
+  getResolvedEventModules
+} from '@/utils/eventModules'
+import { EventModuleSelector } from './EventModuleSelector'
 
 interface EventFormModalProps {
   isOpen: boolean
@@ -36,6 +42,8 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
   const [stage, setStage] = useState<EventStage>('Planning')
   
   const [headUid, setHeadUid] = useState('')
+  const [enabledModules, setEnabledModules] = useState<EventOptionalModule[]>([])
+  const [warningModules, setWarningModules] = useState<EventOptionalModule[] | null>(null)
   const [users, setUsers] = useState<UserProfile[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -64,6 +72,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setPriority(editItem.priority)
         setStage(editItem.stage)
         setHeadUid(editItem.headUid || profile?.uid || '')
+        setEnabledModules(getResolvedEventModules(editItem))
       } else {
         setTitle('')
         setDescription('')
@@ -75,7 +84,9 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
         setPriority('Medium')
         setStage('Planning')
         setHeadUid(profile?.uid || '')
+        setEnabledModules([])
       }
+      setWarningModules(null)
       setError(null)
       setFieldErrors({})
     }
@@ -112,6 +123,26 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
     setError(null)
 
     try {
+      if (editItem) {
+        const previousModules = getResolvedEventModules(editItem)
+        const newlyDisabled = getNewlyDisabledModules(previousModules, enabledModules)
+        if (newlyDisabled.length > 0 && !warningModules) {
+          try {
+            const modulesWithData = await eventService.getModulesWithExistingData(editItem.id, newlyDisabled)
+            if (modulesWithData.length > 0) {
+              setWarningModules(modulesWithData)
+              setSubmitting(false)
+              return
+            }
+          } catch (checkErr) {
+            console.error('Failed to check existing module data:', checkErr)
+            setWarningModules(newlyDisabled)
+            setSubmitting(false)
+            return
+          }
+        }
+      }
+
       const selectedHead = users.find(u => u.uid === headUid)
       const selectedHeadName = selectedHead?.displayName || selectedHead?.email || profile?.displayName || profile?.email || 'Unknown'
       const selectedHeadUid = headUid || profile?.uid || ''
@@ -131,6 +162,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             stage,
             headUid: selectedHeadUid,
             headName: selectedHeadName,
+            enabledModules,
           },
           profile?.email || 'System'
         )
@@ -148,6 +180,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             stage,
             headUid: selectedHeadUid,
             headName: selectedHeadName,
+            enabledModules,
             createdByUid: profile?.uid || '',
             createdByName: profile?.displayName || profile?.email || 'Unknown'
           },
@@ -325,6 +358,35 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
                 />
               </div>
             </div>
+
+            <div className="pt-2 border-t border-slate-100">
+              <EventModuleSelector
+                selected={enabledModules}
+                onChange={(next) => {
+                  setEnabledModules(next)
+                  if (warningModules) setWarningModules(null)
+                }}
+                disabled={submitting}
+              />
+            </div>
+
+            {warningModules && warningModules.length > 0 && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3.5 text-xs text-amber-950 space-y-1.5">
+                <div className="font-extrabold flex items-center gap-2 text-amber-900">
+                  <svg className="w-4 h-4 shrink-0 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  Existing records found in hidden tabs
+                </div>
+                <p className="font-medium text-amber-900/90 leading-relaxed">
+                  The following features already have saved data:{' '}
+                  <span className="font-extrabold">
+                    {warningModules.map(getEventModuleLabel).join(', ')}
+                  </span>
+                  . Hiding them will NOT delete any data. Click Save again to confirm.
+                </p>
+              </div>
+            )}
           </ValidatedForm>
         </div>
         
@@ -349,7 +411,7 @@ export const EventFormModal: React.FC<EventFormModalProps> = ({ isOpen, onClose,
             loading={submitting}
             disabled={submitting}
           >
-            {editItem ? 'Save Changes' : 'Create Event'}
+            {warningModules ? 'Save & Hide Tabs (Keep Data)' : editItem ? 'Save Changes' : 'Create Event'}
           </Button>
         </div>
       </div>

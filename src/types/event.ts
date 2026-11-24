@@ -1,6 +1,15 @@
 export type EventStage = 'Planning' | 'Preparation' | 'Ready' | 'Ongoing' | 'Completed' | 'Cancelled';
 export type Priority = 'Low' | 'Medium' | 'High' | 'Critical';
 export type TaskStatus = 'Not Started' | 'In Progress' | 'Waiting' | 'Blocked' | 'Completed' | 'Cancelled' | 'Overdue';
+export type EventOptionalModule = 'timeline' | 'finance' | 'forms' | 'requirements' | 'contributions';
+
+export const ALL_EVENT_OPTIONAL_MODULES: EventOptionalModule[] = [
+  'timeline',
+  'finance',
+  'forms',
+  'requirements',
+  'contributions',
+];
 
 export interface Event {
   id: string;
@@ -15,6 +24,12 @@ export interface Event {
   priority: Priority;
   headUid: string;
   headName: string;
+  /**
+   * Optional workspace tabs enabled for this event.
+   * When undefined (legacy events created before optional modules), all optional modules remain enabled.
+   * Core tabs (overview, team, tasks) are always enabled.
+   */
+  enabledModules?: EventOptionalModule[];
   linkedScheduleId?: string;
   linkedPublicationId?: string;
   linkedFundRequestIds?: string[];

@@ -12,12 +12,15 @@ import { EventFormsTab } from '../components/EventFormsTab'
 import { EventContributionsBoard } from '../components/EventContributionsBoard'
 import { EventRequirementsTab } from '../components/EventRequirementsTab'
 import { EventFormModal } from '../components/EventFormModal'
+import { EventModulesModal } from '../components/EventModulesModal'
 import { dashboardService } from '@/services/dashboardService'
 import { eventTaskService } from '@/services/eventTaskService'
 import { authService } from '@/services/authService'
 import { PasswordConfirmModal } from '@/components/Dialog'
 import { Button, StatusBadge } from '@/components'
 import { useToast } from '@/context/ToastContext'
+import { isEventModuleEnabled } from '@/utils/eventModules'
+import type { EventOptionalModule } from '@/types/event'
 
 type TabType = 'overview' | 'team' | 'tasks' | 'timeline' | 'finance' | 'forms' | 'contributions' | 'requirements'
 
@@ -31,6 +34,7 @@ export const EventDetailsPage: React.FC = () => {
   const [accessDenied, setAccessDenied] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('tasks')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isModulesModalOpen, setIsModulesModalOpen] = useState(false)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const { profile, canAction } = useAuth()
 
@@ -119,6 +123,30 @@ export const EventDetailsPage: React.FC = () => {
   )
   if (!event) return <div className="p-8 text-center text-red-500">Event not found.</div>
 
+  const isHeadOrCreator = Boolean(event && (event.createdByUid === profile?.uid || event.headUid === profile?.uid))
+  const canEditEvent = Boolean(canAction('canEditProjects') || canAction('canManageEvents') || isHeadOrCreator)
+  const canViewFinance = Boolean(canAction('canViewEventFinance') || isHeadOrCreator)
+  const canViewContributions = Boolean(canAction('canViewEventContributions') || isHeadOrCreator)
+
+  const showTimeline = isEventModuleEnabled(event, 'timeline')
+  const showFinance = isEventModuleEnabled(event, 'finance') && canViewFinance
+  const showForms = isEventModuleEnabled(event, 'forms')
+  const showRequirements = isEventModuleEnabled(event, 'requirements')
+  const showContributions = isEventModuleEnabled(event, 'contributions') && canViewContributions
+
+  const visibleTabs: { key: TabType; label: string }[] = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'team', label: 'Team' },
+    { key: 'tasks', label: 'Tasks' },
+    ...(showTimeline ? [{ key: 'timeline' as TabType, label: 'Timeline' }] : []),
+    ...(showFinance ? [{ key: 'finance' as TabType, label: 'Finance' }] : []),
+    ...(showForms ? [{ key: 'forms' as TabType, label: 'Forms' }] : []),
+    ...(showRequirements ? [{ key: 'requirements' as TabType, label: 'Requirements' }] : []),
+    ...(showContributions ? [{ key: 'contributions' as TabType, label: 'Contributions' }] : [])
+  ]
+
+  const effectiveTab: TabType = visibleTabs.some(t => t.key === activeTab) ? activeTab : 'tasks'
+
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
@@ -134,7 +162,7 @@ export const EventDetailsPage: React.FC = () => {
           <p className="text-sm text-gray-500 mt-1">{event.description}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {(canAction('canDeleteEvents') || canAction('canManageEvents') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
+          {(canAction('canDeleteEvents') || canAction('canManageEvents') || isHeadOrCreator) && (
             <Button
               variant="danger"
               size="sm"
@@ -143,7 +171,7 @@ export const EventDetailsPage: React.FC = () => {
               Delete Workspace
             </Button>
           )}
-          {(canAction('canEditProjects') || canAction('canManageEvents') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) && (
+          {canEditEvent && (
             <Button
               variant="secondary"
               size="sm"
@@ -158,22 +186,13 @@ export const EventDetailsPage: React.FC = () => {
 
       {/* Sleek Modern Segmented Tabs Bar (Mobile Swipeable & Desktop Responsive) */}
       <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-        {[
-          { key: 'overview', label: 'Overview' },
-          { key: 'team', label: 'Team' },
-          { key: 'tasks', label: 'Tasks' },
-          { key: 'timeline', label: 'Timeline' },
-          ...((canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? [{ key: 'finance', label: 'Finance' }] : []),
-          { key: 'forms', label: 'Forms' },
-          { key: 'requirements', label: 'Requirements' },
-          ...((canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? [{ key: 'contributions', label: 'Contributions' }] : [])
-        ].map((t) => {
-          const isActive = activeTab === t.key
+        {visibleTabs.map((t) => {
+          const isActive = effectiveTab === t.key
           return (
             <button
               key={t.key}
               type="button"
-              onClick={() => setActiveTab(t.key as any)}
+              onClick={() => setActiveTab(t.key)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer ${
                 isActive
                   ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/25 ring-1 ring-blue-700/20'
@@ -184,25 +203,39 @@ export const EventDetailsPage: React.FC = () => {
             </button>
           )
         })}
+
+        {canEditEvent && (
+          <button
+            type="button"
+            onClick={() => setIsModulesModalOpen(true)}
+            className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 border border-indigo-200/80 transition-colors shrink-0 cursor-pointer"
+            title="Add or hide optional event tabs"
+          >
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+            </svg>
+            <span className="whitespace-nowrap">Features</span>
+          </button>
+        )}
       </div>
 
       {/* Content Area */}
-      {activeTab === 'overview' ? (
+      {effectiveTab === 'overview' ? (
         <OverviewTab event={event} />
-      ) : activeTab === 'tasks' ? (
-        <TaskBoard eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
-      ) : activeTab === 'team' ? (
-        <TeamBoard eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
-      ) : activeTab === 'timeline' ? (
+      ) : effectiveTab === 'tasks' ? (
+        <TaskBoard eventId={event.id!} isHeadOrCreator={isHeadOrCreator} />
+      ) : effectiveTab === 'team' ? (
+        <TeamBoard eventId={event.id!} isHeadOrCreator={isHeadOrCreator} />
+      ) : effectiveTab === 'timeline' && showTimeline ? (
         <TimelineView eventId={event.id!} />
-      ) : activeTab === 'finance' && (canAction('canViewEventFinance') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? (
-        <EventFinanceBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
-      ) : activeTab === 'forms' ? (
-        <EventFormsTab eventId={event.id!} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
-      ) : activeTab === 'requirements' ? (
-        <EventRequirementsTab key={event.id} eventId={event.id} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
-      ) : activeTab === 'contributions' && (canAction('canViewEventContributions') || event.createdByUid === profile?.uid || event.headUid === profile?.uid) ? (
-        <EventContributionsBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={event.createdByUid === profile?.uid || event.headUid === profile?.uid} />
+      ) : effectiveTab === 'finance' && showFinance ? (
+        <EventFinanceBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={isHeadOrCreator} />
+      ) : effectiveTab === 'forms' && showForms ? (
+        <EventFormsTab eventId={event.id!} isHeadOrCreator={isHeadOrCreator} />
+      ) : effectiveTab === 'requirements' && showRequirements ? (
+        <EventRequirementsTab key={event.id} eventId={event.id} eventName={event.title} isHeadOrCreator={isHeadOrCreator} />
+      ) : effectiveTab === 'contributions' && showContributions ? (
+        <EventContributionsBoard eventId={event.id!} eventName={event.title} isHeadOrCreator={isHeadOrCreator} />
       ) : (
         <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-8 text-center text-gray-500">
           This tab content is not implemented yet.
@@ -218,6 +251,18 @@ export const EventDetailsPage: React.FC = () => {
             fetchEvent()
           }}
           editItem={event}
+        />
+      )}
+
+      {isModulesModalOpen && (
+        <EventModulesModal
+          isOpen={isModulesModalOpen}
+          onClose={() => setIsModulesModalOpen(false)}
+          event={event}
+          onSaved={(nextModules: EventOptionalModule[]) => {
+            setIsModulesModalOpen(false)
+            setEvent(prev => (prev ? { ...prev, enabledModules: nextModules } : prev))
+          }}
         />
       )}
 
