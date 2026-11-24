@@ -12,13 +12,19 @@ import {
 import { db } from '@/firebase/config'
 import { auditService } from '@/services/auditService'
 import { eventFormQuestionService } from '@/services/eventFormQuestionService'
-import type { EventForm, EventFormQuestion, EventFormResponse, EventFormSlotCount } from '@/types/eventForm'
+import type { EventForm, EventFormQuestion, EventFormResponse, EventFormSlotCount, SlotCounterType } from '@/types/eventForm'
 import {
+  buildSlotCountDocId,
   buildSlotCountMapKey,
   computeSlotDeltas,
   extractLimitedSelections,
   SlotFullError
 } from '@/utils/eventFormSlots'
+
+export interface SlotCountDetail {
+  count: number
+  paperReservedCount: number
+}
 
 const RESPONSES_COLLECTION = 'eventFormResponses'
 const SLOT_COUNTS_COLLECTION = 'eventFormSlotCounts'
@@ -60,28 +66,278 @@ async function runTransactionWithJitteredRetry<T>(
 
 export const eventFormResponseService = {
   /**
-   * Fetch lightweight per-slot capacity counts for a form (zero PII).
-   * Returns a map of `${questionId}::${slotType}::${slotKey}` -> booked count.
+   * Fetch lightweight per-slot capacity details (total booked + pending paper holds, zero PII).
+   * Returns a map of `${questionId}::${slotType}::${slotKey}` -> `{ count, paperReservedCount }`.
    */
-  async getSlotCountsByFormId(formId: string): Promise<Record<string, number>> {
+  async getSlotDetailsByFormId(formId: string): Promise<Record<string, SlotCountDetail>> {
     try {
       const q = query(
         collection(db, SLOT_COUNTS_COLLECTION),
         where('formId', '==', formId)
       )
       const snapshot = await getDocs(q)
-      const countsMap: Record<string, number> = {}
+      const detailsMap: Record<string, SlotCountDetail> = {}
       snapshot.docs.forEach(d => {
         const data = d.data() as EventFormSlotCount
         if (data.questionId && data.slotType && data.slotKey) {
           const mapKey = buildSlotCountMapKey(data.questionId, data.slotType, data.slotKey)
-          countsMap[mapKey] = typeof data.count === 'number' ? data.count : 0
+          const count = typeof data.count === 'number' ? data.count : 0
+          const paperReservedCount = typeof data.paperReservedCount === 'number' ? data.paperReservedCount : 0
+          detailsMap[mapKey] = { count, paperReservedCount }
         }
       })
-      return countsMap
+      return detailsMap
     } catch (error) {
-      console.error('Error fetching slot counts for form:', error)
+      console.error('Error fetching slot details for form:', error)
       throw new Error('Failed to load available slot counts.')
+    }
+  },
+
+  /**
+   * Fetch lightweight per-slot capacity counts for a form (zero PII).
+   * Returns a map of `${questionId}::${slotType}::${slotKey}` -> total booked count.
+   */
+  async getSlotCountsByFormId(formId: string): Promise<Record<string, number>> {
+    const details = await this.getSlotDetailsByFormId(formId)
+    const countsMap: Record<string, number> = {}
+    Object.entries(details).forEach(([k, v]) => {
+      countsMap[k] = v.count
+    })
+    return countsMap
+  },
+
+  /**
+   * Officer action: atomically reserve (+1) or release (-1) a walk-in paper form slot hold.
+   * Updates both `count` (total reserved visible to online users) and `paperReservedCount`.
+   */
+  async adjustPaperSlotHold(params: {
+    formId: string
+    questionId: string
+    slotType: SlotCounterType
+    slotKey: string
+    maxCapacity: number
+    label: string
+    delta: 1 | -1
+    performedBy?: string
+  }): Promise<SlotCountDetail> {
+    const { formId, questionId, slotType, slotKey, maxCapacity, label, delta, performedBy = 'Officer' } = params
+    const docId = buildSlotCountDocId(formId, questionId, slotType, slotKey)
+    const slotRef = doc(db, SLOT_COUNTS_COLLECTION, docId)
+
+    try {
+      const updated = await runTransactionWithJitteredRetry(() =>
+        runTransaction(db, async (tx) => {
+          const snap = await tx.get(slotRef)
+          const currentCount = snap.exists() ? Number(snap.data().count || 0) : 0
+          const currentPaper = snap.exists() ? Number(snap.data().paperReservedCount || 0) : 0
+
+          if (delta === 1) {
+            if (maxCapacity > 0 && currentCount + 1 > maxCapacity) {
+              throw new SlotFullError({
+                questionId,
+                slotKey,
+                slotType,
+                maxCapacity,
+                label
+              })
+            }
+            const nextCount = currentCount + 1
+            const nextPaper = currentPaper + 1
+            tx.set(slotRef, {
+              formId,
+              questionId,
+              slotType,
+              slotKey,
+              count: nextCount,
+              paperReservedCount: nextPaper,
+              maxCapacity,
+              updatedAt: serverTimestamp()
+            })
+            return { count: nextCount, paperReservedCount: nextPaper }
+          } else {
+            if (currentPaper <= 0) {
+              return { count: currentCount, paperReservedCount: 0 }
+            }
+            const nextCount = Math.max(0, currentCount - 1)
+            const nextPaper = Math.max(0, currentPaper - 1)
+            tx.set(slotRef, {
+              formId,
+              questionId,
+              slotType,
+              slotKey,
+              count: nextCount,
+              paperReservedCount: nextPaper,
+              maxCapacity,
+              updatedAt: serverTimestamp()
+            })
+            return { count: nextCount, paperReservedCount: nextPaper }
+          }
+        })
+      )
+
+      auditService
+        .logAction(
+          'FORM_PAPER_HOLD_ADJUST',
+          'events',
+          `${delta === 1 ? 'Added +1' : 'Released -1'} paper hold on "${label}" (total: ${updated.count}, paper pending: ${updated.paperReservedCount})`,
+          performedBy,
+          { formId, questionId, slotKey, delta, ...updated }
+        )
+        .catch(console.error)
+
+      return updated
+    } catch (error) {
+      console.error('Error adjusting paper slot hold:', error)
+      if (error instanceof SlotFullError) throw error
+      throw new Error(error instanceof Error ? error.message : 'Failed to update paper slot hold.')
+    }
+  },
+
+  /**
+   * Officer action: encode a collected paper form into a real eventFormResponses document
+   * while atomically converting 1 pending paper hold (paperReservedCount - 1, count unchanged).
+   * Prevents double-counting and works even if public registration is closed or single-response.
+   */
+  async encodePaperResponse(
+    form: EventForm,
+    answers: Record<string, any>,
+    paperTarget: {
+      questionId: string
+      slotType: SlotCounterType
+      slotKey: string
+      maxCapacity: number
+      label: string
+    },
+    officerInfo: { uid?: string; name?: string; email?: string },
+    preloadedQuestions?: EventFormQuestion[]
+  ): Promise<{ trackingNumber: string; updatedSlot: SlotCountDetail }> {
+    try {
+      if (!form.id) throw new Error('Invalid form ID.')
+      const formId = form.id
+
+      const questions =
+        preloadedQuestions && preloadedQuestions.length > 0
+          ? preloadedQuestions
+          : await eventFormQuestionService.getQuestionsByFormId(formId)
+
+      const primaryDocId = buildSlotCountDocId(
+        formId,
+        paperTarget.questionId,
+        paperTarget.slotType,
+        paperTarget.slotKey
+      )
+      const allLimitedTargets = extractLimitedSelections(formId, questions, answers)
+      const secondaryTargets = allLimitedTargets.filter(t => t.docId !== primaryDocId)
+
+      const date = new Date()
+      const yearMonth = `${date.getFullYear()}${(date.getMonth() + 1).toString().padStart(2, '0')}`
+      const randomSuffix = Math.floor(10000 + Math.random() * 90000)
+      const generatedTrackingNumber = `FR-${yearMonth}-${randomSuffix}`
+      const responseRef = doc(collection(db, RESPONSES_COLLECTION))
+      const primarySlotRef = doc(db, SLOT_COUNTS_COLLECTION, primaryDocId)
+
+      const updatedSlot = await runTransactionWithJitteredRetry(() =>
+        runTransaction(db, async (tx) => {
+          // 1. Read primary slot doc + any secondary option-limit docs before writing
+          const primarySnap = await tx.get(primarySlotRef)
+          const secondarySnaps = await Promise.all(
+            secondaryTargets.map(t => tx.get(doc(db, SLOT_COUNTS_COLLECTION, t.docId)))
+          )
+
+          const currentCount = primarySnap.exists() ? Number(primarySnap.data().count || 0) : 0
+          const currentPaper = primarySnap.exists() ? Number(primarySnap.data().paperReservedCount || 0) : 0
+
+          // Validate secondary option limits if any
+          secondaryTargets.forEach((target, idx) => {
+            const snap = secondarySnaps[idx]
+            const cnt = snap.exists() ? Number(snap.data().count || 0) : 0
+            if (cnt + 1 > target.maxCapacity) {
+              throw new SlotFullError(target)
+            }
+          })
+
+          // Convert 1 pending paper hold -> 1 encoded response (count unchanged!)
+          // Fallback: if another officer already cleared the last hold, safely consume 1 open seat if available
+          let nextCount = currentCount
+          let nextPaper = currentPaper
+          if (currentPaper > 0) {
+            nextPaper = currentPaper - 1
+          } else {
+            if (paperTarget.maxCapacity > 0 && currentCount + 1 > paperTarget.maxCapacity) {
+              throw new SlotFullError(paperTarget)
+            }
+            nextCount = currentCount + 1
+          }
+
+          tx.set(primarySlotRef, {
+            formId,
+            questionId: paperTarget.questionId,
+            slotType: paperTarget.slotType,
+            slotKey: paperTarget.slotKey,
+            count: nextCount,
+            paperReservedCount: nextPaper,
+            maxCapacity: paperTarget.maxCapacity,
+            updatedAt: serverTimestamp()
+          })
+
+          // Increment secondary option limits
+          secondaryTargets.forEach((target, idx) => {
+            const snap = secondarySnaps[idx]
+            const cnt = snap.exists() ? Number(snap.data().count || 0) : 0
+            const secPaper = snap.exists() ? Number(snap.data().paperReservedCount || 0) : 0
+            tx.set(doc(db, SLOT_COUNTS_COLLECTION, target.docId), {
+              formId,
+              questionId: target.questionId,
+              slotType: target.slotType,
+              slotKey: target.slotKey,
+              count: cnt + 1,
+              paperReservedCount: secPaper,
+              maxCapacity: target.maxCapacity,
+              updatedAt: serverTimestamp()
+            })
+          })
+
+          // Extract display name from first text answer if available
+          const firstNameQ = questions.find(q => q.type === 'short_text')
+          const respondentName = firstNameQ && typeof answers[firstNameQ.id] === 'string'
+            ? String(answers[firstNameQ.id]).trim()
+            : 'Paper Registrant'
+
+          tx.set(responseRef, {
+            formId,
+            eventId: form.eventId,
+            trackingNumber: generatedTrackingNumber,
+            respondentMemberUid: '',
+            respondentMemberName: respondentName || 'Paper Registrant',
+            respondentEmail: '',
+            answers,
+            status: 'submitted',
+            submissionSource: 'paper',
+            encodedByUid: officerInfo.uid || '',
+            encodedByName: officerInfo.name || officerInfo.email || 'Officer',
+            submittedAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+          })
+
+          return { count: nextCount, paperReservedCount: nextPaper }
+        })
+      )
+
+      auditService
+        .logAction(
+          'FORM_RESPONSE_SUBMIT',
+          'events',
+          `Encoded paper response ${generatedTrackingNumber} for form "${form.title}" (${paperTarget.label})`,
+          officerInfo.name || officerInfo.email || 'Officer',
+          { formId, eventId: form.eventId, trackingNumber: generatedTrackingNumber, submissionSource: 'paper' }
+        )
+        .catch(console.error)
+
+      return { trackingNumber: generatedTrackingNumber, updatedSlot }
+    } catch (error) {
+      console.error('Error encoding paper response:', error)
+      if (error instanceof SlotFullError) throw error
+      throw new Error(error instanceof Error ? error.message : 'Failed to encode paper response.')
     }
   },
 
@@ -634,6 +890,14 @@ export const eventFormResponseService = {
         getDocs(query(collection(db, SLOT_COUNTS_COLLECTION), where('formId', '==', formId)))
       ])
 
+      const existingPaperByDocId = new Map<string, EventFormSlotCount>()
+      existingSlotsSnap.docs.forEach(d => {
+        const data = d.data() as EventFormSlotCount
+        if (typeof data.paperReservedCount === 'number' && data.paperReservedCount > 0) {
+          existingPaperByDocId.set(d.id, data)
+        }
+      })
+
       const computedMap = new Map<
         string,
         {
@@ -642,6 +906,7 @@ export const eventFormResponseService = {
           slotType: 'appointment' | 'option'
           slotKey: string
           count: number
+          paperReservedCount: number
           maxCapacity: number
         }
       >()
@@ -653,16 +918,33 @@ export const eventFormResponseService = {
           if (existing) {
             existing.count += 1
           } else {
+            const preservedPaper = existingPaperByDocId.get(target.docId)?.paperReservedCount || 0
             computedMap.set(target.docId, {
               formId,
               questionId: target.questionId,
               slotType: target.slotType,
               slotKey: target.slotKey,
-              count: 1,
+              count: 1 + preservedPaper,
+              paperReservedCount: preservedPaper,
               maxCapacity: target.maxCapacity
             })
           }
         })
+      })
+
+      // Preserve slots that currently only have pending paper holds (0 encoded responses yet)
+      existingPaperByDocId.forEach((slotData, docId) => {
+        if (!computedMap.has(docId) && (slotData.paperReservedCount || 0) > 0) {
+          computedMap.set(docId, {
+            formId,
+            questionId: slotData.questionId,
+            slotType: slotData.slotType,
+            slotKey: slotData.slotKey,
+            count: slotData.paperReservedCount || 0,
+            paperReservedCount: slotData.paperReservedCount || 0,
+            maxCapacity: slotData.maxCapacity
+          })
+        }
       })
 
       type BatchOp =
@@ -719,9 +1001,10 @@ export const eventFormResponseService = {
   ): void {
     const sortedQuestions = [...questions].sort((a, b) => a.order - b.order)
     
-    // Headers: Tracking # | Respondent | Respondent Email | Question 1 | Question 2 | ... | Submitted At
+    // Headers: Tracking # | Source | Respondent | Respondent Email | Question 1 | Question 2 | ... | Submitted At
     const headers = [
       'Tracking Number',
+      'Source',
       'Respondent Name',
       'Respondent Email',
       ...sortedQuestions.map(q => `"${q.question.replace(/"/g, '""')}"`),
@@ -765,6 +1048,7 @@ export const eventFormResponseService = {
 
       return [
         sanitizeCsvCell(r.trackingNumber || ''),
+        sanitizeCsvCell(r.submissionSource === 'paper' ? 'Paper' : 'Online'),
         sanitizeCsvCell(r.respondentMemberName || ''),
         sanitizeCsvCell(r.respondentEmail || ''),
         ...questionAnswers,

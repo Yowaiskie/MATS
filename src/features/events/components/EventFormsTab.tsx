@@ -445,6 +445,7 @@ export const EventFormsTab: React.FC<EventFormsTabProps> = ({ eventId, isHeadOrC
           isOpen={!!slotStatusForm}
           onClose={() => setSlotStatusForm(null)}
           form={slotStatusForm}
+          isHeadOrCreator={isHeadOrCreator}
           onOpenResponses={() => setResponsesForm(slotStatusForm)}
         />
       )}
