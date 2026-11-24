@@ -814,7 +814,20 @@ export const MemberTable: React.FC<MemberTableProps> = ({
 
                       <td className="p-2.5 sm:p-4 font-bold text-gray-900 min-w-0">
                         <div className="flex flex-col gap-1 min-w-0">
-                          <span className="truncate max-w-[130px] sm:max-w-none text-xs text-gray-900">{getFullName(member)}</span>
+                          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+                            <span className="truncate max-w-[130px] sm:max-w-none text-xs text-gray-900">{getFullName(member)}</span>
+                            {!member.dateOfBirth?.trim() && (
+                              <span
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold bg-amber-50 text-amber-700 border border-amber-200 leading-tight shrink-0"
+                                title="Birthday is not set yet"
+                              >
+                                <svg className="w-2.5 h-2.5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                                No birthday
+                              </span>
+                            )}
+                          </div>
                           <div className="flex items-center gap-1 md:hidden flex-wrap">
                             <span className="inline-block px-1.5 py-0.5 rounded text-[9.5px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200/60 leading-tight shrink-0">
                               {effectiveRank}
