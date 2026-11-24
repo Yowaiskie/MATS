@@ -127,10 +127,10 @@ export const memberService = {
   async addMember(input: MemberInput, performedBy = 'System'): Promise<string> {
     const membersRef = collection(db, MEMBERS_COLLECTION)
     const docRef = await addDoc(membersRef, {
-      firstName: input.firstName.trim(),
-      middleName: input.middleName?.trim() || '',
-      lastName: input.lastName.trim(),
-      suffix: input.suffix?.trim() || '',
+      firstName: input.firstName.trim().toUpperCase(),
+      middleName: input.middleName?.trim().toUpperCase() || '',
+      lastName: input.lastName.trim().toUpperCase(),
+      suffix: input.suffix?.trim().toUpperCase() || '',
       nickname: input.nickname?.trim() || '',
       homeAddress: input.homeAddress?.trim() || '',
       dateOfBirth: input.dateOfBirth?.trim() || '',
@@ -170,10 +170,10 @@ export const memberService = {
       updatedAt: serverTimestamp()
     }
     
-    if (input.firstName !== undefined) updateData.firstName = input.firstName.trim()
-    if (input.middleName !== undefined) updateData.middleName = input.middleName.trim()
-    if (input.lastName !== undefined) updateData.lastName = input.lastName.trim()
-    if (input.suffix !== undefined) updateData.suffix = input.suffix.trim()
+    if (input.firstName !== undefined) updateData.firstName = input.firstName.trim().toUpperCase()
+    if (input.middleName !== undefined) updateData.middleName = input.middleName.trim().toUpperCase()
+    if (input.lastName !== undefined) updateData.lastName = input.lastName.trim().toUpperCase()
+    if (input.suffix !== undefined) updateData.suffix = input.suffix.trim().toUpperCase()
     if (input.nickname !== undefined) updateData.nickname = input.nickname.trim()
     if (input.homeAddress !== undefined) updateData.homeAddress = input.homeAddress.trim()
     if (input.dateOfBirth !== undefined) updateData.dateOfBirth = input.dateOfBirth.trim()
@@ -272,10 +272,10 @@ export const memberService = {
           const docRef = doc(db, MEMBERS_COLLECTION, existingMember.id)
           const updateData: any = { updatedAt: serverTimestamp() }
           
-          if (input.firstName?.trim()) updateData.firstName = input.firstName.trim()
-          if (input.middleName?.trim()) updateData.middleName = input.middleName.trim()
-          if (input.lastName?.trim()) updateData.lastName = input.lastName.trim()
-          if (input.suffix?.trim()) updateData.suffix = input.suffix.trim()
+          if (input.firstName?.trim()) updateData.firstName = input.firstName.trim().toUpperCase()
+          if (input.middleName?.trim()) updateData.middleName = input.middleName.trim().toUpperCase()
+          if (input.lastName?.trim()) updateData.lastName = input.lastName.trim().toUpperCase()
+          if (input.suffix?.trim()) updateData.suffix = input.suffix.trim().toUpperCase()
           if (input.nickname?.trim()) updateData.nickname = input.nickname.trim()
           if (input.homeAddress?.trim()) updateData.homeAddress = input.homeAddress.trim()
           if (input.dateOfBirth?.trim()) updateData.dateOfBirth = input.dateOfBirth.trim()
@@ -296,10 +296,10 @@ export const memberService = {
           // Add new document
           const newDocRef = doc(membersRef)
           batch.set(newDocRef, {
-            firstName: input.firstName.trim(),
-            middleName: input.middleName?.trim() || '',
-            lastName: input.lastName.trim(),
-            suffix: input.suffix?.trim() || '',
+            firstName: input.firstName.trim().toUpperCase(),
+            middleName: input.middleName?.trim().toUpperCase() || '',
+            lastName: input.lastName.trim().toUpperCase(),
+            suffix: input.suffix?.trim().toUpperCase() || '',
             nickname: input.nickname?.trim() || '',
             homeAddress: input.homeAddress?.trim() || '',
             dateOfBirth: input.dateOfBirth?.trim() || '',

@@ -11,10 +11,10 @@ export const getFullName = (
   includeNickname: boolean = true
 ): string => {
   if (!member) return ''
-  const firstName = (member.firstName || '').trim()
-  const lastName = (member.lastName || '').trim()
-  const middleName = (member.middleName || '').trim()
-  const suffix = (member.suffix || '').trim()
+  const firstName = (member.firstName || '').trim().toUpperCase()
+  const lastName = (member.lastName || '').trim().toUpperCase()
+  const middleName = (member.middleName || '').trim().toUpperCase()
+  const suffix = (member.suffix || '').trim().toUpperCase()
   const nickname = (member.nickname || '').trim()
 
   if (!firstName && !lastName) {
@@ -42,10 +42,10 @@ export const getFirstNameFirst = (
   includeNickname: boolean = false
 ): string => {
   if (!member) return ''
-  const firstName = (member.firstName || '').trim()
-  const lastName = (member.lastName || '').trim()
-  const middleName = (member.middleName || '').trim()
-  const suffix = (member.suffix || '').trim()
+  const firstName = (member.firstName || '').trim().toUpperCase()
+  const lastName = (member.lastName || '').trim().toUpperCase()
+  const middleName = (member.middleName || '').trim().toUpperCase()
+  const suffix = (member.suffix || '').trim().toUpperCase()
   const nickname = (member.nickname || '').trim()
 
   if (!firstName && !lastName) {

@@ -241,10 +241,10 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
       }
 
       await onSubmit({
-        firstName: firstName.trim(),
-        middleName: middleName.trim() || undefined,
-        lastName: lastName.trim(),
-        suffix: suffix.trim() || undefined,
+        firstName: firstName.trim().toUpperCase(),
+        middleName: middleName.trim().toUpperCase() || undefined,
+        lastName: lastName.trim().toUpperCase(),
+        suffix: suffix.trim().toUpperCase() || undefined,
         nickname: nickname.trim() || undefined,
         rank: rank.trim(),
         order: finalOrder,
@@ -311,9 +311,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 id="modal-firstname"
                 type="text"
                 value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-                placeholder="John"
+                onChange={(e) => setFirstName(e.target.value.toUpperCase())}
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150 uppercase"
+                placeholder="JOHN"
                 disabled={loading}
               />
               {errors.firstName && <p className="mt-1 text-xs text-red-600 font-medium">{errors.firstName}</p>}
@@ -327,9 +327,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 id="modal-lastname"
                 type="text"
                 value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-                placeholder="Doe"
+                onChange={(e) => setLastName(e.target.value.toUpperCase())}
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150 uppercase"
+                placeholder="DOE"
                 disabled={loading}
               />
               {errors.lastName && <p className="mt-1 text-xs text-red-600 font-medium">{errors.lastName}</p>}
@@ -346,9 +346,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 id="modal-middlename"
                 type="text"
                 value={middleName}
-                onChange={(e) => setMiddleName(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-                placeholder="Smith"
+                onChange={(e) => setMiddleName(e.target.value.toUpperCase())}
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150 uppercase"
+                placeholder="SMITH"
                 disabled={loading}
               />
             </div>
@@ -361,9 +361,9 @@ export const MemberFormModal: React.FC<MemberFormModalProps> = ({
                 id="modal-suffix"
                 type="text"
                 value={suffix}
-                onChange={(e) => setSuffix(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150"
-                placeholder="Jr., III"
+                onChange={(e) => setSuffix(e.target.value.toUpperCase())}
+                className="mt-1 block w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 transition-shadow duration-150 uppercase"
+                placeholder="JR., III"
                 disabled={loading}
               />
             </div>
