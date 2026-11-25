@@ -909,25 +909,86 @@ export const submissionService = {
       if (pubData) {
         prePub = { id: publicationId, ...pubData } as SchedulePublication
       }
-      preSchedules = (firestoreInstance as any).queryDocs('schedules', 'publicationId', publicationId)
       allPublicationSubs = (firestoreInstance as any).queryDocs(SUBMISSIONS_COLLECTION, 'publicationId', publicationId)
+      const byPubId = (firestoreInstance as any).queryDocs('schedules', 'publicationId', publicationId) as Schedule[]
+      const scheduleMapPre = new Map<string, Schedule>()
+      byPubId.forEach(s => scheduleMapPre.set(s.id, s))
+      // Also discover any untagged/legacy schedules referenced in submissions' requestedScheduleIds
+      for (const sub of allPublicationSubs) {
+        if (sub.status !== 'pending' && sub.status !== 'approved') continue
+        for (const reqId of sub.requestedScheduleIds || []) {
+          if (scheduleMapPre.has(reqId)) continue
+          const raw = (firestoreInstance as any).getDoc('schedules', reqId)
+          if (raw) {
+            const sched = { id: reqId, ...raw } as Schedule
+            if (!sched.publicationId || sched.publicationId === publicationId) {
+              scheduleMapPre.set(reqId, sched)
+            }
+          }
+        }
+      }
+      preSchedules = Array.from(scheduleMapPre.values())
     } else {
       const pubDocSnap = await getDoc(pubDocRef)
       if (doesSnapshotExist(pubDocSnap)) {
         prePub = { id: pubDocSnap.id, ...(pubDocSnap.data() || {}) } as SchedulePublication
       }
 
-      // Pre-fetch schedules for this publication
-      const schedRef = collection(firestoreInstance, 'schedules')
-      const schedQuery = query(schedRef, where('publicationId', '==', publicationId))
-      const schedSnap = await getDocs(schedQuery)
-      preSchedules = schedSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })) as Schedule[]
-
-      // Pre-fetch pending submissions for this publication
+      // Pre-fetch submissions for this publication
       const subRef = collection(firestoreInstance, SUBMISSIONS_COLLECTION)
       const subQuery = query(subRef, where('publicationId', '==', publicationId))
       const subSnap = await getDocs(subQuery)
       allPublicationSubs = subSnap.docs.map(d => ({ id: d.id, ...(d.data() || {}) })) as ScheduleSubmission[]
+
+      // Pre-fetch schedules using the exact same inclusion rules as PublicSchedulePage / ManageSubmissionsModal
+      // (date range + isScheduleIncludedInPublication) so untagged/template-generated schedules are NEVER skipped
+      const schedRef = collection(firestoreInstance, 'schedules')
+      const scheduleMapPre = new Map<string, Schedule>()
+
+      if (prePub?.startDate && prePub?.endDate) {
+        const rangeQuery = query(
+          schedRef,
+          where('date', '>=', prePub.startDate),
+          where('date', '<=', prePub.endDate)
+        )
+        const rangeSnap = await getDocs(rangeQuery)
+        rangeSnap.docs.forEach(d => {
+          const sched = { id: d.id, ...(d.data() || {}) } as Schedule
+          if (isScheduleIncludedInPublication(sched, prePub)) {
+            scheduleMapPre.set(sched.id, sched)
+          }
+        })
+      } else {
+        const schedQuery = query(schedRef, where('publicationId', '==', publicationId))
+        const schedSnap = await getDocs(schedQuery)
+        schedSnap.docs.forEach(d => {
+          const sched = { id: d.id, ...(d.data() || {}) } as Schedule
+          scheduleMapPre.set(sched.id, sched)
+        })
+      }
+
+      // Safety net: also include any schedule explicitly referenced in pending/approved requestedScheduleIds
+      const missingRequestedIds = new Set<string>()
+      for (const sub of allPublicationSubs) {
+        if (sub.status !== 'pending' && sub.status !== 'approved') continue
+        for (const reqId of sub.requestedScheduleIds || []) {
+          if (!scheduleMapPre.has(reqId)) missingRequestedIds.add(reqId)
+        }
+      }
+      if (missingRequestedIds.size > 0) {
+        const extraSnaps = await Promise.all(
+          Array.from(missingRequestedIds).map(reqId => getDoc(getDocumentRef(firestoreInstance, 'schedules', reqId)))
+        )
+        extraSnaps.forEach(snap => {
+          if (!doesSnapshotExist(snap)) return
+          const sched = { id: snap.id, ...(snap.data() || {}) } as Schedule
+          if (!sched.publicationId || sched.publicationId === publicationId) {
+            scheduleMapPre.set(sched.id, sched)
+          }
+        })
+      }
+
+      preSchedules = Array.from(scheduleMapPre.values())
     }
 
     if (!prePub) {
@@ -936,12 +997,12 @@ export const submissionService = {
     if (prePub.status === 'archived') {
       throw new SubmissionError('PUBLICATION_CLOSED', 'Cannot approve or finalize an archived publication.')
     }
-    const pendingSubs = allPublicationSubs.filter(s => s.status === 'pending')
+    const activeSubs = allPublicationSubs.filter(s => s.status === 'pending' || s.status === 'approved')
 
     // Discover all unique member IDs involved
     const involvedMemberIds = new Set<string>()
     preSchedules.forEach(s => (s.assignedMembers || []).forEach(mId => involvedMemberIds.add(mId)))
-    pendingSubs.forEach(s => involvedMemberIds.add(s.memberId))
+    activeSubs.forEach(s => involvedMemberIds.add(s.memberId))
 
     const executeTransaction = options.transactionRunner || ((fn: any) => runTransaction(firestoreInstance, fn))
 
@@ -957,15 +1018,18 @@ export const submissionService = {
         throw new SubmissionError('PUBLICATION_CLOSED', 'Cannot approve or finalize an archived publication.')
       }
 
-      // Read each pending submission inside transaction
+      // Read pending and approved submissions inside transaction (so approved-but-missing slots can also be reconciled)
       const transactionalPendingSubs: ScheduleSubmission[] = []
-      for (const sub of pendingSubs) {
+      const transactionalApprovedSubs: ScheduleSubmission[] = []
+      for (const sub of activeSubs) {
         const sRef = getDocumentRef(firestoreInstance, SUBMISSIONS_COLLECTION, sub.id)
         const sSnap = await transaction.get(sRef)
         if (doesSnapshotExist(sSnap)) {
           const sData = { id: sSnap.id, ...(sSnap.data() || {}) } as ScheduleSubmission
           if (sData.status === 'pending') {
             transactionalPendingSubs.push(sData)
+          } else if (sData.status === 'approved') {
+            transactionalApprovedSubs.push(sData)
           }
         }
       }
@@ -1032,6 +1096,7 @@ export const submissionService = {
 
       // 3. SLICE SCHEDULES AND BUILD TARGET ROSTERS
       const futureSchedulesToUpdate = new Map<string, string[]>()
+      const changedSchedulesToWrite = new Map<string, string[]>()
       let preservedHistoricalCount = 0
 
       for (const [schedId, sched] of schedulesMap.entries()) {
@@ -1042,7 +1107,10 @@ export const submissionService = {
 
         // Start with existing assigned members
         const existingList = [...(sched.assignedMembers || [])]
-        const matchingSubs = transactionalPendingSubs
+        const matchingApprovedSubs = transactionalApprovedSubs
+          .filter(sub => (sub.requestedScheduleIds || []).includes(schedId))
+          .sort((a, b) => (a.submittedAt || '').localeCompare(b.submittedAt || ''))
+        const matchingPendingSubs = transactionalPendingSubs
           .filter(sub => (sub.requestedScheduleIds || []).includes(schedId))
           .sort((a, b) => (a.submittedAt || '').localeCompare(b.submittedAt || ''))
 
@@ -1053,7 +1121,23 @@ export const submissionService = {
           ? (publication.maxServersPerSundaySlot ?? 5)
           : (publication.maxServersPerWeekdaySlot ?? 5)
 
-        for (const sub of matchingSubs) {
+        // First reconcile any already-approved submissions that are missing from this schedule's assignedMembers
+        for (const sub of matchingApprovedSubs) {
+          if (nextList.includes(sub.memberId)) continue
+          const summary = (sub.slotSummaries || []).find(s => (s.scheduleIds || []).includes(schedId))
+          const targetIdx = summary?.slotIndex
+          if (targetIdx !== undefined && targetIdx >= 0 && targetIdx < maxSlotCapacity && !nextList[targetIdx]) {
+            while (nextList.length <= targetIdx) nextList.push('')
+            nextList[targetIdx] = sub.memberId
+          } else {
+            const cleanCount = nextList.filter(Boolean).length
+            if (cleanCount < maxSlotCapacity) {
+              nextList.push(sub.memberId)
+            }
+          }
+        }
+
+        for (const sub of matchingPendingSubs) {
           if (nextList.includes(sub.memberId)) continue
 
           const summary = (sub.slotSummaries || []).find(s => (s.scheduleIds || []).includes(schedId))
@@ -1111,6 +1195,15 @@ export const submissionService = {
         }
 
         futureSchedulesToUpdate.set(schedId, uniqueRoster)
+
+        // Only write to Firestore if assignedMembers actually changed (avoids unnecessary writes)
+        const existingClean = existingList.filter(Boolean)
+        const didChange =
+          uniqueRoster.length !== existingClean.length ||
+          uniqueRoster.some((id, idx) => existingClean[idx] !== id)
+        if (didChange) {
+          changedSchedulesToWrite.set(schedId, uniqueRoster)
+        }
       }
 
       // 4. CHECK CROSS-SCHEDULE SAME-DAY TIME OVERLAPS
@@ -1145,8 +1238,8 @@ export const submissionService = {
         )
       }
 
-      // 6. TRANSACTION WRITES (Atomic Commit)
-      for (const [schedId, finalRoster] of futureSchedulesToUpdate.entries()) {
+      // 6. TRANSACTION WRITES (Atomic Commit - only schedules whose roster actually changed)
+      for (const [schedId, finalRoster] of changedSchedulesToWrite.entries()) {
         const scRef = getDocumentRef(firestoreInstance, 'schedules', schedId)
         transaction.update(scRef, {
           assignedMembers: finalRoster,
@@ -1182,7 +1275,7 @@ export const submissionService = {
       return {
         publicationId,
         approvedSubmissionsCount: transactionalPendingSubs.length,
-        updatedSchedulesCount: futureSchedulesToUpdate.size,
+        updatedSchedulesCount: changedSchedulesToWrite.size,
         preservedHistoricalSchedulesCount: preservedHistoricalCount,
         assignedMembersCount: approvedMemberIds.length,
         effectiveDate

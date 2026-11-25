@@ -593,13 +593,27 @@ export const ManageSubmissionsModal: React.FC<ManageSubmissionsModalProps> = ({
 
           {/* Cycle Finalization Status Banner */}
           {publication.isCycleFinalized ? (
-            <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border bg-emerald-50/90 border-emerald-200 text-emerald-900 flex items-center gap-2 text-[11px] sm:text-xs font-bold">
-              <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>
-                Schedule finalized. Official assignments are committed to Mass schedules.
-              </span>
+            <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border bg-emerald-50/90 border-emerald-200 text-emerald-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-[11px] sm:text-xs font-bold">
+              <div className="flex items-center gap-2">
+                <svg className="w-4 h-4 text-emerald-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>
+                  Schedule finalized. Official assignments are committed to Mass schedules.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleExecuteCycleFinalize}
+                disabled={isFinalizingCycle || isSubmitting}
+                className="px-3 py-1.5 bg-white hover:bg-emerald-100/80 text-emerald-800 border border-emerald-300 rounded-xl text-[11px] font-black shadow-2xs cursor-pointer whitespace-nowrap disabled:opacity-50 transition-all self-end sm:self-auto inline-flex items-center gap-1.5"
+                title="Backfill any approved server assignments missing from Mass schedules"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>{isFinalizingCycle ? 'Syncing...' : 'Re-sync Assigned Servers'}</span>
+              </button>
             </div>
           ) : pendingSubmissionsCount > 0 ? (
             <div className="p-2.5 sm:p-3.5 rounded-xl sm:rounded-2xl border bg-amber-50/90 border-amber-200 text-amber-900 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 sm:gap-3 text-[11px] sm:text-xs font-bold">
