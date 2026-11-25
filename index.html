@@ -20,14 +20,60 @@
     <link rel="apple-touch-icon" href="/favicon/apple-touch-icon.png" />
 
     <title>MATS Web - Ministry Administration & Tracking System</title>
+    <script>
+      (function () {
+        try {
+          var mode = localStorage.getItem('mats-theme') || 'light';
+          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            document.documentElement.style.colorScheme = 'dark';
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#0b1120');
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <style>
+      #mats-splash {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background-color: #ffffff;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+      #mats-splash h1 {
+        margin-top: 20px;
+        font-size: 24px;
+        font-weight: 800;
+        color: #0f172a;
+        letter-spacing: -0.025em;
+      }
+      #mats-splash p {
+        margin-top: 6px;
+        font-size: 13px;
+        color: #64748b;
+      }
+      html.dark #mats-splash {
+        background-color: #0b1120;
+      }
+      html.dark #mats-splash h1 {
+        color: #f1f5f9;
+      }
+      html.dark #mats-splash p {
+        color: #94a3b8;
+      }
+    </style>
   </head>
   <body class="bg-[#f8fafc] text-gray-900 antialiased selection:bg-blue-100">
     <div id="root">
       <!-- Minimal Splash Screen Fallback while JS Bundle loads -->
-      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background-color: #ffffff; font-family: system-ui, -apple-system, sans-serif;">
-        <img src="/favicon/favicon.png" alt="MATS Logo" style="width: 80px; height: 80px; border-radius: 16px; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.08);" />
-        <h1 style="margin-top: 20px; font-size: 24px; font-weight: 800; color: #0f172a; letter-spacing: -0.025em;">MATS</h1>
-        <p style="margin-top: 6px; font-size: 13px; color: #64748b;">Ministry Attendance Tracking System</p>
+      <div id="mats-splash">
+        <img src="/favicon/favicon.png" alt="MATS Logo" style="width: 80px; height: 80px; border-radius: 16px; object-fit: cover; box-shadow: 0 4px 12px rgba(0,0,0,0.18);" />
+        <h1>MATS</h1>
+        <p>Ministry Attendance Tracking System</p>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>

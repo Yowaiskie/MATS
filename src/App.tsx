@@ -13,6 +13,7 @@ import { Loading } from '@/components/Loading'
 import { PWAUpdatePrompt } from '@/components/PWAUpdatePrompt'
 import { ToastProvider } from '@/context/ToastContext'
 import { NotificationProvider } from '@/context/NotificationContext'
+import { ThemeProvider } from '@/context/ThemeContext'
 import { initializeNativeBridge } from '@/utils/nativeAppBridge'
 import { nativeWidgetService } from '@/services/nativeWidgetService'
 import { useNavigate } from 'react-router-dom'
@@ -53,7 +54,8 @@ function NativeBridgeInit() {
 
 function App() {
   return (
-    <PWAProvider>
+    <ThemeProvider>
+      <PWAProvider>
       <AuthProvider>
         <MaintenanceProvider>
           <TutorialProvider>
@@ -264,6 +266,7 @@ function App() {
         </MaintenanceProvider>
       </AuthProvider>
     </PWAProvider>
+    </ThemeProvider>
   )
 }
 
