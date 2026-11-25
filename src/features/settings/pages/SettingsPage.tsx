@@ -21,6 +21,7 @@ import { OrderRotationSettingsCard } from '../components/OrderRotationSettingsCa
 import { MaintenanceSettingsCard } from '../components/MaintenanceSettingsCard'
 import { SignatureSettingsCard } from '../components/SignatureSettingsCard'
 import { PaxTecumSettingsCard } from '../components/PaxTecumSettingsCard'
+import { AppearanceSettingsCard } from '../components/AppearanceSettingsCard'
 
 const mockSchedule: Schedule = {
   id: 'mock-123',
@@ -279,6 +280,8 @@ export const SettingsPage: React.FC = () => {
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 sm:text-3xl">System Settings</h1>
         <p className="text-sm text-gray-500 mt-1">Configure parameters and message layouts for the Ministry of Altar Servers.</p>
       </div>
+
+      <AppearanceSettingsCard />
 
       <div className="bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 shadow-2xs flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden w-full sm:w-fit">
         {TABS.map((tab) => {

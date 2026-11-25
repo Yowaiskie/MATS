@@ -1,0 +1,519 @@
+/* ============================================================================
+ * MATS Deep Slate / Navy Dark Mode Theme
+ * Scoped to html.dark; excludes .pax-tecum-page (public editorial page)
+ * and @media print (PDF/paper printouts stay light).
+ *
+ * Uses space-bounded attribute prefix selectors ([class^="bg-X"], [class*=" bg-X"])
+ * so ALL Tailwind opacity variants (e.g. /30, /40, /60, /70, /80, /90) are
+ * matched consistently without ever accidentally matching hover:bg-X.
+ * ============================================================================ */
+
+@media screen {
+  html.dark {
+    --mats-bg-canvas: #0b1120;
+    --mats-bg-surface: #111827;
+    --mats-bg-elevated: #1e293b;
+    --mats-bg-hover: #26354d;
+    --mats-border: #334155;
+    --mats-border-subtle: rgba(148, 163, 184, 0.22);
+    --mats-text-primary: #f1f5f9;
+    --mats-text-secondary: #cbd5e1;
+    --mats-text-muted: #94a3b8;
+    color-scheme: dark;
+  }
+
+  html.dark body {
+    background-color: var(--mats-bg-canvas) !important;
+    color: var(--mats-text-primary) !important;
+  }
+
+  /* ── Canvas & Neutral Light Surfaces (ALL opacity variants except dark-banner subtle white/5..30) ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-\[\#f8fafc\],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-slate-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-slate-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-gray-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-gray-50"] {
+    background-color: #162033;
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-white,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-white/5"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-white/5"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-white/6"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-white/6"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-white/7"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-white/7"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-white/8"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-white/8"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-white/9"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-white/9"] {
+    background-color: var(--mats-bg-surface);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-slate-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-slate-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-gray-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-gray-100"] {
+    background-color: var(--mats-bg-elevated);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-slate-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-slate-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-gray-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-gray-200"] {
+    background-color: #273449;
+  }
+
+  /* ── Light Gradient Cards/Banners (strip light CSS gradients so cards stay dark) ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-white"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-slate-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-gray-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-indigo-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-blue-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-emerald-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-amber-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-rose-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-pink-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="from-purple-50"] {
+    background-image: none;
+    background-color: #162033;
+  }
+
+  /* ── Hover states on light surfaces ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-slate-50"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-gray-50"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-slate-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-gray-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-slate-200"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-gray-200"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-white"]:hover {
+    background-color: var(--mats-bg-hover);
+  }
+
+  /* ── Borders & Dividers ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-slate-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-slate-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-gray-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-gray-100"] {
+    border-color: var(--mats-border-subtle);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-slate-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-slate-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-gray-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-gray-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-slate-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-slate-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-gray-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-gray-300"] {
+    border-color: var(--mats-border);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).divide-slate-100 > :not(:last-child),
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).divide-gray-100 > :not(:last-child),
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).divide-slate-200 > :not(:last-child),
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).divide-gray-200 > :not(:last-child) {
+    border-color: var(--mats-border-subtle);
+  }
+
+  /* ── Neutral Typography (High Contrast, ALL opacity variants!) ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-800"] {
+    color: var(--mats-text-primary);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-600"] {
+    color: var(--mats-text-secondary);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-500"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-500"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-500"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-500"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-slate-400"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-slate-400"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-gray-400"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-gray-400"] {
+    color: var(--mats-text-muted);
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:text-slate-900"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:text-gray-900"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:text-slate-800"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:text-gray-800"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:text-slate-700"]:hover {
+    color: #ffffff;
+  }
+
+  /* ── Dark Button Contrast Protection (never vanish on #111827 cards) ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-slate-900,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-slate-800,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-gray-900,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-gray-800 {
+    background-color: #1e293b;
+    border-color: #475569;
+    color: #f8fafc;
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-slate-900:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-slate-800:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-gray-900:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)).bg-gray-800:hover {
+    background-color: #334155;
+  }
+
+  /* ── Soft Semantic Tinted Surfaces, Buttons, Badges & Alerts (ALL opacity variants!) ── */
+
+  /* Indigo */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-indigo-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-indigo-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-indigo-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-indigo-100"] {
+    background-color: rgba(99, 102, 241, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-indigo-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-indigo-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-indigo-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-indigo-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-indigo-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-indigo-300"] {
+    border-color: rgba(129, 140, 248, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-indigo-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-indigo-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-indigo-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-indigo-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-indigo-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-indigo-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-indigo-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-indigo-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-indigo-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-indigo-600"] {
+    color: #c7d2fe;
+  }
+
+  /* Blue */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-blue-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-blue-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-blue-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-blue-100"] {
+    background-color: rgba(59, 130, 246, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-blue-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-blue-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-blue-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-blue-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-blue-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-blue-300"] {
+    border-color: rgba(96, 165, 250, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-blue-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-blue-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-blue-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-blue-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-blue-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-blue-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-blue-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-blue-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-blue-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-blue-600"] {
+    color: #bfdbfe;
+  }
+
+  /* Emerald & Green */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-emerald-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-emerald-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-emerald-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-emerald-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-green-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-green-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-green-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-green-100"] {
+    background-color: rgba(16, 185, 129, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-emerald-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-emerald-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-emerald-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-emerald-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-emerald-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-emerald-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-green-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-green-200"] {
+    border-color: rgba(52, 211, 153, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-emerald-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-emerald-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-emerald-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-emerald-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-emerald-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-emerald-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-emerald-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-emerald-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-emerald-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-emerald-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-green-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-green-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-green-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-green-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-green-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-green-600"] {
+    color: #a7f3d0;
+  }
+
+  /* Amber, Yellow & Orange */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-amber-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-amber-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-amber-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-amber-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-yellow-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-yellow-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-yellow-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-yellow-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-orange-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-orange-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-orange-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-orange-100"] {
+    background-color: rgba(245, 158, 11, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-amber-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-amber-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-amber-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-amber-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-amber-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-amber-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-yellow-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-yellow-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-orange-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-orange-200"] {
+    border-color: rgba(251, 191, 36, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-amber-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-amber-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-amber-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-amber-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-amber-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-amber-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-amber-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-amber-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-amber-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-amber-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-yellow-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-yellow-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-orange-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-orange-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-orange-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-orange-700"] {
+    color: #fde68a;
+  }
+
+  /* Rose & Red */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-rose-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-rose-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-rose-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-rose-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-red-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-red-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-red-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-red-100"] {
+    background-color: rgba(244, 63, 94, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-rose-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-rose-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-rose-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-rose-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-rose-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-rose-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-red-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-red-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-red-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-red-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-red-300"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-red-300"] {
+    border-color: rgba(251, 113, 133, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-rose-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-rose-950"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-rose-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-rose-900"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-rose-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-rose-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-rose-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-rose-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-rose-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-rose-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-red-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-red-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-red-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-red-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-red-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-red-600"] {
+    color: #fecdd3;
+  }
+
+  /* Purple, Violet & Pink */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-purple-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-purple-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-purple-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-purple-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-violet-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-violet-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-violet-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-violet-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-pink-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-pink-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-pink-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-pink-100"] {
+    background-color: rgba(168, 85, 247, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-purple-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-purple-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-violet-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-violet-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-pink-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-pink-200"] {
+    border-color: rgba(192, 132, 252, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-purple-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-purple-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-purple-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-purple-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-purple-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-purple-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-violet-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-violet-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-violet-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-violet-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-pink-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-pink-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-pink-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-pink-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-pink-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-pink-600"] {
+    color: #e9d5ff;
+  }
+
+  /* Sky, Teal & Cyan */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-sky-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-sky-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-sky-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-sky-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-teal-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-teal-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-teal-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-teal-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-cyan-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-cyan-50"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="bg-cyan-100"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" bg-cyan-100"] {
+    background-color: rgba(14, 165, 233, 0.18);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-sky-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-sky-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-teal-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-teal-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="border-cyan-200"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" border-cyan-200"] {
+    border-color: rgba(56, 189, 248, 0.38);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-sky-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-sky-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-sky-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-sky-600"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-teal-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-teal-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-teal-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-teal-700"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class^="text-cyan-800"],
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*=" text-cyan-800"] {
+    color: #bae6fd;
+  }
+
+  /* Soft tinted hover states (ALL opacity variants!) */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-indigo-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-indigo-50"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-blue-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-blue-50"]:hover {
+    background-color: rgba(99, 102, 241, 0.3);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-emerald-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-emerald-50"]:hover {
+    background-color: rgba(16, 185, 129, 0.3);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-amber-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-amber-50"]:hover {
+    background-color: rgba(245, 158, 11, 0.3);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-purple-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-purple-50"]:hover {
+    background-color: rgba(168, 85, 247, 0.3);
+  }
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-rose-100"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-rose-50"]:hover,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *))[class*="hover:bg-red-100"]:hover {
+    background-color: rgba(244, 63, 94, 0.3);
+  }
+
+  /* ── Form Controls (Inputs, Selects, Textareas) ── */
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)) select,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)) textarea {
+    background-color: #0f172a;
+    border-color: #334155;
+    color: #f1f5f9;
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)) input::placeholder,
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)) textarea::placeholder {
+    color: #64748b;
+  }
+
+  html.dark :where(:not(.pax-tecum-page):not(.pax-tecum-page *)) option {
+    background-color: #111827;
+    color: #f1f5f9;
+  }
+
+  /* ── Recharts Dark Mode Polish ── */
+  html.dark .recharts-cartesian-grid line {
+    stroke: #1e293b !important;
+  }
+  html.dark .recharts-text {
+    fill: #94a3b8 !important;
+  }
+  html.dark .recharts-default-tooltip {
+    background-color: #111827 !important;
+    border-color: #334155 !important;
+    color: #f1f5f9 !important;
+  }
+  html.dark .recharts-tooltip-label {
+    color: #f8fafc !important;
+  }
+
+  /* ── Scrollbar Polish ── */
+  html.dark ::-webkit-scrollbar-track {
+    background: #0b1120;
+  }
+  html.dark ::-webkit-scrollbar-thumb {
+    background: #334155;
+    border-radius: 999px;
+  }
+  html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #475569;
+  }
+}
