@@ -552,6 +552,26 @@ service cloud.firestore {
     }
 
     // ==========================================
+    // Standalone Dashboard Calendar Events
+    // ==========================================
+    match /calendarEvents/{calendarEventId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated() && (
+        isSuperAdmin() || hasPermission('canManageEvents')
+      ) &&
+      isValidString(request.resource.data.title, 1, 160) &&
+      isValidString(request.resource.data.startDate, 10, 10) &&
+      (!('endDate' in request.resource.data) || request.resource.data.endDate == null || isValidString(request.resource.data.endDate, 0, 10)) &&
+      (!('startTime' in request.resource.data) || request.resource.data.startTime == null || isValidString(request.resource.data.startTime, 0, 10)) &&
+      (!('endTime' in request.resource.data) || request.resource.data.endTime == null || isValidString(request.resource.data.endTime, 0, 10)) &&
+      (!('location' in request.resource.data) || request.resource.data.location == null || isValidString(request.resource.data.location, 0, 200)) &&
+      (!('notes' in request.resource.data) || request.resource.data.notes == null || isValidString(request.resource.data.notes, 0, 1000));
+      allow delete: if isAuthenticated() && (
+        isSuperAdmin() || hasPermission('canManageEvents')
+      );
+    }
+
+    // ==========================================
     // Push & System Notifications Collection
     // ==========================================
     match /notifications/{notificationId} {

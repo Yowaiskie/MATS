@@ -505,6 +505,45 @@
     color: #f8fafc !important;
   }
 
+  /* ── Dashboard Calendar Indicator Dots (Light & High-Contrast Dark Mode) ── */
+  .mats-cal-dot-selected {
+    background-color: #ffffff;
+  }
+
+  html.dark .mats-cal-dot-all {
+    background-color: #94a3b8 !important;
+  }
+
+  html.dark .mats-cal-dot-selected {
+    background-color: #ffffff !important;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.25);
+  }
+
+  html.dark .mats-cal-dot-event {
+    background-color: #818cf8 !important;
+    box-shadow: 0 0 6px rgba(129, 140, 248, 0.55);
+  }
+
+  html.dark .mats-cal-dot-task {
+    background-color: #fbbf24 !important;
+    box-shadow: 0 0 6px rgba(251, 191, 36, 0.55);
+  }
+
+  html.dark .mats-cal-dot-task-selected {
+    background-color: #fde68a !important;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.25);
+  }
+
+  html.dark .mats-cal-dot-mass {
+    background-color: #34d399 !important;
+    box-shadow: 0 0 6px rgba(52, 211, 153, 0.55);
+  }
+
+  html.dark .mats-cal-dot-mass-selected {
+    background-color: #a7f3d0 !important;
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.25);
+  }
+
   /* ── Scrollbar Polish ── */
   html.dark ::-webkit-scrollbar-track {
     background: #0b1120;

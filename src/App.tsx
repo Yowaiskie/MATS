@@ -54,10 +54,10 @@ function NativeBridgeInit() {
 
 function App() {
   return (
-    <ThemeProvider>
-      <PWAProvider>
+    <PWAProvider>
       <AuthProvider>
-        <MaintenanceProvider>
+        <ThemeProvider>
+          <MaintenanceProvider>
           <TutorialProvider>
             <ToastProvider>
               <NotificationProvider>
@@ -264,9 +264,9 @@ function App() {
             </ToastProvider>
           </TutorialProvider>
         </MaintenanceProvider>
+        </ThemeProvider>
       </AuthProvider>
     </PWAProvider>
-    </ThemeProvider>
   )
 }
 

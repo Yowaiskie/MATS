@@ -9,6 +9,7 @@ import type { Schedule } from '../types/schedule.ts'
 import type { AttendanceSession } from '../types/attendance.ts'
 import type { Member } from '../types/member.ts'
 import type { Event, EventTask } from '../types/event.ts'
+import type { CalendarEvent } from '../types/calendarEvent.ts'
 import { getScheduleStatus, getParishTodayDate } from '../utils/scheduleUtils.ts'
 import { publicationService } from './publicationService.ts'
 import type { SuspensionPolicySettings } from './settingsService.ts'
@@ -566,6 +567,7 @@ export const dashboardService = {
     canManageEvents: boolean
   }): Promise<{
     events: Event[]
+    calendarEvents: CalendarEvent[]
     myEventIds: string[]
     tasks: EventTask[]
     eventTitles: Record<string, string>
@@ -574,13 +576,20 @@ export const dashboardService = {
     const identifier = displayName || email || ''
     const uidCandidates = [...new Set([uid, memberId].filter(Boolean))] as string[]
 
-    const eventsSnap = await getDocs(
-      query(collection(db, 'events'), where('isArchived', '==', false))
-    )
+    const [eventsSnap, calendarEventsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'events'), where('isArchived', '==', false))),
+      getDocs(collection(db, 'calendarEvents')).catch(() => null)
+    ])
     const allActiveEvents: Event[] = eventsSnap.docs.map(d => ({
       id: d.id,
       ...d.data()
     })) as Event[]
+    const calendarEvents: CalendarEvent[] = calendarEventsSnap
+      ? (calendarEventsSnap.docs.map(d => ({
+          id: d.id,
+          ...d.data()
+        })) as CalendarEvent[])
+      : []
 
     const eventTitles: Record<string, string> = {}
     allActiveEvents.forEach(ev => {
@@ -678,6 +687,7 @@ export const dashboardService = {
 
     return {
       events: visibleEvents,
+      calendarEvents,
       myEventIds: Array.from(myEventIdSet),
       tasks: Array.from(tasksMap.values()),
       eventTitles
