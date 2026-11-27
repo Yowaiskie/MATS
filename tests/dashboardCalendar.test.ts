@@ -1,11 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
+import type { CalendarEvent } from '../src/types/calendarEvent.ts'
 import type { Event, EventTask } from '../src/types/event.ts'
 import type { Member } from '../src/types/member.ts'
 import type { Schedule } from '../src/types/schedule.ts'
 import {
   buildMonthGrid,
   expandEventToCalendarItems,
+  expandStandaloneCalendarEventToItems,
   groupCalendarItemsByDate,
   mapMassScheduleToCalendarItem,
   mapTaskToCalendarItem,
@@ -135,5 +137,36 @@ test('dashboardCalendar utilities', async (t) => {
       { id: 'm1', type: 'mass', date: '2026-12-10', title: 'Mass C', canOpenLink: false }
     ])
     assert.deepEqual(grouped['2026-12-10'].map(i => i.type), ['event', 'mass', 'task'])
+  })
+
+  await t.test('expands standalone calendar events across single and multi-day ranges', () => {
+    const standalone: CalendarEvent = {
+      id: 'cal-1',
+      title: 'Officers General Assembly',
+      startDate: '2026-12-18',
+      endDate: '2026-12-19',
+      startTime: '18:00',
+      endTime: '20:30',
+      location: 'Parish Hall',
+      notes: 'Wear ministry polo',
+      createdByUid: 'admin-1',
+      createdByName: 'Admin',
+      createdAt: null,
+      updatedAt: null
+    }
+
+    const expanded = expandStandaloneCalendarEventToItems(standalone)
+    assert.equal(expanded.length, 2)
+    assert.deepEqual(expanded.map(i => i.date), ['2026-12-18', '2026-12-19'])
+    assert.equal(expanded[0].type, 'event')
+    assert.equal(expanded[0].isStandaloneCalendarEvent, true)
+    assert.equal(expanded[0].calendarEventId, 'cal-1')
+    assert.equal(expanded[0].canOpenLink, false)
+    assert.equal(expanded[0].timeRange, '6:00 PM - 8:30 PM')
+    assert.equal(expanded[0].notes, 'Wear ministry polo')
+    assert.equal(expanded[0].subtitle, 'Day 1 of 2')
+
+    const empty = expandStandaloneCalendarEventToItems({ ...standalone, startDate: 'invalid' })
+    assert.equal(empty.length, 0)
   })
 })

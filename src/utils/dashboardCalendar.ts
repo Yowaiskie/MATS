@@ -1,3 +1,4 @@
+import type { CalendarEvent } from '../types/calendarEvent.ts'
 import type { Event, EventTask } from '../types/event.ts'
 import type { Member } from '../types/member.ts'
 import type { Schedule } from '../types/schedule.ts'
@@ -12,12 +13,15 @@ export interface DashboardCalendarItem {
   subtitle?: string
   timeRange?: string
   location?: string
+  notes?: string
   status?: string
   priority?: string
   eventId?: string
+  calendarEventId?: string
   taskId?: string
   scheduleId?: string
   isSharedByAdmin?: boolean
+  isStandaloneCalendarEvent?: boolean
   canOpenLink: boolean
   linkTo?: string
 }
@@ -108,6 +112,51 @@ export function expandEventToCalendarItems(
       isSharedByAdmin: options.isSharedByAdmin,
       canOpenLink: options.canOpenWorkspace,
       linkTo: options.canOpenWorkspace ? `/events/${event.id}` : undefined
+    })
+  }
+  return items
+}
+
+/**
+ * Expands a standalone Dashboard Calendar Event (single-day or multi-day)
+ * into per-date DashboardCalendarItems. Uses type='event' so it shares the
+ * indigo Event dot & filter without requiring a full Events module workspace.
+ */
+export function expandStandaloneCalendarEventToItems(
+  event: CalendarEvent
+): DashboardCalendarItem[] {
+  if (!isValidIsoDate(event.startDate) || !event.title?.trim()) return []
+
+  const endIso =
+    isValidIsoDate(event.endDate) && event.endDate >= event.startDate
+      ? event.endDate
+      : event.startDate
+
+  const rawSpan = Math.max(0, diffDaysIso(event.startDate, endIso))
+  const totalDays = Math.min(rawSpan, MAX_EVENT_SPAN_DAYS - 1) + 1
+
+  const timeRange = event.startTime
+    ? event.endTime
+      ? `${formatTime12Hour(event.startTime)} - ${formatTime12Hour(event.endTime)}`
+      : formatTime12Hour(event.startTime)
+    : undefined
+
+  const items: DashboardCalendarItem[] = []
+  for (let offset = 0; offset < totalDays; offset++) {
+    const dateStr = addDaysIso(event.startDate, offset)
+    const daySuffix = totalDays > 1 ? `Day ${offset + 1} of ${totalDays}` : undefined
+    items.push({
+      id: `cal-event-${event.id}-${dateStr}`,
+      type: 'event',
+      date: dateStr,
+      title: event.title.trim(),
+      subtitle: daySuffix,
+      timeRange,
+      location: event.location?.trim() || undefined,
+      notes: event.notes?.trim() || undefined,
+      calendarEventId: event.id,
+      isStandaloneCalendarEvent: true,
+      canOpenLink: false
     })
   }
   return items

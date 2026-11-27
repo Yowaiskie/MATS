@@ -23,7 +23,16 @@
     <script>
       (function () {
         try {
-          var mode = localStorage.getItem('mats-theme') || 'light';
+          var mode = null;
+          try {
+            var ls = localStorage.getItem('mats-theme');
+            if (ls === 'light' || ls === 'dark' || ls === 'system') mode = ls;
+          } catch (e) {}
+          if (!mode && document.cookie) {
+            var match = document.cookie.match(/(?:^|;\s*)mats-theme=(light|dark|system)(?:;|$)/);
+            if (match) mode = match[1];
+          }
+          mode = mode || 'light';
           var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
           if (isDark) {
             document.documentElement.classList.add('dark');

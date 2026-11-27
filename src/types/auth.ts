@@ -1,4 +1,5 @@
 import type { OrderGroup } from '@/types/member'
+import type { ThemeMode } from '@/utils/theme'
 
 export type UserRole = 'admin' | 'user' | 'order_leader' | 'coordinator'
 
@@ -211,6 +212,7 @@ export interface UserProfile {
   memberName?: string
   pushEnabled?: boolean
   fcmTokensCount?: number
+  themePreference?: ThemeMode
   createdAt?: string
   updatedAt?: string
 }

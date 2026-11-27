@@ -1,14 +1,19 @@
 import React, { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/features/authentication/AuthContext'
+import { useToast } from '@/context/ToastContext'
 import { dashboardService } from '@/services/dashboardService'
 import { scheduleService } from '@/services/scheduleService'
+import { calendarEventService } from '@/services/calendarEventService'
+import { CalendarEventModal } from '@/features/dashboard/components/CalendarEventModal'
+import type { CalendarEvent, CalendarEventInput } from '@/types/calendarEvent'
 import type { Member } from '@/types/member'
 import type { Schedule } from '@/types/schedule'
 import {
   buildMonthGrid,
   expandEventToCalendarItems,
+  expandStandaloneCalendarEventToItems,
   getMonthDateRange,
   groupCalendarItemsByDate,
   mapMassScheduleToCalendarItem,
@@ -39,7 +44,14 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
   parishToday
 }) => {
   const { profile, canAction } = useAuth()
-  const canManageEvents = Boolean(canAction('canManageEvents'))
+  const { toast } = useToast()
+  const queryClient = useQueryClient()
+
+  const canManageEvents = Boolean(
+    canAction('canManageEvents') ||
+    profile?.role === 'admin' ||
+    profile?.role === 'coordinator'
+  )
   const canOpenAttendance = Boolean(
     canAction('canTakeAttendance') ||
     canAction('canFinalizeAttendance') ||
@@ -58,13 +70,17 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
   const [selectedDate, setSelectedDate] = useState<string>(parishToday)
   const [activeFilter, setActiveFilter] = useState<FilterKey>('all')
 
+  // Standalone Calendar Event modal state
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editingCalendarEvent, setEditingCalendarEvent] = useState<CalendarEvent | null>(null)
+
   const isViewingCurrentMonth = viewYear === todayYear && viewMonth === todayMonth
   const { startDate: monthStart, endDate: monthEnd } = useMemo(
     () => getMonthDateRange(viewYear, viewMonth),
     [viewYear, viewMonth]
   )
 
-  // Fetch events, team assignments, and assigned event tasks (cached 5 min, zero onSnapshot)
+  // Fetch events, standalone calendar events, team assignments, and assigned tasks (cached 5 min, zero onSnapshot)
   const { data: calendarSource, isLoading: loadingCalendarSource } = useQuery({
     queryKey: ['dashboard-calendar-source', profile?.uid, profile?.memberId, canManageEvents],
     queryFn: () =>
@@ -86,6 +102,57 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
     enabled: !isViewingCurrentMonth && Boolean(profile?.uid),
     staleTime: 1000 * 60 * 5
   })
+
+  const saveCalendarEventMutation = useMutation({
+    mutationFn: async ({ input, editingId }: { input: CalendarEventInput; editingId?: string }) => {
+      if (editingId) {
+        await calendarEventService.updateCalendarEvent(editingId, input)
+        return 'updated'
+      }
+      await calendarEventService.createCalendarEvent(input, {
+        uid: profile?.uid || '',
+        displayName: profile?.displayName || profile?.email || 'Admin'
+      })
+      return 'created'
+    },
+    onSuccess: (action, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-calendar-source'] })
+      setModalOpen(false)
+      setEditingCalendarEvent(null)
+      if (vars.input.startDate) {
+        setSelectedDate(vars.input.startDate)
+        const [y, m] = vars.input.startDate.split('-').map(Number)
+        if (y && m) {
+          setViewYear(y)
+          setViewMonth(m)
+        }
+      }
+      toast.success(
+        action === 'updated' ? 'Calendar Event Updated' : 'Event Added',
+        action === 'updated'
+          ? 'Your changes are now live on the Dashboard Calendar.'
+          : 'Added to the Dashboard Calendar without creating an Event Workspace.'
+      )
+    }
+  })
+
+  const deleteCalendarEventMutation = useMutation({
+    mutationFn: (id: string) => calendarEventService.deleteCalendarEvent(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-calendar-source'] })
+      setModalOpen(false)
+      setEditingCalendarEvent(null)
+      toast.success('Calendar Event Deleted', 'Removed from the Dashboard Calendar.')
+    }
+  })
+
+  const standaloneEventsById = useMemo(() => {
+    const map = new Map<string, CalendarEvent>()
+    for (const ev of calendarSource?.calendarEvents || []) {
+      map.set(ev.id, ev)
+    }
+    return map
+  }, [calendarSource?.calendarEvents])
 
   const userMemberIds = useMemo(
     () => resolveUserMemberIds(profile, members),
@@ -113,6 +180,10 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
             isSharedByAdmin
           })
         )
+      }
+
+      for (const calEv of calendarSource.calendarEvents || []) {
+        items.push(...expandStandaloneCalendarEventToItems(calEv))
       }
 
       for (const task of calendarSource.tasks) {
@@ -202,6 +273,19 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
     setSelectedDate(parishToday)
   }
 
+  const handleOpenAddEvent = () => {
+    setEditingCalendarEvent(null)
+    setModalOpen(true)
+  }
+
+  const handleOpenEditEvent = (calendarEventId?: string) => {
+    if (!calendarEventId) return
+    const target = standaloneEventsById.get(calendarEventId)
+    if (!target) return
+    setEditingCalendarEvent(target)
+    setModalOpen(true)
+  }
+
   const formatSelectedDateLabel = (iso: string) => {
     const [y, m, d] = iso.split('-').map(Number)
     if (!y || !m || !d) return iso
@@ -216,10 +300,10 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
   }
 
   const filterPills: { key: FilterKey; label: string; count: number; dotClass: string }[] = [
-    { key: 'all', label: 'All', count: monthCounts.all, dotClass: 'bg-slate-500' },
-    { key: 'event', label: 'Events', count: monthCounts.event, dotClass: 'bg-indigo-500' },
-    { key: 'task', label: 'My Tasks', count: monthCounts.task, dotClass: 'bg-amber-500' },
-    { key: 'mass', label: 'Mass Duties', count: monthCounts.mass, dotClass: 'bg-emerald-500' }
+    { key: 'all', label: 'All', count: monthCounts.all, dotClass: 'bg-slate-500 mats-cal-dot-all' },
+    { key: 'event', label: 'Events', count: monthCounts.event, dotClass: 'bg-indigo-500 mats-cal-dot-event' },
+    { key: 'task', label: 'My Tasks', count: monthCounts.task, dotClass: 'bg-amber-500 mats-cal-dot-task' },
+    { key: 'mass', label: 'Mass Duties', count: monthCounts.mass, dotClass: 'bg-emerald-500 mats-cal-dot-mass' }
   ]
 
   return (
@@ -229,11 +313,11 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
         <div>
           <h3 className="text-sm font-extrabold text-slate-900">My Ministry Calendar</h3>
           <p className="text-[11px] text-slate-400 font-medium">
-            Your team events, admin-shared events, assigned tasks, and mass duties
+            Your team events, calendar events, assigned tasks, and mass duties
           </p>
         </div>
 
-        {/* Category Filter Pills */}
+        {/* Category Filter Pills + Add Event CTA */}
         <div className="flex items-center gap-1.5 flex-wrap">
           {filterPills.map(pill => {
             const isActive = activeFilter === pill.key
@@ -248,7 +332,11 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
                     : 'bg-slate-100/90 text-slate-600 hover:bg-slate-200/70'
                 }`}
               >
-                <span className={`h-2 w-2 rounded-full ${isActive ? 'bg-white' : pill.dotClass}`} />
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isActive ? 'mats-cal-dot-selected' : pill.dotClass
+                  }`}
+                />
                 <span>{pill.label}</span>
                 <span className={`text-[10px] font-extrabold ${isActive ? 'text-slate-300' : 'text-slate-400'}`}>
                   {pill.count}
@@ -256,6 +344,19 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
               </button>
             )
           })}
+
+          {canManageEvents && (
+            <button
+              type="button"
+              onClick={handleOpenAddEvent}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-extrabold bg-indigo-600 text-white hover:bg-indigo-700 transition-colors cursor-pointer shadow-2xs"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              <span>Add Event</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -341,15 +442,27 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
                   <span className={`text-xs font-bold leading-none ${isSelected ? 'text-white' : ''}`}>
                     {cell.day}
                   </span>
-                  <div className="flex items-center justify-center gap-1 h-2">
+                  <div className="flex items-center justify-center gap-1 h-2.5">
                     {hasEvent && (
-                      <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-indigo-500'}`} />
+                      <span
+                        className={`h-2 w-2 rounded-full mats-cal-dot ${
+                          isSelected ? 'mats-cal-dot-selected' : 'bg-indigo-500 mats-cal-dot-event'
+                        }`}
+                      />
                     )}
                     {hasTask && (
-                      <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-amber-200' : 'bg-amber-500'}`} />
+                      <span
+                        className={`h-2 w-2 rounded-full mats-cal-dot ${
+                          isSelected ? 'bg-amber-200 mats-cal-dot-task-selected' : 'bg-amber-500 mats-cal-dot-task'
+                        }`}
+                      />
                     )}
                     {hasMass && (
-                      <span className={`h-1.5 w-1.5 rounded-full ${isSelected ? 'bg-emerald-200' : 'bg-emerald-500'}`} />
+                      <span
+                        className={`h-2 w-2 rounded-full mats-cal-dot ${
+                          isSelected ? 'bg-emerald-200 mats-cal-dot-mass-selected' : 'bg-emerald-500 mats-cal-dot-mass'
+                        }`}
+                      />
                     )}
                   </div>
                 </button>
@@ -360,15 +473,15 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
           {/* Legend */}
           <div className="flex items-center gap-4 flex-wrap pt-1 text-[10px] font-bold text-slate-500">
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-indigo-500" />
+              <span className="h-2 w-2 rounded-full bg-indigo-500 mats-cal-dot mats-cal-dot-event" />
               Event
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-amber-500" />
+              <span className="h-2 w-2 rounded-full bg-amber-500 mats-cal-dot mats-cal-dot-task" />
               Assigned Task
             </span>
             <span className="inline-flex items-center gap-1.5">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500 mats-cal-dot mats-cal-dot-mass" />
               Mass Duty
             </span>
           </div>
@@ -426,7 +539,12 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
                         <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${style.badgeBg}`}>
                           {style.label}
                         </span>
-                        {item.isSharedByAdmin && !item.canOpenLink && (
+                        {item.isStandaloneCalendarEvent && (
+                          <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                            Calendar Note
+                          </span>
+                        )}
+                        {item.isSharedByAdmin && !item.canOpenLink && !item.isStandaloneCalendarEvent && (
                           <span className="text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-sky-50 text-sky-700 border border-sky-200">
                             Shared by Admin
                           </span>
@@ -443,15 +561,28 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
                       {item.title}
                     </div>
 
-                    {(item.timeRange || item.location || item.subtitle) && (
+                    {(item.timeRange || item.location || item.subtitle || item.notes) && (
                       <div className="text-[11px] font-medium text-slate-500 space-y-0.5">
                         {item.timeRange && <div>{item.timeRange}</div>}
                         {item.location && <div className="truncate">{item.location}</div>}
+                        {item.notes && <div className="text-slate-600 whitespace-pre-line">{item.notes}</div>}
                         {item.subtitle && <div className="text-slate-400">{item.subtitle}</div>}
                       </div>
                     )}
 
-                    {item.canOpenLink && item.linkTo ? (
+                    {item.isStandaloneCalendarEvent ? (
+                      canManageEvents && item.calendarEventId ? (
+                        <div className="pt-1 flex items-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenEditEvent(item.calendarEventId)}
+                            className="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                          >
+                            Edit / Delete
+                          </button>
+                        </div>
+                      ) : null
+                    ) : item.canOpenLink && item.linkTo ? (
                       <div className="pt-1">
                         <Link
                           to={item.linkTo}
@@ -474,13 +605,42 @@ export const DashboardCalendarCard: React.FC<DashboardCalendarCardProps> = ({
                 )
               })
             ) : (
-              <div className="py-12 text-center text-xs font-medium text-slate-400 bg-white/80 rounded-2xl border border-dashed border-slate-200">
-                No scheduled events, tasks, or mass duties on this date.
+              <div className="py-12 text-center text-xs font-medium text-slate-400 bg-white/80 rounded-2xl border border-dashed border-slate-200 space-y-2">
+                <div>No scheduled events, tasks, or mass duties on this date.</div>
+                {canManageEvents && (
+                  <button
+                    type="button"
+                    onClick={handleOpenAddEvent}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-bold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200/70 transition-colors cursor-pointer"
+                  >
+                    + Add Event on this Date
+                  </button>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <CalendarEventModal
+        isOpen={modalOpen}
+        defaultDate={selectedDate}
+        editingEvent={editingCalendarEvent}
+        isSaving={saveCalendarEventMutation.isPending}
+        isDeleting={deleteCalendarEventMutation.isPending}
+        onClose={() => {
+          if (!saveCalendarEventMutation.isPending && !deleteCalendarEventMutation.isPending) {
+            setModalOpen(false)
+            setEditingCalendarEvent(null)
+          }
+        }}
+        onSave={async (input, editingId) => {
+          await saveCalendarEventMutation.mutateAsync({ input, editingId })
+        }}
+        onDelete={async (id) => {
+          await deleteCalendarEventMutation.mutateAsync(id)
+        }}
+      />
     </div>
   )
 }
